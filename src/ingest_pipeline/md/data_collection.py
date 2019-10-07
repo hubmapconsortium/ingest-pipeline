@@ -3,6 +3,14 @@
 import os
 import json
 
+from ignore_metadata_file import IgnoreMetadataFile
+from yaml_metadata_file import YamlMetadataFile
+
+
+MD_TYPE_TBL = {'IGNORE': IgnoreMetadataFile,
+               'YAML': YamlMetadataFile
+               }
+
 
 class DataCollection(object):
     category_name = 'Base';
