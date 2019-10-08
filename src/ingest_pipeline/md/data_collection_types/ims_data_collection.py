@@ -4,14 +4,14 @@ import os
 import json
 import glob
 
-from data_collection import DataCollection, MD_TYPE_TBL
+from data_collection import DataCollection
 
 class IMSDataCollection(DataCollection):
     category_name = 'IMS';
 
     # expected_file pairs are (globable name, filetype key) 
     expected_files = [('*-spatial_meta.txt',
-                       "IGNORE"),
+                       "JSON"),
                       ('raw_microscopy/*-AF_raw.czi',
                        "IGNORE"),
                       ('raw_microscopy/*-MxIF_raw.czi',
@@ -19,15 +19,15 @@ class IMSDataCollection(DataCollection):
                       ('raw_microscopy/*-PAS_raw.scn',
                        "IGNORE"),
                       ('raw_microscopy/transformix_transformation_files/MxIF_transformsToIMS/*-MxIF_toIMS_tform1.txt',
-                       "IGNORE"),
+                       "TXTTFORM"),
                       ('raw_microscopy/transformix_transformation_files/MxIF_transformsToIMS/*-MxIF_toIMS_tform2.txt',
-                       "IGNORE"),
+                       "TXTTFORM"),
                       ('raw_microscopy/transformix_transformation_files/MxIF_transformsToIMS/*-MxIF_toIMS_tform3.txt',
-                       "IGNORE"),
+                       "TXTTFORM"),
                       ('raw_microscopy/transformix_transformation_files/PAS_transformsToIMS/*-PAS_toIMS_tform.txt',
-                       "IGNORE"),
+                       "TXTTFORM"),
                       ('raw_microscopy/transformix_transformation_files/preAF_transformsToIMS/*-IMS_preAF_toIMS_tform.txt',
-                       "IGNORE"),
+                       "TXTTFORM"),
                       ('processed_microscopy/*-mxIF_toIMS.ome.tiff',
                        "IGNORE"),
                       ('processed_microscopy/*-AF_pAF_toIMS.ome.tiff',
@@ -39,7 +39,7 @@ class IMSDataCollection(DataCollection):
                       ('IMS/*-peak_metadata.csv',
                        "IGNORE"),
                       ('IMS/*-tform_to_microscopy_metadata.txt',
-                       "IGNORE"),
+                       "MTXTFORM"),
                       ('IMS/columnar/*.csv',
                        "IGNORE"),
                       ('IMS/imzml/*.ibd',
@@ -73,11 +73,12 @@ class IMSDataCollection(DataCollection):
     
     def collect_metadata(self):
         rslt = {}
+        md_type_tbl = self.get_md_type_tbl()
         for match, md_type in type(self).expected_files:
             print('collect match %s' % match)
             for fpath in glob.iglob(os.path.join(self.topdir, match)):
                 print('collect from path %s' % fpath)
-                this_md = MD_TYPE_TBL[md_type](fpath).collect_metadata()
+                this_md = md_type_tbl[md_type](fpath).collect_metadata()
                 if this_md is not None:
                     rslt[fpath] = this_md
         return rslt

@@ -5,16 +5,13 @@ import os
 import argparse
 import json
 
+from type_base import MetadataError
 from data_collection import DataCollection
-from ims_data_collection import IMSDataCollection
+import data_collection_types
 
 DEFAULT_SCHEMA = 'metadata_schema.yml'
 
-known_data_collection_types = [DataCollection, IMSDataCollection]
-
-
-class MetadataError(RuntimeError):
-    pass
+_KNOWN_DATA_COLLECTION_TYPES = None
 
 
 def check_schema(jsn, schema_fname):
@@ -26,8 +23,17 @@ def check_schema(jsn, schema_fname):
     
 
 def scan(target_dir, out_fname, schema_fname):
+    global _KNOWN_DATA_COLLECTION_TYPES
 
-    for collection_type in known_data_collection_types:
+    if _KNOWN_DATA_COLLECTION_TYPES is None:
+        lst = []
+        for nm in dir(data_collection_types):
+            elt = getattr(data_collection_types, nm)
+            if isinstance(elt, type) and issubclass(elt, DataCollection):
+                lst.append(elt)
+        _KNOWN_DATA_COLLECTION_TYPES = lst
+
+    for collection_type in _KNOWN_DATA_COLLECTION_TYPES:
         if collection_type.test_match(target_dir):
             print('collector match: ', collection_type.category_name)
             collector = collection_type(target_dir)

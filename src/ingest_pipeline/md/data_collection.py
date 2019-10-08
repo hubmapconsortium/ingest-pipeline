@@ -3,13 +3,11 @@
 import os
 import json
 
-from ignore_metadata_file import IgnoreMetadataFile
-from yaml_metadata_file import YamlMetadataFile
+from metadata_file import MetadataFile
+import data_file_types
 
 
-MD_TYPE_TBL = {'IGNORE': IgnoreMetadataFile,
-               'YAML': YamlMetadataFile
-               }
+_MD_TYPE_TBL = None  # lazy initialization
 
 
 class DataCollection(object):
@@ -22,7 +20,19 @@ class DataCollection(object):
         containing data of this collection type?
         """
         return False
-    
+
+    def get_md_type_tbl(self):
+        global _MD_TYPE_TBL
+
+        if _MD_TYPE_TBL is None:
+            tbl = {}
+            for nm in dir(data_file_types):
+                elt = getattr(data_file_types, nm)
+                if isinstance(elt, type) and issubclass(elt, MetadataFile):
+                    tbl[elt.category_name.upper()] = elt
+            _MD_TYPE_TBL = tbl
+        return _MD_TYPE_TBL
+
     def __init__(self, path):
         """
         path is the top level directory of the collection

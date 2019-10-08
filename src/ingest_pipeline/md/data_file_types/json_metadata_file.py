@@ -1,10 +1,11 @@
 #! /usr/bin/env python
 
 from metadata_file import MetadataFile
+import json
 
-class IgnoreMetadataFile(MetadataFile):
-    """A metadata file type for files containing no useful metadata"""
-    category_name = 'Base';
+class JSONMetadataFile(MetadataFile):
+    """A metadata file type for JSON files"""
+    category_name = 'JSON';
 
     def __init__(self, path):
         """
@@ -19,5 +20,7 @@ class IgnoreMetadataFile(MetadataFile):
         return '<%s(%s)>' % (type(self).__name__, self.path)
 
     def collect_metadata(self):
-        print('ignoring %s' % self.path)
-        return None
+        print('parsing json from %s' % self.path)
+        with open(self.path, 'rU') as f:
+            md = json.load(f)
+        return md

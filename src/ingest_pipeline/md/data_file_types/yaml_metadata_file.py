@@ -5,7 +5,7 @@ import yaml
 
 class YamlMetadataFile(MetadataFile):
     """A metadata file type for yaml files"""
-    category_name = 'Base';
+    category_name = 'Yaml';
 
     def __init__(self, path):
         """
