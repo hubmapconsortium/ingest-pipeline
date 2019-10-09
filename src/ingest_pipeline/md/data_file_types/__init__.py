@@ -3,5 +3,6 @@ from .yaml_metadata_file import YamlMetadataFile
 from .json_metadata_file import JSONMetadataFile
 from .txt_tform_metadata_file import TxtTformMetadataFile
 from .mtx_tform_metadata_file import MtxTformMetadataFile
+from .czi_metadata_file import CZIMetadataFile
 __all__ = ["IgnoreMetadataFile", "YamlMetadataFile", "JSONMetadataFile",
-           "TxtTformMetadataFile", "MtxTformMetadataFile"]
+           "TxtTformMetadataFile", "MtxTformMetadataFile", "CZIMetadataFile"]

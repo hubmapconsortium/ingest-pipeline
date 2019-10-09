@@ -7,18 +7,6 @@ class MtxTformMetadataFile(MetadataFile):
     """A metadata file type for files containing geometrical transforms as 4x4 matrices"""
     category_name = 'MtxTform';
 
-    def __init__(self, path):
-        """
-        path is the top level directory of the collection
-        """
-        self.path = path
-    
-    def __str__(self):
-        return '<%s MetadataFile>' % self.category_name
-
-    def __repr__(self):
-        return '<%s(%s)>' % (type(self).__name__, self.path)
-
     def collect_metadata(self):
         print('parsing transformation text from %s' % self.path)
         rslt = {}
