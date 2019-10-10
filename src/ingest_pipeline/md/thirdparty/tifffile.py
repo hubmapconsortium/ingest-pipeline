@@ -5138,7 +5138,8 @@ class TiffPage(object):
         if self.index > 1 or not self.description:
             return False
         d = self.description
-        return d[:13] == '<?xml version' and d[-4:] == 'OME>'
+        return ((d[:13] == '<?xml version' or d[:8] == '<ome:OME')
+                and d[-4:] == 'OME>')
 
     @property
     def is_scn(self):

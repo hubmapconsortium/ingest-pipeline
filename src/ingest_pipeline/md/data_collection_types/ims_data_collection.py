@@ -29,11 +29,11 @@ class IMSDataCollection(DataCollection):
                       ('raw_microscopy/transformix_transformation_files/preAF_transformsToIMS/*-IMS_preAF_toIMS_tform.txt',
                        "TXTTFORM"),
                       ('processed_microscopy/*-mxIF_toIMS.ome.tiff',
-                       "IGNORE"),
+                       "OME_TIFF"),
                       ('processed_microscopy/*-AF_pAF_toIMS.ome.tiff',
-                       "IGNORE"),
+                       "OME_TIFF"),
                       ('processed_microscopy/*-pas_toIMS.ome.tiff',
-                       "IGNORE"),
+                       "OME_TIFF"),
                       ('IMS/*-instrument_metadata.yml',
                        "YAML"),
                       ('IMS/*-peak_metadata.csv',
@@ -47,9 +47,9 @@ class IMSDataCollection(DataCollection):
                       ('IMS/imzml/*.imzML',
                        "IGNORE"),
                       ('IMS/tif/*.ome.tiff',
-                       "IGNORE"),
+                       "OME_TIFF"),
                       ('IMS/tif/individual_final/*.tiff',
-                       "IGNORE"),
+                       "OME_TIFF"),
                       ]
     
     @classmethod
