@@ -9,7 +9,7 @@ from data_collection import DataCollection
 class IMSDataCollection(DataCollection):
     category_name = 'IMS';
 
-    # expected_file pairs are (globable name, filetype key) 
+    # expected_file pairs are (globable name, filetype key)
     expected_files = [('*-spatial_meta.txt',
                        "JSON"),
                       ('raw_microscopy/*-AF_raw.czi',
@@ -17,7 +17,7 @@ class IMSDataCollection(DataCollection):
                       ('raw_microscopy/*-MxIF_raw.czi',
                        "CZI"),
                       ('raw_microscopy/*-PAS_raw.scn',
-                       "IGNORE"),
+                       "SCN_TIFF"),
                       ('raw_microscopy/transformix_transformation_files/MxIF_transformsToIMS/*-MxIF_toIMS_tform1.txt',
                        "TXTTFORM"),
                       ('raw_microscopy/transformix_transformation_files/MxIF_transformsToIMS/*-MxIF_toIMS_tform2.txt',

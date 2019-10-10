@@ -1,7 +1,6 @@
 #! /usr/bin/env python
 
 import xmltodict
-from lxml import etree
 from metadata_file import MetadataFile
 from thirdparty import tifffile
 
