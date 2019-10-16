@@ -45,7 +45,7 @@ class IMSDataCollection(DataCollection):
                       ('IMS/imzml/*.ibd',
                        "IGNORE"),
                       ('IMS/imzml/*.imzML',
-                       "IGNORE"),
+                       "IMZML"),
                       ('IMS/tif/*.ome.tiff',
                        "OME_TIFF"),
                       ('IMS/tif/individual_final/*.tiff',
@@ -75,10 +75,33 @@ class IMSDataCollection(DataCollection):
         rslt = {}
         md_type_tbl = self.get_md_type_tbl()
         for match, md_type in type(self).expected_files:
-            print('collect match %s' % match)
+            #print('collect match %s' % match)
             for fpath in glob.iglob(os.path.join(self.topdir, match)):
-                print('collect from path %s' % fpath)
+                #print('collect from path %s' % fpath)
                 this_md = md_type_tbl[md_type](fpath).collect_metadata()
                 if this_md is not None:
-                    rslt[fpath] = this_md
+                    rslt[os.path.relpath(fpath, self.topdir)] = this_md
         return rslt
+    
+    def filter_metadata(self, metadata):
+        """
+        This extracts the metadata which is actually desired downstream from the bulk of the
+        metadata which has been collected.
+        
+        """
+        rslt = {}
+        for elt in metadata:
+            # each element is the pathname of the file from which it was extracted
+            if not os.path.dirname(elt) and elt.endswith('spatial_meta.txt'):
+                spatial_meta = metadata[elt]
+                break
+            else:
+                raise MetadataError('The spatial metadata is unexpectedly missing')
+            
+        for k in spatial_meta:
+            rslt[k] = spatial_meta[k]
+        
+        rslt['other_meta'] = metadata.copy()  # for debugging
+        return rslt
+            
+        
