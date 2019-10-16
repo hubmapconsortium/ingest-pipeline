@@ -4,6 +4,7 @@ import sys
 import os
 import argparse
 import json
+import yaml
 
 from type_base import MetadataError
 from data_collection import DataCollection
@@ -22,7 +23,7 @@ def check_schema(jsn, schema_fname):
     pass
     
 
-def scan(target_dir, out_fname, schema_fname):
+def scan(target_dir, out_fname, schema_fname, yaml_flag=False):
     global _KNOWN_DATA_COLLECTION_TYPES
 
     if _KNOWN_DATA_COLLECTION_TYPES is None:
@@ -45,10 +46,11 @@ def scan(target_dir, out_fname, schema_fname):
         raise MetadataError('%s does not match any known data collection type'
                             % target_dir)
     check_schema(metadata, schema_fname)
-    if out_fname is None:
-        json.dump(metadata, sys.stdout)
+    if yaml_flag:
+        with sys.stdout if out_fname is None else open(out_fname, 'w') as f:
+            yaml.dump(metadata, f)
     else:
-        with open(out_fname, 'w') as f:
+        with sys.stdout if out_fname is None else open(out_fname, 'w') as f:
             json.dump(metadata, f)
         
 
@@ -67,12 +69,14 @@ def main(myargv=None):
                               ' (default %s)' % default_schema_path))
     parser.add_argument('dir', default=None, nargs='?',
                         help='directory to scan (defaults to CWD)')
+    parser.add_argument('--yaml', default=False, action='store_true')
     ns = parser.parse_args(myargv[1:])
 
     schema_fname = default_schema_path if ns.schema is None else ns.schema
     out_fname = ns.out
     target_dir = (os.getcwd() if ns.dir is None else ns.dir)
-    scan(target_dir=target_dir, out_fname=out_fname, schema_fname=schema_fname)
+    yaml_flag = ns.yaml
+    scan(target_dir=target_dir, out_fname=out_fname, schema_fname=schema_fname, yaml_flag=yaml_flag)
     
 
 if __name__ == '__main__':
