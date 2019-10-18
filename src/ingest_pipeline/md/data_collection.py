@@ -47,3 +47,6 @@ class DataCollection(object):
 
     def collect_metadata(self):
         return {}
+    
+    def filter_metadata(self, metadata):
+        return metadata.copy()
