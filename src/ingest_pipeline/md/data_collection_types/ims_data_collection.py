@@ -101,7 +101,7 @@ class IMSDataCollection(DataCollection):
         for k in spatial_meta:
             rslt[k] = spatial_meta[k]
         
-        rslt['other_meta'] = metadata.copy()  # for debugging
+        #rslt['other_meta'] = metadata.copy()  # for debugging
         return rslt
             
         
