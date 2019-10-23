@@ -103,7 +103,7 @@ appbuilder_mitem = {"name": "Google",
                     "href": "https://www.google.com"}
 
 # # A global operator extra link that redirect you to
-# # task logs stored in S3
+# # task logs stored in S3 - no such logs exist
 # class S3LogLink(BaseOperatorLink):
 #     name = 'S3'
 
@@ -115,12 +115,12 @@ appbuilder_mitem = {"name": "Google",
 #         )
 
 # A global operator extra link that redirect you to
-# www.psc.edu
-class PSCLink(BaseOperatorLink):
-    name = 'PSC'
-
-    def get_link(self, operator, dttm):
-        return 'https://www.psc.edu/'
+# www.psc.edu - no success so far
+# class PSCLink(BaseOperatorLink):
+#     name = 'PSC'
+# 
+#     def get_link(self, operator, dttm):
+#         return 'https://www.psc.edu/'
 
 
 # Defining the plugin class
@@ -136,4 +136,4 @@ class AirflowTestPlugin(AirflowPlugin):
     menu_links = [ml]
     appbuilder_views = [v_appbuilder_package]
     appbuilder_menu_items = [appbuilder_mitem]
-    global_operator_extra_links = [PSCLink(),] # [S3LogLink(),]
+    global_operator_extra_links = [] # [PSCLink(), S3LogLink()]
