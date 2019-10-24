@@ -22,9 +22,9 @@ class APIAdminView1(BaseView):
     @expose('/')
     def api_admin_view1(self):
         LOGGER.info('In APIAdminView1.api_admin_view1')
-        return render_template('generic.html',
-                               title='Known Routes', 
-                               content_lst=map_to_list(current_app.url_map))
+        return show_template('generic.html',
+                             title='Known Routes', 
+                             content_lst=map_to_list(current_app.url_map))
 aav1 = APIAdminView1(category='HuBMAP API', name="Known Routes")
 
 
@@ -32,9 +32,9 @@ class APIAdminView2(BaseView):
     @expose('/')
     def api_admin_view2(self):
         LOGGER.info('In APIAdminView1.api_admin_view2')
-        return render_template('generic.html',
-                               title='Flask Config', 
-                               content_lst=["{0} = {1}".format(k, v) for k, v in current_app.config.items()])
+        return show_template('generic.html',
+                             title='Flask Config', 
+                             content_lst=["{0} = {1}".format(k, v) for k, v in current_app.config.items()])
 aav2 = APIAdminView2(category='HuBMAP API', name="Flask Config")
 
 
