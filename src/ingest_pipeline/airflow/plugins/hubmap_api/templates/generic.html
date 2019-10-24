@@ -10,9 +10,11 @@
 <h1>{{title}}</h1>
 {{content}}
 <ul>
-{% for elt in content_lst %}
-<li> {{ elt }}
-{% endfor %}
+{% if content_lst %}
+  {% for elt in content_lst %}
+  <li> {{ elt }}
+  {% endfor %}
+{% endif %}
 </ul>
 
   </body>
