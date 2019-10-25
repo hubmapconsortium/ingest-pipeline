@@ -5,26 +5,28 @@ Based heavily on https://github.com/airflow-plugins/airflow_api_plugin
 import json
 import os
 import logging
+import configparser
+from datetime import datetime
+import pytz
 
 from werkzeug.exceptions import HTTPException, NotFound 
 
 from flask import Blueprint, current_app, send_from_directory, abort, escape, request, Response
+from sqlalchemy import or_
 from airflow import settings
 from airflow.exceptions import AirflowException, AirflowConfigException
 from airflow.www.app import csrf
-from airflow.models import DagBag, DagRun
+from airflow.models import DagBag, DagRun, Variable
+from airflow.utils.dates import date_range as utils_date_range
+from airflow.utils.state import State
 
 from hubmap_api.manager import blueprint as api_bp
 from hubmap_api.manager import show_template
 
 LOGGER = logging.getLogger(__name__)
+CONFIG = None  # specific to this API
 
-@api_bp.route('/test')
-def show_test():
-    return show_template('generic.html', title='Test', content='This is a test')
-
- 
-class HubmapInputException(Exception):
+class HubmapApiInputException(Exception):
     pass
  
 class HubmapApiResponse:
@@ -71,7 +73,13 @@ class HubmapApiResponse:
     @staticmethod
     def server_error(error='An unexpected problem occurred'):
         return HubmapApiResponse.error(HubmapApiResponse.STATUS_SERVER_ERROR, error)
+
+@api_bp.route('/test')
+def api_test():
+    return HubmapApiResponse.success({'api_is_alive': True})
  
+
+
 @api_bp.before_request
 def verify_authentication():
     authorization = request.headers.get('authorization')
@@ -82,7 +90,31 @@ def verify_authentication():
  
     if authorization != api_auth_key:
         return HubmapApiResponse.unauthorized("You are not authorized to use this resource")
- 
+
+@api_bp.before_request
+def verify_conf():
+    global CONFIG
+    if CONFIG is None:
+        conf_path = os.path.join(os.path.dirname(__file__), 'conf', 'hubmap_api.cnf')
+        LOGGER.info('config path: {}'.format(conf_path))
+        conf = configparser.ConfigParser()
+        conf.read(conf_path)
+        dd_conf = {}
+        for elt in conf.sections():
+            dd_conf[elt] = {}
+            for elt2 in conf[elt]:
+                dd_conf[elt][elt2] = conf[elt][elt2]
+        
+        # Check required sections
+        for sec in ['ingest_map', 'core']:
+            if sec not in dd_conf:
+                dd_conf[sec] = {}
+
+        CONFIG = dd_conf
+        LOGGER.info('Imported config = {}'.format(json.dumps(CONFIG)))
+
+    return None
+        
  
 def format_dag_run(dag_run):
     return {
@@ -137,6 +169,21 @@ def _get_required_string(data, st):
         raise HubmapInputException(st)
 
 
+def _get_run_list(start_date, end_date, dag, limit):
+    """
+    ensure run data has all required attributes and that everything is valid, returns transformed data
+    """
+    runs = utils_date_range(start_date=start_date, end_date=end_date, delta=dag._schedule_interval)
+    if len(runs) > limit:
+        error = '{} dag runs would be created, which exceeds the limit of {}.'
+        return HubmapApiResponse.bad_request(error.format(len(runs), limit))
+    elif len(runs) < 1:
+        error = 'Zero dag runs would be created; expected at least one.'
+        return HubmapApiResponse.bad_request(error)
+    else:
+        return runs
+
+
 """
 Parameters for this request (all required)
 
@@ -148,6 +195,7 @@ process     post    string    string denoting a unique known processing workflow
 Parameters included in the response:
 Key        Type    Description
 ingest_id  string  Unique ID string to be used in references to this request
+run_id     string  The identifier by which the ingest run is known to Airflow
 
 """
 @csrf.exempt
@@ -164,50 +212,63 @@ def request_ingest():
     except Exception as e:
         return HubmapApiResponse.bad_request('Must specify {} to request data be ingested'.format(str(e)))
 
+    process = process.lower()  # necessary because config parser has made the corresponding string lower case
+
+    if process not in CONFIG['ingest_map']:
+        return HubmapApiResponse.bad_request('{} is not a known ingestion process'.format(process))
+
+    dag_id = CONFIG['ingest_map'][process]
+    
     try:
         session = settings.Session()
 
-#         dagbag = DagBag('dags')
-# 
-#         if dag_id not in dagbag.dags:
-#             return HubmapApiResponse.bad_request("Dag id {} not found".format(dag_id))
-# 
-#         dag = dagbag.get_dag(dag_id)
-# 
-#         # ensure run data has all required attributes and that everything is valid, returns transformed data
-#         runs = utils_date_range(start_date=start_date, end_date=end_date, delta=dag._schedule_interval)
-# 
-#         if len(runs) > limit and partial is False:
-#             error = '{} dag runs would be created, which exceeds the limit of {}.' \
-#                     ' Reduce start/end date to reduce the dag run count'
-#             return HubmapApiResponse.bad_request(error.format(len(runs), limit))
-# 
-#         payloads = []
-#         for exec_date in runs:
-#             run_id = '{}_{}'.format(prefix, exec_date.isoformat())
-# 
-#             if find_dag_runs(session, dag_id, run_id, exec_date):
-#                 continue
-# 
-#             payloads.append({
-#                 'run_id': run_id,
-#                 'execution_date': exec_date,
-#                 'conf': conf
-#             })
-# 
-#         results = []
-#         for index, run in enumerate(payloads):
-#             if len(results) >= limit:
-#                 break
-# 
-#             dag.create_dagrun(
-#                 run_id=run['run_id'],
-#                 execution_date=run['execution_date'],
-#                 state=State.RUNNING,
-#                 conf=conf,
-#                 external_trigger=True
-#             )
-#             results.append(run['run_id'])
+        dagbag = DagBag('dags')
+ 
+        if dag_id not in dagbag.dags:
+            return HubmapApiResponse.bad_request("Dag id {} not found".format(dag_id))
+ 
+        dag = dagbag.get_dag(dag_id)
+ 
+        # Produce one and only one run
+        tz = pytz.timezone(CONFIG['core']['timezone'])
+        start_date = end_date = datetime.now(tz)
+        limit = 1
+        runs = _get_run_list(start_date=start_date, end_date=end_date, dag=dag, limit=limit)
+        if len(runs) != 1:
+            return HubmapApiResponse.bad_request('Unexpectedly did not find one run while scheduling ingest')
+
+        conf = {'provider': provider,
+                'sample_id': sample_id,
+                'process': process,
+                'dag_id': dag_id
+                }
+
+        payloads = []
+        for exec_date in runs:
+            run_id = '{}_{}_{}'.format(sample_id, process, exec_date.isoformat())
+ 
+            if find_dag_runs(session, dag_id, run_id, exec_date):
+                continue
+ 
+            payloads.append({
+                'run_id': run_id,
+                'execution_date': exec_date,
+                'conf': conf
+            })
+ 
+        results = []
+        for index, run in enumerate(payloads):
+            if len(results) >= limit:
+                break
+ 
+            dag.create_dagrun(
+                run_id=run['run_id'],
+                execution_date=run['execution_date'],
+                state=State.RUNNING,
+                conf=conf,
+                external_trigger=True
+            )
+            results.append(run['run_id'])
 
         session.close()
     except HubmapApiInputException as e:
@@ -218,6 +279,6 @@ def request_ingest():
         return HubmapApiResponse.server_error(str(e))
     except Exception as e:
         return HubmapApiResponse.server_error(str(e))
-    
 
-    return HubmapApiResponse.success({'ingest_id': 'this_is_some_unique_string'})
+    return HubmapApiResponse.success({'ingest_id': 'this_is_some_unique_string',
+                                      'run_id': results[0]})
