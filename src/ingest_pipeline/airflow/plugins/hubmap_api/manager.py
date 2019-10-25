@@ -7,6 +7,8 @@ from werkzeug.exceptions import HTTPException, NotFound
 from flask import Blueprint, current_app, send_from_directory, abort, escape, render_template
 from flask_admin import BaseView, expose
 
+from airflow.configuration import conf as airflow_conf
+
 from jinja2 import TemplateNotFound
 
 LOGGER = logging.getLogger(__name__)
@@ -38,6 +40,16 @@ class APIAdminView2(BaseView):
 aav2 = APIAdminView2(category='HuBMAP API', name="Flask Config")
 
 
+class APIAdminView3(BaseView):
+    @expose('/')
+    def api_admin_view3(self):
+        LOGGER.info('In APIAdminView1.api_admin_view3')
+        return show_template('show_config.html',
+                             title='Airflow Config', 
+                             dict_of_dicts=airflow_conf.as_dict())
+aav3 = APIAdminView3(category='HuBMAP API', name="Airflow Config")
+
+
 # Create a Flask blueprint to hold the HuBMAP API
 blueprint = Blueprint(
     "hubmap_api", __name__,
@@ -58,12 +70,9 @@ def show_static(page):
 
 @blueprint.route('/templates/', defaults={'page': 'index.html'})
 @blueprint.route('/templates/<page>')
-def show_template(page, title=None, content=None, content_lst=None):
+def show_template(page, **kwargs):
     try:
-        return render_template(page,
-                               title=title,
-                               content=content,
-                               content_lst=content_lst)
+        return render_template(page, **kwargs)
     except TemplateNotFound as e:
         LOGGER.info('template page {0} not found: {1}'.format(page, e))
         abort(404)

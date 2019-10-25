@@ -8,13 +8,13 @@
   <body>
 
 <h1>{{title}}</h1>
-{% if content %}
-	{{content}}
-{% endif %}
 <ul>
-{% if content_lst %}
-  {% for elt in content_lst %}
-  <li> {{ elt }}
+{% if dict_of_dicts %}
+  {% for key1 in dict_of_dicts %}
+  <br> [ {{ key1 }} ] <br>
+    {% for key2 in dict_of_dicts[key1] %}
+      {{ key2 }} = {{ dict_of_dicts[key1][key2] }} <br>
+    {% endfor %}
   {% endfor %}
 {% endif %}
 </ul>
