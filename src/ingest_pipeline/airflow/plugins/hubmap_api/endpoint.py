@@ -137,29 +137,6 @@ def find_dag_runs(session, dag_id, dag_run_id, execution_date):
 
     return qry.order_by(DagRun.execution_date).all()
 
-@api_bp.route('/dags', methods=['GET'])
-def dags_index():
-    dagbag = DagBag('dags')
-    dags = []
-    for dag_id in dagbag.dags:
-        payload = {
-            'dag_id': dag_id,
-            'full_path': None,
-            'is_active': False,
-            'last_execution': None,
-        }
-
-        dag = dagbag.get_dag(dag_id)
-
-        if dag:
-            payload['full_path'] = dag.full_filepath
-            payload['is_active'] = (not dag.is_paused)
-            payload['last_execution'] = str(dag.latest_execution_date)
-
-        dags.append(payload)
-
-    return HubmapApiResponse.success({'dags': dags})
-
 
 def _get_required_string(data, st):
     """
@@ -196,7 +173,7 @@ def request_ingest():
         provider = _get_required_string(data, 'provider')
         sample_id = _get_required_string(data, 'sample_id')
         process = _get_required_string(data, 'process')
-    except Exception as e:
+    except HubmapInputException as e:
         return HubmapApiResponse.bad_request('Must specify {} to request data be ingested'.format(str(e)))
 
     process = process.lower()  # necessary because config parser has made the corresponding string lower case
@@ -212,7 +189,7 @@ def request_ingest():
         dagbag = DagBag('dags')
  
         if dag_id not in dagbag.dags:
-            return HubmapApiResponse.bad_request("Dag id {} not found".format(dag_id))
+            return HubmapApiResponse.not_found("Dag id {} not found".format(dag_id))
  
         dag = dagbag.get_dag(dag_id)
 
@@ -244,7 +221,7 @@ def request_ingest():
             dr = trigger_dag.trigger_dag(dag_id, payload['run_id'], payload['conf'], execution_date=execution_date)
         except AirflowException as err:
             LOGGER.error(err)
-            return HubmapApiResponse.bad_request("Attempt to trigger run produced an error: {}".format(err))
+            return HubmapApiResponse.server_error("Attempt to trigger run produced an error: {}".format(err))
         LOGGER.info('dr follows: {}'.format(dr))
 
 #             dag.create_dagrun(
