@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <link rel="stylesheet" href="../../api/hubmap/static/base.css" />
+    <meta charset="utf-8" />
+    <title>Index</title>
+  </head>
+  <body>
+
+<h1>{{title}}</h1>
+{% if content %}
+	{{content}}
+{% endif %}
+<ul>
+{% if content_lst %}
+  {% for elt in content_lst %}
+  <li> {{ elt }}
+  {% endfor %}
+{% endif %}
+</ul>
+
+  </body>
+</html>

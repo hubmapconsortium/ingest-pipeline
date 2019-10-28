@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <link rel="stylesheet" href="../../api/hubmap/static/base.css" />
+    <meta charset="utf-8" />
+    <title>Index</title>
+  </head>
+  <body>
+
+<h1>{{title}}</h1>
+<ul>
+{% if dict_of_dicts %}
+  {% for key1 in dict_of_dicts %}
+  <br> [ {{ key1 }} ] <br>
+    {% for key2 in dict_of_dicts[key1] %}
+      {{ key2 }} = {{ dict_of_dicts[key1][key2] }} <br>
+    {% endfor %}
+  {% endfor %}
+{% endif %}
+</ul>
+
+  </body>
+</html>
