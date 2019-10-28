@@ -1,7 +1,8 @@
 
 # This section maps ingest process names to the DAGs that initiate ingest for that process
 [ingest_map]
-MICROSCOPY.IMS_ALL = ingest_vanderbilt
+MICROSCOPY.IMS.ALL = ingest_vanderbilt
+MOCK.MICROSCOPY.IMS.ALL = mock_ingest_vanderbilt
 
 [core]
 timezone = US/Eastern
