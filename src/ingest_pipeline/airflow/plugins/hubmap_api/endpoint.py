@@ -17,8 +17,10 @@ from airflow import settings
 from airflow.exceptions import AirflowException, AirflowConfigException
 from airflow.www.app import csrf
 from airflow.models import DagBag, DagRun, Variable
+from airflow.utils import timezone
 from airflow.utils.dates import date_range as utils_date_range
 from airflow.utils.state import State
+from airflow.api.common.experimental import trigger_dag
 
 from hubmap_api.manager import blueprint as api_bp
 from hubmap_api.manager import show_template
@@ -74,11 +76,11 @@ class HubmapApiResponse:
     def server_error(error='An unexpected problem occurred'):
         return HubmapApiResponse.error(HubmapApiResponse.STATUS_SERVER_ERROR, error)
 
+
 @api_bp.route('/test')
 def api_test():
     return HubmapApiResponse.success({'api_is_alive': True})
  
-
 
 @api_bp.before_request
 def verify_authentication():
@@ -169,21 +171,6 @@ def _get_required_string(data, st):
         raise HubmapInputException(st)
 
 
-def _get_run_list(start_date, end_date, dag, limit):
-    """
-    ensure run data has all required attributes and that everything is valid, returns transformed data
-    """
-    runs = utils_date_range(start_date=start_date, end_date=end_date, delta=dag._schedule_interval)
-    if len(runs) > limit:
-        error = '{} dag runs would be created, which exceeds the limit of {}.'
-        return HubmapApiResponse.bad_request(error.format(len(runs), limit))
-    elif len(runs) < 1:
-        error = 'Zero dag runs would be created; expected at least one.'
-        return HubmapApiResponse.bad_request(error)
-    else:
-        return runs
-
-
 """
 Parameters for this request (all required)
 
@@ -228,14 +215,11 @@ def request_ingest():
             return HubmapApiResponse.bad_request("Dag id {} not found".format(dag_id))
  
         dag = dagbag.get_dag(dag_id)
- 
+
         # Produce one and only one run
         tz = pytz.timezone(CONFIG['core']['timezone'])
-        start_date = end_date = datetime.now(tz)
-        limit = 1
-        runs = _get_run_list(start_date=start_date, end_date=end_date, dag=dag, limit=limit)
-        if len(runs) != 1:
-            return HubmapApiResponse.bad_request('Unexpectedly did not find one run while scheduling ingest')
+        execution_date = datetime.now(tz)
+        LOGGER.info('execution_date: {}'.format(execution_date))
 
         conf = {'provider': provider,
                 'sample_id': sample_id,
@@ -243,32 +227,34 @@ def request_ingest():
                 'dag_id': dag_id
                 }
 
-        payloads = []
-        for exec_date in runs:
-            run_id = '{}_{}_{}'.format(sample_id, process, exec_date.isoformat())
+        run_id = '{}_{}_{}'.format(sample_id, process, execution_date.isoformat())
+
+        if find_dag_runs(session, dag_id, run_id, execution_date):
+            # The run already happened??
+            return HubmapAPIResponse.server_error('The request happened twice?')
+
+        payload = {
+            'run_id': run_id,
+            'execution_date': execution_date,
+            'conf': conf
+            }
  
-            if find_dag_runs(session, dag_id, run_id, exec_date):
-                continue
- 
-            payloads.append({
-                'run_id': run_id,
-                'execution_date': exec_date,
-                'conf': conf
-            })
- 
-        results = []
-        for index, run in enumerate(payloads):
-            if len(results) >= limit:
-                break
- 
-            dag.create_dagrun(
-                run_id=run['run_id'],
-                execution_date=run['execution_date'],
-                state=State.RUNNING,
-                conf=conf,
-                external_trigger=True
-            )
-            results.append(run['run_id'])
+        LOGGER.info('point 1')
+        try:
+            dr = trigger_dag.trigger_dag(dag_id, payload['run_id'], payload['conf'], execution_date=execution_date)
+        except AirflowException as err:
+            LOGGER.error(err)
+            return HubmapApiResponse.bad_request("Attempt to trigger run produced an error: {}".format(err))
+        LOGGER.info('dr follows: {}'.format(dr))
+
+#             dag.create_dagrun(
+#                 run_id=run['run_id'],
+#                 execution_date=run['execution_date'],
+#                 state=State.RUNNING,
+#                 conf=conf,
+#                 external_trigger=True
+#             )
+#            results.append(run['run_id'])
 
         session.close()
     except HubmapApiInputException as e:
@@ -281,4 +267,4 @@ def request_ingest():
         return HubmapApiResponse.server_error(str(e))
 
     return HubmapApiResponse.success({'ingest_id': 'this_is_some_unique_string',
-                                      'run_id': results[0]})
+                                      'run_id': payload['run_id']})

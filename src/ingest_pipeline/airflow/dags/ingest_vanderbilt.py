@@ -14,7 +14,7 @@ default_args = {
     'retry_delay': timedelta(minutes=1),
 }
 
-with DAG('mock_ingest_vanderbilt', schedule_interval=None, is_paused_upon_creation=False, default_args=default_args) as dag:
+with DAG('ingest_vanderbilt', schedule_interval=None, is_paused_upon_creation=False, default_args=default_args) as dag:
 
 
     t1 = BashOperator(
@@ -24,8 +24,18 @@ with DAG('mock_ingest_vanderbilt', schedule_interval=None, is_paused_upon_creati
     
     t2 = BashOperator(
         task_id='gen_output_metadata',
-        bash_command='cp ${AIRFLOW_HOME}/data/mock_data/{{dag_run.conf["process"]}}.yaml ${AIRFLOW_HOME}/data/temp/{{run_id}}',
+        bash_command='cp ${AIRFLOW_HOME}/data/mock_data/mock_{{dag_run.conf["process"]}}.yaml ${AIRFLOW_HOME}/data/temp/{{run_id}}',
         )
+    
+    # t3 = BashOperator(
+    #     task_id='task_3',
+    #     bash_command='echo "Hello World from Task 3"',
+    #     dag=dag)
+    # 
+    # t4 = BashOperator(
+    #     task_id='task_4',
+    #     bash_command='echo "Hello World from Task 4"',
+    #     dag=dag)
 
     dag >> t1 >> t2
 
