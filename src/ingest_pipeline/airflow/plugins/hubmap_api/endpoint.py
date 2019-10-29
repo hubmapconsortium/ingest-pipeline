@@ -216,7 +216,6 @@ def request_ingest():
             'conf': conf
             }
  
-        LOGGER.info('point 1')
         try:
             dr = trigger_dag.trigger_dag(dag_id, payload['run_id'], payload['conf'], execution_date=execution_date)
         except AirflowException as err:
@@ -245,3 +244,16 @@ def request_ingest():
 
     return HubmapApiResponse.success({'ingest_id': 'this_is_some_unique_string',
                                       'run_id': payload['run_id']})
+
+"""
+Parameters for this request: None
+
+Parameters included in the response:
+Key        Type    Description
+process_strings  list of strings  The list of valid 'process' strings
+"""
+@api_bp.route('get_process_strings')
+def get_process_strings():
+    psl = [s.upper() for s in CONFIG['ingest_map']]
+    return HubmapApiResponse.success({'process_strings': psl})
+
