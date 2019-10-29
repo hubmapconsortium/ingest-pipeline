@@ -151,10 +151,10 @@ def _get_required_string(data, st):
 """
 Parameters for this request (all required)
 
-Key        Method    Type    Description
-provider    post    string    Providing site, presumably a known TMC
-sample_id   post    string    Unique ID string specifying this dataset
-process     post    string    string denoting a unique known processing workflow to be applied to this data
+Key            Method    Type    Description
+provider        post    string    Providing site, presumably a known TMC
+submission_id   post    string    Unique ID string specifying this dataset
+process         post    string    string denoting a unique known processing workflow to be applied to this data
 
 Parameters included in the response:
 Key        Type    Description
@@ -171,7 +171,7 @@ def request_ingest():
     # Test and extract required parameters
     try:
         provider = _get_required_string(data, 'provider')
-        sample_id = _get_required_string(data, 'sample_id')
+        submission_id = _get_required_string(data, 'submission_id')
         process = _get_required_string(data, 'process')
     except HubmapInputException as e:
         return HubmapApiResponse.bad_request('Must specify {} to request data be ingested'.format(str(e)))
@@ -199,12 +199,12 @@ def request_ingest():
         LOGGER.info('execution_date: {}'.format(execution_date))
 
         conf = {'provider': provider,
-                'sample_id': sample_id,
+                'submission_id': submission_id,
                 'process': process,
                 'dag_id': dag_id
                 }
 
-        run_id = '{}_{}_{}'.format(sample_id, process, execution_date.isoformat())
+        run_id = '{}_{}_{}'.format(submission_id, process, execution_date.isoformat())
 
         if find_dag_runs(session, dag_id, run_id, execution_date):
             # The run already happened??
@@ -216,7 +216,6 @@ def request_ingest():
             'conf': conf
             }
  
-        LOGGER.info('point 1')
         try:
             dr = trigger_dag.trigger_dag(dag_id, payload['run_id'], payload['conf'], execution_date=execution_date)
         except AirflowException as err:
@@ -245,3 +244,16 @@ def request_ingest():
 
     return HubmapApiResponse.success({'ingest_id': 'this_is_some_unique_string',
                                       'run_id': payload['run_id']})
+
+"""
+Parameters for this request: None
+
+Parameters included in the response:
+Key        Type    Description
+process_strings  list of strings  The list of valid 'process' strings
+"""
+@api_bp.route('get_process_strings')
+def get_process_strings():
+    psl = [s.upper() for s in CONFIG['ingest_map']]
+    return HubmapApiResponse.success({'process_strings': psl})
+
