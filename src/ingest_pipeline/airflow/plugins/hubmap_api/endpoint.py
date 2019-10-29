@@ -151,10 +151,10 @@ def _get_required_string(data, st):
 """
 Parameters for this request (all required)
 
-Key        Method    Type    Description
-provider    post    string    Providing site, presumably a known TMC
-sample_id   post    string    Unique ID string specifying this dataset
-process     post    string    string denoting a unique known processing workflow to be applied to this data
+Key            Method    Type    Description
+provider        post    string    Providing site, presumably a known TMC
+submission_id   post    string    Unique ID string specifying this dataset
+process         post    string    string denoting a unique known processing workflow to be applied to this data
 
 Parameters included in the response:
 Key        Type    Description
@@ -171,7 +171,7 @@ def request_ingest():
     # Test and extract required parameters
     try:
         provider = _get_required_string(data, 'provider')
-        sample_id = _get_required_string(data, 'sample_id')
+        submission_id = _get_required_string(data, 'submission_id')
         process = _get_required_string(data, 'process')
     except HubmapInputException as e:
         return HubmapApiResponse.bad_request('Must specify {} to request data be ingested'.format(str(e)))
@@ -199,12 +199,12 @@ def request_ingest():
         LOGGER.info('execution_date: {}'.format(execution_date))
 
         conf = {'provider': provider,
-                'sample_id': sample_id,
+                'submission_id': submission_id,
                 'process': process,
                 'dag_id': dag_id
                 }
 
-        run_id = '{}_{}_{}'.format(sample_id, process, execution_date.isoformat())
+        run_id = '{}_{}_{}'.format(submission_id, process, execution_date.isoformat())
 
         if find_dag_runs(session, dag_id, run_id, execution_date):
             # The run already happened??
