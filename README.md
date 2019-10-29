@@ -18,6 +18,16 @@ response to requests from the data-ingest UI backend.
 | Success Response | Code: 200<br> Content: {"api_is_alive":true} |
 | Error Responses  | None                                     |
 
+| <strong>Get Process Strings</strong>         |                                          |
+|------------------|------------------------------------------|
+| Description      | Get a list of valid process identifier keys            |
+| HTTP Method      | GET                                      |
+| Example URL      | /api/hubmap/get_process_strings                         |
+| URL Parameters   | None                                     |
+| Data Parameters  | None                                     |
+| Success Response | Code: 200<br> Content: {"process_strings":[...list of keys...]} |
+| Error Responses  | None                                     |
+
 | <strong>Request Ingest</strong>   |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 |------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | Description      | Cause a workflow to be applied to a dataset in the LZ. The full dataset path is computed from the data parameters.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
