@@ -140,12 +140,12 @@ def find_dag_runs(session, dag_id, dag_run_id, execution_date):
 
 def _get_required_string(data, st):
     """
-    Return data[st] if present and a valid string; otherwise raise HubmapInputException
+    Return data[st] if present and a valid string; otherwise raise HubmapApiInputException
     """
     if st in data and data[st] is not None:
         return data[st]
     else:
-        raise HubmapInputException(st)
+        raise HubmapApiInputException(st)
 
 
 """
@@ -173,7 +173,7 @@ def request_ingest():
         provider = _get_required_string(data, 'provider')
         submission_id = _get_required_string(data, 'submission_id')
         process = _get_required_string(data, 'process')
-    except HubmapInputException as e:
+    except HubmapApiInputException as e:
         return HubmapApiResponse.bad_request('Must specify {} to request data be ingested'.format(str(e)))
 
     process = process.lower()  # necessary because config parser has made the corresponding string lower case
