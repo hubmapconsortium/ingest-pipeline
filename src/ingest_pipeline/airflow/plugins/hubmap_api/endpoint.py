@@ -87,8 +87,7 @@ def api_test():
 @api_bp.route('/version')
 def api_version():
     return HubmapApiResponse.success({'api': API_VERSION,
-                                      'build': 0})
- 
+                                      'build': CONFIG['_version_']['build_number']})
 
 @api_bp.before_request
 def verify_authentication():
@@ -116,9 +115,14 @@ def verify_conf():
                 dd_conf[elt][elt2] = conf[elt][elt2]
         
         # Check required sections
-        for sec in ['ingest_map', 'core']:
+        for sec in ['ingest_map', 'core', '_version_']:
             if sec not in dd_conf:
                 dd_conf[sec] = {}
+
+        try:
+            dd_conf['_version_']['build_number'] = int(settings.conf.get('HUBMAP_API_PLUGIN', 'BUILD_NUMBER'))
+        except Exception as e:
+            dd_conf['_version_']['build_number'] = -1
 
         CONFIG = dd_conf
         LOGGER.info('Imported config = {}'.format(json.dumps(CONFIG)))
