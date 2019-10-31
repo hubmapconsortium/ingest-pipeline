@@ -25,6 +25,8 @@ from airflow.api.common.experimental import trigger_dag
 from hubmap_api.manager import blueprint as api_bp
 from hubmap_api.manager import show_template
 
+API_VERSION = 1
+
 LOGGER = logging.getLogger(__name__)
 CONFIG = None  # specific to this API
 
@@ -80,6 +82,12 @@ class HubmapApiResponse:
 @api_bp.route('/test')
 def api_test():
     return HubmapApiResponse.success({'api_is_alive': True})
+ 
+
+@api_bp.route('/version')
+def api_version():
+    return HubmapApiResponse.success({'api': API_VERSION,
+                                      'build': 0})
  
 
 @api_bp.before_request
