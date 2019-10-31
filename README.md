@@ -18,6 +18,17 @@ response to requests from the data-ingest UI backend.
 | Success Response | Code: 200<br> Content: {"api_is_alive":true} |
 | Error Responses  | None                                     |
 
+| <strong>Get API Version</strong>         |                                          |
+|------------------|------------------------------------------|
+| Description      | Obtain API and endpoint version information          |
+| HTTP Method      | GET                                      |
+| Example URL      | /api/hubmap/version                      |
+| URL Parameters   | None                                     |
+| Data Parameters  | None                                     |
+| Success Response | Code: 200<br> Content: {"api":1, "build":_BUILD_NUMBER_} |
+| Error Responses  | None                                     |
+
+
 | <strong>Request Ingest</strong>   |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 |------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | Description      | Cause a workflow to be applied to a dataset in the LZ. The full dataset path is computed from the data parameters.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
