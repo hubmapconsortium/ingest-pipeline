@@ -50,6 +50,18 @@ class APIAdminView3(BaseView):
 aav3 = APIAdminView3(category='HuBMAP API', name="Airflow Config")
 
 
+class APIAdminView4(BaseView):
+    @expose('/')
+    def api_admin_view4(self):
+        LOGGER.info('In APIAdminView1.api_admin_view4')
+        eltL = ["{0} = {1}".format(k, v) for k, v in os.environ.items()]
+        eltL.sort()
+        return show_template('generic.html',
+                             title='Environment Variables', 
+                             content_lst=eltL)
+aav4 = APIAdminView4(category='HuBMAP API', name="Environment Variables")
+
+
 # Create a Flask blueprint to hold the HuBMAP API
 blueprint = Blueprint(
     "hubmap_api", __name__,
