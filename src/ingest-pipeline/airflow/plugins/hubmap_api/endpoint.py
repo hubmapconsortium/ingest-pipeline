@@ -21,17 +21,27 @@ from airflow.utils import timezone
 from airflow.utils.dates import date_range as utils_date_range
 from airflow.utils.state import State
 from airflow.api.common.experimental import trigger_dag
+from airflow.configuration import conf as airflow_conf
 
 from hubmap_api.manager import blueprint as api_bp
 from hubmap_api.manager import show_template
 
+from hubmap_commons.hm_auth import AuthHelper, AuthCache, secured
+
 API_VERSION = 1
 
 LOGGER = logging.getLogger(__name__)
-CONFIG = None  # specific to this API
+
+airflow_conf.read(os.path.join(os.environ['AIRFLOW_HOME'], 'instance', 'app.cfg'))
+
 
 class HubmapApiInputException(Exception):
     pass
+
+
+class HubmapApiConfigException(Exception):
+    pass
+ 
  
 class HubmapApiResponse:
  
@@ -79,6 +89,14 @@ class HubmapApiResponse:
         return HubmapApiResponse.error(HubmapApiResponse.STATUS_SERVER_ERROR, error)
 
 
+def config(section, key):
+    dct = airflow_conf.as_dict()
+    if section in dct and key in dct[section]:
+        return dct[section][key]
+    else:
+        raise AirflowConfigException('No config entry for [{}] {}'.format(section, key))
+
+
 @api_bp.route('/test')
 def api_test():
     return HubmapApiResponse.success({'api_is_alive': True})
@@ -87,7 +105,11 @@ def api_test():
 @api_bp.route('/version')
 def api_version():
     return HubmapApiResponse.success({'api': API_VERSION,
-                                      'build': CONFIG['_version_']['build_number']})
+                                      'build': config('hubmap_api_plugin', 'build_number')})
+
+auth_tok="Bearer {'auth_token': 'AgDdJerdQ8M7v3wYBJ71bj8rV1yVq5KWnN3OeGoE52MX8al5dSaCyVgON8DpnkqPppnrDeN15nk4VSw0rGBmFypVyiYV3gtN1xpS2M71', 'email': 'jw1d@andrew.cmu.edu', 'globus_id': '2586d19b-74b7-4bed-987e-68f5525bee76', 'name': 'Joel Welling', 'nexus_token': 'AgDv6n1Q9bkYGpYqY7jb14GE0moglk2Y6EJO1E6NPJgvN5k2pGuaCP2729xlJ15VzDWWnlnJQabdQnTw0rGBmFypV9', 'transfer_token': 'Ag6EdnW3nqQ17bn00oOkmE3lQb1eKOak5oqYX3lNormv1ovYmT2CMEMyz5wj5j0mJrYkQzx2ozKVkI1oEg5zurXzz'}"
+
+
 
 @api_bp.before_request
 def verify_authentication():
@@ -95,7 +117,7 @@ def verify_authentication():
     logging.info('I AM TRYING')
     authorization = request.headers.get('authorization')
     logging.info('AUTH {} vs {}'.format(authorization, settings.conf.get('HUBMAP_API_PLUGIN', 'HUBMAP_API_AUTH')))
-    return
+    authorization = '1234'
     try:
         api_auth_key = settings.conf.get('HUBMAP_API_PLUGIN', 'HUBMAP_API_AUTH')
     except AirflowConfigException:
@@ -104,35 +126,6 @@ def verify_authentication():
     if authorization != api_auth_key:
         return HubmapApiResponse.unauthorized("You are not authorized to use this resource")
 
-@api_bp.before_request
-def verify_conf():
-    global CONFIG
-    if CONFIG is None:
-        conf_path = os.path.join(os.path.dirname(__file__), 'conf', 'hubmap_api.cnf')
-        LOGGER.info('config path: {}'.format(conf_path))
-        conf = configparser.ConfigParser()
-        conf.read(conf_path)
-        dd_conf = {}
-        for elt in conf.sections():
-            dd_conf[elt] = {}
-            for elt2 in conf[elt]:
-                dd_conf[elt][elt2] = conf[elt][elt2]
-        
-        # Check required sections
-        for sec in ['ingest_map', 'core', '_version_']:
-            if sec not in dd_conf:
-                dd_conf[sec] = {}
-
-        try:
-            dd_conf['_version_']['build_number'] = int(settings.conf.get('HUBMAP_API_PLUGIN', 'BUILD_NUMBER'))
-        except Exception as e:
-            dd_conf['_version_']['build_number'] = -1
-
-        CONFIG = dd_conf
-        LOGGER.info('Imported config = {}'.format(json.dumps(CONFIG)))
-
-    return None
-        
  
 def format_dag_run(dag_run):
     return {
@@ -195,10 +188,10 @@ def request_ingest():
 
     process = process.lower()  # necessary because config parser has made the corresponding string lower case
 
-    if process not in CONFIG['ingest_map']:
+    try:
+        dag_id = config('ingest_map', process)
+    except HubmapConfigException:
         return HubmapApiResponse.bad_request('{} is not a known ingestion process'.format(process))
-
-    dag_id = CONFIG['ingest_map'][process]
     
     try:
         session = settings.Session()
@@ -211,7 +204,7 @@ def request_ingest():
         dag = dagbag.get_dag(dag_id)
 
         # Produce one and only one run
-        tz = pytz.timezone(CONFIG['core']['timezone'])
+        tz = pytz.timezone(config('core', 'timezone'))
         execution_date = datetime.now(tz)
         LOGGER.info('execution_date: {}'.format(execution_date))
 
@@ -262,7 +255,7 @@ def request_ingest():
     return HubmapApiResponse.success({'ingest_id': 'this_is_some_unique_string',
                                       'run_id': payload['run_id'],
                                       'overall_file_count': 1,
-                                      'top_folder_contents': ["foo", "bar"]})
+                                      'top_folder_contents': ["foo", "baz"]})
 
 """
 Parameters for this request: None
@@ -273,6 +266,7 @@ process_strings  list of strings  The list of valid 'process' strings
 """
 @api_bp.route('get_process_strings')
 def get_process_strings():
-    psl = [s.upper() for s in CONFIG['ingest_map']]
+    dct = airflow_conf.as_dict()
+    psl = [s.upper() for s in dct['ingest_map']] if 'ingest_map' in dct else []
     return HubmapApiResponse.success({'process_strings': psl})
 
