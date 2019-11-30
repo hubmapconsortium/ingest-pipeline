@@ -1,0 +1,16 @@
+
+# This section maps ingest process names to the DAGs that initiate ingest for that process
+[ingest_map]
+MICROSCOPY.IMS.ALL = ingest_vanderbilt
+MOCK.MICROSCOPY.IMS.ALL = mock_ingest_vanderbilt
+
+[core]
+timezone = US/Eastern
+
+[connections]
+
+# Globus App ID and secret
+APP_CLIENT_ID = '_some_string_'
+APP_CLIENT_SECRET = '_some_string_'
+
+INGEST_API_URL = 'http://localhost:8484'
