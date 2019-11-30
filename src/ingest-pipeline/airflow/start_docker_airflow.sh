@@ -9,6 +9,7 @@ run_id=`docker run -d -p 8080:8080 \
 	-v $PWD/data/:/usr/local/airflow/data \
 	-e AIRFLOW__HUBMAP_API_PLUGIN__HUBMAP_API_AUTH=1234 \
 	-e AIRFLOW__HUBMAP_API_PLUGIN__BUILD_NUMBER=$BUILD_NUM \
+	-e AIRFLOW__CORE__LOGGING_LEVEL=DEBUG \
 	-e TZ=$TZ \
 	puckel/docker-airflow webserver | cut -c1-12`
 run_name=`docker ps --format "{{.ID}} {{.Names}}" | grep ${run_id} | awk '{print $2}'`

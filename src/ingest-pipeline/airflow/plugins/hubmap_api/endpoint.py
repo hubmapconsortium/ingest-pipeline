@@ -27,12 +27,28 @@ from hubmap_api.manager import blueprint as api_bp
 from hubmap_api.manager import show_template
 
 from hubmap_commons.hm_auth import AuthHelper, AuthCache, secured
+#from hubmap_api.hm_auth import AuthHelper, AuthCache, secured
 
 API_VERSION = 1
 
 LOGGER = logging.getLogger(__name__)
 
 airflow_conf.read(os.path.join(os.environ['AIRFLOW_HOME'], 'instance', 'app.cfg'))
+
+def config(section, key):
+    dct = airflow_conf.as_dict()
+    if section in dct and key in dct[section]:
+        return dct[section][key]
+    else:
+        raise AirflowConfigException('No config entry for [{}] {}'.format(section, key))
+
+
+AUTH_HELPER = None
+if not AuthHelper.isInitialized():
+    AUTH_HELPER = AuthHelper.create(clientId=config('connections', 'app_client_id'), 
+                                    clientSecret=config('connections', 'app_client_secret'))
+else:
+    AUTH_HELPER = authHelper.instance()
 
 
 class HubmapApiInputException(Exception):
@@ -89,15 +105,8 @@ class HubmapApiResponse:
         return HubmapApiResponse.error(HubmapApiResponse.STATUS_SERVER_ERROR, error)
 
 
-def config(section, key):
-    dct = airflow_conf.as_dict()
-    if section in dct and key in dct[section]:
-        return dct[section][key]
-    else:
-        raise AirflowConfigException('No config entry for [{}] {}'.format(section, key))
-
-
 @api_bp.route('/test')
+@secured(groups="HuBMAP-read")
 def api_test():
     return HubmapApiResponse.success({'api_is_alive': True})
  
@@ -107,24 +116,10 @@ def api_version():
     return HubmapApiResponse.success({'api': API_VERSION,
                                       'build': config('hubmap_api_plugin', 'build_number')})
 
-auth_tok="Bearer {'auth_token': 'AgDdJerdQ8M7v3wYBJ71bj8rV1yVq5KWnN3OeGoE52MX8al5dSaCyVgON8DpnkqPppnrDeN15nk4VSw0rGBmFypVyiYV3gtN1xpS2M71', 'email': 'jw1d@andrew.cmu.edu', 'globus_id': '2586d19b-74b7-4bed-987e-68f5525bee76', 'name': 'Joel Welling', 'nexus_token': 'AgDv6n1Q9bkYGpYqY7jb14GE0moglk2Y6EJO1E6NPJgvN5k2pGuaCP2729xlJ15VzDWWnlnJQabdQnTw0rGBmFypV9', 'transfer_token': 'Ag6EdnW3nqQ17bn00oOkmE3lQb1eKOak5oqYX3lNormv1ovYmT2CMEMyz5wj5j0mJrYkQzx2ozKVkI1oEg5zurXzz'}"
-
-
-
-@api_bp.before_request
-def verify_authentication():
-    import logging
-    logging.info('I AM TRYING')
-    authorization = request.headers.get('authorization')
-    logging.info('AUTH {} vs {}'.format(authorization, settings.conf.get('HUBMAP_API_PLUGIN', 'HUBMAP_API_AUTH')))
-    authorization = '1234'
-    try:
-        api_auth_key = settings.conf.get('HUBMAP_API_PLUGIN', 'HUBMAP_API_AUTH')
-    except AirflowConfigException:
-        return
- 
-    if authorization != api_auth_key:
-        return HubmapApiResponse.unauthorized("You are not authorized to use this resource")
+# @api_bp.before_request
+# def verify_authentication():
+#     authorization = request.headers.get('authorization')
+#     LOGGER.info('verify_authentication AUTH {}'.format(authorization))
 
  
 def format_dag_run(dag_run):
@@ -174,7 +169,11 @@ top_folder_contents list list of all files and directories in the top level fold
 """
 @csrf.exempt
 @api_bp.route('/request_ingest', methods=['POST'])
+#@secured(groups="HuBMAP-read")
 def request_ingest():
+    authorization = request.headers.get('authorization')
+    LOGGER.info('top of request_ingest: AUTH %s', authorization)
+  
     # decode input
     data = request.get_json(force=True)
     
