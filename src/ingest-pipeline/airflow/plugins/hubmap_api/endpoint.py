@@ -8,6 +8,7 @@ import logging
 import configparser
 from datetime import datetime
 import pytz
+import yaml
 
 from werkzeug.exceptions import HTTPException, NotFound 
 
@@ -38,7 +39,12 @@ airflow_conf.read(os.path.join(os.environ['AIRFLOW_HOME'], 'instance', 'app.cfg'
 def config(section, key):
     dct = airflow_conf.as_dict()
     if section in dct and key in dct[section]:
-        return dct[section][key]
+        rslt = dct[section][key]
+        # airflow config reader leaves quotes, which we want to strip
+        for qc in ['"', "'"]:
+            if rslt.startswith(qc) and rslt.endswith(qc):
+                rslt = rslt.strip(qc)
+        return rslt
     else:
         raise AirflowConfigException('No config entry for [{}] {}'.format(section, key))
 
@@ -116,11 +122,6 @@ def api_version():
     return HubmapApiResponse.success({'api': API_VERSION,
                                       'build': config('hubmap_api_plugin', 'build_number')})
 
-# @api_bp.before_request
-# def verify_authentication():
-#     authorization = request.headers.get('authorization')
-#     LOGGER.info('verify_authentication AUTH {}'.format(authorization))
-
  
 def format_dag_run(dag_run):
     return {
@@ -152,6 +153,47 @@ def _get_required_string(data, st):
         raise HubmapApiInputException(st)
 
 
+def get_request_ingest_reply_parms(provider, submission_id, process):
+    """
+    This routine finds and returns the response parameters required by the request_ingest message,
+    as an ordered tuple.  The input parameters correspond to the values in the request_ingest request.
+    """
+    if process.startswith('mock.'):
+        # test request; there should be pre-recorded response data
+        yml_path = os.path.join(os.path.dirname(__file__),
+                                '../../data/mock_data/',
+                                process + '.yml')
+        try:
+            with open(yml_path, 'r') as f:
+                mock_data = yaml.safe_load(f)
+                overall_file_count = mock_data['request_ingest_response']['overall_file_count']
+                top_folder_contents = mock_data['request_ingest_response']['top_folder_contents']
+        except IOError as e:
+            LOGGER.error('mock data load failed: {}'.format(e))
+            raise HubmapApiInputException('No mock data found for process %s', process)
+    else:
+        #dct = {'provider' : provider, 'submission_id' : submission_id, 'process' : process}
+        dct = {'provider' : 'Vanderbilt TMC', 'submission_id' : 'VAN0001-RK-1-21_24', 'process' : process}
+        lz_path = config('connections', 'lz_path').format(**dct)
+        if os.path.exists(lz_path) and os.path.isdir(lz_path):
+            n_files = 0
+            top_folder_contents = None
+            for root, subdirs, files in os.walk(lz_path):
+                if root == lz_path:
+                    top_folder_contents = (subdirs + files)[:]
+                n_files += len(files)
+            assert top_folder_contents is not None, 'internal error using os.walk?'
+            overall_file_count = n_files
+        else:
+            LOGGER.error("cannot find the ingest data for '%s' '%s '%s' (expected %s)"
+                         % (provider, submission_id, process, lz_path))
+            raise HubmapApiInputException("Cannot find the expected ingest directory for '%s' '%s' '%s'"
+                                          % (provider, submission_id, process))
+    
+    LOGGER.info('get_request_ingest_reply_parms returning {} {}'.format(overall_file_count, top_folder_contents))
+    return overall_file_count, top_folder_contents
+
+
 """
 Parameters for this request (all required)
 
@@ -169,7 +211,7 @@ top_folder_contents list list of all files and directories in the top level fold
 """
 @csrf.exempt
 @api_bp.route('/request_ingest', methods=['POST'])
-#@secured(groups="HuBMAP-read")
+@secured(groups="HuBMAP-read")
 def request_ingest():
     authorization = request.headers.get('authorization')
     LOGGER.info('top of request_ingest: AUTH %s', authorization)
@@ -191,6 +233,9 @@ def request_ingest():
         dag_id = config('ingest_map', process)
     except HubmapConfigException:
         return HubmapApiResponse.bad_request('{} is not a known ingestion process'.format(process))
+    
+    overall_file_count, top_folder_contents = get_request_ingest_reply_parms(provider, submission_id,
+                                                                             process)
     
     try:
         session = settings.Session()
@@ -230,7 +275,7 @@ def request_ingest():
         except AirflowException as err:
             LOGGER.error(err)
             return HubmapApiResponse.server_error("Attempt to trigger run produced an error: {}".format(err))
-        LOGGER.info('dr follows: {}'.format(dr))
+        LOGGER.info('dagrun follows: {}'.format(dr))
 
 #             dag.create_dagrun(
 #                 run_id=run['run_id'],
@@ -253,8 +298,8 @@ def request_ingest():
 
     return HubmapApiResponse.success({'ingest_id': 'this_is_some_unique_string',
                                       'run_id': payload['run_id'],
-                                      'overall_file_count': 1,
-                                      'top_folder_contents': ["foo", "baz"]})
+                                      'overall_file_count': overall_file_count,
+                                      'top_folder_contents': top_folder_contents})
 
 """
 Parameters for this request: None
