@@ -15,10 +15,11 @@ services:
       # Mount the logging to container
       - "../logs:/usr/local/airflow/logs"
       # Mount dags, plugins, and data
-      - "../src/ingest-pipeline/airflow/dags:/usr/local/airflow/dags"
-      - "../src/ingest-pipeline/airflow/plugins:/usr/local/airflow/plugins"
-      - "../src/ingest-pipeline/airflow/data:/usr/local/airflow/data"
+      - "../src/ingest-pipeline/airflow/dags:/usr/local/airflow/dags:rw"
+      - "../src/ingest-pipeline/airflow/plugins:/usr/local/airflow/plugins:rw"
+      - "../src/ingest-pipeline/airflow/data:/usr/local/airflow/data:rw"
       - "../src/ingest-pipeline/instance:/usr/local/airflow/instance"
+      - "${LZ_PATH-/hive/hubmap/lz}:/usr/local/airflow/lz"
       # Mount requirements.txt
       - ${PWD}/../src/ingest-pipeline/requirements.txt:/requirements.txt
     environment:
@@ -26,6 +27,7 @@ services:
       - AIRFLOW__HUBMAP_API_PLUGIN__BUILD_NUMBER=${BUILD_NUM}
       - TZ=${TZ}
       - AIRFLOW__WEBSERVER__WEB_SERVER_PORT=8789
+      - AIRFLOW__CORE__DAG_RUN_CONF_OVERRIDES_PARAMS=TRUE
       - FLASK_RUN_PORT=8789
       - FLASK_ENV=development
       - FLASK_DEBUG=1
