@@ -9,6 +9,7 @@ import configparser
 from datetime import datetime
 import pytz
 import yaml
+import ast
 
 from werkzeug.exceptions import HTTPException, NotFound 
 
@@ -35,6 +36,24 @@ API_VERSION = 1
 LOGGER = logging.getLogger(__name__)
 
 airflow_conf.read(os.path.join(os.environ['AIRFLOW_HOME'], 'instance', 'app.cfg'))
+
+"""
+Potentially helpful code for creating a connection
+
+from airflow import settings
+from airflow.models import Connection
+conn = Connection(
+        conn_id=conn_id,
+        conn_type=conn_type,
+        host=host,
+        login=login,
+        password=password,
+        port=port
+) #create a connection object
+session = settings.Session() # get the session
+session.add(conn)
+session.commit() # it will insert the connection object programmatically.
+"""
 
 def config(section, key):
     dct = airflow_conf.as_dict()
@@ -114,6 +133,16 @@ class HubmapApiResponse:
 @api_bp.route('/test')
 @secured(groups="HuBMAP-read")
 def api_test():
+    token = None
+    clientId=config('connections', 'app_client_id')
+    print ("Client id: " + clientId)
+    clientSecret=config('connections', 'app_client_secret')
+    print ("Client secret: " + clientSecret)
+    if 'MAUTHORIZATION' in request.headers:
+        token = str(request.headers["MAUTHORIZATION"])[8:]
+    elif 'AUTHORIZATION' in request.headers:
+        token = str(request.headers["AUTHORIZATION"])[7:]
+    print ("Token: " + token)
     return HubmapApiResponse.success({'api_is_alive': True})
  
 
@@ -211,10 +240,16 @@ top_folder_contents list list of all files and directories in the top level fold
 """
 @csrf.exempt
 @api_bp.route('/request_ingest', methods=['POST'])
-@secured(groups="HuBMAP-read")
+#@secured(groups="HuBMAP-read")
 def request_ingest():
     authorization = request.headers.get('authorization')
     LOGGER.info('top of request_ingest: AUTH %s', authorization)
+    assert authorization[:len('BEARER')].lower() == 'bearer', 'authorization is not BEARER'
+    auth_dct = ast.literal_eval(authorization[len('BEARER'):].strip())
+    LOGGER.info('auth_dct: %s', auth_dct)
+    assert 'nexus_token' in auth_dct, 'authorization has no nexus_token'
+    auth_tok = auth_dct['nexus_token']
+    LOGGER.info('auth_tok: %s', auth_tok)
   
     # decode input
     data = request.get_json(force=True)
@@ -231,7 +266,7 @@ def request_ingest():
 
     try:
         dag_id = config('ingest_map', process)
-    except HubmapConfigException:
+    except HubmapApiConfigException:
         return HubmapApiResponse.bad_request('{} is not a known ingestion process'.format(process))
     
     overall_file_count, top_folder_contents = get_request_ingest_reply_parms(provider, submission_id,
@@ -252,26 +287,24 @@ def request_ingest():
         execution_date = datetime.now(tz)
         LOGGER.info('execution_date: {}'.format(execution_date))
 
+        run_id = '{}_{}_{}'.format(submission_id, process, execution_date.isoformat())
+        ingest_id = run_id
+
         conf = {'provider': provider,
                 'submission_id': submission_id,
                 'process': process,
-                'dag_id': dag_id
+                'dag_id': dag_id,
+                'run_id': run_id,
+                'ingest_id': ingest_id,
+                'auth_tok': auth_tok
                 }
-
-        run_id = '{}_{}_{}'.format(submission_id, process, execution_date.isoformat())
 
         if find_dag_runs(session, dag_id, run_id, execution_date):
             # The run already happened??
             return HubmapAPIResponse.server_error('The request happened twice?')
 
-        payload = {
-            'run_id': run_id,
-            'execution_date': execution_date,
-            'conf': conf
-            }
- 
         try:
-            dr = trigger_dag.trigger_dag(dag_id, payload['run_id'], payload['conf'], execution_date=execution_date)
+            dr = trigger_dag.trigger_dag(dag_id, run_id, conf, execution_date=execution_date)
         except AirflowException as err:
             LOGGER.error(err)
             return HubmapApiResponse.server_error("Attempt to trigger run produced an error: {}".format(err))
@@ -296,8 +329,8 @@ def request_ingest():
     except Exception as e:
         return HubmapApiResponse.server_error(str(e))
 
-    return HubmapApiResponse.success({'ingest_id': 'this_is_some_unique_string',
-                                      'run_id': payload['run_id'],
+    return HubmapApiResponse.success({'ingest_id': ingest_id,
+                                      'run_id': run_id,
                                       'overall_file_count': overall_file_count,
                                       'top_folder_contents': top_folder_contents})
 
