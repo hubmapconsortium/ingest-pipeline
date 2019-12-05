@@ -2,6 +2,7 @@ from airflow import DAG
 from airflow.operators.bash_operator import BashOperator
 from airflow.operators.python_operator import PythonOperator
 from airflow.operators.http_operator import SimpleHttpOperator
+from airflow.hooks.http_hook import HttpHook
 from airflow.configuration import conf
 from datetime import datetime, timedelta
 from pprint import pprint
@@ -50,6 +51,36 @@ with DAG('mock_ingest_vanderbilt', schedule_interval=None, is_paused_upon_creati
             yaml.safe_dump(raw_md['metadata'], f)
 
 
+    def send_status_msg(**kwargs):
+        http_conn_id='ingest_api_connection'
+        endpoint='/datasets/status'
+        method='POST'
+        headers={'authorization' : 'Bearer ' + kwargs['params']['auth_tok']}
+        extra_options=[]
+        
+        http = HttpHook(method,
+                        http_conn_id=http_conn_id)
+
+        md_fname = os.path.join(os.environ['AIRFLOW_HOME'],
+                                    'data/temp', kwargs['run_id'],
+                                    'rslt.yml')
+        with open(md_fname, 'r') as f:
+            md = yaml.safe_load(f)
+        data = {'ingest_id' : kwargs['params']['ingest_id'],
+                'status' : 'success',
+                'message' : 'the process ran',
+                'metadata': md}
+        print('data: ', data)
+        print("Calling HTTP method")
+
+        response = http.run(endpoint,
+                            json.dumps(data),
+                            headers,
+                            extra_options)
+        print(response.text)
+        
+
+
     t0 = PythonOperator(
         task_id='print_the_context',
         python_callable=print_context
@@ -64,15 +95,21 @@ with DAG('mock_ingest_vanderbilt', schedule_interval=None, is_paused_upon_creati
         task_id='gen_output_metadata',
         python_callable=extract_and_save_md
         )
-    
-    t3 = SimpleHttpOperator(
-        task_id='pass_md_to_REST',
-        http_conn_id='ingest_api_url',
-        endpoint='/datasets/status',
-        method='POST',
-        data=json.dumps({}),
-        log_response=True
+
+    t3 = PythonOperator(
+        task_id='send_status_msg',
+        python_callable=send_status_msg
         )
+
+#     t3 = SimpleHttpOperator(
+#         task_id='pass_md_to_REST',
+#         http_conn_id='ingest_api_connection',
+#         endpoint='/datasets/status',
+#         method='POST',
+#         data=build_status_msg()
+#         #data=json.dumps({'ingest_id':}),
+#         log_response=True
+#         )
 
     dag >> t0 >> t1 >> t2 >> t3
 
