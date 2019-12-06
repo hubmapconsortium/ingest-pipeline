@@ -55,7 +55,9 @@ with DAG('mock_ingest_vanderbilt', schedule_interval=None, is_paused_upon_creati
         http_conn_id='ingest_api_connection'
         endpoint='/datasets/status'
         method='POST'
-        headers={'authorization' : 'Bearer ' + kwargs['params']['auth_tok']}
+        headers={
+            #'authorization' : 'Bearer ' + kwargs['params']['auth_tok'],
+                 'content-type' : 'application/json'}
         extra_options=[]
         
         http = HttpHook(method,
@@ -70,6 +72,10 @@ with DAG('mock_ingest_vanderbilt', schedule_interval=None, is_paused_upon_creati
                 'status' : 'success',
                 'message' : 'the process ran',
                 'metadata': md}
+#         data = {'ingest_id' : kwargs['params']['ingest_id'],
+#                 'status' : 'failure',
+#                 'message' : 'this is a sample error message'
+#                 }
         print('data: ', data)
         print("Calling HTTP method")
 
