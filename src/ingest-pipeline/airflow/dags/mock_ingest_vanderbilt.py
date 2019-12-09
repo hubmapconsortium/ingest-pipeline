@@ -41,7 +41,7 @@ with DAG('mock_ingest_vanderbilt', schedule_interval=None, is_paused_upon_creati
     def extract_and_save_md(*argv, **kwargs):
         in_fname = os.path.join(os.environ['AIRFLOW_HOME'],
                                 'data/mock_data',
-                                kwargs['params']['process'] + '.yml')
+                                kwargs['dag_run'].conf['process'] + '.yml')
         out_fname = os.path.join(os.environ['AIRFLOW_HOME'],
                                  'data/temp', kwargs['run_id'],
                                  'rslt.yml')
@@ -68,7 +68,7 @@ with DAG('mock_ingest_vanderbilt', schedule_interval=None, is_paused_upon_creati
                                     'rslt.yml')
         with open(md_fname, 'r') as f:
             md = yaml.safe_load(f)
-        data = {'ingest_id' : kwargs['params']['ingest_id'],
+        data = {'ingest_id' : kwargs['dag_run'].conf['ingest_id'],
                 'status' : 'success',
                 'message' : 'the process ran',
                 'metadata': md}
