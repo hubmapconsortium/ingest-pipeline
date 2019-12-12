@@ -1,0 +1,50 @@
+version: "3.7"
+
+# Will use the hostname when talking between services on the same network
+services:
+  
+  ingest-pipeline:
+    build: ./ingest-pipeline
+    # Build the image with name and tag
+    image: ingest-pipeline:0.1
+    hostname: ingest-pipeline
+    container_name: ingest-pipeline
+    volumes:
+      # Mount the app config to container in order to keep it outside of the image
+      - "../src/ingest-pipeline/instance:/usr/src/app/src/instance"
+      # Mount the logging to container
+      - "../logs:/usr/local/airflow/logs"
+      # Mount dags, plugins, and data
+      - "../src/ingest-pipeline/airflow/dags:/usr/local/airflow/dags:rw"
+      - "../src/ingest-pipeline/airflow/plugins:/usr/local/airflow/plugins:rw"
+      - "../src/ingest-pipeline/airflow/data:/usr/local/airflow/data:rw"
+      - "../src/ingest-pipeline/instance:/usr/local/airflow/instance"
+      - "${LZ_PATH-/hive/hubmap/lz}:/usr/local/airflow/lz"
+      # Mount requirements.txt
+      - ${PWD}/../src/ingest-pipeline/requirements.txt:/requirements.txt
+    environment:
+      - AIRFLOW_CONN_INGEST_API_CONNECTION=http://hubmap-auth:7777/
+      - AIRFLOW__HUBMAP_API_PLUGIN__BUILD_NUMBER=${BUILD_NUM}
+      - TZ=${TZ}
+      - AIRFLOW__WEBSERVER__WEB_SERVER_PORT=8789
+      - AIRFLOW__CORE__DAG_RUN_CONF_OVERRIDES_PARAMS=TRUE
+      - FLASK_RUN_PORT=8789
+      - FLASK_ENV=development
+      - FLASK_DEBUG=1
+#      - AIRFLOW_CONN_INGEST_API_CONNECTION=http://hubmap-auth:84/
+#      - AIRFLOW_CONN_INGEST_API_CONNECTION=http://ingest-api:8484/
+#      - AIRFLOW_CONN_INGEST_API_CONNECTION=http://172.21.0.1:5000/
+#      - AIRFLOW__CLI__ENDPOINT_URL="http://localhost:8787"
+#      - AIRFLOW__WEBSERVER__BASE_URL="http://localhost:8787"
+#      - AIRFLOW__CORE__LOGGING_LEVEL=DEBUG
+
+    networks:
+      - gateway_hubmap
+    ports:
+      - "8789:8789"
+     
+
+networks:
+  # This is the network created by gateway to enable communicaton between multiple docker-compose projects
+  gateway_hubmap:
+    external: true

@@ -1,0 +1,10 @@
+version: "3.7"
+
+services:
+  
+  ingest-pipeline:
+    volumes:
+      # Mount the source code to container
+      - "../src/ingest-pipeline:/usr/src/app/src"
+
+
