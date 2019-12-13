@@ -18,16 +18,6 @@ response to requests from the data-ingest UI backend.
 | Success Response | Code: 200<br> Content: {"api_is_alive":true} |
 | Error Responses  | None                                     |
 
-| <strong>Get Version Information</strong>         |                                          |
-|------------------|------------------------------------------|
-| Description      | Get API version information           |
-| HTTP Method      | GET                                      |
-| Example URL      | /api/hubmap/version                       |
-| URL Parameters   | None                                     |
-| Data Parameters  | None                                     |
-| Success Response | Code: 200<br> Content: {"api":API version, "build":build version} |
-| Error Responses  | None                                     |
-
 | <strong>Get Process Strings</strong>         |                                          |
 |------------------|------------------------------------------|
 | Description      | Get a list of valid process identifier keys            |
@@ -36,6 +26,16 @@ response to requests from the data-ingest UI backend.
 | URL Parameters   | None                                     |
 | Data Parameters  | None                                     |
 | Success Response | Code: 200<br> Content: {"process_strings":[...list of keys...]} |
+| Error Responses  | None                                     |
+
+| <strong>Get Version Information</strong>         |                                          |
+|------------------|------------------------------------------|
+| Description      | Get API version information           |
+| HTTP Method      | GET                                      |
+| Example URL      | /api/hubmap/version                       |
+| URL Parameters   | None                                     |
+| Data Parameters  | None                                     |
+| Success Response | Code: 200<br> Content: {"api":API version, "build":build version} |
 | Error Responses  | None                                     |
 
 | <strong>Request Ingest</strong>   |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
