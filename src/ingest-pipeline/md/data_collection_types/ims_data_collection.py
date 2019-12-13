@@ -97,9 +97,8 @@ class IMSDataCollection(DataCollection):
                 break
             else:
                 raise MetadataError('The spatial metadata is unexpectedly missing')
-            
-        for k in spatial_meta:
-            rslt[k] = spatial_meta[k]
+
+        rslt['ccf_spatial'] = {k : v for k, v in spatial_meta.items()}
         
         #rslt['other_meta'] = metadata.copy()  # for debugging
         return rslt
