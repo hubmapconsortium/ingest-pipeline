@@ -26,8 +26,8 @@ services:
       - ${PWD}/../src/ingest-pipeline/requirements.txt:/requirements.txt
     environment:
       - AIRFLOW_CONN_INGEST_API_CONNECTION=http://hubmap-auth:7777/
-      - AIRFLOW__HUBMAP_API_PLUGIN__BUILD_NUMBER=${BUILD_NUM}
-      - TZ=${TZ}
+      - AIRFLOW__HUBMAP_API_PLUGIN__BUILD_NUMBER=1
+      #- TZ=${TZ}
       - AIRFLOW__WEBSERVER__WEB_SERVER_PORT=8789
       - FLASK_RUN_PORT=8789
       - FLASK_ENV=development
