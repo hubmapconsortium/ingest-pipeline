@@ -13,7 +13,9 @@ services:
       # Mount the app config to container in order to keep it outside of the image
       - "../src/ingest-pipeline/instance:/usr/src/app/src/instance"
       # Mount the logging to container
-      - "../logs:/usr/local/airflow/logs"
+
+      # Have to disable this log due to permission issue
+      #- "../logs:/usr/local/airflow/logs"
       # Mount dags, plugins, and data
       - "../src/ingest-pipeline/airflow/dags:/usr/local/airflow/dags:rw"
       - "../src/ingest-pipeline/airflow/plugins:/usr/local/airflow/plugins:rw"
@@ -30,9 +32,6 @@ services:
       - FLASK_RUN_PORT=8789
       - FLASK_ENV=development
       - FLASK_DEBUG=1
-#      - AIRFLOW_CONN_INGEST_API_CONNECTION=http://hubmap-auth:84/
-#      - AIRFLOW_CONN_INGEST_API_CONNECTION=http://ingest-api:8484/
-#      - AIRFLOW_CONN_INGEST_API_CONNECTION=http://172.21.0.1:5000/
 #      - AIRFLOW__CLI__ENDPOINT_URL="http://localhost:8787"
 #      - AIRFLOW__WEBSERVER__BASE_URL="http://localhost:8787"
 #      - AIRFLOW__CORE__LOGGING_LEVEL=DEBUG
