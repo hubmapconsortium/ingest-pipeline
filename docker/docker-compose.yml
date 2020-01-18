@@ -10,8 +10,6 @@ services:
     hostname: ingest-pipeline
     container_name: ingest-pipeline
     volumes:
-      # Mount the app config to container in order to keep it outside of the image
-      - "../src/ingest-pipeline/instance:/usr/src/app/src/instance"
       # Mount the logging to container
 
       # Have to disable this log due to permission issue
@@ -21,7 +19,6 @@ services:
       - "../src/ingest-pipeline/airflow/plugins:/usr/local/airflow/plugins:rw"
       - "../src/ingest-pipeline/airflow/data:/usr/local/airflow/data:rw"
       - "../src/ingest-pipeline/instance:/usr/local/airflow/instance"
-      - "${LZ_PATH-/hive/hubmap/lz}:/usr/local/airflow/lz"
       # Mount requirements.txt
       - ${PWD}/../src/ingest-pipeline/requirements.txt:/requirements.txt
     environment:

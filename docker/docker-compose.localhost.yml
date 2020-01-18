@@ -4,7 +4,10 @@ services:
   
   ingest-pipeline:
     volumes:
-      # Mount the source code to container
+      # Mount the source code to container.  This includes the instance/app.cfg file
+      # one directory below.
       - "../src/ingest-pipeline:/usr/src/app/src"
+      # Map the actual root of the staging area to container
+      - "/hubmap-data/stage:/usr/local/airflow/lz"
 
 

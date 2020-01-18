@@ -57,15 +57,22 @@ session.commit() # it will insert the connection object programmatically.
 
 def config(section, key):
     dct = airflow_conf.as_dict()
-    if section in dct and key in dct[section]:
-        rslt = dct[section][key]
+    if section in dct:
+        if key in dct[section]:
+            rslt = dct[section][key]
+        elif key.lower() in dct[section]:
+            rslt = dct[section][key.lower()]
+        elif key.upper() in dct[section]:
+            rslt = dct[section][key.upper()]
+        else:
+            raise AirflowConfigException('No config entry for [{}] {}'.format(section, key))
         # airflow config reader leaves quotes, which we want to strip
         for qc in ['"', "'"]:
             if rslt.startswith(qc) and rslt.endswith(qc):
                 rslt = rslt.strip(qc)
         return rslt
     else:
-        raise AirflowConfigException('No config entry for [{}] {}'.format(section, key))
+        raise AirflowConfigException('No config section [{}]'.format(section))
 
 
 AUTH_HELPER = None
@@ -201,8 +208,8 @@ def get_request_ingest_reply_parms(provider, submission_id, process):
             LOGGER.error('mock data load failed: {}'.format(e))
             raise HubmapApiInputException('No mock data found for process %s', process)
     else:
-        #dct = {'provider' : provider, 'submission_id' : submission_id, 'process' : process}
-        dct = {'provider' : 'Vanderbilt TMC', 'submission_id' : 'VAN0001-RK-1-21_24', 'process' : process}
+        dct = {'provider' : provider, 'submission_id' : submission_id, 'process' : process}
+        #dct = {'provider' : 'Vanderbilt TMC', 'submission_id' : 'VAN0001-RK-1-21_24', 'process' : process}
         lz_path = config('connections', 'lz_path').format(**dct)
         if os.path.exists(lz_path) and os.path.isdir(lz_path):
             n_files = 0
@@ -296,8 +303,10 @@ def request_ingest():
                 'dag_id': dag_id,
                 'run_id': run_id,
                 'ingest_id': ingest_id,
-                'auth_tok': auth_tok
+                'auth_tok': auth_tok,
+                'src_path': config('connections', 'src_path')
                 }
+        conf['lz_path'] = config('connections', 'lz_path').format(**conf)
 
         if find_dag_runs(session, dag_id, run_id, execution_date):
             # The run already happened??

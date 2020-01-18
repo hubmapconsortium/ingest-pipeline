@@ -2,12 +2,14 @@ version: "3.7"
 
 services:
   
-  ingest-api:
+  ingest-pipeline:
     init: true
     restart: always
+    volumes:
+      # Mount the source code to container
+      - "../src/ingest-pipeline:/usr/src/app/src"
+      # Map the actual root of the staging area to container
+      - "${LZ_PATH-/hive/hubmap/lz}:/usr/local/airflow/lz"
 
-  ingest-ui:
-    init: true
-    restart: always
-
+  
     
