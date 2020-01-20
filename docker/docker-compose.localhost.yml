@@ -9,5 +9,7 @@ services:
       - "../src/ingest-pipeline:/usr/src/app/src"
       # Map the actual root of the staging area to container
       - "/hubmap-data/stage:/usr/local/airflow/lz"
+    environment:
+      - AIRFLOW_CONN_INGEST_API_CONNECTION=http://hubmap-auth:7777/
 
 

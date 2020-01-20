@@ -3,6 +3,8 @@
 [ingest_map]
 MICROSCOPY.IMS.ALL = ingest_vanderbilt
 MOCK.MICROSCOPY.IMS.ALL = mock_ingest_vanderbilt
+MOCK.RNASEQ.10X = mock_ingest_rnaseq_10x
+SCAN.AND.BEGIN.PROCESSING = scan_and_begin_processing
 
 [core]
 timezone = US/Eastern

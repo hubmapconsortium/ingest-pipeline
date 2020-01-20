@@ -1,0 +1,28 @@
+collectiontype: rnaseq_10x
+components:
+- 1_H3S1-1_L001_SI-GA-D8-1
+- 1_H3S1-1_L002_SI-GA-D8-1
+- 1_H3S1-1_L003_SI-GA-D8-1
+- 1_H3S1-2_L001_SI-GA-D8-2
+- 1_H3S1-2_L002_SI-GA-D8-2
+- 1_H3S1-2_L003_SI-GA-D8-2
+- 1_H3S1-3_L001_SI-GA-D8-3
+- 1_H3S1-3_L002_SI-GA-D8-3
+- 1_H3S1-3_L003_SI-GA-D8-3
+- 1_H3S1-4_L001_SI-GA-D8-4
+- 1_H3S1-4_L002_SI-GA-D8-4
+- 1_H3S1-4_L003_SI-GA-D8-4
+dataset:
+  10x_Genomics_Index_well_ID: SI-GA-D8
+  Concentration_ng_ul: 16.8
+  HuBMAP Case Identifier: Case3  Spleen  CC1
+  Name: HBMP3_spleen_CC1
+  Quantification_method: Qubit
+  SI_INDEX_SEQUENCE: GCAACAAA
+  Seq_run: NS-1699
+  Sequencing_concentration_reported_from_ICBR: 225 pM
+  UUID Identifier: UFL0001-SP-1-3
+  'Unnamed: 10': TAGTTGTC
+  'Unnamed: 11': CGCCATCG
+  'Unnamed: 12': ATTGGCGT
+  Volume_ul: 10

@@ -7,6 +7,8 @@ from .czi_metadata_file import CZIMetadataFile
 from .ome_tiff_metadata_file import OMETiffMetadataFile
 from .scn_tiff_metadata_file import ScnTiffMetadataFile
 from .imzml_metadata_file import ImzMLMetadataFile
+from .fastq_metadata_file import FASTQMetadataFile
 __all__ = ["IgnoreMetadataFile", "YamlMetadataFile", "JSONMetadataFile",
            "TxtTformMetadataFile", "MtxTformMetadataFile", "CZIMetadataFile",
-           "OMETiffMetadataFile", "ScnTiffMetadataFile", "ImzMLMetadataFile"]
+           "OMETiffMetadataFile", "ScnTiffMetadataFile", "ImzMLMetadataFile",
+           "FASTQMetadataFile"]
