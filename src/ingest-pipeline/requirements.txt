@@ -2,4 +2,5 @@ git+git://github.com/hubmapconsortium/commons.git@master#egg=hubmap-commons
 pylibczi>=1.1.1
 xmltodict>=0.12.0
 pyimzml>=1.3.0
+airflow-multi-dagrun>=1.2
 
