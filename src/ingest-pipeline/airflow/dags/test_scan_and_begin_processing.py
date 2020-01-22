@@ -1,16 +1,17 @@
+import os
+import yaml
+from datetime import datetime, timedelta
+import pytz
+from pprint import pprint
 from airflow import DAG
 from airflow.operators.bash_operator import BashOperator
 from airflow.operators.python_operator import PythonOperator
 from airflow.operators.http_operator import SimpleHttpOperator
+from airflow.operators.dagrun_operator import TriggerDagRunOperator
 from airflow.hooks.http_hook import HttpHook
 from airflow.configuration import conf
 from airflow.models import Variable
-from datetime import datetime, timedelta
-import pytz
-from pprint import pprint
-import os
-import yaml
-import json
+from airflow.utils.dates import days_ago
 
 # Following are defaults which can be overridden later on
 default_args = {
@@ -81,9 +82,6 @@ with DAG('test_scan_and_begin_processing',
         http = HttpHook(method,
                         http_conn_id=http_conn_id)
  
-        md_fname = os.path.join(os.environ['AIRFLOW_HOME'],
-                                    'data/temp', kwargs['run_id'],
-                                    'rslt.yml')
         if md_extract_retcode == 0:
             md_fname = os.path.join(os.environ['AIRFLOW_HOME'],
                                     'data/temp', kwargs['run_id'],
@@ -108,6 +106,29 @@ with DAG('test_scan_and_begin_processing',
         print('data: ', data)
          
  
+    def spawn_dag(context, dag_run_obj):
+        """
+        Fill out dag_run_obj.run_id - default is basically timestamp
+        Fill out dag_run_obj.payload(picklable)
+        """
+        print('context:')
+        pprint(context)
+        md_extract_retcode = int(context['ti'].xcom_pull(task_ids="run_md_extract"))
+        if md_extract_retcode == 0:
+            md_fname = os.path.join(os.environ['AIRFLOW_HOME'],
+                                    'data/temp', context['run_id'],
+                                    'rslt.yml')
+            with open(md_fname, 'r') as f:
+                md = yaml.safe_load(f)
+            data = {'ingest_id' : context['run_id'],
+                    'auth_tok' : context['params']['auth_tok']
+                    #'ingest_id' : kwargs['dag_run'].conf['ingest_id'],
+                    'metadata': md}
+            dag_run_obj.payload = data
+            return dag_run_obj
+        else:
+            return None
+
     t0 = PythonOperator(
         task_id='set_params',
         python_callable=set_params,
@@ -151,12 +172,23 @@ with DAG('test_scan_and_begin_processing',
         python_callable=send_status_msg,
         provide_context=True
     )
+
+
+    t_spawn_dag = TriggerDagRunOperator(
+        task_id="spawn_dag",
+        trigger_dag_id="trig_salmon_rnaseq",  # Ensure this equals the dag_id of the DAG to trigger
+        python_callable = spawn_dag,
+        #conf={"message": "Hello World"},
+        #provide_context = True
+        )
  
- 
+
     t_cleanup_tmpdir = BashOperator(
         task_id='cleanup_temp_dir',
         bash_command='echo rm -r ${AIRFLOW_HOME}/data/temp/{{run_id}}',
         )
  
  
-    dag >> t0 >> t1 >> t_create_tmpdir >> t_run_md_extract >> t_send_status >> t_cleanup_tmpdir
+    (dag >> t0 >> t1 >> t_create_tmpdir >> t_run_md_extract >> t_send_status
+     >> t_spawn_dag >> t_cleanup_tmpdir
+    )

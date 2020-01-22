@@ -40,7 +40,7 @@ with DAG('mock_ingest_vanderbilt', schedule_interval=None, is_paused_upon_creati
 
     def extract_and_save_md(*argv, **kwargs):
         in_fname = os.path.join(os.environ['AIRFLOW_HOME'],
-                                'data/mock_data',
+                                'dags/mock_data',
                                 kwargs['dag_run'].conf['process'] + '.yml')
         out_fname = os.path.join(os.environ['AIRFLOW_HOME'],
                                  'data/temp', kwargs['run_id'],
