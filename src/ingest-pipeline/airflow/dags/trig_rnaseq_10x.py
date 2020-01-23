@@ -50,12 +50,13 @@ with DAG('trig_rnaseq_10x',
         """
         print('kwargs:')
         pprint(kwargs)
+        print('dag_run conf:')
+        pprint(kwargs['dag_run'].conf)
         metadata = kwargs['dag_run'].conf['metadata']
         auth_tok = kwargs['dag_run'].conf['auth_tok']
         assert 'components' in metadata, 'rnaseq_10x metadata with no components'
-        payload = {'auth_tok':auth_tok,
-                   'metadata':metadata,
-                   'apply':'salmon_rnaseq_10x'}
+        payload = {k:kwargs['dag_run'].conf[k] for k in kwargs['dag_run'].conf}
+        payload['apply'] = 'salmon_rnaseq_10x'
         for elt in metadata['components']:
             pld = payload.copy()
             pld['component'] = elt

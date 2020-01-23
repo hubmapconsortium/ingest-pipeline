@@ -12,6 +12,7 @@ import glob
 from airflow import DAG
 from airflow.operators.bash_operator import BashOperator
 from airflow.operators.python_operator import PythonOperator
+from airflow.operators.python_operator import BranchPythonOperator
 from airflow.operators.dummy_operator import DummyOperator
 from airflow.hooks.http_hook import HttpHook
 from airflow.configuration import conf
@@ -36,7 +37,7 @@ default_args = {
 }
 
 fake_conf = {'apply': 'salmon_rnaseq_10x',
-             'auth_tok': 'AgJEbW7KYQVDvpdWJ9vJWGDrYa0W0zp5vJ3e1vP3mz8ydzOjO6T0CBxzxEnKmJeOedyx58j44EDDM7U395N0Yf7KVD',
+             'auth_tok': 'Agqm11doB0qVzQQrvKmV8xQxprd2P3lamNeMO5prJOQnrmJN7ghqCPq4QrV4OWn36eV62PGMG14we7IP4dovVUlPrY',
              'component': '1_H3S1-3_L001_SI-GA-D8-3',
              'parent_lz_path': '/usr/local/airflow/lz/IEC Testing '
              'Group/80cd0a1fadbb654f023daf197d8a0bfe',
@@ -107,8 +108,8 @@ with DAG('salmon_rnaseq_10x',
         )
     
     def build_cwltool_cmd(**kwargs):
-        ctx = fake_conf
-        #ctx = dag_run.conf
+        #ctx = fake_conf
+        ctx = kwargs['dag_run'].conf
         run_id = kwargs['run_id']
         tmpdir = os.path.join(os.environ['AIRFLOW_HOME'],
                               'data', 'temp', run_id)
@@ -134,11 +135,14 @@ with DAG('salmon_rnaseq_10x',
         assert cwltool_dir, 'Failed to find cwltool bin directory'
         cwltool_dir = os.path.join(cwltool_dir, 'bin')
 
+        # Avoid cwltool problems while debugging
         command = [
             'echo',
-            '{"message":"hello world"}',
-            ">",
-            os.path.join(tmpdir,'meta.json')]
+            'hello world'
+            ]
+        # make some pretend output
+        with open(os.path.join(tmpdir, 'meta.yml'), 'w') as f:
+            yaml.dump({'message':'hello world'}, f)
 
 #         command = [
 #             'env',
@@ -169,7 +173,127 @@ with DAG('salmon_rnaseq_10x',
 
     pipeline_exec = BashOperator(
         task_id='pipeline_exec',
-        bash_command="{{ti.xcom_pull(task_ids='build_cmd')}}",
+        bash_command=""" \
+        tmp_dir=${AIRFLOW_HOME}/data/temp/{{run_id}} ; \
+        {{ti.xcom_pull(task_ids='build_cmd')}} > $tmp_dir/session.log 2>&1 ; \
+        echo $?
+        """
+    )
+
+    def maybe_keep(**kwargs):
+        cwl_retcode = int(kwargs['ti'].xcom_pull(task_ids="pipeline_exec"))
+        print('cwl_retcode: ', cwl_retcode)
+        if cwl_retcode is 0:
+            return 'send_create_dataset'
+        else:
+            return 'no_keep'
+    
+    t_maybe_keep = BranchPythonOperator(
+        task_id='maybe_keep',
+        python_callable=maybe_keep,
+        provide_context=True
+        )
+
+    t_no_keep = DummyOperator(
+        task_id='no_keep')
+
+    t_join = DummyOperator(
+        task_id='join',
+        trigger_rule='one_success')
+
+    def send_create_dataset(**kwargs):
+        #ctx = fake_conf
+        ctx = kwargs['dag_run'].conf
+        http_conn_id='ingest_api_connection'
+        endpoint='/datasets/derived'
+        method='POST'
+        headers={
+            'authorization' : 'Bearer ' + ctx['auth_tok'],
+            'content-type' : 'application/json'}
+        extra_options=[]
+        http = HttpHook(method,
+                        http_conn_id=http_conn_id)
+        data = {
+            "source_dataset_uuid":ctx['parent_submission_id'],
+            "derived_dataset_name":'{}__{}__{}'.format(ctx['metadata']['tmc_uuid'],
+                                                       ctx['component'],
+                                                       pipeline_name),
+            "derived_dataset_entity_type":"Dataset"
+        }
+        print('data: ', data)
+        response = http.run(endpoint,
+                            json.dumps(data),
+                            headers,
+                            extra_options)
+        print('response: ', response.text)
+        lz_root = os.path.split(ctx['parent_lz_path'])[0]
+        lz_root = os.path.split(lz_root)[0]
+        data_dir_path = os.path.join(lz_root,
+                                     response.json()['group_display_name'],
+                                     response.json()['derived_dataset_uuid'])
+        kwargs['ti'].xcom_push(key='group_uuid', value=response.json()['group_uuid'])
+        return data_dir_path
+
+    t_send_create_dataset = PythonOperator(
+        task_id='send_create_dataset',
+        python_callable=send_create_dataset,
+        provide_context=True
+    )
+
+    t_move_data = BashOperator(
+        task_id='move_data',
+        bash_command="""
+        tmp_dir="${AIRFLOW_HOME}/data/temp/{{run_id}}" ; \
+        ds_dir="{{ti.xcom_pull(task_ids="send_create_dataset")}}" ; \
+        grp_uuid="{{ti.xcom_pull(key="group_uuid", task_ids="send_create_dataset")}}" ; \
+        mkdir "$ds_dir/$grp_uuid" >> "$tmp_dir/session.log" 2>&1; \
+        mv "$tmp_dir"/* "$ds_dir/$grp_uuid" >> "$tmp_dir/session.log" 2>&1 ; \
+        echo $?
+        """,
+        provide_context=True
+        )
+
+    def send_status_msg(**kwargs):
+        cwl_retcode = int(kwargs['ti'].xcom_pull(task_ids="pipeline_exec"))
+        print('cwl_retcode: ', cwl_retcode)
+        cp_retcode =  int(kwargs['ti'].xcom_pull(task_ids="move_data"))
+        print('cp_retcode: ', cp_retcode)
+        http_conn_id='ingest_api_connection'
+        endpoint='/datasets/status'
+        method='POST'
+        headers={
+            'authorization' : 'Bearer ' + kwargs['dag_run'].conf['auth_tok'],
+            'content-type' : 'application/json'}
+        extra_options=[]
+         
+        http = HttpHook(method,
+                        http_conn_id=http_conn_id)
+ 
+        if cwl_retcode == 0 and cp_retcode == 0:
+            md_fname = os.path.join(os.environ['AIRFLOW_HOME'],
+                                    'data/temp', kwargs['run_id'],
+                                    'meta.yml')
+            with open(md_fname, 'r') as f:
+                md = yaml.safe_load(f)
+            data = {'ingest_id' : kwargs['dag_run'].conf['ingest_id'],
+                    'status' : 'success',
+                    'message' : 'the process ran',
+                    'metadata': md}
+        else:
+            log_fname = os.path.join(os.environ['AIRFLOW_HOME'],
+                                     'data/temp', kwargs['run_id'],
+                                     'session.log')
+            with open(log_fname, 'r') as f:
+                err_txt = '\n'.join(f.readlines())
+            data = {'ingest_id' : kwargs['dag_run'].conf['ingest_id'],
+                    'status' : 'failure',
+                    'message' : err_txt}
+        print('data: ', data)
+
+    t_send_status = PythonOperator(
+        task_id='send_status_msg',
+        python_callable=send_status_msg,
+        provide_context=True
     )
 
     
@@ -188,13 +312,15 @@ with DAG('salmon_rnaseq_10x',
 
     (dag >> t1 >> t_create_tmpdir
      >> prepare_pipeline >> build_cmd >> pipeline_exec
-     >> t_cleanup_tmpdir
-     )
+     >> t_maybe_keep)
+    t_maybe_keep >> t_send_create_dataset >> t_move_data >> t_send_status >> t_join
+    t_maybe_keep >> t_no_keep >> t_join
+    t_join >> t_cleanup_tmpdir
 
 
 
-# Hardcoded parameters for first Airflow execution
-DATA_DIRECTORY = Path('/hive/hubmap/data/CMU_Tools_Testing_Group/salmon-rnaseq')
-FASTQ_R1 = DATA_DIRECTORY / 'L001_R1_001_r.fastq.gz'
-FASTQ_R2 = DATA_DIRECTORY / 'L001_R2_001_r.fastq.gz'
+# # Hardcoded parameters for first Airflow execution
+# DATA_DIRECTORY = Path('/hive/hubmap/data/CMU_Tools_Testing_Group/salmon-rnaseq')
+# FASTQ_R1 = DATA_DIRECTORY / 'L001_R1_001_r.fastq.gz'
+# FASTQ_R2 = DATA_DIRECTORY / 'L001_R2_001_r.fastq.gz'
 

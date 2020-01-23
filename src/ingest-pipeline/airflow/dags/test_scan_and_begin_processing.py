@@ -110,7 +110,12 @@ with DAG('test_scan_and_begin_processing',
             kwargs['ti'].xcom_push(key='collectiontype', value=None)
         print('data: ', data)
          
- 
+        response = http.run(endpoint,
+                            json.dumps(data),
+                            headers,
+                            extra_options)
+        print('response: ', response.text)
+
     def maybe_spawn_dag(context, dag_run_obj):
         """
         This needs to be table-driven.  Its purpose is to suppress
