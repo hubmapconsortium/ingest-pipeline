@@ -64,9 +64,11 @@ class RNASEQ10XDataCollection(DataCollection):
         super().__init__(path)
     
     def collect_metadata(self):
-        rslt = {'collectiontype' : 'rnaseq_10x', 'components' : {}}
         md_type_tbl = self.get_md_type_tbl()
         top_dir = os.listdir(self.topdir)[0]
+        rslt = {'collectiontype' : 'rnaseq_10x',
+                'tmc_uuid' : top_dir,
+                'components' : {}}
         inner_path = os.path.join(self.topdir, top_dir)
         grp_elts = os.listdir(inner_path)
         grp_elts.remove('README.csv')
@@ -92,7 +94,9 @@ class RNASEQ10XDataCollection(DataCollection):
         
         """
         rslt = {}
-        rslt['collectiontype'] = metadata['collectiontype']
+        for k, v in metadata.items():
+            if k != 'components':
+                rslt[k] = v
         component_l = []
         for component, sub_meta in metadata['components'].items():
             if component == 'README.csv':

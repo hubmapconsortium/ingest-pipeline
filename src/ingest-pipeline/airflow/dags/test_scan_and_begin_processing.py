@@ -6,7 +6,8 @@ from pprint import pprint
 from airflow import DAG
 from airflow.operators.bash_operator import BashOperator
 from airflow.operators.python_operator import PythonOperator
-from airflow.operators.http_operator import SimpleHttpOperator
+from airflow.operators.python_operator import BranchPythonOperator
+from airflow.operators.dummy_operator import DummyOperator
 from airflow.operators.dagrun_operator import TriggerDagRunOperator
 from airflow.hooks.http_hook import HttpHook
 from airflow.configuration import conf
@@ -93,6 +94,9 @@ with DAG('test_scan_and_begin_processing',
                     'status' : 'success',
                     'message' : 'the process ran',
                     'metadata': md}
+            kwargs['ti'].xcom_push(key='collectiontype',
+                                   value=(md['collectiontype'] if 'collectiontype' in md
+                                          else None))
         else:
             log_fname = os.path.join(os.environ['AIRFLOW_HOME'],
                                      'data/temp', kwargs['run_id'],
@@ -103,31 +107,54 @@ with DAG('test_scan_and_begin_processing',
                     #'ingest_id' : kwargs['dag_run'].conf['ingest_id'],
                     'status' : 'failure',
                     'message' : err_txt}
+            kwargs['ti'].xcom_push(key='collectiontype', value=None)
         print('data: ', data)
          
  
-    def spawn_dag(context, dag_run_obj):
+    def maybe_spawn_dag(context, dag_run_obj):
         """
-        Fill out dag_run_obj.run_id - default is basically timestamp
-        Fill out dag_run_obj.payload(picklable)
+        This needs to be table-driven.  Its purpose is to suppress
+        triggering the dependent DAG if the collectiontype doesn't
+        have a dependent DAG.
         """
         print('context:')
         pprint(context)
         md_extract_retcode = int(context['ti'].xcom_pull(task_ids="run_md_extract"))
-        if md_extract_retcode == 0:
+        collectiontype = context['ti'].xcom_pull(key='collectiontype',
+                                                 task_ids='send_status_msg')
+        if md_extract_retcode == 0 and collectiontype is not None:
             md_fname = os.path.join(os.environ['AIRFLOW_HOME'],
                                     'data/temp', context['run_id'],
                                     'rslt.yml')
             with open(md_fname, 'r') as f:
                 md = yaml.safe_load(f)
-            data = {'ingest_id' : context['run_id'],
-                    'auth_tok' : context['params']['auth_tok']
-                    #'ingest_id' : kwargs['dag_run'].conf['ingest_id'],
-                    'metadata': md}
-            dag_run_obj.payload = data
-            return dag_run_obj
+            if collectiontype in ['rnaseq_10x']:
+                payload = {'ingest_id' : context['run_id'],
+                           #'ingest_id' : context['dag_run'].conf['ingest_id'],
+                           'auth_tok' : context['params']['auth_tok'],
+                           'parent_lz_path' : context['params']['lz_path'],
+                           'parent_submission_id' : context['params']['submission_id'],
+                           'metadata': md}
+                dag_run_obj.payload = payload
+                return dag_run_obj
+            else:
+                print('Extracted metadata has no "collectiontype" element')
+                return None
         else:
+            # The extraction of metadata failed or collectiontype is unknown,
+            # so spawn no child runs
             return None
+
+
+    def trigger_or_skip(**kwargs):
+        collectiontype = kwargs['ti'].xcom_pull(key='collectiontype',
+                                                task_ids="send_status_msg")
+        if collectiontype is None:
+            return 'no_spawn'
+        else:
+            return 'maybe_spawn_dag'
+        
+
 
     t0 = PythonOperator(
         task_id='set_params',
@@ -174,10 +201,23 @@ with DAG('test_scan_and_begin_processing',
     )
 
 
+    t_maybe_trigger = BranchPythonOperator(
+        task_id='maybe_trigger',
+        python_callable=trigger_or_skip,
+        provide_context=True
+        )
+
+    t_join = DummyOperator(
+        task_id='join',
+        trigger_rule='one_success')
+
+    t_no_spawn = DummyOperator(
+        task_id='no_spawn')
+
     t_spawn_dag = TriggerDagRunOperator(
-        task_id="spawn_dag",
-        trigger_dag_id="trig_salmon_rnaseq",  # Ensure this equals the dag_id of the DAG to trigger
-        python_callable = spawn_dag,
+        task_id="maybe_spawn_dag",
+        trigger_dag_id="trig_{{ti.xcom_pull(key='collectiontype', task_ids='send_status_msg')}}",
+        python_callable = maybe_spawn_dag,
         #conf={"message": "Hello World"},
         #provide_context = True
         )
@@ -190,5 +230,7 @@ with DAG('test_scan_and_begin_processing',
  
  
     (dag >> t0 >> t1 >> t_create_tmpdir >> t_run_md_extract >> t_send_status
-     >> t_spawn_dag >> t_cleanup_tmpdir
-    )
+     >> t_maybe_trigger)
+    t_maybe_trigger >> t_spawn_dag >> t_join
+    t_maybe_trigger >> t_no_spawn >> t_join
+    t_join >> t_cleanup_tmpdir

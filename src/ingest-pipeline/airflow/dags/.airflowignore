@@ -1,3 +1,5 @@
 # This file contains regular expressions identifying contents that should be ignored by Airflow
 mock_data
+cwl
+utils.py
 
