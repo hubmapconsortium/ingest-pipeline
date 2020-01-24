@@ -285,6 +285,10 @@ def request_ingest():
         dagbag = DagBag('dags')
  
         if dag_id not in dagbag.dags:
+            LOGGER.warning('Requested dag {} not among {}'.format(dag_id,
+                                                                  [did for did
+                                                                   in dagbag.dags]))
+            LOGGER.warning('Dag dir full path {}'.os.path.abspath('dags'))
             return HubmapApiResponse.not_found("Dag id {} not found".format(dag_id))
  
         dag = dagbag.get_dag(dag_id)
@@ -292,7 +296,8 @@ def request_ingest():
         # Produce one and only one run
         tz = pytz.timezone(config('core', 'timezone'))
         execution_date = datetime.now(tz)
-        LOGGER.info('execution_date: {}'.format(execution_date))
+        LOGGER.info('starting {} with execution_date: {}'.format(dag_id,
+                                                                 execution_date))
 
         run_id = '{}_{}_{}'.format(submission_id, process, execution_date.isoformat())
         ingest_id = run_id
