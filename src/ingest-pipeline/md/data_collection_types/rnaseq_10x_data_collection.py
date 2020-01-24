@@ -102,7 +102,6 @@ class RNASEQ10XDataCollection(DataCollection):
             if component == 'README.csv':
                 sub_rslt = {}
                 for k, v in sub_meta.items():
-                    print(k,repr(v),type(v))
                     if isinstance(v, (np.int8, np.int32, np.int64)):
                         sub_rslt[k] = int(v)
                     elif isinstance(v, np.float):
