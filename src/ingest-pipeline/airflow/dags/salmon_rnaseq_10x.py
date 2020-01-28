@@ -39,8 +39,10 @@ default_args = {
 fake_conf = {'apply': 'salmon_rnaseq_10x',
              'auth_tok': 'Agqm11doB0qVzQQrvKmV8xQxprd2P3lamNeMO5prJOQnrmJN7ghqCPq4QrV4OWn36eV62PGMG14we7IP4dovVUlPrY',
              'component': '1_H3S1-3_L001_SI-GA-D8-3',
-             'parent_lz_path': '/usr/local/airflow/lz/IEC Testing '
-             'Group/80cd0a1fadbb654f023daf197d8a0bfe',
+             #'parent_lz_path': '/usr/local/airflow/lz/IEC Testing '
+             #'Group/80cd0a1fadbb654f023daf197d8a0bfe',
+             'parent_lz_path': '/hubmap-data/test-stage/IEC Testing '
+             'Group/c7ebfd11223af5aa74ca42de211f87cd',
              'parent_submission_id': '80cd0a1fadbb654f023daf197d8a0bfe',
              'metadata': {'collectiontype': 'rnaseq_10x',
                           'components': ['1_H3S1-1_L001_SI-GA-D8-1',
@@ -108,8 +110,8 @@ with DAG('salmon_rnaseq_10x',
         )
     
     def build_cwltool_cmd(**kwargs):
-        #ctx = fake_conf
-        ctx = kwargs['dag_run'].conf
+        ctx = fake_conf
+        #ctx = kwargs['dag_run'].conf
         run_id = kwargs['run_id']
         tmpdir = os.path.join(os.environ['AIRFLOW_HOME'],
                               'data', 'temp', run_id)
@@ -148,6 +150,7 @@ with DAG('salmon_rnaseq_10x',
             'env',
             'PATH=%s:%s' % (cwltool_dir, os.environ['PATH']),
             'cwltool',
+            '--debug',
             '--outdir',
             os.path.join(tmpdir, 'cwl_out'),
 #             '--basedir',
@@ -202,8 +205,8 @@ with DAG('salmon_rnaseq_10x',
         trigger_rule='one_success')
 
     def send_create_dataset(**kwargs):
-        #ctx = fake_conf
-        ctx = kwargs['dag_run'].conf
+        ctx = fake_conf
+        #ctx = kwargs['dag_run'].conf
         http_conn_id='ingest_api_connection'
         endpoint='/datasets/derived'
         method='POST'
