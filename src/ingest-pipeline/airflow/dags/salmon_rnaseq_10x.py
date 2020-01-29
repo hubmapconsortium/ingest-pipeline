@@ -39,8 +39,10 @@ default_args = {
 fake_conf = {'apply': 'salmon_rnaseq_10x',
              'auth_tok': 'Agqm11doB0qVzQQrvKmV8xQxprd2P3lamNeMO5prJOQnrmJN7ghqCPq4QrV4OWn36eV62PGMG14we7IP4dovVUlPrY',
              'component': '1_H3S1-3_L001_SI-GA-D8-3',
-             'parent_lz_path': '/usr/local/airflow/lz/IEC Testing '
-             'Group/80cd0a1fadbb654f023daf197d8a0bfe',
+             #'parent_lz_path': '/usr/local/airflow/lz/IEC Testing '
+             #'Group/80cd0a1fadbb654f023daf197d8a0bfe',
+             'parent_lz_path': '/hubmap-data/test-stage/IEC Testing '
+             'Group/c7ebfd11223af5aa74ca42de211f87cd',
              'parent_submission_id': '80cd0a1fadbb654f023daf197d8a0bfe',
              'metadata': {'collectiontype': 'rnaseq_10x',
                           'components': ['1_H3S1-1_L001_SI-GA-D8-1',
@@ -135,11 +137,6 @@ with DAG('salmon_rnaseq_10x',
         assert cwltool_dir, 'Failed to find cwltool bin directory'
         cwltool_dir = os.path.join(cwltool_dir, 'bin')
 
-#         # Avoid cwltool problems while debugging
-#         command = [
-#             'echo',
-#             'hello world'
-#             ]
         # make some pretend output
         with open(os.path.join(tmpdir, 'meta.yml'), 'w') as f:
             yaml.dump({'message':'hello world'}, f)
@@ -148,10 +145,9 @@ with DAG('salmon_rnaseq_10x',
             'env',
             'PATH=%s:%s' % (cwltool_dir, os.environ['PATH']),
             'cwltool',
+            '--debug',
             '--outdir',
             os.path.join(tmpdir, 'cwl_out'),
-#             '--basedir',
-#             os.path.join(tmpdir, 'cwl_base'),
             '--parallel',
             os.path.join(pipeline_base_dir, pipeline_name, 'pipeline.cwl'),
             '--fastq_r1',
@@ -162,6 +158,13 @@ with DAG('salmon_rnaseq_10x',
             str(THREADS),
         ]
         
+        # command = [
+        #     'cp',
+        #     '-R',
+        #     '/home/airflow/airflow/data/temp/std_salmon_out/cwl_out',
+        #     tmpdir
+        # ]
+            
         command_str = ' '.join(shlex.quote(piece) for piece in command)
         print('final command_str: %s' % command_str)
         return command_str
@@ -218,7 +221,8 @@ with DAG('salmon_rnaseq_10x',
             "derived_dataset_name":'{}__{}__{}'.format(ctx['metadata']['tmc_uuid'],
                                                        ctx['component'],
                                                        pipeline_name),
-            "derived_dataset_entity_type":"Dataset"
+            "derived_dataset_types":["dataset",
+                                     "salmon_rnaseq_10x"]
         }
         print('data: ', data)
         response = http.run(endpoint,
