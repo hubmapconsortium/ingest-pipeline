@@ -250,8 +250,12 @@ with DAG('salmon_rnaseq_10x',
         tmp_dir="${AIRFLOW_HOME}/data/temp/{{run_id}}" ; \
         ds_dir="{{ti.xcom_pull(task_ids="send_create_dataset")}}" ; \
         grp_uuid="{{ti.xcom_pull(key="group_uuid", task_ids="send_create_dataset")}}" ; \
+        pushd "$ds_dir" ; \
+        sudo chown airflow . ; \
+        sudo chgrp dataaccessgroup . ; \
+        popd ; \
         mkdir "$ds_dir/$grp_uuid" >> "$tmp_dir/session.log" 2>&1; \
-        mv "$tmp_dir"/* "$ds_dir/$grp_uuid" >> "$tmp_dir/session.log" 2>&1 ; \
+        mv "$tmp_dir"/cwl_out/* "$ds_dir/$grp_uuid" >> "$tmp_dir/session.log" 2>&1 ; \
         echo $?
         """,
         provide_context=True
