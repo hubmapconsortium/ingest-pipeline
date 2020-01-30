@@ -1,6 +1,8 @@
 from os import environ
+from os.path import basename
 from pathlib import Path
-from subprocess import check_call
+from typing import List
+from subprocess import check_call, check_output
 
 # Some constants
 PIPELINE_BASE_DIR = Path(environ['AIRFLOW_HOME']) / 'pipeline_git_repos'
@@ -19,6 +21,13 @@ GIT_CHECKOUT_COMMAND = [
     GIT,
     'checkout',
     '{ref}',
+]
+GIT_LOG_COMMAND = [
+    GIT,
+    'log',
+    '-n1',
+    '--oneline',
+    '{fname}',
 ]
 
 def clone_or_update_pipeline(pipeline_name: str, ref: str = 'origin/master'):
@@ -60,3 +69,39 @@ def clone_or_update_pipeline(pipeline_name: str, ref: str = 'origin/master'):
         for piece in GIT_CHECKOUT_COMMAND
     ]
     check_call(checkout_command, cwd=pipeline_dir)
+
+
+def get_git_commits(file_list: List[str] or str):
+    rslt = []
+    if not isinstance(file_list, list):
+        file_list = [file_list]
+        unroll = True
+    else:
+        unroll = False
+    for fname in file_list:
+        log_command = [piece.format(fname=fname)
+                       for piece in GIT_LOG_COMMAND]
+        line = check_output(log_command)
+        rslt.append(line.split()[0].strip().decode('utf-8'))
+    if unroll:
+        return rslt[0]
+    else:
+        return rslt
+
+
+def get_git_provenance_dict(file_list: List[str] or str):
+    if not isinstance(file_list, list):
+        file_list = [file_list]
+    return {basename(fname) : get_git_commits(fname)
+            for fname in file_list}
+
+
+# def main():
+#     print(__file__)
+#     print(get_git_commits([__file__]))
+#     print(get_git_provenance_dict(__file__))
+# 
+# 
+# if __name__ == "__main__":
+#     main()
+

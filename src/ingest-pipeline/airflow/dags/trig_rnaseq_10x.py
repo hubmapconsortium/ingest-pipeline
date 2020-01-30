@@ -14,6 +14,8 @@ import os
 import yaml
 import json
 
+import utils
+
 # Following are defaults which can be overridden later on
 default_args = {
     'owner': 'hubmap',
@@ -57,11 +59,15 @@ with DAG('trig_rnaseq_10x',
         assert 'components' in metadata, 'rnaseq_10x metadata with no components'
         payload = {k:kwargs['dag_run'].conf[k] for k in kwargs['dag_run'].conf}
         payload['apply'] = 'salmon_rnaseq_10x'
+        if 'dag_provenance' in payload:
+            payload['dag_provenance'].update(utils.get_git_provenance_dict(__file__))
+        else:
+            payload['dag_provenance'] = utils.get_git_provenance_dict(__file__)
         for elt in metadata['components']:
             pld = payload.copy()
             pld['component'] = elt
             yield DagRunOrder(payload=pld)
-            break  # only emit the first trigger during debugging
+            #break  # only emit the first trigger during debugging
 
 
     t_spawn_dag = TriggerMultiDagRunOperator(
