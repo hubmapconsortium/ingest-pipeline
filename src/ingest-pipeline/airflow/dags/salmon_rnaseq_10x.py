@@ -18,7 +18,7 @@ from airflow.hooks.http_hook import HttpHook
 from airflow.configuration import conf
 from airflow.models import Variable
 
-from utils import PIPELINE_BASE_DIR, clone_or_update_pipeline
+import utils
 
 import cwltool  # used to find its path
 
@@ -100,7 +100,7 @@ with DAG('salmon_rnaseq_10x',
     pipeline_name = 'salmon_rnaseq_10x'
 
 #     prepare_pipeline = PythonOperator(
-#         python_callable=clone_or_update_pipeline,
+#         python_callable=utils.clone_or_update_pipeline,
 #         task_id='clone_or_update_pipeline',
 #         op_kwargs={'pipeline_name': pipeline_name}
 #     )
@@ -136,10 +136,6 @@ with DAG('salmon_rnaseq_10x',
                 break
         assert cwltool_dir, 'Failed to find cwltool bin directory'
         cwltool_dir = os.path.join(cwltool_dir, 'bin')
-
-        # make some pretend output
-        with open(os.path.join(tmpdir, 'meta.yml'), 'w') as f:
-            yaml.dump({'message':'hello world'}, f)
 
         command = [
             'env',
@@ -266,6 +262,8 @@ with DAG('salmon_rnaseq_10x',
         print('cwl_retcode: ', cwl_retcode)
         cp_retcode =  int(kwargs['ti'].xcom_pull(task_ids="move_data"))
         print('cp_retcode: ', cp_retcode)
+        group_uuid = kwargs['ti'].xcom_pull(key='group_uuid',
+                                            task_ids="send_create_dataset")
         http_conn_id='ingest_api_connection'
         endpoint='/datasets/status'
         method='POST'
@@ -278,11 +276,11 @@ with DAG('salmon_rnaseq_10x',
                         http_conn_id=http_conn_id)
  
         if cwl_retcode == 0 and cp_retcode == 0:
-            md_fname = os.path.join(os.environ['AIRFLOW_HOME'],
-                                    'data/temp', kwargs['run_id'],
-                                    'meta.yml')
-            with open(md_fname, 'r') as f:
-                md = yaml.safe_load(f)
+            dag_prv = (kwargs['dag_run'].conf['dag_provenance']
+                       if 'dag_provenance' in kwargs['dag_run']
+                       else {})
+            dag_prv.update(utils.get_git_provenance_dict(__file__))
+            md = {'dag_provenance' : dag_prv}
             data = {'ingest_id' : kwargs['dag_run'].conf['ingest_id'],
                     'status' : 'success',
                     'message' : 'the process ran',
@@ -293,10 +291,17 @@ with DAG('salmon_rnaseq_10x',
                                      'session.log')
             with open(log_fname, 'r') as f:
                 err_txt = '\n'.join(f.readlines())
-            data = {'ingest_id' : kwargs['dag_run'].conf['ingest_id'],
+            data = {'ingest_id' : group_uuid,
                     'status' : 'failure',
                     'message' : err_txt}
         print('data: ', data)
+
+        response = http.run(endpoint,
+                            json.dumps(data),
+                            headers,
+                            extra_options)
+        print('response: ', response.text)
+
 
     t_send_status = PythonOperator(
         task_id='send_status_msg',
