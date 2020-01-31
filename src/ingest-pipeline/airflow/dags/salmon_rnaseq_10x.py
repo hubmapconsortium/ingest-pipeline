@@ -209,6 +209,8 @@ with DAG('salmon_rnaseq_10x',
         headers={
             'authorization' : 'Bearer ' + ctx['auth_tok'],
             'content-type' : 'application/json'}
+        print('headers:')
+        pprint(headers)
         extra_options=[]
         http = HttpHook(method,
                         http_conn_id=http_conn_id)
@@ -220,18 +222,23 @@ with DAG('salmon_rnaseq_10x',
             "derived_dataset_types":["dataset",
                                      "salmon_rnaseq_10x"]
         }
-        print('data: ', data)
+        print('data: ')
+        pprint(data)
         response = http.run(endpoint,
                             json.dumps(data),
                             headers,
                             extra_options)
-        print('response: ', response.text)
+        print('response: ')
+        pprint(response.json())
         lz_root = os.path.split(ctx['parent_lz_path'])[0]
         lz_root = os.path.split(lz_root)[0]
         data_dir_path = os.path.join(lz_root,
                                      response.json()['group_display_name'],
                                      response.json()['derived_dataset_uuid'])
-        kwargs['ti'].xcom_push(key='group_uuid', value=response.json()['group_uuid'])
+        kwargs['ti'].xcom_push(key='group_uuid',
+                               value=response.json()['group_uuid'])
+        kwargs['ti'].xcom_push(key='derived_dataset_uuid', 
+                               value=response.json()['derived_dataset_uuid'])
         return data_dir_path
 
     t_send_create_dataset = PythonOperator(
@@ -245,7 +252,7 @@ with DAG('salmon_rnaseq_10x',
         bash_command="""
         tmp_dir="${AIRFLOW_HOME}/data/temp/{{run_id}}" ; \
         ds_dir="{{ti.xcom_pull(task_ids="send_create_dataset")}}" ; \
-        grp_uuid="{{ti.xcom_pull(key="group_uuid", task_ids="send_create_dataset")}}" ; \
+        grp_uuid="{{ti.xcom_pull(key="group_uuid",task_ids="send_create_dataset")}}" ; \
         pushd "$ds_dir" ; \
         sudo chown airflow . ; \
         sudo chgrp dataaccessgroup . ; \
@@ -264,12 +271,16 @@ with DAG('salmon_rnaseq_10x',
         print('cp_retcode: ', cp_retcode)
         group_uuid = kwargs['ti'].xcom_pull(key='group_uuid',
                                             task_ids="send_create_dataset")
+        derived_dataset_uuid = kwargs['ti'].xcom_pull(key='derived_dataset_uuid',
+                                                      task_ids="send_create_dataset")
         http_conn_id='ingest_api_connection'
         endpoint='/datasets/status'
         method='POST'
         headers={
             'authorization' : 'Bearer ' + kwargs['dag_run'].conf['auth_tok'],
             'content-type' : 'application/json'}
+        print('headers:')
+        pprint(headers)
         extra_options=[]
          
         http = HttpHook(method,
@@ -277,10 +288,11 @@ with DAG('salmon_rnaseq_10x',
  
         if cwl_retcode == 0 and cp_retcode == 0:
             dag_prv = (kwargs['dag_run'].conf['dag_provenance']
-                       if 'dag_provenance' in kwargs['dag_run']
+                       if 'dag_provenance' in kwargs['dag_run'].conf
                        else {})
             dag_prv.update(utils.get_git_provenance_dict(__file__))
-            md = {'dag_provenance' : dag_prv}
+            md = {'dag_provenance' : dag_prv,
+                  'component': kwargs['dag_run'].conf['component']}
             data = {'ingest_id' : kwargs['dag_run'].conf['ingest_id'],
                     'status' : 'success',
                     'message' : 'the process ran',
@@ -291,16 +303,18 @@ with DAG('salmon_rnaseq_10x',
                                      'session.log')
             with open(log_fname, 'r') as f:
                 err_txt = '\n'.join(f.readlines())
-            data = {'ingest_id' : group_uuid,
+            data = {'ingest_id' : kwargs['dag_run'].conf['ingest_id'],
                     'status' : 'failure',
                     'message' : err_txt}
-        print('data: ', data)
+        print('data: ')
+        pprint(data)
 
         response = http.run(endpoint,
                             json.dumps(data),
                             headers,
                             extra_options)
-        print('response: ', response.text)
+        print('response: ')
+        pprint(response.json())
 
 
     t_send_status = PythonOperator(
