@@ -110,8 +110,8 @@ with DAG('salmon_rnaseq_10x',
         )
     
     def build_cwltool_cmd(**kwargs):
-        ctx = fake_conf
-        #ctx = kwargs['dag_run'].conf
+        #ctx = fake_conf
+        ctx = kwargs['dag_run'].conf
         run_id = kwargs['run_id']
         tmpdir = os.path.join(os.environ['AIRFLOW_HOME'],
                               'data', 'temp', run_id)
@@ -201,8 +201,8 @@ with DAG('salmon_rnaseq_10x',
         trigger_rule='one_success')
 
     def send_create_dataset(**kwargs):
-        ctx = fake_conf
-        #ctx = kwargs['dag_run'].conf
+        #ctx = fake_conf
+        ctx = kwargs['dag_run'].conf
         http_conn_id='ingest_api_connection'
         endpoint='/datasets/derived'
         method='POST'
