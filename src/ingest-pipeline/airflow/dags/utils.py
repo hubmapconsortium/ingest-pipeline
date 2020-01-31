@@ -1,5 +1,5 @@
 from os import environ
-from os.path import basename
+from os.path import basename, dirname
 from pathlib import Path
 from typing import List
 from subprocess import check_call, check_output
@@ -81,7 +81,7 @@ def get_git_commits(file_list: List[str] or str):
     for fname in file_list:
         log_command = [piece.format(fname=fname)
                        for piece in GIT_LOG_COMMAND]
-        line = check_output(log_command)
+        line = check_output(log_command, cwd=dirname(fname))
         rslt.append(line.split()[0].strip().decode('utf-8'))
     if unroll:
         return rslt[0]
