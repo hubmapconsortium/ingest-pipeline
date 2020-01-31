@@ -36,16 +36,6 @@ with DAG('trig_rnaseq_10x',
          default_args=default_args) as dag:
 
  
-#     def trigger_target(**kwargs):
-#         ctx = kwargs['dag_run'].conf
-#         run_id = kwargs['run_id']
-#         print('run_id: ', run_id)
-#         print('dag_run.conf:')
-#         pprint(ctx)
-#         print('kwargs:')
-#         pprint(kwargs)
-
-
     def maybe_spawn_dags(**kwargs):
         """
         This is a generator which returns appropriate DagRunOrders
@@ -74,29 +64,7 @@ with DAG('trig_rnaseq_10x',
         task_id="spawn_dag",
         trigger_dag_id="salmon_rnaseq_10x",  # Ensure this equals the dag_id of the DAG to trigger
         python_callable = maybe_spawn_dags,
-        #conf={"message": "Hello World"},
-        #provide_context = True
         )
- 
-
-#     t1 = PythonOperator(
-#         task_id='trigger_target',
-#         python_callable = trigger_target,
-#         )
-
-
-#     t_create_tmpdir = BashOperator(
-#         task_id='create_temp_dir',
-#         bash_command='mkdir ${AIRFLOW_HOME}/data/temp/{{run_id}}',
-#         provide_context=True
-#         )
-# 
-#  
-#     t_send_status = PythonOperator(
-#         task_id='send_status_msg',
-#         python_callable=send_status_msg,
-#         provide_context=True
-#     )
- 
+  
   
     dag >> t_spawn_dag # >> t_create_tmpdir >> t_cleanup_tmpdir

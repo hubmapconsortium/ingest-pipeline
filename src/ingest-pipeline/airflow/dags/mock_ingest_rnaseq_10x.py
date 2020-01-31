@@ -55,7 +55,7 @@ with DAG('mock_ingest_rnaseq_10x', schedule_interval=None, is_paused_upon_creati
     def send_status_msg(**kwargs):
         http_conn_id='ingest_api_connection'
         endpoint='/datasets/status'
-        method='POST'
+        method='PUT'
         headers={
             #'authorization' : 'Bearer ' + kwargs['params']['auth_tok'],
                  'content-type' : 'application/json'}
@@ -69,21 +69,17 @@ with DAG('mock_ingest_rnaseq_10x', schedule_interval=None, is_paused_upon_creati
                                     'rslt.yml')
         with open(md_fname, 'r') as f:
             md = yaml.safe_load(f)
-        data = {'ingest_id' : kwargs['dag_run'].conf['ingest_id'],
-                'status' : 'success',
+        data = {'dataset_id' : kwargs['dag_run'].conf['submission_id'],
+                'status' : 'QA',
                 'message' : 'the process ran',
                 'metadata': md}
-#         data = {'ingest_id' : kwargs['params']['ingest_id'],
-#                 'status' : 'failure',
-#                 'message' : 'this is a sample error message'
-#                 }
         print('data: ', data)
         print("Calling HTTP method")
 
         response = http.run(endpoint,
                             json.dumps(data),
                             headers,
-                            extra_options)
+                            extra_options) 
         print(response.text)
 
     t0 = PythonOperator(

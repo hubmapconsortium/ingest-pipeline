@@ -54,7 +54,7 @@ with DAG('mock_ingest_vanderbilt', schedule_interval=None, is_paused_upon_creati
     def send_status_msg(**kwargs):
         http_conn_id='ingest_api_connection'
         endpoint='/datasets/status'
-        method='POST'
+        method='PUT'
         headers={
             #'authorization' : 'Bearer ' + kwargs['params']['auth_tok'],
                  'content-type' : 'application/json'}
@@ -68,14 +68,10 @@ with DAG('mock_ingest_vanderbilt', schedule_interval=None, is_paused_upon_creati
                                     'rslt.yml')
         with open(md_fname, 'r') as f:
             md = yaml.safe_load(f)
-        data = {'ingest_id' : kwargs['dag_run'].conf['ingest_id'],
-                'status' : 'success',
+        data = {'dataset_id' : kwargs['dag_run'].conf['submission_id'],
+                'status' : 'QA',
                 'message' : 'the process ran',
                 'metadata': md}
-#         data = {'ingest_id' : kwargs['params']['ingest_id'],
-#                 'status' : 'failure',
-#                 'message' : 'this is a sample error message'
-#                 }
         print('data: ', data)
         print("Calling HTTP method")
 
@@ -106,16 +102,6 @@ with DAG('mock_ingest_vanderbilt', schedule_interval=None, is_paused_upon_creati
         task_id='send_status_msg',
         python_callable=send_status_msg
         )
-
-#     t3 = SimpleHttpOperator(
-#         task_id='pass_md_to_REST',
-#         http_conn_id='ingest_api_connection',
-#         endpoint='/datasets/status',
-#         method='POST',
-#         data=build_status_msg()
-#         #data=json.dumps({'ingest_id':}),
-#         log_response=True
-#         )
 
     dag >> t0 >> t1 >> t2 >> t3
 

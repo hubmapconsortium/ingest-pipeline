@@ -247,6 +247,47 @@ with DAG('salmon_rnaseq_10x',
         provide_context=True
     )
 
+
+    def set_dataset_processing(**kwargs):
+        group_uuid = kwargs['ti'].xcom_pull(key='group_uuid',
+                                            task_ids="send_create_dataset")
+        derived_dataset_uuid = kwargs['ti'].xcom_pull(key='derived_dataset_uuid',
+                                                      task_ids="send_create_dataset")
+        http_conn_id='ingest_api_connection'
+        endpoint='/datasets/status'
+        method='PUT'
+        headers={
+            'authorization' : 'Bearer ' + kwargs['dag_run'].conf['auth_tok'],
+            'content-type' : 'application/json'}
+        print('headers:')
+        pprint(headers)
+        extra_options=[]
+         
+        http = HttpHook(method,
+                        http_conn_id=http_conn_id)
+ 
+        data = {'dataset_id' : derived_dataset_uuid,
+                'status' : 'Processing',
+                'message' : 'update state',
+                'metadata': {}}
+        print('data: ')
+        pprint(data)
+
+        response = http.run(endpoint,
+                            json.dumps(data),
+                            headers,
+                            extra_options)
+        print('response: ')
+        pprint(response.json())
+
+
+    t_set_dataset_processing = PythonOperator(
+        task_id='set_dataset_processing',
+        python_callable=send_status_msg,
+        provide_context=True
+    )
+
+
     t_move_data = BashOperator(
         task_id='move_data',
         bash_command="""
@@ -264,6 +305,7 @@ with DAG('salmon_rnaseq_10x',
         provide_context=True
         )
 
+
     def send_status_msg(**kwargs):
         cwl_retcode = int(kwargs['ti'].xcom_pull(task_ids="pipeline_exec"))
         print('cwl_retcode: ', cwl_retcode)
@@ -275,7 +317,7 @@ with DAG('salmon_rnaseq_10x',
                                                       task_ids="send_create_dataset")
         http_conn_id='ingest_api_connection'
         endpoint='/datasets/status'
-        method='POST'
+        method='PUT'
         headers={
             'authorization' : 'Bearer ' + kwargs['dag_run'].conf['auth_tok'],
             'content-type' : 'application/json'}
@@ -293,8 +335,8 @@ with DAG('salmon_rnaseq_10x',
             dag_prv.update(utils.get_git_provenance_dict(__file__))
             md = {'dag_provenance' : dag_prv,
                   'component': kwargs['dag_run'].conf['component']}
-            data = {'ingest_id' : kwargs['dag_run'].conf['ingest_id'],
-                    'status' : 'success',
+            data = {'dataset_id' : derived_dataset_uuid,
+                    'status' : 'QA',
                     'message' : 'the process ran',
                     'metadata': md}
         else:
@@ -303,8 +345,8 @@ with DAG('salmon_rnaseq_10x',
                                      'session.log')
             with open(log_fname, 'r') as f:
                 err_txt = '\n'.join(f.readlines())
-            data = {'ingest_id' : kwargs['dag_run'].conf['ingest_id'],
-                    'status' : 'failure',
+            data = {'dataset_id' : derived_dataset_uuid,
+                    'status' : 'Invalid',
                     'message' : err_txt}
         print('data: ')
         pprint(data)
@@ -340,7 +382,8 @@ with DAG('salmon_rnaseq_10x',
     (dag >> t1 >> t_create_tmpdir
      >> prepare_pipeline >> build_cmd >> pipeline_exec
      >> t_maybe_keep)
-    t_maybe_keep >> t_send_create_dataset >> t_move_data >> t_send_status >> t_join
+    (t_maybe_keep >> t_send_create_dataset >> t_set_dataset_processing
+     >> t_move_data >> t_send_status >> t_join)
     t_maybe_keep >> t_no_keep >> t_join
     t_join >> t_cleanup_tmpdir
 

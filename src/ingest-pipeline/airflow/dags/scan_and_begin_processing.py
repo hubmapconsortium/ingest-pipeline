@@ -33,60 +33,13 @@ with DAG('scan_and_begin_processing',
          schedule_interval=None, 
          is_paused_upon_creation=False, 
          default_args=default_args) as dag:
-
-
-#     def send_status_msg(**kwargs):
-#         print('dag_run.conf:')
-#         pprint(kwargs['dag_run'].conf)
-#         md_extract_retcode = int(kwargs['ti'].xcom_pull(task_ids="run_md_extract"))
-#         print('md_extract_retcode: ', md_extract_retcode)
-#         http_conn_id='ingest_api_connection'
-#         endpoint='/datasets/status'
-#         method='POST'
-#         headers={
-#                 'authorization' : 'Bearer ' + kwargs['dag_run'].conf['auth_tok'],
-#                 'content-type' : 'application/json'}
-#         extra_options=[]
-#         
-#         http = HttpHook(method,
-#                         http_conn_id=http_conn_id)
-# 
-#         md_fname = os.path.join(os.environ['AIRFLOW_HOME'],
-#                                     'data/temp', kwargs['run_id'],
-#                                     'rslt.yml')
-#         if md_extract_retcode == 0:
-#             md_fname = os.path.join(os.environ['AIRFLOW_HOME'],
-#                                     'data/temp', kwargs['run_id'],
-#                                     'rslt.yml')
-#             with open(md_fname, 'r') as f:
-#                 md = yaml.safe_load(f)
-#             data = {'ingest_id' : kwargs['dag_run'].conf['ingest_id'],
-#                     'status' : 'success',
-#                     'message' : 'the process ran',
-#                     'metadata': md}
-#         else:
-#             log_fname = os.path.join(os.environ['AIRFLOW_HOME'],
-#                                      'data/temp', kwargs['run_id'],
-#                                      'session.log')
-#             with open(log_fname, 'r') as f:
-#                 err_txt = '\n'.join(f.readlines())
-#             data = {'ingest_id' : kwargs['dag_run'].conf['ingest_id'],
-#                     'status' : 'failure',
-#                     'message' : err_txt}
-#         print('data: ', data)
-# 
-#         response = http.run(endpoint,
-#                             json.dumps(data),
-#                             headers,
-#                             extra_options)
-#         print('response: ', response.text)
         
     def send_status_msg(**kwargs):
         md_extract_retcode = int(kwargs['ti'].xcom_pull(task_ids="run_md_extract"))
         print('md_extract_retcode: ', md_extract_retcode)
         http_conn_id='ingest_api_connection'
         endpoint='/datasets/status'
-        method='POST'
+        method='PUT'
         headers={'authorization' : 'Bearer ' + kwargs['dag_run'].conf['auth_tok'],
                  'content-type' : 'application/json'}
         extra_options=[]
@@ -100,9 +53,8 @@ with DAG('scan_and_begin_processing',
                                     'rslt.yml')
             with open(md_fname, 'r') as f:
                 md = yaml.safe_load(f)
-            data = {'ingest_id' : kwargs['run_id'],
-                    #'ingest_id' : kwargs['dag_run'].conf['ingest_id'],
-                    'status' : 'success',
+            data = {'dataset_id' : kwargs['dag_run'].conf['submission_id'],
+                    'status' : 'QA',
                     'message' : 'the process ran',
                     'metadata': md}
             kwargs['ti'].xcom_push(key='collectiontype',
@@ -114,9 +66,8 @@ with DAG('scan_and_begin_processing',
                                      'session.log')
             with open(log_fname, 'r') as f:
                 err_txt = '\n'.join(f.readlines())
-            data = {'ingest_id' : kwargs['run_id'],
-                    #'ingest_id' : kwargs['dag_run'].conf['ingest_id'],
-                    'status' : 'failure',
+            data = {'dataset_id' : kwargs['dag_run'].conf['submission_id'],
+                    'status' : 'Invalid',
                     'message' : err_txt}
             kwargs['ti'].xcom_push(key='collectiontype', value=None)
         print('data: ', data)
