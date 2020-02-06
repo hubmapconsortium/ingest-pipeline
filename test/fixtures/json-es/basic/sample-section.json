@@ -1,0 +1,14 @@
+{
+  "datetime_submitted": "2000-01-01T01:00:00Z",
+  "submitter": "user@example.com",
+  "uuid": "0123456789abcdef0123456789abcdef",
+  "hubmap_id": "section-hubmap-id",
+  "type": "SAMPLE",
+  "status": "QA",
+  "donor_hubmap_id": "donor-hubmap-id",
+  "donor_lab_id": "donor-lab-id",
+  "donor_datetime_submitted": "2000-01-01T01:00:00Z",
+  "donor_submitter": "user@example.com",
+  "sample_hubmap_ids": ["organ-hubmap-id", "sample-hubmap-id"],
+  "sample_lab_ids": ["organ-lab-id", "sample-lab-id"]
+}

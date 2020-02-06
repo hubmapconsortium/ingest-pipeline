@@ -1,0 +1,9 @@
+{
+  "datetime_submitted": "2000-01-01T01:00:00Z",
+  "submitter": "user@example.com",
+  "uuid": "0123456789abcdef0123456789abcdef",
+  "hubmap_id": "donor_hubmap_id",
+  "type": "DONOR",
+  "donor_hubmap_id": "donor-hubmap-id",
+  "donor_lab_id": "donor-lab-id"
+}
