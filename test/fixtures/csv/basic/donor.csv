@@ -1,0 +1,7 @@
+"# Donor metadata: More fields will come, but we want to agree on structure first.",
+# Questions:,
+# - Should UUID be included? Bill has said that normal people will never need to use it... but I think Nils thinks that it would be a good double check against the hubmap_identifer?,
+# - Is there a regex for the hubmap_identifier values?,
+# - Are folks happy with column names in this style? I think an exact match with the internals will make life simpler.,
+donor_hubmap_identifier,donor_lab_id
+hubmap-donor-id,donor-lab-id

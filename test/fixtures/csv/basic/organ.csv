@@ -1,0 +1,3 @@
+"# Organ metadata: More fields will come, but we want to agree on structure first.",,,
+donor_hubmap_identifier,donor_lab_id,organ_hubmap_id,organ_lab_id
+hubmap-donor-id,donor-lab-id,organ-hubmap-id,organ-lab-id
