@@ -154,12 +154,13 @@ with DAG('salmon_rnaseq_10x',
             str(THREADS),
         ]
         
-        # command = [
-        #     'cp',
-        #     '-R',
-        #     '/home/airflow/airflow/data/temp/std_salmon_out/cwl_out',
-        #     tmpdir
-        # ]
+#         command = [
+#             'cp',
+#             '-R',
+#             os.path.join(os.environ['AIRFLOW_HOME'],
+#                          'data', 'temp', 'std_salmon_out', 'cwl_out'),
+#             tmpdir
+#         ]
             
         command_str = ' '.join(shlex.quote(piece) for piece in command)
         print('final command_str: %s' % command_str)
@@ -283,7 +284,7 @@ with DAG('salmon_rnaseq_10x',
 
     t_set_dataset_processing = PythonOperator(
         task_id='set_dataset_processing',
-        python_callable=send_status_msg,
+        python_callable=set_dataset_processing,
         provide_context=True
     )
 
@@ -294,9 +295,10 @@ with DAG('salmon_rnaseq_10x',
         tmp_dir="${AIRFLOW_HOME}/data/temp/{{run_id}}" ; \
         ds_dir="{{ti.xcom_pull(task_ids="send_create_dataset")}}" ; \
         grp_uuid="{{ti.xcom_pull(key="group_uuid",task_ids="send_create_dataset")}}" ; \
+        groupname="{{conf.as_dict()['connections']['OUTPUT_GROUP_NAME']}}" ; \
         pushd "$ds_dir" ; \
         sudo chown airflow . ; \
-        sudo chgrp dataaccessgroup . ; \
+        sudo chgrp $groupname . ; \
         popd ; \
         mkdir "$ds_dir/$grp_uuid" >> "$tmp_dir/session.log" 2>&1; \
         mv "$tmp_dir"/cwl_out/* "$ds_dir/$grp_uuid" >> "$tmp_dir/session.log" 2>&1 ; \

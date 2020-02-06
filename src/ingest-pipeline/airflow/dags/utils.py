@@ -2,7 +2,7 @@ from os import environ
 from os.path import basename, dirname
 from pathlib import Path
 from typing import List
-from subprocess import check_call, check_output
+from subprocess import check_call, check_output, CalledProcessError
 
 # Some constants
 PIPELINE_BASE_DIR = Path(environ['AIRFLOW_HOME']) / 'pipeline_git_repos'
@@ -81,8 +81,14 @@ def get_git_commits(file_list: List[str] or str):
     for fname in file_list:
         log_command = [piece.format(fname=fname)
                        for piece in GIT_LOG_COMMAND]
-        line = check_output(log_command, cwd=dirname(fname))
-        rslt.append(line.split()[0].strip().decode('utf-8'))
+        try:
+            line = check_output(log_command, cwd=dirname(fname))
+        except CalledProcessError as e:
+            # Git will fail if this is not running from a git repo
+            line = 'notavailable git call failed: {}'.format(e.output)
+            line = line.encode('utf-8')
+        hash = line.split()[0].strip().decode('utf-8')
+        rslt.append(hash)
     if unroll:
         return rslt[0]
     else:
