@@ -1,3 +1,5 @@
-"# Assay metadata: More fields will come, but we want to agree on structure first.",,,,,,,
-donor_hubmap_identifier,donor_lab_id,organ_hubmap_id,organ_lab_id,section_hubmap_id,section_lab_id,assay_hubmap_id,assay-lab-id
-hubmap-donor-id,donor-lab-id,organ-hubmap-id,organ-lab-id,section-hubmap-id,section-lab-id,assay-hubmap-id,assay-lab-id
+"# Assay metadata: More fields will come, but we want to agree on structure first.",,,,
+donor_hubmap_id,parent_hubmap_id,assay_hubmap_id,assay_lab_id,file_path
+donor-hubmap-id,section-hubmap-id,assay-hubmap-id,assay-lab-id,/foo/bar/1
+donor-hubmap-id,section-hubmap-id,assay-hubmap-id,assay-lab-id,/foo/bar/2
+donor-hubmap-id,section-hubmap-id,assay-hubmap-id,assay-lab-id,/foo/bar/3
