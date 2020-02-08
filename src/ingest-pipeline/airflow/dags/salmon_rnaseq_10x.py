@@ -37,26 +37,16 @@ default_args = {
 }
 
 fake_conf = {'apply': 'salmon_rnaseq_10x',
-             'auth_tok': 'Agqm11doB0qVzQQrvKmV8xQxprd2P3lamNeMO5prJOQnrmJN7ghqCPq4QrV4OWn36eV62PGMG14we7IP4dovVUlPrY',
-             'component': '1_H3S1-3_L001_SI-GA-D8-3',
-             #'parent_lz_path': '/usr/local/airflow/lz/IEC Testing '
-             #'Group/80cd0a1fadbb654f023daf197d8a0bfe',
-             'parent_lz_path': '/hubmap-data/test-stage/IEC Testing '
-             'Group/c7ebfd11223af5aa74ca42de211f87cd',
+             'auth_tok': 'AgWob7mDM3vo141ny8WYXE47WJ0bWrelDJB5zd2qEr0MGqoGPKFgC38z2PO6r7r7WpNdNana8p0EBwf48YnE2Hq3bz',
+             'component': '1_H3S1-1_L001_SI-GA-D8-1',
+             'parent_lz_path': '/usr/local/airflow/lz/IEC Testing '
+             'Group/cb8a37c188d2754f10dea76cd4958679',
+             #'parent_lz_path': '/hubmap-data/test-stage/IEC Testing '
+             #'Group/c7ebfd11223af5aa74ca42de211f87cd',
              'parent_submission_id': '80cd0a1fadbb654f023daf197d8a0bfe',
              'metadata': {'collectiontype': 'rnaseq_10x',
                           'components': ['1_H3S1-1_L001_SI-GA-D8-1',
-                                         '1_H3S1-1_L002_SI-GA-D8-1',
-                                         '1_H3S1-1_L003_SI-GA-D8-1',
-                                         '1_H3S1-2_L001_SI-GA-D8-2',
-                                         '1_H3S1-2_L002_SI-GA-D8-2',
-                                         '1_H3S1-2_L003_SI-GA-D8-2',
-                                         '1_H3S1-3_L001_SI-GA-D8-3',
-                                         '1_H3S1-3_L002_SI-GA-D8-3',
-                                         '1_H3S1-3_L003_SI-GA-D8-3',
-                                         '1_H3S1-4_L001_SI-GA-D8-4',
-                                         '1_H3S1-4_L002_SI-GA-D8-4',
-                                         '1_H3S1-4_L003_SI-GA-D8-4'],
+                                         '1_H3S1-1_L002_SI-GA-D8-1'],
                           'dataset': {'10x_Genomics_Index_well_ID': 'SI-GA-D8',
                                       'Concentration_ng_ul': 16.8,
                                       'HuBMAP Case Identifier': 'Case3  Spleen  CC1',
@@ -98,18 +88,30 @@ with DAG('salmon_rnaseq_10x',
     
     THREADS = 6
     pipeline_name = 'salmon_rnaseq_10x'
+    cwl_workflow1 = os.path.join(pipeline_name, 'pipeline.cwl')
+    cwl_workflow2 = os.path.join('portal-container-h5ad-to-arrow', 'workflow.cwl')
 
-#     prepare_pipeline = PythonOperator(
+#     prepare_cwl1 = PythonOperator(
 #         python_callable=utils.clone_or_update_pipeline,
-#         task_id='clone_or_update_pipeline',
-#         op_kwargs={'pipeline_name': pipeline_name}
+#         task_id='clone_or_update_cwl1',
+#         op_kwargs={'pipeline_name': cwl_workflow1}
 #     )
 
-    prepare_pipeline = DummyOperator(
-        task_id='prepare_pipeline'
+#     prepare_cwl2 = PythonOperator(
+#         python_callable=utils.clone_or_update_pipeline,
+#         task_id='clone_or_update_cwl2',
+#         op_kwargs={'pipeline_name': cwl_workflow2}
+#     )
+
+    prepare_cwl1 = DummyOperator(
+        task_id='prepare_cwl1'
         )
     
-    def build_cwltool_cmd(**kwargs):
+    prepare_cwl2 = DummyOperator(
+        task_id='prepare_cwl2'
+        )
+    
+    def build_cwltool_cmd1(**kwargs):
         #ctx = fake_conf
         ctx = kwargs['dag_run'].conf
         run_id = kwargs['run_id']
@@ -137,61 +139,149 @@ with DAG('salmon_rnaseq_10x',
         assert cwltool_dir, 'Failed to find cwltool bin directory'
         cwltool_dir = os.path.join(cwltool_dir, 'bin')
 
-        command = [
-            'env',
-            'PATH=%s:%s' % (cwltool_dir, os.environ['PATH']),
-            'cwltool',
-            '--debug',
-            '--outdir',
-            os.path.join(tmpdir, 'cwl_out'),
-            '--parallel',
-            os.path.join(pipeline_base_dir, pipeline_name, 'pipeline.cwl'),
-            '--fastq_r1',
-            fastq_r1,
-            '--fastq_r2',
-            fastq_r2,
-            '--threads',
-            str(THREADS),
-        ]
-        
 #         command = [
-#             'cp',
-#             '-R',
-#             os.path.join(os.environ['AIRFLOW_HOME'],
-#                          'data', 'temp', 'std_salmon_out', 'cwl_out'),
-#             tmpdir
+#             'env',
+#             'PATH=%s:%s' % (cwltool_dir, os.environ['PATH']),
+#             'cwltool',
+#             '--debug',
+#             '--outdir',
+#             os.path.join(tmpdir, 'cwl_out'),
+#             '--parallel',
+#             os.path.join(pipeline_base_dir, cwl_workflow1),
+#             '--fastq_r1',
+#             fastq_r1,
+#             '--fastq_r2',
+#             fastq_r2,
+#             '--threads',
+#             str(THREADS),
 #         ]
+        
+        command = [
+            'cp',
+            '-R',
+            os.path.join(os.environ['AIRFLOW_HOME'],
+                         'data', 'temp', 'std_salmon_out', 'cwl_out'),
+            tmpdir
+        ]
             
         command_str = ' '.join(shlex.quote(piece) for piece in command)
         print('final command_str: %s' % command_str)
         return command_str
 
-    build_cmd = PythonOperator(
-        task_id='build_cmd',
-        python_callable=build_cwltool_cmd
+    def build_cwltool_cmd2(**kwargs):
+        #ctx = fake_conf
+        ctx = kwargs['dag_run'].conf
+        run_id = kwargs['run_id']
+        tmpdir = os.path.join(os.environ['AIRFLOW_HOME'],
+                              'data', 'temp', run_id)
+        print('tmpdir: ', tmpdir)
+        datadir = os.path.join(ctx['parent_lz_path'],
+                               ctx['metadata']['tmc_uuid'],
+                               ctx['component'])
+        print('datadir: ', datadir)
+        pipeline_base_dir = os.path.join(os.environ['AIRFLOW_HOME'],
+                                         'dags', 'cwl')
+        cwltool_dir = os.path.dirname(cwltool.__file__)
+        while cwltool_dir:
+            part1, part2 = os.path.split(cwltool_dir)
+            cwltool_dir = part1
+            if part2 == 'lib':
+                break
+        assert cwltool_dir, 'Failed to find cwltool bin directory'
+        cwltool_dir = os.path.join(cwltool_dir, 'bin')
+
+        command = [
+            'env',
+            'PATH=%s:%s' % (cwltool_dir, os.environ['PATH']),
+            'cwltool',
+            os.path.join(pipeline_base_dir, cwl_workflow2),
+            '--input_dir',
+            '.'
+        ]
+            
+        command_str = ' '.join(shlex.quote(piece) for piece in command)
+        print('final command_str: %s' % command_str)
+        return command_str
+
+    t_build_cmd1 = PythonOperator(
+        task_id='build_cmd1',
+        python_callable=build_cwltool_cmd1
         )
 
-    pipeline_exec = BashOperator(
+    t_build_cmd2 = PythonOperator(
+        task_id='build_cmd2',
+        python_callable=build_cwltool_cmd2
+        )
+
+    t_pipeline_exec = BashOperator(
         task_id='pipeline_exec',
         bash_command=""" \
         tmp_dir=${AIRFLOW_HOME}/data/temp/{{run_id}} ; \
-        {{ti.xcom_pull(task_ids='build_cmd')}} > $tmp_dir/session.log 2>&1 ; \
+        {{ti.xcom_pull(task_ids='build_cmd1')}} > $tmp_dir/session.log 2>&1 ; \
+        echo $?
+        """
+    )
+
+    t_make_arrow1 = BashOperator(
+        task_id='make_arrow1',
+        bash_command=""" \
+        tmp_dir=${AIRFLOW_HOME}/data/temp/{{run_id}} ; \
+        cd $tmp_dir/cwl_out/cluster-marker-genes ;\
+        {{ti.xcom_pull(task_ids='build_cmd2')}} >> $tmp_dir/session.log 2>&1 ; \
+        echo $?
+        """
+    )
+
+    t_make_arrow2 = BashOperator(
+        task_id='make_arrow2',
+        bash_command=""" \
+        tmp_dir=${AIRFLOW_HOME}/data/temp/{{run_id}} ; \
+        cd $tmp_dir/cwl_out/dim_reduced_clustered ;\
+        {{ti.xcom_pull(task_ids='build_cmd2')}} >> $tmp_dir/session.log 2>&1 ; \
         echo $?
         """
     )
 
     def maybe_keep(**kwargs):
-        cwl_retcode = int(kwargs['ti'].xcom_pull(task_ids="pipeline_exec"))
-        print('cwl_retcode: ', cwl_retcode)
-        if cwl_retcode is 0:
-            return 'send_create_dataset'
+        """
+        accepts the following via the caller's op_kwargs:
+        'next_op': the operator to call on success
+        'bail_op': the operator to which to bail on failure (default 'no_keep')
+        'test_op': the operator providing the success code
+        'test_key': xcom key to test.  Defaults to None for return code
+        """
+        bail_op = kwargs['bail_op'] if 'bail_op' in kwargs else 'no_keep'
+        test_op = kwargs['test_op']
+        test_key = kwargs['test_key'] if 'test_key' in kwargs else None
+        retcode = int(kwargs['ti'].xcom_pull(task_ids=test_op, key=test_key))
+        print('%s key %s: %s\n' % (test_op, test_key, retcode))
+        if retcode is 0:
+            return kwargs['next_op']
         else:
-            return 'no_keep'
+            return bail_op
     
-    t_maybe_keep = BranchPythonOperator(
-        task_id='maybe_keep',
+    t_maybe_keep_cwl1 = BranchPythonOperator(
+        task_id='maybe_keep_cwl1',
         python_callable=maybe_keep,
-        provide_context=True
+        provide_context=True,
+        op_kwargs = {'next_op' : 'move_files',
+                     'test_op' : 'pipeline_exec'}
+        )
+
+    t_maybe_keep_cwl2 = BranchPythonOperator(
+        task_id='maybe_keep_cwl2',
+        python_callable=maybe_keep,
+        provide_context=True,
+        op_kwargs = {'next_op' : 'make_arrow2',
+                     'test_op' : 'make_arrow1'}
+        )
+
+    t_maybe_keep_cwl3 = BranchPythonOperator(
+        task_id='maybe_keep_cwl3',
+        python_callable=maybe_keep,
+        provide_context=True,
+        op_kwargs = {'next_op' : 'send_create_dataset',
+                     'test_op' : 'make_arrow2'}
         )
 
     t_no_keep = DummyOperator(
@@ -308,6 +398,21 @@ with DAG('salmon_rnaseq_10x',
         )
 
 
+    t_move_files = BashOperator(
+        task_id='move_files',
+        bash_command="""
+        tmp_dir="${AIRFLOW_HOME}/data/temp/{{run_id}}" ; \
+        cd "$tmp_dir"/cwl_out ; \
+        mkdir cluster-marker-genes ; \
+        mv cluster_marker_genes.h5ad cluster-marker-genes ; \
+        mkdir dim_reduced_clustered ; \
+        mv dim_reduced_clustered.h5ad dim_reduced_clustered ; \
+        echo $?
+        """,
+        provide_context=True
+        )
+
+
     def send_status_msg(**kwargs):
         cwl_retcode = int(kwargs['ti'].xcom_pull(task_ids="pipeline_exec"))
         print('cwl_retcode: ', cwl_retcode)
@@ -382,12 +487,16 @@ with DAG('salmon_rnaseq_10x',
  
 
     (dag >> t1 >> t_create_tmpdir
-     >> prepare_pipeline >> build_cmd >> pipeline_exec
-     >> t_maybe_keep)
-    (t_maybe_keep >> t_send_create_dataset >> t_set_dataset_processing
+     >> prepare_cwl1 >> prepare_cwl2
+     >> t_build_cmd1 >> t_pipeline_exec >> t_maybe_keep_cwl1
+     >> t_move_files >> t_build_cmd2 >> t_make_arrow1 >> t_maybe_keep_cwl2
+     >> t_make_arrow2 >> t_maybe_keep_cwl3
+     >> t_send_create_dataset >> t_set_dataset_processing
      >> t_move_data >> t_send_status >> t_join)
-    t_maybe_keep >> t_no_keep >> t_join
-    t_join >> t_cleanup_tmpdir
+    t_maybe_keep_cwl1 >> t_no_keep
+    t_maybe_keep_cwl2 >> t_no_keep
+    t_maybe_keep_cwl3 >> t_no_keep
+    t_no_keep >> t_join >> t_cleanup_tmpdir
 
 
 
