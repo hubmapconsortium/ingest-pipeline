@@ -225,18 +225,23 @@ with DAG('salmon_rnaseq_10x',
     t_make_arrow1 = BashOperator(
         task_id='make_arrow1',
         bash_command=""" \
-        tmp_dir=${AIRFLOW_HOME}/data/temp/{{run_id}} ; \
-        cd $tmp_dir/cwl_out/cluster-marker-genes ;\
+        tmp_dir="${AIRFLOW_HOME}/data/temp/{{run_id}}" ; \
+        ds_dir="{{ti.xcom_pull(task_ids="send_create_dataset")}}" ; \
+        grp_uuid="{{ti.xcom_pull(key="group_uuid",task_ids="send_create_dataset")}}" ; \
+        cd "$ds_dir"/$grp_uuid/cwl_out/cluster-marker-genes ; \
         {{ti.xcom_pull(task_ids='build_cmd2')}} >> $tmp_dir/session.log 2>&1 ; \
         echo $?
-        """
+        """,
+        provide_context=True
     )
 
     t_make_arrow2 = BashOperator(
         task_id='make_arrow2',
         bash_command=""" \
-        tmp_dir=${AIRFLOW_HOME}/data/temp/{{run_id}} ; \
-        cd $tmp_dir/cwl_out/dim_reduced_clustered ;\
+        tmp_dir="${AIRFLOW_HOME}/data/temp/{{run_id}}" ; \
+        ds_dir="{{ti.xcom_pull(task_ids="send_create_dataset")}}" ; \
+        grp_uuid="{{ti.xcom_pull(key="group_uuid",task_ids="send_create_dataset")}}" ; \
+        cd "$ds_dir"/$grp_uuid/cwl_out/dim_reduced_clustered ;\
         {{ti.xcom_pull(task_ids='build_cmd2')}} >> $tmp_dir/session.log 2>&1 ; \
         echo $?
         """
@@ -489,10 +494,13 @@ with DAG('salmon_rnaseq_10x',
     (dag >> t1 >> t_create_tmpdir
      >> prepare_cwl1 >> prepare_cwl2
      >> t_build_cmd1 >> t_pipeline_exec >> t_maybe_keep_cwl1
-     >> t_move_files >> t_build_cmd2 >> t_make_arrow1 >> t_maybe_keep_cwl2
-     >> t_make_arrow2 >> t_maybe_keep_cwl3
+     >> t_move_files 
      >> t_send_create_dataset >> t_set_dataset_processing
-     >> t_move_data >> t_send_status >> t_join)
+     >> t_move_data
+     >> t_build_cmd2
+     >> t_make_arrow1 >> t_maybe_keep_cwl2
+     >> t_make_arrow2 >> t_maybe_keep_cwl3
+     >> t_send_status >> t_join)
     t_maybe_keep_cwl1 >> t_no_keep
     t_maybe_keep_cwl2 >> t_no_keep
     t_maybe_keep_cwl3 >> t_no_keep
