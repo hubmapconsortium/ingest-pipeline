@@ -273,22 +273,6 @@ with DAG('salmon_rnaseq_10x',
                      'test_op' : 'pipeline_exec'}
         )
 
-    # t_maybe_keep_cwl2 = BranchPythonOperator(
-    #     task_id='maybe_keep_cwl2',
-    #     python_callable=maybe_keep,
-    #     provide_context=True,
-    #     op_kwargs = {'next_op' : 'make_arrow2',
-    #                  'test_op' : 'make_arrow1'}
-    #     )
-
-    # t_maybe_keep_cwl3 = BranchPythonOperator(
-    #     task_id='maybe_keep_cwl3',
-    #     python_callable=maybe_keep,
-    #     provide_context=True,
-    #     op_kwargs = {'next_op' : 'send_create_dataset',
-    #                  'test_op' : 'make_arrow2'}
-    #     )
-
     t_no_keep = DummyOperator(
         task_id='no_keep')
 
@@ -505,18 +489,10 @@ with DAG('salmon_rnaseq_10x',
      >> t_send_create_dataset >> t_set_dataset_processing
      >> t_move_data
      >> t_build_cmd2
-     >> t_make_arrow1 # >> t_maybe_keep_cwl2
-     >> t_make_arrow2 # >> t_maybe_keep_cwl3
+     >> t_make_arrow1
+     >> t_make_arrow2
      >> t_send_status >> t_join)
-    t_maybe_keep_cwl1 >> t_no_keep
-    # t_maybe_keep_cwl2 >> t_no_keep
-    # t_maybe_keep_cwl3 >> t_no_keep
-    t_no_keep >> t_join >> t_cleanup_tmpdir
+    t_maybe_keep_cwl1 >> t_no_keep >> t_join
+    t_join >> t_cleanup_tmpdir
 
-
-
-# # Hardcoded parameters for first Airflow execution
-# DATA_DIRECTORY = Path('/hive/hubmap/data/CMU_Tools_Testing_Group/salmon-rnaseq')
-# FASTQ_R1 = DATA_DIRECTORY / 'L001_R1_001_r.fastq.gz'
-# FASTQ_R2 = DATA_DIRECTORY / 'L001_R2_001_r.fastq.gz'
 
