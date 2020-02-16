@@ -228,7 +228,7 @@ with DAG('salmon_rnaseq_10x',
         tmp_dir="${AIRFLOW_HOME}/data/temp/{{run_id}}" ; \
         ds_dir="{{ti.xcom_pull(task_ids="send_create_dataset")}}" ; \
         grp_uuid="{{ti.xcom_pull(key="group_uuid",task_ids="send_create_dataset")}}" ; \
-        cd "$ds_dir"/$grp_uuid/cwl_out/cluster-marker-genes ; \
+        cd "$ds_dir"/$grp_uuid/cluster-marker-genes ; \
         {{ti.xcom_pull(task_ids='build_cmd2')}} >> $tmp_dir/session.log 2>&1 ; \
         echo $?
         """,
@@ -241,7 +241,7 @@ with DAG('salmon_rnaseq_10x',
         tmp_dir="${AIRFLOW_HOME}/data/temp/{{run_id}}" ; \
         ds_dir="{{ti.xcom_pull(task_ids="send_create_dataset")}}" ; \
         grp_uuid="{{ti.xcom_pull(key="group_uuid",task_ids="send_create_dataset")}}" ; \
-        cd "$ds_dir"/$grp_uuid/cwl_out/dim_reduced_clustered ;\
+        cd "$ds_dir"/$grp_uuid/dim_reduced_clustered ;\
         {{ti.xcom_pull(task_ids='build_cmd2')}} >> $tmp_dir/session.log 2>&1 ; \
         echo $?
         """
@@ -273,21 +273,21 @@ with DAG('salmon_rnaseq_10x',
                      'test_op' : 'pipeline_exec'}
         )
 
-    t_maybe_keep_cwl2 = BranchPythonOperator(
-        task_id='maybe_keep_cwl2',
-        python_callable=maybe_keep,
-        provide_context=True,
-        op_kwargs = {'next_op' : 'make_arrow2',
-                     'test_op' : 'make_arrow1'}
-        )
+    # t_maybe_keep_cwl2 = BranchPythonOperator(
+    #     task_id='maybe_keep_cwl2',
+    #     python_callable=maybe_keep,
+    #     provide_context=True,
+    #     op_kwargs = {'next_op' : 'make_arrow2',
+    #                  'test_op' : 'make_arrow1'}
+    #     )
 
-    t_maybe_keep_cwl3 = BranchPythonOperator(
-        task_id='maybe_keep_cwl3',
-        python_callable=maybe_keep,
-        provide_context=True,
-        op_kwargs = {'next_op' : 'send_create_dataset',
-                     'test_op' : 'make_arrow2'}
-        )
+    # t_maybe_keep_cwl3 = BranchPythonOperator(
+    #     task_id='maybe_keep_cwl3',
+    #     python_callable=maybe_keep,
+    #     provide_context=True,
+    #     op_kwargs = {'next_op' : 'send_create_dataset',
+    #                  'test_op' : 'make_arrow2'}
+    #     )
 
     t_no_keep = DummyOperator(
         task_id='no_keep')
@@ -419,10 +419,11 @@ with DAG('salmon_rnaseq_10x',
 
 
     def send_status_msg(**kwargs):
-        cwl_retcode = int(kwargs['ti'].xcom_pull(task_ids="pipeline_exec"))
-        print('cwl_retcode: ', cwl_retcode)
-        cp_retcode =  int(kwargs['ti'].xcom_pull(task_ids="move_data"))
-        print('cp_retcode: ', cp_retcode)
+        retcode_ops = ['pipeline_exec', 'move_data', 'make_arrow1', 'make_arrow2']
+        retcodes = [int(kwargs['ti'].xcom_pull(task_ids=op))
+                    for op in retcode_ops]
+        print('retcodes: ', {k:v for k, v in zip(retcode_ops, retcodes)})
+        success = all([rc == 0 for rc in retcodes])
         group_uuid = kwargs['ti'].xcom_pull(key='group_uuid',
                                             task_ids="send_create_dataset")
         derived_dataset_uuid = kwargs['ti'].xcom_pull(key='derived_dataset_uuid',
@@ -440,11 +441,17 @@ with DAG('salmon_rnaseq_10x',
         http = HttpHook(method,
                         http_conn_id=http_conn_id)
  
-        if cwl_retcode == 0 and cp_retcode == 0:
+        if success:
             dag_prv = (kwargs['dag_run'].conf['dag_provenance']
                        if 'dag_provenance' in kwargs['dag_run'].conf
                        else {})
-            dag_prv.update(utils.get_git_provenance_dict(__file__))
+            pipeline_base_dir = os.path.join(os.environ['AIRFLOW_HOME'],
+                                             'dags', 'cwl')
+            dag_prv.update(utils.get_git_provenance_dict([__file__,
+                                                          os.path.join(pipeline_base_dir,
+                                                                       cwl_workflow1),
+                                                          os.path.join(pipeline_base_dir,
+                                                                       cwl_workflow2)]))
             md = {'dag_provenance' : dag_prv,
                   'component': kwargs['dag_run'].conf['component']}
             data = {'dataset_id' : derived_dataset_uuid,
@@ -498,12 +505,12 @@ with DAG('salmon_rnaseq_10x',
      >> t_send_create_dataset >> t_set_dataset_processing
      >> t_move_data
      >> t_build_cmd2
-     >> t_make_arrow1 >> t_maybe_keep_cwl2
-     >> t_make_arrow2 >> t_maybe_keep_cwl3
+     >> t_make_arrow1 # >> t_maybe_keep_cwl2
+     >> t_make_arrow2 # >> t_maybe_keep_cwl3
      >> t_send_status >> t_join)
     t_maybe_keep_cwl1 >> t_no_keep
-    t_maybe_keep_cwl2 >> t_no_keep
-    t_maybe_keep_cwl3 >> t_no_keep
+    # t_maybe_keep_cwl2 >> t_no_keep
+    # t_maybe_keep_cwl3 >> t_no_keep
     t_no_keep >> t_join >> t_cleanup_tmpdir
 
 
