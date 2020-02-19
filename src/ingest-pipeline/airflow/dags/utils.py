@@ -1,5 +1,5 @@
-from os import environ
-from os.path import basename, dirname
+from os import environ, walk
+from os.path import basename, dirname, relpath, join, getsize
 from pathlib import Path
 from typing import List
 from subprocess import check_call, check_output, CalledProcessError
@@ -29,6 +29,11 @@ GIT_LOG_COMMAND = [
     '--oneline',
     '{fname}',
 ]
+SHA1SUM_COMMAND = [
+    'sha1sum',
+    '{fname}'
+]
+
 
 def clone_or_update_pipeline(pipeline_name: str, ref: str = 'origin/master'):
     """
@@ -82,7 +87,10 @@ def get_git_commits(file_list: List[str] or str):
         log_command = [piece.format(fname=fname)
                        for piece in GIT_LOG_COMMAND]
         try:
-            line = check_output(log_command, cwd=dirname(fname))
+            dirnm = dirname(fname)
+            if dirnm == '':
+                dirnm = '.'
+            line = check_output(log_command, cwd=dirnm)
         except CalledProcessError as e:
             # Git will fail if this is not running from a git repo
             line = 'notavailable git call failed: {}'.format(e.output)
@@ -102,12 +110,38 @@ def get_git_provenance_dict(file_list: List[str] or str):
             for fname in file_list}
 
 
-# def main():
-#     print(__file__)
-#     print(get_git_commits([__file__]))
-#     print(get_git_provenance_dict(__file__))
-# 
-# 
-# if __name__ == "__main__":
-#     main()
+
+def _get_file_type(path: str):
+    for re
+    
+
+def get_file_metadata(root_dir: str):
+    rslt = []
+    for dirpth, dirnames, fnames in walk(root_dir):
+        rp = relpath(dirpth, start=root_dir)
+        for fn in fnames:
+            full_path = join(root_dir, rp, fn)
+            sz = getsize(full_path)
+            line = check_output([word.format(fname=full_path)
+                                 for word in SHA1SUM_COMMAND])
+            cs = line.split()[0].strip().decode('utf-8')
+            rslt.append({'rel_path': join(rp, fn),
+                         'type': filetype.guess(full_path),
+                         'size': getsize(join(root_dir, rp, fn)),
+                         'sha1sum': cs})
+    return rslt
+    
+def main():
+    print(__file__)
+    print(get_git_commits([__file__]))
+    print(get_git_provenance_dict(__file__))
+    dirnm = dirname(__file__)
+    if dirnm == '':
+        dirnm = '.'
+    for elt in get_file_metadata(dirnm):
+        print(elt)
+ 
+ 
+if __name__ == "__main__":
+    main()
 

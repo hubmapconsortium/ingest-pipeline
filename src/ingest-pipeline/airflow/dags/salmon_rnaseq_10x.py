@@ -227,8 +227,7 @@ with DAG('salmon_rnaseq_10x',
         bash_command=""" \
         tmp_dir="${AIRFLOW_HOME}/data/temp/{{run_id}}" ; \
         ds_dir="{{ti.xcom_pull(task_ids="send_create_dataset")}}" ; \
-        grp_uuid="{{ti.xcom_pull(key="group_uuid",task_ids="send_create_dataset")}}" ; \
-        cd "$ds_dir"/$grp_uuid/cluster-marker-genes ; \
+        cd "$ds_dir"/cluster-marker-genes ; \
         {{ti.xcom_pull(task_ids='build_cmd2')}} >> $tmp_dir/session.log 2>&1 ; \
         echo $?
         """,
@@ -240,8 +239,7 @@ with DAG('salmon_rnaseq_10x',
         bash_command=""" \
         tmp_dir="${AIRFLOW_HOME}/data/temp/{{run_id}}" ; \
         ds_dir="{{ti.xcom_pull(task_ids="send_create_dataset")}}" ; \
-        grp_uuid="{{ti.xcom_pull(key="group_uuid",task_ids="send_create_dataset")}}" ; \
-        cd "$ds_dir"/$grp_uuid/dim_reduced_clustered ;\
+        cd "$ds_dir"/dim_reduced_clustered ;\
         {{ti.xcom_pull(task_ids='build_cmd2')}} >> $tmp_dir/session.log 2>&1 ; \
         echo $?
         """
@@ -329,8 +327,6 @@ with DAG('salmon_rnaseq_10x',
 
 
     def set_dataset_processing(**kwargs):
-        group_uuid = kwargs['ti'].xcom_pull(key='group_uuid',
-                                            task_ids="send_create_dataset")
         derived_dataset_uuid = kwargs['ti'].xcom_pull(key='derived_dataset_uuid',
                                                       task_ids="send_create_dataset")
         http_conn_id='ingest_api_connection'
@@ -373,14 +369,12 @@ with DAG('salmon_rnaseq_10x',
         bash_command="""
         tmp_dir="${AIRFLOW_HOME}/data/temp/{{run_id}}" ; \
         ds_dir="{{ti.xcom_pull(task_ids="send_create_dataset")}}" ; \
-        grp_uuid="{{ti.xcom_pull(key="group_uuid",task_ids="send_create_dataset")}}" ; \
         groupname="{{conf.as_dict()['connections']['OUTPUT_GROUP_NAME']}}" ; \
         pushd "$ds_dir" ; \
         sudo chown airflow . ; \
         sudo chgrp $groupname . ; \
         popd ; \
-        mkdir "$ds_dir/$grp_uuid" >> "$tmp_dir/session.log" 2>&1; \
-        mv "$tmp_dir"/cwl_out/* "$ds_dir/$grp_uuid" >> "$tmp_dir/session.log" 2>&1 ; \
+        mv "$tmp_dir"/cwl_out/* "$ds_dir" >> "$tmp_dir/session.log" 2>&1 ; \
         echo $?
         """,
         provide_context=True
@@ -408,8 +402,6 @@ with DAG('salmon_rnaseq_10x',
                     for op in retcode_ops]
         print('retcodes: ', {k:v for k, v in zip(retcode_ops, retcodes)})
         success = all([rc == 0 for rc in retcodes])
-        group_uuid = kwargs['ti'].xcom_pull(key='group_uuid',
-                                            task_ids="send_create_dataset")
         derived_dataset_uuid = kwargs['ti'].xcom_pull(key='derived_dataset_uuid',
                                                       task_ids="send_create_dataset")
         http_conn_id='ingest_api_connection'
