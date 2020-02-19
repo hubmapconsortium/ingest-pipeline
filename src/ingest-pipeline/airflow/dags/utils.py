@@ -3,6 +3,7 @@ from os.path import basename, dirname, relpath, join, getsize
 from pathlib import Path
 from typing import List
 from subprocess import check_call, check_output, CalledProcessError
+import re
 
 # Some constants
 PIPELINE_BASE_DIR = Path(environ['AIRFLOW_HOME']) / 'pipeline_git_repos'
@@ -33,6 +34,16 @@ SHA1SUM_COMMAND = [
     'sha1sum',
     '{fname}'
 ]
+FILE_TYPE_MATCHERS = [('^.*\.csv$', 'csv'),  # format is (regex, type)
+                      ('^.*\.hdf5$', 'hdf5'),
+                      ('^.*\.h5ad$', 'h5ad'),
+                      ('^.*\.pdf$', 'pdf'),
+                      ('^.*\.json$', 'json'),
+                      ('^.*\.arrow$', 'arrow'),
+                      ('(^.*\.fastq$)|(^.*\.fastq.gz$)', 'fastq'),
+                      ('(^.*\.yml$)|(^.*\.yaml$)', 'yaml')
+                      ]
+COMPILED_TYPE_MATCHERS = None
 
 
 def clone_or_update_pipeline(pipeline_name: str, ref: str = 'origin/master'):
@@ -112,7 +123,17 @@ def get_git_provenance_dict(file_list: List[str] or str):
 
 
 def _get_file_type(path: str):
-    for re
+    global COMPILED_TYPE_MATCHERS
+    if COMPILED_TYPE_MATCHERS is None:
+        lst = []
+        for regex, tpnm in FILE_TYPE_MATCHERS:
+            lst.append((re.compile(regex), tpnm))
+        COMPILED_TYPE_MATCHERS = lst
+    for regex, tpnm in COMPILED_TYPE_MATCHERS:
+        print('testing ', regex, tpnm)
+        if regex.match(path):
+            return tpnm
+    return 'unknown'
     
 
 def get_file_metadata(root_dir: str):
@@ -126,7 +147,7 @@ def get_file_metadata(root_dir: str):
                                  for word in SHA1SUM_COMMAND])
             cs = line.split()[0].strip().decode('utf-8')
             rslt.append({'rel_path': join(rp, fn),
-                         'type': filetype.guess(full_path),
+                         'type': _get_file_type(full_path),
                          'size': getsize(join(root_dir, rp, fn)),
                          'sha1sum': cs})
     return rslt

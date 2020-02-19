@@ -1,0 +1,15 @@
+'$schema': 'http://json-schema.org/schema#'
+'$id': 'http://ingest-pipeline.hubmapconsortium.org/dataset_metadata_schema.yaml'
+'title': 'dataset metadata schema'
+'description': 'dataset metadata schema'
+
+'$ref': '#/definitions/dataset_metadata'
+
+'definitions':
+
+  'dataset_metadata':
+     'type': 'object'
+     'properties':
+        'dag_provenance': {'$ref': 'code_provenance_schema.yml#/definitions/code_provenance_info'}
+        'files': {'$ref': 'file_info_schema.yml#/definitions/file_info'}
+     'required': ['dag_provenance', 'files']
