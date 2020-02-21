@@ -63,4 +63,4 @@ with DAG('trig_rnaseq_10x',
         )
   
   
-    dag >> t_spawn_dag # >> t_create_tmpdir >> t_cleanup_tmpdir
+    dag >> t_spawn_dag

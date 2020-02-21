@@ -476,7 +476,7 @@ with DAG('salmon_rnaseq_10x',
 
     t_cleanup_tmpdir = BashOperator(
         task_id='cleanup_temp_dir',
-        bash_command='echo rm -r ${AIRFLOW_HOME}/data/temp/{{run_id}}',
+        bash_command='rm -r ${AIRFLOW_HOME}/data/temp/{{run_id}}',
         )
  
 

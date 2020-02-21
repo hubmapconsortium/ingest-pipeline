@@ -54,7 +54,7 @@ with DAG('scan_and_begin_processing',
             with open(md_fname, 'r') as f:
                 md = yaml.safe_load(f)
             data = {'dataset_id' : kwargs['dag_run'].conf['submission_id'],
-                    'status' : 'Invalid', # 'QA',
+                    'status' : 'QA',
                     'message' : 'the process ran',
                     'metadata': md}
             kwargs['ti'].xcom_push(key='collectiontype',
