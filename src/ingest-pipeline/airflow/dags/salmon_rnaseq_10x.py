@@ -116,8 +116,8 @@ with DAG('salmon_rnaseq_10x',
         )
     
     def build_cwltool_cmd1(**kwargs):
-        ctx = fake_conf
-        #ctx = kwargs['dag_run'].conf
+        #ctx = fake_conf
+        ctx = kwargs['dag_run'].conf
         run_id = kwargs['run_id']
         tmpdir = os.path.join(os.environ['AIRFLOW_HOME'],
                               'data', 'temp', run_id)
@@ -173,8 +173,8 @@ with DAG('salmon_rnaseq_10x',
         return command_str
 
     def build_cwltool_cmd2(**kwargs):
-        ctx = fake_conf
-        #ctx = kwargs['dag_run'].conf
+        #ctx = fake_conf
+        ctx = kwargs['dag_run'].conf
         run_id = kwargs['run_id']
         tmpdir = os.path.join(os.environ['AIRFLOW_HOME'],
                               'data', 'temp', run_id)
@@ -283,8 +283,8 @@ with DAG('salmon_rnaseq_10x',
         trigger_rule='one_success')
 
     def send_create_dataset(**kwargs):
-        ctx = fake_conf
-        #ctx = kwargs['dag_run'].conf
+        #ctx = fake_conf
+        ctx = kwargs['dag_run'].conf
         http_conn_id='ingest_api_connection'
         endpoint='/datasets/derived'
         method='POST'
@@ -438,7 +438,7 @@ with DAG('salmon_rnaseq_10x',
                   'files' : file_md, 
                   'component': kwargs['dag_run'].conf['component']}
             try:
-                check_schema(md, 'dataset_metadata_schema')
+                #check_schema(md, 'dataset_metadata_schema.yml')
                 data = {'dataset_id' : derived_dataset_uuid,
                         'status' : 'QA',
                         'message' : 'the process ran',
