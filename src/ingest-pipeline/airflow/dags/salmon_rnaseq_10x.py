@@ -122,16 +122,9 @@ with DAG('salmon_rnaseq_10x',
         tmpdir = os.path.join(os.environ['AIRFLOW_HOME'],
                               'data', 'temp', run_id)
         print('tmpdir: ', tmpdir)
-        datadir = os.path.join(ctx['parent_lz_path'],
-                               ctx['metadata']['tmc_uuid'],
-                               ctx['component'])
-        print('datadir: ', datadir)
-        r1_candidates = glob.glob(os.path.join(datadir, '*_R1_???.fastq.gz'))
-        assert len(r1_candidates) == 1, 'zero or too many R1 fastq files'
-        fastq_r1 = r1_candidates[0]
-        r2_candidates = glob.glob(os.path.join(datadir, '*_R2_???.fastq.gz'))
-        assert len(r2_candidates) == 1, 'zero or too many R1 fastq files'
-        fastq_r2 = r2_candidates[0]
+        data_dir = os.path.join(ctx['parent_lz_path'],
+                               ctx['metadata']['tmc_uuid'])
+        print('data_dir: ', data_dir)
         pipeline_base_dir = os.path.join(os.environ['AIRFLOW_HOME'],
                                          'dags', 'cwl')
         cwltool_dir = os.path.dirname(cwltool.__file__)
@@ -143,30 +136,28 @@ with DAG('salmon_rnaseq_10x',
         assert cwltool_dir, 'Failed to find cwltool bin directory'
         cwltool_dir = os.path.join(cwltool_dir, 'bin')
 
-#         command = [
-#             'env',
-#             'PATH=%s:%s' % (cwltool_dir, os.environ['PATH']),
-#             'cwltool',
-#             '--debug',
-#             '--outdir',
-#             os.path.join(tmpdir, 'cwl_out'),
-#             '--parallel',
-#             os.path.join(pipeline_base_dir, cwl_workflow1),
-#             '--fastq_r1',
-#             fastq_r1,
-#             '--fastq_r2',
-#             fastq_r2,
-#             '--threads',
-#             str(THREADS),
-#         ]
-        
         command = [
-            'cp',
-            '-R',
-            os.path.join(os.environ['AIRFLOW_HOME'],
-                         'data', 'temp', 'std_salmon_out', 'cwl_out'),
-            tmpdir
+            'env',
+            'PATH=%s:%s' % (cwltool_dir, os.environ['PATH']),
+            'cwltool',
+            '--debug',
+            '--outdir',
+            os.path.join(tmpdir, 'cwl_out'),
+            '--parallel',
+            os.path.join(pipeline_base_dir, cwl_workflow1),
+            '--fastq_dir',
+            data_dir,
+            '--threads',
+            str(THREADS),
         ]
+        
+#         command = [
+#             'cp',
+#             '-R',
+#             os.path.join(os.environ['AIRFLOW_HOME'],
+#                          'data', 'temp', 'std_salmon_out', 'cwl_out'),
+#             tmpdir
+#         ]
             
         command_str = ' '.join(shlex.quote(piece) for piece in command)
         print('final command_str: %s' % command_str)
@@ -179,10 +170,9 @@ with DAG('salmon_rnaseq_10x',
         tmpdir = os.path.join(os.environ['AIRFLOW_HOME'],
                               'data', 'temp', run_id)
         print('tmpdir: ', tmpdir)
-        datadir = os.path.join(ctx['parent_lz_path'],
-                               ctx['metadata']['tmc_uuid'],
-                               ctx['component'])
-        print('datadir: ', datadir)
+        data_dir = os.path.join(ctx['parent_lz_path'],
+                               ctx['metadata']['tmc_uuid'])
+        print('data_dir: ', data_dir)
         pipeline_base_dir = os.path.join(os.environ['AIRFLOW_HOME'],
                                          'dags', 'cwl')
         cwltool_dir = os.path.dirname(cwltool.__file__)

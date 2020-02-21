@@ -7,12 +7,9 @@ label: scRNA-seq pipeline using Salmon and Alevin
 #  ScatterFeatureRequirement: {}
 #  SubworkflowFeatureRequirement: {}
 inputs:
-  fastq_r1:
-    label: "R1 FASTQ file"
-    type: File
-  fastq_r2:
-    label: "FASTQ file 2"
-    type: File
+  fastq_dir:
+    label: "Directory containing FASTQ files"
+    type: Directory
   threads:
     label: "Number of threads for Salmon"
     type: int
@@ -49,10 +46,8 @@ outputs:
 steps:
   - id: salmon
     in:
-      - id: fastq_r1
-        source: fastq_r1
-      - id: fastq_r2
-        source: fastq_r2
+      - id: fastq_dir
+        source: fastq_dir
       - id: threads
         source: threads
     out:
