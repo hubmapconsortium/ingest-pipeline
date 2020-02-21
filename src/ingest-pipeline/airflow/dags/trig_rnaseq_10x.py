@@ -53,11 +53,7 @@ with DAG('trig_rnaseq_10x',
             payload['dag_provenance'].update(utils.get_git_provenance_dict(__file__))
         else:
             payload['dag_provenance'] = utils.get_git_provenance_dict(__file__)
-        for elt in metadata['components']:
-            pld = payload.copy()
-            pld['component'] = elt
-            yield DagRunOrder(payload=pld)
-            #break  # only emit the first trigger during debugging
+        yield DagRunOrder(payload=payload)
 
 
     t_spawn_dag = TriggerMultiDagRunOperator(
