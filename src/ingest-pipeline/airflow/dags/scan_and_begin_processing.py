@@ -54,7 +54,7 @@ with DAG('scan_and_begin_processing',
             with open(md_fname, 'r') as f:
                 md = yaml.safe_load(f)
             data = {'dataset_id' : kwargs['dag_run'].conf['submission_id'],
-                    'status' : 'QA',
+                    'status' : 'Invalid', # 'QA',
                     'message' : 'the process ran',
                     'metadata': md}
             kwargs['ti'].xcom_push(key='collectiontype',
@@ -136,7 +136,7 @@ with DAG('scan_and_begin_processing',
         lib_dir="{{dag_run.conf.src_path}}/airflow/lib" ; \
         work_dir="${AIRFLOW_HOME}/data/temp/{{run_id}}" ; \
         cd $work_dir ; \
-        env PYTHON_PATH=${PYTHON_PATH}:$lib_dir \
+        env PYTHONPATH=${PYTHONPATH}:$lib_dir \
         python $src_dir/metadata_extract.py --out ./rslt.yml --yaml "$lz_dir" \
           > ./session.log 2>&1 ; \
         echo $?

@@ -12,7 +12,7 @@ import jsonschema
 
 DEFAULT_SCHEMA = 'metadata_schema.yml'
 
-_SCHEMA_BASE_PATH = os.path.join(Path(__file__).parent.parent, 'schemata')
+_SCHEMA_BASE_PATH = str(Path(__file__).parent.parent.parent / 'schemata')
 
 class SchemaError(RuntimeError):
     pass
@@ -55,16 +55,20 @@ def get_validator(schema_uri):
         # blank filename
         if p.path.startswith('/'):
             base_path = os.path.dirname(os.path.abspath(p.path))
+            print('clause 1; base_path: ', base_path)
             schema = file_to_json(p.path)
         elif _SCHEMA_BASE_PATH is None:
             base_path = os.path.dirname(os.path.abspath(p.path))
+            print('clause 2; base_path: ', base_path)
             schema = file_to_json(p.path)
         else:
             base_path = _SCHEMA_BASE_PATH
+            print('clause 3; base_path: ', base_path, 'full path: ', os.path.join(base_path, p.path))
             schema = file_to_json(os.path.join(base_path, p.path))
         resolver = jsonschema.RefResolver('file://' + base_path + '/', schema,
                                           handlers={'file': file_uri_handler})
     else:
+        print('clause 4; schema_uri: ', schema_uri)
         schema = json.loads(urlopen(schema_uri).read().decode("utf-8"))
         resolver = jsonschema.RefResolver(schema_uri, None,
                                           handlers={'file': file_uri_handler})
@@ -78,7 +82,8 @@ def check_schema(jsn, schema_fname):
     Check the given json data against the jsonschema in the given schema file,
     raising an exception on error.
     """
-    validator = get_validator(schema_fname)
+    #validator = get_validator(schema_fname)
+    validator = jsonschema.Draft3Validator(file_to_json(os.path.join(_SCHEMA_BASE_PATH,schema_fname)))
     err_msg_l = []
     try:
         for error in validator.iter_errors(jsn):
