@@ -16,6 +16,7 @@ services:
       #- "../logs:/usr/local/airflow/logs"
       # Mount dags, plugins, and data
       - "../src/ingest-pipeline/airflow/dags:/usr/local/airflow/dags:rw"
+      - "../src/ingest-pipeline/airflow/lib:/usr/local/airflow/lib:rw"
       - "../src/ingest-pipeline/airflow/plugins:/usr/local/airflow/plugins:rw"
       - "../src/ingest-pipeline/airflow/data:/usr/local/airflow/data:rw"
       - "../src/ingest-pipeline/instance:/usr/local/airflow/instance"

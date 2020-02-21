@@ -133,8 +133,10 @@ with DAG('scan_and_begin_processing',
         bash_command=""" \
         lz_dir="{{dag_run.conf.lz_path}}" ; \
         src_dir="{{dag_run.conf.src_path}}/md" ; \
+        lib_dir="{{dag_run.conf.src_path}}/airflow/lib" ; \
         work_dir="${AIRFLOW_HOME}/data/temp/{{run_id}}" ; \
         cd $work_dir ; \
+        env PYTHON_PATH=${PYTHON_PATH}:$lib_dir \
         python $src_dir/metadata_extract.py --out ./rslt.yml --yaml "$lz_dir" \
           > ./session.log 2>&1 ; \
         echo $?

@@ -1,3 +1,4 @@
+import sys
 import os
 from os import fspath
 from pathlib import Path
@@ -19,6 +20,9 @@ from airflow.configuration import conf
 from airflow.models import Variable
 
 import utils
+
+sys.path.append(str(Path(os.environ['AIRFLOW_HOME']) / 'lib'))
+from schema_tools import check_schema, SchemaError
 
 import cwltool  # used to find its path
 
@@ -112,8 +116,8 @@ with DAG('salmon_rnaseq_10x',
         )
     
     def build_cwltool_cmd1(**kwargs):
-        #ctx = fake_conf
-        ctx = kwargs['dag_run'].conf
+        ctx = fake_conf
+        #ctx = kwargs['dag_run'].conf
         run_id = kwargs['run_id']
         tmpdir = os.path.join(os.environ['AIRFLOW_HOME'],
                               'data', 'temp', run_id)
@@ -169,8 +173,8 @@ with DAG('salmon_rnaseq_10x',
         return command_str
 
     def build_cwltool_cmd2(**kwargs):
-        #ctx = fake_conf
-        ctx = kwargs['dag_run'].conf
+        ctx = fake_conf
+        #ctx = kwargs['dag_run'].conf
         run_id = kwargs['run_id']
         tmpdir = os.path.join(os.environ['AIRFLOW_HOME'],
                               'data', 'temp', run_id)
@@ -279,8 +283,8 @@ with DAG('salmon_rnaseq_10x',
         trigger_rule='one_success')
 
     def send_create_dataset(**kwargs):
-        #ctx = fake_conf
-        ctx = kwargs['dag_run'].conf
+        ctx = fake_conf
+        #ctx = kwargs['dag_run'].conf
         http_conn_id='ingest_api_connection'
         endpoint='/datasets/derived'
         method='POST'
@@ -404,6 +408,7 @@ with DAG('salmon_rnaseq_10x',
         success = all([rc == 0 for rc in retcodes])
         derived_dataset_uuid = kwargs['ti'].xcom_pull(key='derived_dataset_uuid',
                                                       task_ids="send_create_dataset")
+        ds_dir = kwargs['ti'].xcom_pull(task_ids='send_create_dataset')
         http_conn_id='ingest_api_connection'
         endpoint='/datasets/status'
         method='PUT'
@@ -428,12 +433,23 @@ with DAG('salmon_rnaseq_10x',
                                                                        cwl_workflow1),
                                                           os.path.join(pipeline_base_dir,
                                                                        cwl_workflow2)]))
+            file_md = utils.get_file_metadata(ds_dir)
             md = {'dag_provenance' : dag_prv,
+                  'files' : file_md, 
                   'component': kwargs['dag_run'].conf['component']}
-            data = {'dataset_id' : derived_dataset_uuid,
-                    'status' : 'QA',
-                    'message' : 'the process ran',
-                    'metadata': md}
+            try:
+                check_schema(md, 'dataset_metadata_schema')
+                data = {'dataset_id' : derived_dataset_uuid,
+                        'status' : 'QA',
+                        'message' : 'the process ran',
+                        'metadata': md}
+            except SchemaError as e:
+                print('invalid metadata follows:')
+                pprint(md)
+                data = {'dataset_id' : derived_dataset_uuid,
+                        'status' : 'Error',
+                        'message' : 'internal error; schema violation: {}'.format(e),
+                        'metadata': {}}
         else:
             log_fname = os.path.join(os.environ['AIRFLOW_HOME'],
                                      'data/temp', kwargs['run_id'],
