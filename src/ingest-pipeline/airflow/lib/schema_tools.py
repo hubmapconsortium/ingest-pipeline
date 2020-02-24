@@ -12,7 +12,7 @@ import jsonschema
 
 DEFAULT_SCHEMA = 'metadata_schema.yml'
 
-_SCHEMA_BASE_PATH = str(Path(__file__).parent.parent.parent / 'schemata')
+_SCHEMA_BASE_PATH = str(Path(__file__).resolve().parent.parent.parent / 'schemata')
 
 class SchemaError(RuntimeError):
     pass
@@ -94,4 +94,25 @@ def check_schema(jsn, schema_fname):
         raise SchemaError('{}'.format(e))
 
     
+def main():
+    sample_json = {
+        'files': [
+            {'rel_path': './trig_rnaseq_10x.py', 'type': 'unknown', 'size': 2198, 
+             'sha1sum': '8cbba27b76806091ec1041bc7994dfc89c60a4e2'},
+            {'rel_path': './utils.py', 'type': 'unknown', 'size': 5403,
+             'sha1sum': 'd910cf4a1d2b6ef928b449b906d79cab5dad1692'},
+            {'rel_path': './scan_and_begin_processing.py', 'type': 'unknown', 'size': 6977,
+             'sha1sum': 'c5b981ec9ddb922c84ba67127485cfa6819f79da'},
+            {'rel_path': './mock_ingest_vanderbilt.py', 'type': 'unknown', 'size': 3477,
+             'sha1sum': 'bf6fbb87e4dc1425525f91ce4c2238a2cc851d01'},
+            {'rel_path': './mock_ingest_rnaseq_10x.py', 'type': 'unknown', 'size': 3654,
+             'sha1sum': '93f204cf3878e3095a83651d2046d5393008844c'}
+            ]
+        }
+    print(check_schema(sample_json, 'dataset_metadata_schema.yml'))
+ 
+ 
+if __name__ == "__main__":
+    main()
+
 
