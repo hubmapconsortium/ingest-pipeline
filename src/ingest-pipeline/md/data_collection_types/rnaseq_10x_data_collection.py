@@ -17,6 +17,8 @@ class RNASEQ10XDataCollection(DataCollection):
                       ('*_R1_*.fastq.gz', "FASTQ"),
                       ('*_R1_*.fastq.gz', "FASTQ")]
     
+    optional_files = []
+    
     @classmethod
     def test_match(cls, path):
         """
@@ -79,7 +81,7 @@ class RNASEQ10XDataCollection(DataCollection):
             ii_path = os.path.join(inner_path, inner_dir)
             if os.path.isdir(ii_path):
                 ii_rslt = {}
-                for match, md_type in type(self).expected_files:
+                for match, md_type in self.expected_files + self.optional_files:
                     for fpath in glob.iglob(os.path.join(self.topdir, match)):
                         this_md = md_type_tbl[md_type](fpath).collect_metadata()
                         if this_md is not None:
