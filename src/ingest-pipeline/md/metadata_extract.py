@@ -9,19 +9,12 @@ import yaml
 from type_base import MetadataError
 from data_collection import DataCollection
 import data_collection_types
+from schema_tools import check_schema
 
-DEFAULT_SCHEMA = 'metadata_schema.yml'
+DEFAULT_SCHEMA = 'datacollection_metadata_schema.yml'
 
 _KNOWN_DATA_COLLECTION_TYPES = None
 
-
-def check_schema(jsn, schema_fname):
-    """
-    Check the given json data against the jsonschema in the given schema file,
-    raising an exception on error.
-    """
-    pass
-    
 
 def scan(target_dir, out_fname, schema_fname, yaml_flag=False):
     global _KNOWN_DATA_COLLECTION_TYPES
@@ -58,7 +51,8 @@ def main(myargv=None):
     if myargv is None:
         myargv = sys.argv
 
-    default_schema_path = os.path.join(os.path.dirname(__file__), '../schemata/', DEFAULT_SCHEMA)
+    #default_schema_path = os.path.join(os.path.dirname(__file__), '../schemata/', DEFAULT_SCHEMA)
+    default_schema_path = DEFAULT_SCHEMA  # trust the schema tools to know where to look
 
     parser = argparse.ArgumentParser(description='Scan a directory tree of data'
                                      ' files and extract metadata');

@@ -3,6 +3,8 @@
 [ingest_map]
 MICROSCOPY.IMS.ALL = ingest_vanderbilt
 MOCK.MICROSCOPY.IMS.ALL = mock_ingest_vanderbilt
+MOCK.RNASEQ.10X = mock_ingest_rnaseq_10x
+SCAN.AND.BEGIN.PROCESSING = scan_and_begin_processing
 
 [core]
 timezone = US/Eastern
@@ -17,3 +19,6 @@ INGEST_API_URL = 'http://localhost:8484'
 
 # Path to LZ as seen by airflow
 LZ_PATH = '/hive/hubmap/lz/{provider}/{submission_id}'
+
+# Group to which output directories are set, typically shared with Globus
+OUTPUT_GROUP_NAME = 'dataaccessgroup'

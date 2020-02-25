@@ -3,15 +3,13 @@ version: "3.7"
 services:
   
   ingest-pipeline:
-    init: true
-    restart: always
     volumes:
-      # Mount the source code to container
+      # Mount the source code to container.  This includes the instance/app.cfg file
+      # one directory below.
       - "../src/ingest-pipeline:/usr/src/app/src"
       # Map the actual root of the staging area to container
-      - "${LZ_PATH-/hive/hubmap/lz}:/usr/local/airflow/lz"
+      - "/hubmap-data/stage:/usr/local/airflow/lz"
     environment:
       - AIRFLOW_CONN_INGEST_API_CONNECTION=http://hubmap-auth:7777/
 
-  
-    
+

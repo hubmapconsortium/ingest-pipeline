@@ -23,7 +23,8 @@ default_args = {
     'provide_context': True
 }
 
-with DAG('mock_ingest_vanderbilt', schedule_interval=None, is_paused_upon_creation=False, default_args=default_args) as dag:
+with DAG('mock_ingest_rnaseq_10x', schedule_interval=None, is_paused_upon_creation=False,
+         default_args=default_args) as dag:
 
     def print_context(*argv, **kwargs):
         """Print the Airflow context and ds variable from the context."""
@@ -78,10 +79,8 @@ with DAG('mock_ingest_vanderbilt', schedule_interval=None, is_paused_upon_creati
         response = http.run(endpoint,
                             json.dumps(data),
                             headers,
-                            extra_options)
+                            extra_options) 
         print(response.text)
-        
-
 
     t0 = PythonOperator(
         task_id='print_the_context',
@@ -103,5 +102,10 @@ with DAG('mock_ingest_vanderbilt', schedule_interval=None, is_paused_upon_creati
         python_callable=send_status_msg
         )
 
-    dag >> t0 >> t1 >> t2 >> t3
+    t_cleanup_tmpdir = BashOperator(
+        task_id='cleanup_temp_dir',
+        bash_command='echo rm -r ${AIRFLOW_HOME}/data/temp/{{run_id}}',
+        )
+ 
+    dag >> t0 >> t1 >> t2 >> t3 >> t_cleanup_tmpdir
 
