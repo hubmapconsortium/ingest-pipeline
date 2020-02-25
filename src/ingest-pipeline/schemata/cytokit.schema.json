@@ -1,0 +1,258 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "http://example.com/cytokit.schema.json",
+  "title": "Cytokit Data",
+  "description": "The output data from a Cytokit run",
+
+  "definitions": {
+    "channel": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" }
+      }
+    }
+  },
+
+
+  "type": "object",
+  "properties": {
+    "name": {
+      "description": "The name of a Cytokit run",
+      "type": "string"
+    },
+    "date": {
+      "description": "The data/time of the run",
+      "type": "date-time"
+    },
+     "environment" : {
+     	"type": "object",
+     	"description": "",
+     	"properties": {
+		     "path_formats": {
+		      "description": "A message from the Airflow's system relating to the dataset",
+		      "type": "string"
+		    }
+	    }
+    },
+     "acquisition" : {
+     	"type": "object",
+     	"description": "",
+     	"properties": {
+	     "per_cycle_channel_names": {
+	      "description": "An array of per cycle channel names",
+	      "type": "array",
+	      "items" : {
+	      	"type" : "string"
+	      }
+	    },
+	     "channel_names": {
+	      "description": "An array of channel names",
+	      "type": "array",
+	      "items" : { "$ref": "#/definitions/channel" }
+	    },
+	     "emission_wavelengths": {
+	      "description": "An array of emission wavelengths",
+	      "type": "array",
+	      "items" : {
+	      	"type" : "integer"
+	      }
+	    },
+	     "axial_resolution": {
+	      "description": "The axial resolution of the images",
+	      "type": "number"
+	    },
+	     "lateral_resolution": {
+	      "description": "The lateral resolution of the images",
+	      "type": "number"
+	    },
+	     "magnification": {
+	      "description": "The magnification of the images",
+	      "type": "integer"
+	    },
+	     "num_cycles": {
+	      "description": "The number of cycles used to generate the images",
+	      "type": "integer"
+	    },
+	     "num_z_planes": {
+	      "description": "The number z planes used to generate the images",
+	      "type": "integer"
+	    },
+	     "numerical_aperture": {
+	      "description": "The numerical aperture of the images",
+	      "type": "number"
+	    },
+	     "objective_type": {
+	      "description": "The objective type of the images",
+	      "type": "string"
+	    },
+	     "region_names": {
+	      "description": "An array of region names",
+	      "type": "array",
+	      "items" : {
+	      	"type" : "string"
+	      }
+	    },
+	     "region_height": {
+	      "description": "The region height used to generate the images",
+	      "type": "integer"
+	    },
+	     "region_width": {
+	      "description": "The region width used to generate the images",
+	      "type": "integer"
+	    },
+	     "tile_height": {
+	      "description": "The tile height used to generate the images",
+	      "type": "integer"
+	    },
+	     "tile_width": {
+	      "description": "The tile width used to generate the images",
+	      "type": "integer"
+	    },
+	     "tile_overlap_x": {
+	      "description": "The tile overlap of the x coordinates used to generate the images",
+	      "type": "integer"
+	    },
+	     "tile_overlap_y": {
+	      "description": "The tile overlap of the y coordinates used to generate the images",
+	      "type": "integer"
+	    },
+	     "tiling_mode": {
+	      "description": "The tile mode used to generate the images",
+	      "type": "string"
+	    }
+	  }
+	},
+	    
+     "analysis" : {
+     	"type": "object",
+     	"description": "",
+     	"properties": {
+		    "aggregate_cytometry_statistics": {
+		      "description": "",
+		      "type": "object",
+		      "properties": {
+		      	"mode": {
+		      		"type": "string",
+		      		"description": ""
+		      	}
+		      }    
+		    }
+		 }
+	},
+	
+    "processor" : {
+    	"type": "object",
+    	"properties": {
+    	  "args": {
+    	  	"type": "object",
+    	  	"properties" : {
+    	  		"gpus": {
+    	  			"type": "string",
+    	  			"description": ""
+    	  		},
+    	  		"run_crop": {
+    	  			"type": "string",
+    	  			"description": ""
+    	  		},
+    	  		"run_tile_generator": {
+    	  			"type": "string",
+    	  			"description": ""
+    	  		},
+    	  		"run_drift_comp": {
+    	  			"type": "string",
+    	  			"description": ""
+    	  		},
+    	  		"run_cytometry": {
+    	  			"type": "string",
+    	  			"description": ""
+    	  		},
+    	  		"run_best_focus": {
+    	  			"type": "string",
+    	  			"description": ""
+    	  		},
+    	  		"run_deconvolution": {
+    	  			"type": "string",
+    	  			"description": ""
+    	  		}
+    	  	}
+    	  }
+    	},
+    	"best_focus" : { "$ref": "#/definitions/channel" },
+    	"drift_compensation" : { "$ref": "#/definitions/channel" },
+    	"deconvolution": {
+    		"type": "object",
+    		"properties": {
+    			"n_iter": {
+    				"type": "integer",
+    				"description": ""
+    			},
+    			"scale_factor": {
+    				"type": "integer",
+    				"description": ""
+				}
+			}
+		},
+		"tile_generator": {    	
+    		"type": "object",
+    		"properties": {
+    			"raw_file_type": {
+    				"type": "integer",
+    				"description": ""
+    			}
+			}
+		}
+    	   
+    },
+    "cytometry" : {
+    	"type": "object",
+    	"properties": {
+	  		"target_shape": {
+		      "type": "array",
+		      "items" : {
+		      	"type" : "integer"
+      		  }
+	  		},
+	  		"nuclei_channel_name": { "$ref": "#/definitions/channel" },
+	  		"membrane_channel_name": { "$ref": "#/definitions/channel" },
+	  		"segmentation_params": {
+	  			"type": "object",
+	  			"properties": {
+	  				"memb_min_dist": {
+	  					"type": "integer",
+	  					"description": ""
+	  				},
+	  				"memb_sigma": {
+	  					"type": "integer",
+	  					"description": ""
+	  				},
+	  				"memb_gamma": {
+	  					"type": "number",
+	  					"description": ""
+	  				},
+	  				"marker_dilation": {
+	  					"type": "integer",
+	  					"description": ""
+	  				}
+	  			}
+	  		},
+	  		"quantification_params": {
+	  			"type": "object",
+	  			"properties": {
+	  				"nucleus_intensity": {
+	  					"type": "boolean",
+	  					"description": ""
+	  				},
+	  				"cell_graph": {
+	  					"type": "boolean",
+	  					"description": ""
+	  				}
+	  			}
+	  		}
+    	}
+
+    }
+     
+  },
+  "required": [ "name", "date" ]
+}
+ 
