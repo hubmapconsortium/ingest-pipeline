@@ -52,6 +52,8 @@ class IMSDataCollection(DataCollection):
                        "OME_TIFF"),
                       ]
     
+    optional_files = []
+    
     @classmethod
     def test_match(cls, path):
         """
@@ -74,7 +76,7 @@ class IMSDataCollection(DataCollection):
     def collect_metadata(self):
         rslt = {}
         md_type_tbl = self.get_md_type_tbl()
-        for match, md_type in type(self).expected_files:
+        for match, md_type in self.expected_files + self.optional_files:
             #print('collect match %s' % match)
             for fpath in glob.iglob(os.path.join(self.topdir, match)):
                 #print('collect from path %s' % fpath)
