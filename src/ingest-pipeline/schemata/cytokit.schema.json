@@ -147,31 +147,34 @@
     	  	"type": "object",
     	  	"properties" : {
     	  		"gpus": {
-    	  			"type": "string",
-    	  			"description": ""
+    	  			"type": "array",
+    	  			"description": "",
+				    "items" : {
+				      "type" : "integer"
+				    }
     	  		},
     	  		"run_crop": {
-    	  			"type": "string",
+    	  			"type": "boolean",
     	  			"description": ""
     	  		},
     	  		"run_tile_generator": {
-    	  			"type": "string",
+    	  			"type": "boolean",
     	  			"description": ""
     	  		},
     	  		"run_drift_comp": {
-    	  			"type": "string",
+    	  			"type": "boolean",
     	  			"description": ""
     	  		},
     	  		"run_cytometry": {
-    	  			"type": "string",
+    	  			"type": "boolean",
     	  			"description": ""
     	  		},
     	  		"run_best_focus": {
-    	  			"type": "string",
+    	  			"type": "boolean",
     	  			"description": ""
     	  		},
     	  		"run_deconvolution": {
-    	  			"type": "string",
+    	  			"type": "boolean",
     	  			"description": ""
     	  		}
     	  	}
