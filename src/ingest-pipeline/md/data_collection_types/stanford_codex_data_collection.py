@@ -54,6 +54,7 @@ class StanfordCODEXDataCollection(AkoyaCODEXDataCollection):
             if os.path.isdir(fullname) and fname.startswith('HandE_'):
                 hande_cl.append(fname)
         rslt['hande_components'] = hande_cl
+        rslt['collectiontype'] = 'codex'
         
         return rslt
     
@@ -63,7 +64,9 @@ class StanfordCODEXDataCollection(AkoyaCODEXDataCollection):
         metadata which has been collected.
         
         """
-        rslt = {}
+        rslt = {'collectiontype': metadata['collectiontype'],
+                'components': metadata['components']
+        }
 #         for elt in metadata:
 #             # each element is the pathname of the file from which it was extracted
 #             if not os.path.dirname(elt) and elt.endswith('spatial_meta.txt'):

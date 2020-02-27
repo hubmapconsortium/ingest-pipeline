@@ -29,18 +29,29 @@ default_args = {
 }
 
 
+fake_ctx = {
+    'auth_tok': 'AgWob7mDM3vo141ny8WYXE47WJ0bWrelDJB5zd2qEr0MGqoGPKFgC38z2PO6r7r7WpNdNana8p0EBwf48YnE2Hq3bz',
+    'submission_id': '367214b19695cb89ed20b55ef78bba9c',
+    'lz_path': '/hive/hubmap/lz/University of Florida TMC/03043e079260d180099579045f16cd53',
+    'src_path': os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'md')
+}
+
+FAKE_MODE = False
+
+
 with DAG('scan_and_begin_processing', 
          schedule_interval=None, 
          is_paused_upon_creation=False, 
          default_args=default_args) as dag:
         
     def send_status_msg(**kwargs):
+        ctx = fake_ctx if FAKE_MODE else kwargs['dag_run'].conf
         md_extract_retcode = int(kwargs['ti'].xcom_pull(task_ids="run_md_extract"))
         print('md_extract_retcode: ', md_extract_retcode)
         http_conn_id='ingest_api_connection'
         endpoint='/datasets/status'
         method='PUT'
-        headers={'authorization' : 'Bearer ' + kwargs['dag_run'].conf['auth_tok'],
+        headers={'authorization' : 'Bearer ' + ctx['auth_tok'],
                  'content-type' : 'application/json'}
         extra_options=[]
          
@@ -53,7 +64,7 @@ with DAG('scan_and_begin_processing',
                                     'rslt.yml')
             with open(md_fname, 'r') as f:
                 md = yaml.safe_load(f)
-            data = {'dataset_id' : kwargs['dag_run'].conf['submission_id'],
+            data = {'dataset_id' : ctx['submission_id'],
                     'status' : 'QA',
                     'message' : 'the process ran',
                     'metadata': md}
@@ -66,7 +77,7 @@ with DAG('scan_and_begin_processing',
                                      'session.log')
             with open(log_fname, 'r') as f:
                 err_txt = '\n'.join(f.readlines())
-            data = {'dataset_id' : kwargs['dag_run'].conf['submission_id'],
+            data = {'dataset_id' : ctx['submission_id'],
                     'status' : 'Invalid',
                     'message' : err_txt}
             kwargs['ti'].xcom_push(key='collectiontype', value=None)
@@ -86,6 +97,7 @@ with DAG('scan_and_begin_processing',
         """
         print('context:')
         pprint(context)
+        ctx = fake_ctx if FAKE_MODE else context['dag_run'].conf
         md_extract_retcode = int(context['ti'].xcom_pull(task_ids="run_md_extract"))
         collectiontype = context['ti'].xcom_pull(key='collectiontype',
                                                  task_ids='send_status_msg')
@@ -95,12 +107,12 @@ with DAG('scan_and_begin_processing',
                                     'rslt.yml')
             with open(md_fname, 'r') as f:
                 md = yaml.safe_load(f)
-            if collectiontype in ['rnaseq_10x']:
+            if collectiontype in ['rnaseq_10x', 'codex']:
                 payload = {'ingest_id' : context['run_id'],
-                           #'ingest_id' : context['dag_run'].conf['ingest_id'],
-                           'auth_tok' : context['dag_run'].conf['auth_tok'],
-                           'parent_lz_path' : context['dag_run'].conf['lz_path'],
-                           'parent_submission_id' : context['dag_run'].conf['submission_id'],
+                           #'ingest_id' : ctx['ingest_id'],
+                           'auth_tok' : ctx['auth_tok'],
+                           'parent_lz_path' : ctx['lz_path'],
+                           'parent_submission_id' : ctx['submission_id'],
                            'metadata': md}
                 dag_run_obj.payload = payload
                 return dag_run_obj
@@ -116,6 +128,7 @@ with DAG('scan_and_begin_processing',
     def trigger_or_skip(**kwargs):
         collectiontype = kwargs['ti'].xcom_pull(key='collectiontype',
                                                 task_ids="send_status_msg")
+        print('collectiontype: <%s>' % collectiontype)
         if collectiontype is None:
             return 'no_spawn'
         else:
@@ -143,6 +156,22 @@ with DAG('scan_and_begin_processing',
         """,
         provide_context = True
         )
+
+    # t_run_md_extract = BashOperator(
+    #     task_id='run_md_extract',
+    #     bash_command=""" \
+    #     lz_dir='/hive/hubmap-dev/lz/IEC Testing Group/367214b19695cb89ed20b55ef78bba9c' ; \
+    #     src_dir="/hive/users/welling/git/hubmap/ingest-pipeline/src/ingest-pipeline/md" ; \
+    #     lib_dir="/hive/users/welling/git/hubmap/ingest-pipeline/src/ingest-pipeline/airflow/lib" ; \
+    #     work_dir="${AIRFLOW_HOME}/data/temp/{{run_id}}" ; \
+    #     cd $work_dir ; \
+    #     env PYTHONPATH=${PYTHONPATH}:$lib_dir \
+    #     python $src_dir/metadata_extract.py --out ./rslt.yml --yaml "$lz_dir" \
+    #       > ./session.log 2>&1 ; \
+    #     echo $?
+    #     """,
+    #     provide_context = True
+    #     )
 
 
     t_send_status = PythonOperator(
@@ -175,7 +204,7 @@ with DAG('scan_and_begin_processing',
 
     t_cleanup_tmpdir = BashOperator(
         task_id='cleanup_temp_dir',
-        bash_command='rm -r ${AIRFLOW_HOME}/data/temp/{{run_id}}',
+        bash_command='echo rm -r ${AIRFLOW_HOME}/data/temp/{{run_id}}',
         )
 
     (dag >> t_create_tmpdir >> t_run_md_extract >> t_send_status

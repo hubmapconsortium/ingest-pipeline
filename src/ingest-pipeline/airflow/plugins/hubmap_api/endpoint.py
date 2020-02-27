@@ -217,7 +217,8 @@ def get_request_ingest_reply_parms(provider, submission_id, process):
             for root, subdirs, files in os.walk(lz_path):
                 if root == lz_path:
                     top_folder_contents = (subdirs + files)[:]
-                n_files += len(files)
+                    break
+#                n_files += len(files)
             assert top_folder_contents is not None, 'internal error using os.walk?'
             overall_file_count = n_files
         else:
@@ -252,10 +253,14 @@ def request_ingest():
     authorization = request.headers.get('authorization')
     LOGGER.info('top of request_ingest: AUTH %s', authorization)
     assert authorization[:len('BEARER')].lower() == 'bearer', 'authorization is not BEARER'
-    auth_dct = ast.literal_eval(authorization[len('BEARER'):].strip())
-    LOGGER.info('auth_dct: %s', auth_dct)
-    assert 'nexus_token' in auth_dct, 'authorization has no nexus_token'
-    auth_tok = auth_dct['nexus_token']
+    substr = authorization[len('BEARER'):].strip()
+    if 'nexus' in substr:
+        auth_dct = ast.literal_eval(authorization[len('BEARER'):].strip())
+        LOGGER.info('auth_dct: %s', auth_dct)
+        assert 'nexus_token' in auth_dct, 'authorization has no nexus_token'
+        auth_tok = auth_dct['nexus_token']
+    else:
+        auth_tok = substr
     LOGGER.info('auth_tok: %s', auth_tok)
   
     # decode input
@@ -344,9 +349,7 @@ def request_ingest():
         return HubmapApiResponse.server_error(str(e))
 
     return HubmapApiResponse.success({'ingest_id': ingest_id,
-                                      'run_id': run_id,
-                                      'overall_file_count': overall_file_count,
-                                      'top_folder_contents': top_folder_contents})
+                                      'run_id': run_id})
 
 """
 Parameters for this request: None

@@ -81,6 +81,7 @@ class AkoyaCODEXDataCollection(DataCollection):
             if os.path.isdir(fullname) and fname.startswith('cyc'):
                 cl.append(fname)
         rslt['components'] = cl
+        rslt['collectiontype'] = 'codex'
         return rslt
     
     def filter_metadata(self, metadata):
@@ -89,7 +90,9 @@ class AkoyaCODEXDataCollection(DataCollection):
         metadata which has been collected.
         
         """
-        rslt = {}
+        rslt = {'collectiontype': metadata['collectiontype'],
+                'components': metadata['components']
+        }
 #         for elt in metadata:
 #             # each element is the pathname of the file from which it was extracted
 #             if not os.path.dirname(elt) and elt.endswith('spatial_meta.txt'):
