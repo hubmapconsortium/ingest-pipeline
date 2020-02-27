@@ -20,25 +20,6 @@ class StanfordCODEXDataCollection(AkoyaCODEXDataCollection):
     
     optional_files = []
     
-#     @classmethod
-#     def test_match(cls, path):
-#         """
-#         Does the given path point to the top directory of a directory tree
-#         containing data of this collection type?
-#         """
-#         for match, _ in cls.expected_files:
-#             print('testing %s' % match)
-#             if not any(glob.iglob(os.path.join(path,match))):
-#                 print('not found!')
-#                 return False
-#         return True
-#     
-#     def __init__(self, path):
-#         """
-#         path is the top level directory of the collection
-#         """
-#         super().__init__(path)
-    
     def collect_metadata(self):
         rslt = super(StanfordCODEXDataCollection, self).collect_metadata()
         # The superclass will have looked in the wrong place for components
@@ -64,20 +45,11 @@ class StanfordCODEXDataCollection(AkoyaCODEXDataCollection):
         metadata which has been collected.
         
         """
-        rslt = {'collectiontype': metadata['collectiontype'],
-                'components': metadata['components']
-        }
-#         for elt in metadata:
-#             # each element is the pathname of the file from which it was extracted
-#             if not os.path.dirname(elt) and elt.endswith('spatial_meta.txt'):
-#                 spatial_meta = metadata[elt]
-#                 break
-#             else:
-#                 raise MetadataError('The spatial metadata is unexpectedly missing')
-# 
-#         rslt['ccf_spatial'] = {k : v for k, v in spatial_meta.items()}
-        
-        rslt['other_meta'] = metadata.copy()  # for debugging
+        rslt = super(StanfordCODEXDataCollection, self).filter_metadata(metadata)
+        rslt['hande_components'] = metadata['hande_components']
+        if 'other_meta' in rslt and 'hande_components' in rslt['other_meta']:
+            del rslt['other_meta']['hande_components']
+
         return rslt
             
         

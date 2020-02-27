@@ -90,9 +90,8 @@ class AkoyaCODEXDataCollection(DataCollection):
         metadata which has been collected.
         
         """
-        rslt = {'collectiontype': metadata['collectiontype'],
-                'components': metadata['components']
-        }
+        rslt = {k : metadata[k] for k in ['collectiontype', 'components']}
+
 #         for elt in metadata:
 #             # each element is the pathname of the file from which it was extracted
 #             if not os.path.dirname(elt) and elt.endswith('spatial_meta.txt'):
@@ -103,7 +102,11 @@ class AkoyaCODEXDataCollection(DataCollection):
 # 
 #         rslt['ccf_spatial'] = {k : v for k, v in spatial_meta.items()}
         
-        rslt['other_meta'] = metadata.copy()  # for debugging
+        other_d = {}
+        for k in metadata:
+            if k not in rslt:
+                other_d[k] = metadata[k]
+        rslt['other_meta'] = other_d  # for debugging
         return rslt
             
         
