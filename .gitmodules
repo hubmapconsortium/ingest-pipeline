@@ -1,0 +1,3 @@
+[submodule "src/ingest-pipeline/airflow/cwltool"]
+	path = src/ingest-pipeline/airflow/cwltool
+	url = git@github.com:hubmapconsortium/cwltool.git
