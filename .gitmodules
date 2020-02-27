@@ -1,3 +1,6 @@
 [submodule "src/ingest-pipeline/airflow/cwltool"]
 	path = src/ingest-pipeline/airflow/cwltool
 	url = git@github.com:hubmapconsortium/cwltool.git
+[submodule "src/ingest-pipeline/airflow/dags/cwl/codex-pipeline"]
+	path = src/ingest-pipeline/airflow/dags/cwl/codex-pipeline
+	url = git@github.com:hubmapconsortium/codex-pipeline.git
