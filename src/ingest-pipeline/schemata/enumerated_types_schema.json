@@ -1,5 +1,6 @@
 {
   "$schema": "http://json-schema.org/schema#",
+  "$id": "file:///home/welling/git/hubmap/ingest-pipeline/src/ingest-pipeline/schemata/enumerated_types_schema.json",
   "title": "enumerated types schema",
   "description": "enumerated types schema",
   "definitions": {

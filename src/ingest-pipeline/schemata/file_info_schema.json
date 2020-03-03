@@ -1,36 +1,33 @@
 {
   "$schema": "http://json-schema.org/schema#",
-  "$id": "http://ingest-pipeline.hubmapconsortium.org/file_info_schema.yml",
+  "$id": "file:///home/welling/git/hubmap/ingest-pipeline/src/ingest-pipeline/schemata/file_info_schema.json",
   "title": "file info schema",
   "description": "file info schema",
+  "$ref": "#/definitions/file_info",
   "definitions": {
     "file_info_record": {
       "type": "object",
       "properties": {
-        "rel_path": {
-          "type": "string",
-          "pattern": "^[^/].+[^/]$"
-        },
-        "type": {
-          "$ref": "enumerated_types_schema.json"
-        },
         "size": {
           "type": "integer",
           "minimum": 0
         },
+        "rel_path": {
+          "type": "string",
+          "pattern": "^[^/].+[^/]$"
+        },
+        "filetype": {
+          "$ref": "enumerated_types_schema.json#/definitions/file_type"
+        },
         "sha1sum": {
           "type": "string",
-          "pattern": "^[a-fA-F0-9]{41}$"
+          "pattern": "^[a-fA-F0-9]{40}$"
         }
       }
     },
     "file_info": {
-      "type": "array",
-      "items": {
-        "type": {
-          "$ref": "#/definitions/file_info_record"
-        }
-      }
+      "type":  "array",
+      "items": {"$ref": "#/definitions/file_info_record"}
     }
   }
 }
