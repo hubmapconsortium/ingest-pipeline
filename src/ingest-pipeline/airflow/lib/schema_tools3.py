@@ -1,10 +1,13 @@
-from os.path import join, dirname, abspath
+from os.path import join, dirname, abspath, splitext
 
 from urllib import parse as urlparse
+from urllib.request import urlopen
+import requests
 
 import fastjsonschema
 import jsonref
 import json
+import yaml
 import simplejson
 from jsonschema import validate
 from jsonschema.exceptions import ValidationError, SchemaError
@@ -30,7 +33,22 @@ class LocalJsonLoader(jsonref.JsonLoader):
         return super(LocalJsonLoader, self).__call__(self.patch_uri(uri), **kwargs)
     
     def get_remote_json(self, uri, **kwargs):
-        return super(LocalJsonLoader, self).get_remote_json(self.patch_uri(uri), **kwargs)
+        uri = self.patch_uri(uri)
+        puri = urlparse.urlsplit(uri)
+        scheme = puri.scheme
+        ext = splitext(puri.path)[1]
+
+        if scheme in ["http", "https"]:
+            # Prefer requests, it has better encoding detection
+            result = requests.get(uri).json(**kwargs)
+        else:
+            # Otherwise, pass off to urllib and assume utf-8
+            if ext in ['.yml', '.yaml']:
+                result = yaml.load(urlopen(uri).read().decode("utf-8"), **kwargs)
+            else:
+                result = json.loads(urlopen(uri).read().decode("utf-8"), **kwargs)
+
+        return result
 
 
 def assert_valid_schema(data, schema_file):
@@ -109,7 +127,8 @@ sample_json = {
          'sha1sum': 'bf6fbb87e4dc1425525f91ce4c2238a2cc851d01'},
         {'rel_path': './mock_ingest_rnaseq_10x.py', 'filetype': 'unknown', 'size': 3654,
          'sha1sum': '93f204cf3878e3095a83651d2046d5393008844c'}
-    ]
+    ],
+    'dag_provenance': {'trig_codex.py': '0123456789abcdefABCDEF'}
 }
 
-assert_valid_schema(data=sample_json, schema_file="dataset_metadata_schema.json")
+assert_valid_schema(data=sample_json, schema_file="dataset_metadata_schema.yml")

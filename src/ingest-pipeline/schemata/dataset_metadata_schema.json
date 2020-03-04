@@ -9,11 +9,15 @@
     "dataset_metadata": {
       "type": "object",
       "properties": {
+        "dag_provenance": {
+          "$ref": "code_provenance_info_schema.json#/definitions/code_provenance_info"
+        },
         "files": {
-          "$ref": "file_info_schema.json#/definitions/file_info"
+          "$ref": "file_info_schema.yml#/definitions/file_info"
         }
       },
       "required": [
+        "dag_provenance",
         "files"
       ]
     }
