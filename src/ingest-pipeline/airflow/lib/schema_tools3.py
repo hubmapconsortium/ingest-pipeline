@@ -17,26 +17,38 @@ class LocalJsonLoader(jsonref.JsonLoader):
     def __init__(self, schema_root_dir, **kwargs):
         super(LocalJsonLoader, self).__init__(**kwargs)
         self.schema_root_dir = schema_root_dir
+        self.schema_root_uri = None # the name by which the root doc knows itself
 
     def patch_uri(self, uri):
-        surl = urlparse.urlsplit(uri)
-        if surl.scheme == 'file' and not surl.path.startswith(self.schema_root_dir):
-            assert surl.path[0] == '/', 'problem parsing path component of a file uri'
-            puri = urlparse.urlunsplit((surl.scheme, surl.netloc,
-                                        join(self.schema_root_dir, surl.path[1:]),
-                                        surl.query, surl.fragment))
+        suri = urlparse.urlsplit(uri)
+        if self.schema_root_uri is not None:
+            root_suri = urlparse.urlsplit(self.schema_root_uri)
+            if suri.scheme == root_suri.scheme and suri.netloc == root_suri.netloc:
+                # This file is actually local
+                suri = suri._replace(scheme='file', netloc='')
+        if suri.scheme == 'file' and not suri.path.startswith(self.schema_root_dir):
+            assert suri.path[0] == '/', 'problem parsing path component of a file uri'
+            puri = urlparse.urlunsplit((suri.scheme, suri.netloc,
+                                        join(self.schema_root_dir, suri.path[1:]),
+                                        suri.query, suri.fragment))
         else:
-            puri = uri
+            puri = urlparse.urlunsplit(suri)
         return puri
 
     def __call__(self, uri, **kwargs):
-        return super(LocalJsonLoader, self).__call__(self.patch_uri(uri), **kwargs)
+        rslt = super(LocalJsonLoader, self).__call__(uri, **kwargs)
+        if self.schema_root_uri is None and '$id' in rslt:
+            self.schema_root_uri = rslt['$id']
+            if uri in self.store:
+                self.store[self.schema_root_uri] = self.store[uri]
+        return rslt
     
     def get_remote_json(self, uri, **kwargs):
         uri = self.patch_uri(uri)
         puri = urlparse.urlsplit(uri)
         scheme = puri.scheme
         ext = splitext(puri.path)[1]
+        other_kwargs = {k:v for k, v in kwargs.items() if k not in ['base_uri', 'jsonschema']}
 
         if scheme in ["http", "https"]:
             # Prefer requests, it has better encoding detection
@@ -44,9 +56,9 @@ class LocalJsonLoader(jsonref.JsonLoader):
         else:
             # Otherwise, pass off to urllib and assume utf-8
             if ext in ['.yml', '.yaml']:
-                result = yaml.load(urlopen(uri).read().decode("utf-8"), **kwargs)
+                result = yaml.load(urlopen(uri).read().decode("utf-8"), **other_kwargs)
             else:
-                result = json.loads(urlopen(uri).read().decode("utf-8"), **kwargs)
+                result = json.loads(urlopen(uri).read().decode("utf-8"), **other_kwargs)
 
         return result
 
@@ -55,22 +67,30 @@ def assert_valid_schema(data, schema_file):
     """ Checks whether the given data matches the schema """
 
     schema = _load_json_schema(schema_file)
-    schema = dict(schema) # because it's not really a dict 
     print('FINAL SCHEMA FOLLOWS')
     print(schema)
     print('END FINAL SCHEMA')
-#     fastjson_compiled_schema = fastjsonschema.compile(schema)
-#     print('COMPILATION SUCCEEDED')
-#     fastjson_result = fastjson_compiled_schema(data)
-    fastjson_result = True
+    try:
+        fastjson_compiled_schema = fastjsonschema.compile(schema)
+        print('FASTJSONSCHEMA COMPILATION SUCCEEDED')
+        fastjson_compiled_schema(data)
+        print('FASTJSONSCHEMA VALIDATION SUCCEEDED')
+    except fastjsonschema.JsonSchemaDefinitionException as e:
+        print('FASTJSONSCHEMA COMPILATION FAILED')
+        fastjson_result = False
+    except fastjsonschema.JsonSchemaException as e:
+        print('FASTJSON VALIDATION FAILED')
+        fastjson_result = False
+    else:
+        fastjson_result = True
     print('FASTJSON says ', fastjson_result)
     try:
         validate(instance=data, schema=schema)
-    except SchemaError:
-        print('schema was invalid')
+    except SchemaError as e:
+        print('schema was invalid: {}'.format(e))
         jsonschema_result = False
-    except ValidationError:
-        print('validation failed')
+    except ValidationError as e:
+        print('validation failed: {}'.format(e))
         jsonschema_result = False
     else:
         jsonschema_result = True
@@ -86,31 +106,14 @@ def _load_json_schema(filename):
     absolute_path = abspath(join(dirname(__file__), relative_path))
 
     base_path = dirname(absolute_path)
-    #base_uri = 'file://{}/'.format(base_path)
-    #base_uri = 'file:////{}'.format(absolute_path)
-    #base_uri = 'file://{}'.format(absolute_path)
 
     loader = LocalJsonLoader(base_path)
-    base_uri = 'file:///{}'.format(filename)
+    src_uri = 'file:///{}'.format(filename)
+    print('SRC_URI: ', src_uri)
+    base_uri = 'http://ingest-pipeline.hubmapconsortium.org/{}'.format(filename)
     print('BASE_URI: ', base_uri)
-    json_content = jsonref.load_uri(base_uri, loader=loader,
+    json_content = jsonref.load_uri(src_uri, base_uri=base_uri, loader=loader,
                                     jsonschema=True, load_on_repr=False)
-
-#     with open(absolute_path) as schema_file:
-#         file_read = schema_file.read()
-#         print('BEGIN READ')
-#         print(file_read)
-#         print('END READ')
-#         #json_content = jsonref.loads(file_read, base_uri=base_uri, jsonschema=True)
-#         json_content = jsonref.load(absolute_path, base_uri=base_uri, jsonschema=True)
-#         return json_content
-
-#     with open(absolute_path) as schema_file:
-#         #json_content = jsonref.loads(file_read, base_uri=base_uri, jsonschema=True)
-#         loader = LocalJsonLoader(base_path)
-#         json_content = jsonref.load(schema_file, loader=loader, base_uri=base_uri,
-#                                     jsonschema=True, load_on_repr=False)
-#         #base_uri=base_uri, jsonschema=True, load_on_repr=False)
 
     return json_content
 
