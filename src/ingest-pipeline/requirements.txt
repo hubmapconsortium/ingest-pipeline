@@ -7,4 +7,4 @@ airflow-multi-dagrun>=1.2
 cwltool>=2.0.20200122124526
 jsonschema==3.2.0
 fastjsonschema==2.14.2
-jsonref==0.2
+requests>=1.2
