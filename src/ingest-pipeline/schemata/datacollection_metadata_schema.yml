@@ -1,5 +1,5 @@
 '$schema': 'http://json-schema.org/schema#'
-'$id': 'http://ingest-pipeline.hubmapconsortium.org/datacollection_metadata_schema.yml'
+'$id': 'http://schemata.hubmapconsortium.org/datacollection_metadata_schema.yml'
 'title': 'datacollection metadata schema'
 'description': 'datacollection metadata schema'
 

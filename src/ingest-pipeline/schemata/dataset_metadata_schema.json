@@ -1,0 +1,25 @@
+{
+  "$schema": "http://json-schema.org/schema#",
+  "$id": "http://schemata.hubmapconsortium.org/dataset_metadata_schema.json",
+  "title": "dataset metadata schema",
+  "description": "dataset metadata schema",
+  "$ref": "#/definitions/dataset_metadata",
+
+  "definitions": {
+    "dataset_metadata": {
+      "type": "object",
+      "properties": {
+        "dag_provenance": {
+          "$ref": "code_provenance_info_schema.json#/definitions/code_provenance_info"
+        },
+        "files": {
+          "$ref": "file_info_schema.json#/definitions/file_info"
+        }
+      },
+      "required": [
+        "dag_provenance",
+        "files"
+      ]
+    }
+  }
+}
