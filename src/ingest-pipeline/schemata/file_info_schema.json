@@ -3,7 +3,7 @@
   "$id": "http://schemata.hubmapconsortium.org/file_info_schema.json",
   "title": "file info schema",
   "description": "file info schema",
-  "$ref": "#/definitions/file_info",
+  "allOf":[{"$ref": "#/definitions/file_info"}],
   "definitions": {
     "file_info_record": {
       "type": "object",

@@ -3,7 +3,7 @@
   "$id": "http://schemata.hubmapconsortium.org/code_provenance_info_schema.json",
   "title": "code provenance info schema",
   "description": "code provenance info schema",
-  "$ref": "#/definitions/code_provenance_info",
+  "allOf":[{"$ref": "#/definitions/code_provenance_info"}],
   "definitions": {
     "code_provenance_info": {
       "type": "object",

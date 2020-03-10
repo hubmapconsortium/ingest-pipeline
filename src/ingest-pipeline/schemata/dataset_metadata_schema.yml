@@ -3,7 +3,7 @@
 'title': 'dataset metadata schema'
 'description': 'dataset metadata schema'
 
-'$ref': '#/definitions/dataset_metadata'
+'allOf': [{'$ref': '#/definitions/dataset_metadata'}]
 
 'definitions':
 

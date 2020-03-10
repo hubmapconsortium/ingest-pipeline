@@ -3,7 +3,7 @@
 'title': 'file info schema'
 'description': 'file info schema'
 
-'$ref': '#/definitions/file_info'
+'allOf': [{'$ref': '#/definitions/file_info'}]
 
 'definitions':
 

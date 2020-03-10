@@ -3,7 +3,7 @@
   "$id": "http://schemata.hubmapconsortium.org/dataset_metadata_schema.json",
   "title": "dataset metadata schema",
   "description": "dataset metadata schema",
-  "$ref": "#/definitions/dataset_metadata",
+  "allOf":  [{"$ref": "#/definitions/dataset_metadata"}],
 
   "definitions": {
     "dataset_metadata": {

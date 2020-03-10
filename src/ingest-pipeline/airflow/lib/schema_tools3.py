@@ -110,7 +110,7 @@ def _load_json_schema(filename):
     loader = LocalJsonLoader(base_path)
     src_uri = 'file:///{}'.format(filename)
     print('SRC_URI: ', src_uri)
-    base_uri = 'http://ingest-pipeline.hubmapconsortium.org/{}'.format(filename)
+    base_uri = 'http://schemata.hubmapconsortium.org/{}'.format(filename)
     print('BASE_URI: ', base_uri)
     json_content = jsonref.load_uri(src_uri, base_uri=base_uri, loader=loader,
                                     jsonschema=True, load_on_repr=False)
@@ -134,4 +134,4 @@ sample_json = {
     'dag_provenance': {'trig_codex.py': '0123456789abcdefABCDEF'}
 }
 
-assert_valid_schema(data=sample_json, schema_file="dataset_metadata_schema.yml")
+assert_valid_schema(data=sample_json, schema_file="dataset_metadata_schema.json")

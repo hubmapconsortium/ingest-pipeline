@@ -3,7 +3,7 @@
 'title': 'code provenance info schema'
 'description': 'code provenance info schema'
 
-'$ref': '#/definitions/code_provenance_info'
+'allOf': [{'$ref': '#/definitions/code_provenance_info'}]
 
 'definitions':
 

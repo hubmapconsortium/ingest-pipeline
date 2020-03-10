@@ -3,7 +3,7 @@
 'title': 'datacollection metadata schema'
 'description': 'datacollection metadata schema'
 
-'$ref': '#/definitions/datacollection_metadata'
+'allOf': [{'$ref': '#/definitions/datacollection_metadata'}]
 
 'definitions':
 

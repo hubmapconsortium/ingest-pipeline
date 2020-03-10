@@ -3,8 +3,6 @@
 'title': 'enumerated types schema'
 'description': 'enumerated types schema'
 
-'$ref': '#/definitions/enumerated_types'
-
 'definitions':
 
   'file_type':
