@@ -38,6 +38,7 @@ default_args = {
     'retry_delay': timedelta(minutes=1),
     'provide_context': True,
     'xcom_push': True,
+    'default_queue': 'general'
 }
 
 fake_conf = {'apply': 'codex_cytokit',
