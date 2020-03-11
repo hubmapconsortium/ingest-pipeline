@@ -9,7 +9,7 @@ import yaml
 from type_base import MetadataError
 from data_collection import DataCollection
 import data_collection_types
-from schema_tools import check_schema
+from schema_tools import assert_json_matches_schema
 
 DEFAULT_SCHEMA = 'datacollection_metadata_schema.yml'
 
