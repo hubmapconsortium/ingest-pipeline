@@ -21,7 +21,7 @@ from airflow.models import Variable
 
 import utils
 
-sys.path.append(str(Path(os.environ['AIRFLOW_HOME']) / 'lib'))
+sys.path.append(str(Path(__file__).parent.parent / 'lib'))
 from schema_tools import assert_json_matches_schema
 
 import cwltool  # used to find its path
