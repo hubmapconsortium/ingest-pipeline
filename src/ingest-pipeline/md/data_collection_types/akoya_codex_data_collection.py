@@ -15,9 +15,7 @@ class AkoyaCODEXDataCollection(DataCollection):
     expected_files = [('experiment.json',
                        "JSON"),
                        ('segmentation.json',
-                       "JSON"),
-                       ('channelnames.txt',
-                        "TXTWORDLIST"),
+                       "JSON")
                       ]
     
     optional_files = [('exposure_times.txt', 'CSV')]

@@ -14,8 +14,7 @@ class StanfordCODEXDataCollection(AkoyaCODEXDataCollection):
 
     # expected_file pairs are (globable name, filetype key)
     expected_files = [('processingOptions.json', "JSON"),
-                      ('Experiment.json', "JSON"),
-                      ('channelNames.txt', "TXTWORDLIST"),
+                      ('Experiment.json', "JSON")
                       ]
     
     optional_files = []
