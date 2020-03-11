@@ -38,7 +38,7 @@ def scan(target_dir, out_fname, schema_fname, yaml_flag=False):
     else:
         raise MetadataError('%s does not match any known data collection type'
                             % target_dir)
-    check_schema(metadata, schema_fname)
+    assert_json_matches_schema(metadata, schema_fname)
     if yaml_flag:
         with sys.stdout if out_fname is None else open(out_fname, 'w') as f:
             yaml.dump(metadata, f)
