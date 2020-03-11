@@ -22,7 +22,7 @@ from airflow.models import Variable
 import utils
 
 sys.path.append(str(Path(os.environ['AIRFLOW_HOME']) / 'lib'))
-from schema_tools import check_schema, SchemaError
+from schema_tools import assert_json_matches_schema
 
 import cwltool  # used to find its path
 
@@ -429,12 +429,12 @@ with DAG('codex_cytokit',
                   'files' : file_md, 
                   'component': kwargs['dag_run'].conf['component']}
             try:
-                #check_schema(md, 'dataset_metadata_schema.yml')
+                assert_json_matches_schema(md, 'dataset_metadata_schema.yml')
                 data = {'dataset_id' : derived_dataset_uuid,
                         'status' : 'QA',
                         'message' : 'the process ran',
                         'metadata': md}
-            except SchemaError as e:
+            except AssertionError as e:
                 print('invalid metadata follows:')
                 pprint(md)
                 data = {'dataset_id' : derived_dataset_uuid,
