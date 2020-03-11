@@ -70,7 +70,7 @@ class LocalJsonLoader(jsonref.JsonLoader):
         else:
             # Otherwise, pass off to urllib and assume utf-8
             if ext in ['.yml', '.yaml']:
-                result = yaml.load(urlopen(uri).read().decode("utf-8"), **other_kwargs)
+                result = yaml.safe_load(urlopen(uri).read().decode("utf-8"), **other_kwargs)
             else:
                 result = json.loads(urlopen(uri).read().decode("utf-8"), **other_kwargs)
 
