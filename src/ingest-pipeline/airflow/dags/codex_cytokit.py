@@ -312,7 +312,7 @@ with DAG('codex_cytokit',
 
 
     def send_status_msg(**kwargs):
-        retcode_ops = ['pipeline_exec', 'move_data', 'make_arrow1', 'make_arrow2']
+        retcode_ops = ['pipeline_exec', 'move_data']
         retcodes = [int(kwargs['ti'].xcom_pull(task_ids=op))
                     for op in retcode_ops]
         print('retcodes: ', {k:v for k, v in zip(retcode_ops, retcodes)})
