@@ -26,6 +26,7 @@ default_args = {
     'retry_delay': timedelta(minutes=1),
     'provide_context': True,
     'xcom_push': True,
+    'queue': 'general'
 }
 
 
@@ -204,7 +205,7 @@ with DAG('scan_and_begin_processing',
 
     t_cleanup_tmpdir = BashOperator(
         task_id='cleanup_temp_dir',
-        bash_command='echo rm -r ${AIRFLOW_HOME}/data/temp/{{run_id}}',
+        bash_command='rm -r ${AIRFLOW_HOME}/data/temp/{{run_id}}',
         )
 
     (dag >> t_create_tmpdir >> t_run_md_extract >> t_send_status
