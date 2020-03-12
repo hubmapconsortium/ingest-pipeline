@@ -101,18 +101,8 @@ with DAG('codex_cytokit',
 #         op_kwargs={'pipeline_name': cwl_workflow1}
 #     )
 
-#     prepare_cwl2 = PythonOperator(
-#         python_callable=utils.clone_or_update_pipeline,
-#         task_id='clone_or_update_cwl2',
-#         op_kwargs={'pipeline_name': cwl_workflow2}
-#     )
-
     prepare_cwl1 = DummyOperator(
         task_id='prepare_cwl1'
-        )
-    
-    prepare_cwl2 = DummyOperator(
-        task_id='prepare_cwl2'
         )
     
     def build_cwltool_cmd1(**kwargs):
@@ -341,9 +331,7 @@ with DAG('codex_cytokit',
                                              'dags', 'cwl')
             dag_prv.update(utils.get_git_provenance_dict([__file__,
                                                           os.path.join(pipeline_base_dir,
-                                                                       cwl_workflow1),
-                                                          os.path.join(pipeline_base_dir,
-                                                                       cwl_workflow2)]))
+                                                                       cwl_workflow1)]))
             file_md = utils.get_file_metadata(ds_dir)
             md = {'dag_provenance' : dag_prv,
                   'files' : file_md, 
@@ -402,7 +390,7 @@ with DAG('codex_cytokit',
  
 
     (dag >> t1 >> t_create_tmpdir
-     >> prepare_cwl1 # >> prepare_cwl2
+     >> prepare_cwl1
      >> t_build_cmd1 >> t_pipeline_exec >> t_maybe_keep_cwl1
      >> t_send_create_dataset >> t_set_dataset_processing
      >> t_move_data
