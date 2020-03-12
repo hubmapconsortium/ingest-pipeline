@@ -223,8 +223,8 @@ with DAG('codex_cytokit',
                         http_conn_id=http_conn_id)
         data = {
             "source_dataset_uuid":ctx['parent_submission_id'],
-            "derived_dataset_name":'{}__{}__{}'.format(ctx['metadata']['tmc_uuid'],
-                                                       ctx['component'],
+            "derived_dataset_name":'{}__{}__{}'.format(dag.dag_id,
+                                                       ctx['parent_submission_uuid'],
                                                        pipeline_name),
             "derived_dataset_types":["dataset",
                                      "codex",
