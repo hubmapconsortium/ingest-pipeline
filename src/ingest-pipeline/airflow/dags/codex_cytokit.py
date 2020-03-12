@@ -334,8 +334,7 @@ with DAG('codex_cytokit',
                                                                        cwl_workflow1)]))
             file_md = utils.get_file_metadata(ds_dir)
             md = {'dag_provenance' : dag_prv,
-                  'files' : file_md, 
-                  'component': kwargs['dag_run'].conf['component']}
+                  'files' : file_md}
             try:
                 assert_json_matches_schema(md, 'dataset_metadata_schema.yml')
                 data = {'dataset_id' : derived_dataset_uuid,
