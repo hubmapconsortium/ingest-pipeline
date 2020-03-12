@@ -92,7 +92,7 @@ with DAG('codex_cytokit',
     
     
     THREADS = 6
-    pipeline_name = 'codex_cytokit'
+    pipeline_name = 'codex_pipeline'
     cwl_workflow1 = os.path.join(pipeline_name, 'pipeline.cwl')
 
 #     prepare_cwl1 = PythonOperator(
@@ -125,8 +125,7 @@ with DAG('codex_cytokit',
         data_dir = os.path.join(ctx['parent_lz_path'],
                                ctx['metadata']['tmc_uuid'])
         print('data_dir: ', data_dir)
-        pipeline_base_dir = os.path.join(os.environ['AIRFLOW_HOME'],
-                                         'dags', 'cwl')
+        pipeline_base_dir = str(Path(__file__).resolve().parent / 'cwl')
         cwltool_dir = os.path.dirname(cwltool.__file__)
         while cwltool_dir:
             part1, part2 = os.path.split(cwltool_dir)
@@ -136,28 +135,22 @@ with DAG('codex_cytokit',
         assert cwltool_dir, 'Failed to find cwltool bin directory'
         cwltool_dir = os.path.join(cwltool_dir, 'bin')
 
-#         command = [
-#             'env',
-#             'PATH=%s:%s' % (cwltool_dir, os.environ['PATH']),
-#             'cwltool',
-#             '--debug',
-#             '--outdir',
-#             os.path.join(tmpdir, 'cwl_out'),
-#             '--parallel',
-#             os.path.join(pipeline_base_dir, cwl_workflow1),
-#             '--fastq_dir',
-#             data_dir,
-#             '--threads',
-#             str(THREADS),
-#         ]
-        
         command = [
-            'cp',
-            '-R',
-            os.path.join(os.environ['AIRFLOW_HOME'],
-                         'data', 'temp', 'std_salmon_out', 'cwl_out'),
-            tmpdir
+            'env',
+            'PATH=%s:%s' % (cwltool_dir, os.environ['PATH']),
+            'cwltool',
+            os.path.join(pipeline_base_dir, cwl_workflow1),
+            '--data_dir',
+            data_dir,
         ]
+        
+#         command = [
+#             'cp',
+#             '-R',
+#             os.path.join(os.environ['AIRFLOW_HOME'],
+#                          'data', 'temp', 'std_salmon_out', 'cwl_out'),
+#             tmpdir
+#         ]
             
         command_str = ' '.join(shlex.quote(piece) for piece in command)
         print('final command_str: %s' % command_str)
@@ -175,6 +168,8 @@ with DAG('codex_cytokit',
         queue='gpu000_q1',
         bash_command=""" \
         tmp_dir=${AIRFLOW_HOME}/data/temp/{{run_id}} ; \
+        mkdir -p ${tmp_dir}/cwl_out ; \
+        cd ${tmp_dir}/cwl_out ; \
         {{ti.xcom_pull(task_ids='build_cmd1')}} > $tmp_dir/session.log 2>&1 ; \
         echo $?
         """
