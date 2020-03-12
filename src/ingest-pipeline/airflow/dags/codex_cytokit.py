@@ -38,7 +38,7 @@ default_args = {
     'retry_delay': timedelta(minutes=1),
     'provide_context': True,
     'xcom_push': True,
-    'default_queue': 'general'
+    'queue': 'general'
 }
 
 fake_conf = {'apply': 'codex_cytokit',
@@ -94,7 +94,6 @@ with DAG('codex_cytokit',
     THREADS = 6
     pipeline_name = 'codex_cytokit'
     cwl_workflow1 = os.path.join(pipeline_name, 'pipeline.cwl')
-    cwl_workflow2 = os.path.join('portal-container-h5ad-to-arrow', 'workflow.cwl')
 
 #     prepare_cwl1 = PythonOperator(
 #         python_callable=utils.clone_or_update_pipeline,
@@ -137,108 +136,49 @@ with DAG('codex_cytokit',
         assert cwltool_dir, 'Failed to find cwltool bin directory'
         cwltool_dir = os.path.join(cwltool_dir, 'bin')
 
-        command = [
-            'env',
-            'PATH=%s:%s' % (cwltool_dir, os.environ['PATH']),
-            'cwltool',
-            '--debug',
-            '--outdir',
-            os.path.join(tmpdir, 'cwl_out'),
-            '--parallel',
-            os.path.join(pipeline_base_dir, cwl_workflow1),
-            '--fastq_dir',
-            data_dir,
-            '--threads',
-            str(THREADS),
-        ]
-        
 #         command = [
-#             'cp',
-#             '-R',
-#             os.path.join(os.environ['AIRFLOW_HOME'],
-#                          'data', 'temp', 'std_salmon_out', 'cwl_out'),
-#             tmpdir
+#             'env',
+#             'PATH=%s:%s' % (cwltool_dir, os.environ['PATH']),
+#             'cwltool',
+#             '--debug',
+#             '--outdir',
+#             os.path.join(tmpdir, 'cwl_out'),
+#             '--parallel',
+#             os.path.join(pipeline_base_dir, cwl_workflow1),
+#             '--fastq_dir',
+#             data_dir,
+#             '--threads',
+#             str(THREADS),
 #         ]
+        
+        command = [
+            'cp',
+            '-R',
+            os.path.join(os.environ['AIRFLOW_HOME'],
+                         'data', 'temp', 'std_salmon_out', 'cwl_out'),
+            tmpdir
+        ]
             
         command_str = ' '.join(shlex.quote(piece) for piece in command)
         print('final command_str: %s' % command_str)
         return command_str
 
-    # def build_cwltool_cmd2(**kwargs):
-    #     #ctx = fake_conf
-    #     ctx = kwargs['dag_run'].conf
-    #     run_id = kwargs['run_id']
-    #     tmpdir = os.path.join(os.environ['AIRFLOW_HOME'],
-    #                           'data', 'temp', run_id)
-    #     print('tmpdir: ', tmpdir)
-    #     data_dir = os.path.join(ctx['parent_lz_path'],
-    #                            ctx['metadata']['tmc_uuid'])
-    #     print('data_dir: ', data_dir)
-    #     pipeline_base_dir = os.path.join(os.environ['AIRFLOW_HOME'],
-    #                                      'dags', 'cwl')
-    #     cwltool_dir = os.path.dirname(cwltool.__file__)
-    #     while cwltool_dir:
-    #         part1, part2 = os.path.split(cwltool_dir)
-    #         cwltool_dir = part1
-    #         if part2 == 'lib':
-    #             break
-    #     assert cwltool_dir, 'Failed to find cwltool bin directory'
-    #     cwltool_dir = os.path.join(cwltool_dir, 'bin')
-
-    #     command = [
-    #         'env',
-    #         'PATH=%s:%s' % (cwltool_dir, os.environ['PATH']),
-    #         'cwltool',
-    #         os.path.join(pipeline_base_dir, cwl_workflow2),
-    #         '--input_dir',
-    #         '.'
-    #     ]
-            
-    #     command_str = ' '.join(shlex.quote(piece) for piece in command)
-    #     print('final command_str: %s' % command_str)
-    #     return command_str
 
     t_build_cmd1 = PythonOperator(
         task_id='build_cmd1',
         python_callable=build_cwltool_cmd1
         )
 
-    # t_build_cmd2 = PythonOperator(
-    #     task_id='build_cmd2',
-    #     python_callable=build_cwltool_cmd2
-    #     )
 
     t_pipeline_exec = BashOperator(
         task_id='pipeline_exec',
+        queue='gpu000_q1',
         bash_command=""" \
         tmp_dir=${AIRFLOW_HOME}/data/temp/{{run_id}} ; \
         {{ti.xcom_pull(task_ids='build_cmd1')}} > $tmp_dir/session.log 2>&1 ; \
         echo $?
         """
     )
-
-    # t_make_arrow1 = BashOperator(
-    #     task_id='make_arrow1',
-    #     bash_command=""" \
-    #     tmp_dir="${AIRFLOW_HOME}/data/temp/{{run_id}}" ; \
-    #     ds_dir="{{ti.xcom_pull(task_ids="send_create_dataset")}}" ; \
-    #     cd "$ds_dir"/cluster-marker-genes ; \
-    #     {{ti.xcom_pull(task_ids='build_cmd2')}} >> $tmp_dir/session.log 2>&1 ; \
-    #     echo $?
-    #     """,
-    #     provide_context=True
-    # )
-
-    # t_make_arrow2 = BashOperator(
-    #     task_id='make_arrow2',
-    #     bash_command=""" \
-    #     tmp_dir="${AIRFLOW_HOME}/data/temp/{{run_id}}" ; \
-    #     ds_dir="{{ti.xcom_pull(task_ids="send_create_dataset")}}" ; \
-    #     cd "$ds_dir"/dim_reduced_clustered ;\
-    #     {{ti.xcom_pull(task_ids='build_cmd2')}} >> $tmp_dir/session.log 2>&1 ; \
-    #     echo $?
-    #     """
-    # )
 
     def maybe_keep(**kwargs):
         """
