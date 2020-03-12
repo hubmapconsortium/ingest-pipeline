@@ -92,7 +92,7 @@ with DAG('codex_cytokit',
     
     
     THREADS = 6
-    pipeline_name = 'codex_pipeline'
+    pipeline_name = 'codex-pipeline'
     cwl_workflow1 = os.path.join(pipeline_name, 'pipeline.cwl')
 
 #     prepare_cwl1 = PythonOperator(
