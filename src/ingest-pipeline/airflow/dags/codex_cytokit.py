@@ -122,8 +122,7 @@ with DAG('codex_cytokit',
         tmpdir = os.path.join(os.environ['AIRFLOW_HOME'],
                               'data', 'temp', run_id)
         print('tmpdir: ', tmpdir)
-        data_dir = os.path.join(ctx['parent_lz_path'],
-                               ctx['metadata']['tmc_uuid'])
+        data_dir = os.path.join(ctx['parent_lz_path'])
         print('data_dir: ', data_dir)
         pipeline_base_dir = str(Path(__file__).resolve().parent / 'cwl')
         cwltool_dir = os.path.dirname(cwltool.__file__)
