@@ -1,5 +1,5 @@
 from os import environ, walk
-from os.path import basename, dirname, relpath, join, getsize
+from os.path import basename, dirname, relpath, join, getsize, realpath
 from pathlib import Path
 from typing import List
 from subprocess import check_call, check_output, CalledProcessError
@@ -104,7 +104,7 @@ def get_git_commits(file_list: List[str] or str):
             line = check_output(log_command, cwd=dirnm)
         except CalledProcessError as e:
             # Git will fail if this is not running from a git repo
-            line = 'notavailable git call failed: {}'.format(e.output)
+            line = 'DeadBeef git call failed: {}'.format(e.output)
             line = line.encode('utf-8')
         hash = line.split()[0].strip().decode('utf-8')
         rslt.append(hash)
@@ -117,7 +117,7 @@ def get_git_commits(file_list: List[str] or str):
 def get_git_provenance_dict(file_list: List[str] or str):
     if not isinstance(file_list, list):
         file_list = [file_list]
-    return {basename(fname) : get_git_commits(fname)
+    return {basename(fname) : get_git_commits(realpath(fname))
             for fname in file_list}
 
 
@@ -130,7 +130,7 @@ def _get_file_type(path: str):
             lst.append((re.compile(regex), tpnm))
         COMPILED_TYPE_MATCHERS = lst
     for regex, tpnm in COMPILED_TYPE_MATCHERS:
-        print('testing ', regex, tpnm)
+        #print('testing ', regex, tpnm)
         if regex.match(path):
             return tpnm
     return 'unknown'
