@@ -196,7 +196,7 @@ with DAG('codex_cytokit',
         task_id='maybe_keep_cwl1',
         python_callable=maybe_keep,
         provide_context=True,
-        op_kwargs = {'next_op' : 'move_files',
+        op_kwargs = {'next_op' : 'send_create_dataset',
                      'test_op' : 'pipeline_exec'}
         )
 
@@ -311,21 +311,6 @@ with DAG('codex_cytokit',
         )
 
 
-    t_move_files = BashOperator(
-        task_id='move_files',
-        bash_command="""
-        tmp_dir="${AIRFLOW_HOME}/data/temp/{{run_id}}" ; \
-        cd "$tmp_dir"/cwl_out ; \
-        mkdir cluster-marker-genes ; \
-        mv cluster_marker_genes.h5ad cluster-marker-genes ; \
-        mkdir dim_reduced_clustered ; \
-        mv dim_reduced_clustered.h5ad dim_reduced_clustered ; \
-        echo $?
-        """,
-        provide_context=True
-        )
-
-
     def send_status_msg(**kwargs):
         retcode_ops = ['pipeline_exec', 'move_data', 'make_arrow1', 'make_arrow2']
         retcodes = [int(kwargs['ti'].xcom_pull(task_ids=op))
@@ -412,19 +397,15 @@ with DAG('codex_cytokit',
 
     t_cleanup_tmpdir = BashOperator(
         task_id='cleanup_temp_dir',
-        bash_command='rm -r ${AIRFLOW_HOME}/data/temp/{{run_id}}',
+        bash_command='echo rm -r ${AIRFLOW_HOME}/data/temp/{{run_id}}',
         )
  
 
     (dag >> t1 >> t_create_tmpdir
      >> prepare_cwl1 # >> prepare_cwl2
      >> t_build_cmd1 >> t_pipeline_exec >> t_maybe_keep_cwl1
-     >> t_move_files 
      >> t_send_create_dataset >> t_set_dataset_processing
      >> t_move_data
-     # >> t_build_cmd2
-     # >> t_make_arrow1
-     # >> t_make_arrow2
      >> t_send_status >> t_join)
     t_maybe_keep_cwl1 >> t_no_keep >> t_join
     t_join >> t_cleanup_tmpdir
