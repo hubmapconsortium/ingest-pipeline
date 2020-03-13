@@ -1,14 +1,10 @@
 import sys
 import os
-from os import fspath
-from pathlib import Path
-import shlex
-import yaml
 import json
-import pytz
+import shlex
+from pathlib import Path
 from pprint import pprint
 from datetime import datetime, timedelta
-import glob
 
 from airflow import DAG
 from airflow.operators.bash_operator import BashOperator
@@ -16,8 +12,6 @@ from airflow.operators.python_operator import PythonOperator
 from airflow.operators.python_operator import BranchPythonOperator
 from airflow.operators.dummy_operator import DummyOperator
 from airflow.hooks.http_hook import HttpHook
-from airflow.configuration import conf
-from airflow.models import Variable
 
 import utils
 
@@ -25,6 +19,8 @@ sys.path.append(str(Path(os.environ['AIRFLOW_HOME']) / 'lib'))
 from schema_tools import check_schema, SchemaError
 
 import cwltool  # used to find its path
+
+THREADS = 6  # to be used by the CWL worker
 
 # Following are defaults which can be overridden later on
 default_args = {
@@ -38,6 +34,7 @@ default_args = {
     'retry_delay': timedelta(minutes=1),
     'provide_context': True,
     'xcom_push': True,
+    'queue': 'general'
 }
 
 fake_conf = {'apply': 'salmon_rnaseq_10x',
@@ -90,7 +87,6 @@ with DAG('salmon_rnaseq_10x',
         )
     
     
-    THREADS = 6
     pipeline_name = 'salmon_rnaseq_10x'
     cwl_workflow1 = os.path.join(pipeline_name, 'pipeline.cwl')
     cwl_workflow2 = os.path.join('portal-container-h5ad-to-arrow', 'workflow.cwl')
@@ -289,7 +285,7 @@ with DAG('salmon_rnaseq_10x',
         data = {
             "source_dataset_uuid":ctx['parent_submission_id'],
             "derived_dataset_name":'{}__{}__{}'.format(ctx['metadata']['tmc_uuid'],
-                                                       ctx['component'],
+                                                       ctx['parent_submission_id'],
                                                        pipeline_name),
             "derived_dataset_types":["dataset",
                                      "salmon_rnaseq_10x"]
@@ -425,15 +421,14 @@ with DAG('salmon_rnaseq_10x',
                                                                        cwl_workflow2)]))
             file_md = utils.get_file_metadata(ds_dir)
             md = {'dag_provenance' : dag_prv,
-                  'files' : file_md, 
-                  'component': kwargs['dag_run'].conf['component']}
+                  'files' : file_md}
             try:
-                #check_schema(md, 'dataset_metadata_schema.yml')
+                assert_json_matches_schema(md, 'dataset_metadata_schema.yml')
                 data = {'dataset_id' : derived_dataset_uuid,
                         'status' : 'QA',
                         'message' : 'the process ran',
                         'metadata': md}
-            except SchemaError as e:
+            except AssertionError as e:
                 print('invalid metadata follows:')
                 pprint(md)
                 data = {'dataset_id' : derived_dataset_uuid,

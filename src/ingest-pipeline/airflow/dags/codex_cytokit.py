@@ -1,14 +1,10 @@
 import sys
 import os
-from os import fspath
-from pathlib import Path
-import shlex
-import yaml
 import json
-import pytz
+import shlex
+from pathlib import Path
 from pprint import pprint
 from datetime import datetime, timedelta
-import glob
 
 from airflow import DAG
 from airflow.operators.bash_operator import BashOperator
@@ -16,8 +12,6 @@ from airflow.operators.python_operator import PythonOperator
 from airflow.operators.python_operator import BranchPythonOperator
 from airflow.operators.dummy_operator import DummyOperator
 from airflow.hooks.http_hook import HttpHook
-from airflow.configuration import conf
-from airflow.models import Variable
 
 import utils
 
@@ -91,7 +85,6 @@ with DAG('codex_cytokit',
         )
     
     
-    THREADS = 6
     pipeline_name = 'codex-pipeline'
     cwl_workflow1 = os.path.join(pipeline_name, 'pipeline.cwl')
 
@@ -384,7 +377,7 @@ with DAG('codex_cytokit',
 
     t_cleanup_tmpdir = BashOperator(
         task_id='cleanup_temp_dir',
-        bash_command='echo rm -r ${AIRFLOW_HOME}/data/temp/{{run_id}}',
+        bash_command='rm -r ${AIRFLOW_HOME}/data/temp/{{run_id}}',
         )
  
 

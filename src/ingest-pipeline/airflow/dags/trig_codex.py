@@ -1,18 +1,8 @@
 from airflow import DAG
-from airflow.operators.bash_operator import BashOperator
 from airflow.operators.dagrun_operator import DagRunOrder
 from airflow.operators.multi_dagrun import TriggerMultiDagRunOperator
-from airflow.operators.python_operator import PythonOperator
-from airflow.operators.http_operator import SimpleHttpOperator
-from airflow.hooks.http_hook import HttpHook
-from airflow.configuration import conf
-from airflow.models import Variable
 from datetime import datetime, timedelta
-import pytz
 from pprint import pprint
-import os
-import yaml
-import json
 
 import utils
 

@@ -1,3 +1,11 @@
+import sys
+import os
+import yaml
+import json
+from pathlib import Path
+from pprint import pprint
+from datetime import datetime, timedelta
+
 from airflow import DAG
 from airflow.operators.bash_operator import BashOperator
 from airflow.operators.python_operator import PythonOperator
@@ -5,14 +13,11 @@ from airflow.operators.python_operator import BranchPythonOperator
 from airflow.operators.dummy_operator import DummyOperator
 from airflow.operators.dagrun_operator import TriggerDagRunOperator
 from airflow.hooks.http_hook import HttpHook
-from airflow.configuration import conf
-from airflow.models import Variable
-from datetime import datetime, timedelta
-from pprint import pprint
-import os
-import yaml
-import json
 
+import utils
+
+sys.path.append(str(Path(__file__).resolve().parent.parent / 'lib'))
+from schema_tools import assert_json_matches_schema
 
 # Following are defaults which can be overridden later on
 default_args = {
@@ -47,30 +52,51 @@ with DAG('scan_and_begin_processing',
         
     def send_status_msg(**kwargs):
         ctx = fake_ctx if FAKE_MODE else kwargs['dag_run'].conf
-        md_extract_retcode = int(kwargs['ti'].xcom_pull(task_ids="run_md_extract"))
-        print('md_extract_retcode: ', md_extract_retcode)
+        retcode_ops = ['run_md_extract']
+        retcodes = [int(kwargs['ti'].xcom_pull(task_ids=op))
+                    for op in retcode_ops]
+        print('retcodes: ', {k:v for k, v in zip(retcode_ops, retcodes)})
+        success = all([rc == 0 for rc in retcodes])
+        ds_dir = ctx['lz_path']
         http_conn_id='ingest_api_connection'
         endpoint='/datasets/status'
         method='PUT'
         headers={'authorization' : 'Bearer ' + ctx['auth_tok'],
                  'content-type' : 'application/json'}
+        print('headers:')
+        pprint(headers)
         extra_options=[]
          
         http = HttpHook(method,
                         http_conn_id=http_conn_id)
  
-        if md_extract_retcode == 0:
+        if success:
             md_fname = os.path.join(os.environ['AIRFLOW_HOME'],
                                     'data/temp', kwargs['run_id'],
                                     'rslt.yml')
             with open(md_fname, 'r') as f:
-                md = yaml.safe_load(f)
-            data = {'dataset_id' : ctx['submission_id'],
-                    'status' : 'QA',
-                    'message' : 'the process ran',
-                    'metadata': md}
+                scanned_md = yaml.safe_load(f)
+            dag_prv = utils.get_git_provenance_dict([__file__])
+            file_md = utils.get_file_metadata(ds_dir)
+            md = {'dag_provenance' : dag_prv,
+                  'files' : file_md,
+                  'metadata' : scanned_md}
+            try:
+                assert_json_matches_schema(md, 'dataset_metadata_schema.yml')
+                data = {'dataset_id' : ctx['submission_id'],
+                        'status' : 'QA',
+                        'message' : 'the process ran',
+                        'metadata': md}
+            except AssertionError as e:
+                print('invalid metadata follows:')
+                pprint(md)
+                data = {'dataset_id' : ctx['submission_id'],
+                        'status' : 'Error',
+                        'message' : 'internal error; schema violation: {}'.format(e),
+                        'metadata': {}}
             kwargs['ti'].xcom_push(key='collectiontype',
-                                   value=(md['collectiontype'] if 'collectiontype' in md
+                                   value=(scanned_md['collectiontype']
+                                          if 'collectiontype' in scanned_md
                                           else None))
         else:
             log_fname = os.path.join(os.environ['AIRFLOW_HOME'],
@@ -82,13 +108,16 @@ with DAG('scan_and_begin_processing',
                     'status' : 'Invalid',
                     'message' : err_txt}
             kwargs['ti'].xcom_push(key='collectiontype', value=None)
-        print('data: ', data)
+        print('data: ')
+        pprint(data)
          
         response = http.run(endpoint,
                             json.dumps(data),
                             headers,
                             extra_options)
-        print('response: ', response.text)
+        print('response: ')
+        pprint(response.json())
+
 
     def maybe_spawn_dag(context, dag_run_obj):
         """
@@ -158,23 +187,6 @@ with DAG('scan_and_begin_processing',
         provide_context = True
         )
 
-    # t_run_md_extract = BashOperator(
-    #     task_id='run_md_extract',
-    #     bash_command=""" \
-    #     lz_dir='/hive/hubmap-dev/lz/IEC Testing Group/367214b19695cb89ed20b55ef78bba9c' ; \
-    #     src_dir="/hive/users/welling/git/hubmap/ingest-pipeline/src/ingest-pipeline/md" ; \
-    #     lib_dir="/hive/users/welling/git/hubmap/ingest-pipeline/src/ingest-pipeline/airflow/lib" ; \
-    #     work_dir="${AIRFLOW_HOME}/data/temp/{{run_id}}" ; \
-    #     cd $work_dir ; \
-    #     env PYTHONPATH=${PYTHONPATH}:$lib_dir \
-    #     python $src_dir/metadata_extract.py --out ./rslt.yml --yaml "$lz_dir" \
-    #       > ./session.log 2>&1 ; \
-    #     echo $?
-    #     """,
-    #     provide_context = True
-    #     )
-
-
     t_send_status = PythonOperator(
         task_id='send_status_msg',
         python_callable=send_status_msg,
@@ -197,9 +209,7 @@ with DAG('scan_and_begin_processing',
     t_spawn_dag = TriggerDagRunOperator(
         task_id="maybe_spawn_dag",
         trigger_dag_id="trig_{{ti.xcom_pull(key='collectiontype', task_ids='send_status_msg')}}",
-        python_callable = maybe_spawn_dag,
-        #conf={"message": "Hello World"},
-        #provide_context = True
+        python_callable = maybe_spawn_dag
         )
  
 
