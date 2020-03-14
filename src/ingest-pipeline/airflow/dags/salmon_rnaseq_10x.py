@@ -16,7 +16,7 @@ from airflow.hooks.http_hook import HttpHook
 import utils
 
 sys.path.append(str(Path(os.environ['AIRFLOW_HOME']) / 'lib'))
-from schema_tools import check_schema, SchemaError
+from schema_tools import assert_json_matches_schema
 
 import cwltool  # used to find its path
 
