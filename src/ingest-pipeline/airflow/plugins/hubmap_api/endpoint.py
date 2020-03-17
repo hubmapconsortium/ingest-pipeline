@@ -213,7 +213,7 @@ def check_ingest_parms(provider, submission_id, process):
         dct = {'provider' : provider, 'submission_id' : submission_id, 'process' : process}
         lz_path = config('connections', 'lz_path').format(**dct)
         if os.path.exists(lz_path) and os.path.isdir(lz_path):
-            if not len(os.path.listdir(lz_path)):
+            if not len(os.listdir(lz_path)):
                 LOGGER.error("Ingest directory {} contains no files".format(lz_path))
                 raise HubmapApiInputException("Ingest directory contains no files")
         else:
