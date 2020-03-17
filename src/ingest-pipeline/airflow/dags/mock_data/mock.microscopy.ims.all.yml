@@ -1,11 +1,4 @@
 # A sample MICROSCOPY.IMS.ALL dataset to be used for testing
-request_ingest_response:
-    overall_file_count: 69
-    top_folder_contents:
-    - "IMS"
-    - "processed_microscopy"
-    - "raw_microscopy"
-    - "VAN0001-RK-1-spatial_meta.txt"
 metadata:
     sample_id: uuid-2222-3333
     alignment_datetime: 9/13/2019 10:39:54 AM

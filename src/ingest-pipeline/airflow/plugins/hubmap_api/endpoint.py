@@ -31,7 +31,7 @@ from hubmap_api.manager import show_template
 from hubmap_commons.hm_auth import AuthHelper, AuthCache, secured
 #from hubmap_api.hm_auth import AuthHelper, AuthCache, secured
 
-API_VERSION = 1
+API_VERSION = 2
 
 LOGGER = logging.getLogger(__name__)
 
@@ -189,47 +189,39 @@ def _get_required_string(data, st):
         raise HubmapApiInputException(st)
 
 
-def get_request_ingest_reply_parms(provider, submission_id, process):
+def check_ingest_parms(provider, submission_id, process):
     """
-    This routine finds and returns the response parameters required by the request_ingest message,
-    as an ordered tuple.  The input parameters correspond to the values in the request_ingest request.
+    This routine performs consistency checks on the parameters of an ingest request.
+    On error, HubmapApiInputException is raised.
+    Return value is None.
     """
     if process.startswith('mock.'):
         # test request; there should be pre-recorded response data
-        yml_path = os.path.join(os.path.dirname(__file__),
-                                '../../data/mock_data/',
+        here_dir = os.path.dirname(os.path.resolve(__file__))
+        yml_path = os.path.join(here_dir,'../../dags/mock_data/',
                                 process + '.yml')
         try:
             with open(yml_path, 'r') as f:
                 mock_data = yaml.safe_load(f)
-                overall_file_count = mock_data['request_ingest_response']['overall_file_count']
-                top_folder_contents = mock_data['request_ingest_response']['top_folder_contents']
+        except yaml.YamlError as e:
+            LOGGER.error('mock data contains invalid YAML: {}'.format(e))
+            raise HubmapApiInputException('Mock data is invalid YAML for process %s', process)
         except IOError as e:
             LOGGER.error('mock data load failed: {}'.format(e))
             raise HubmapApiInputException('No mock data found for process %s', process)
     else:
         dct = {'provider' : provider, 'submission_id' : submission_id, 'process' : process}
-        #dct = {'provider' : 'Vanderbilt TMC', 'submission_id' : 'VAN0001-RK-1-21_24', 'process' : process}
         lz_path = config('connections', 'lz_path').format(**dct)
         if os.path.exists(lz_path) and os.path.isdir(lz_path):
-            n_files = 0
-            top_folder_contents = None
-            for root, subdirs, files in os.walk(lz_path):
-                if root == lz_path:
-                    top_folder_contents = (subdirs + files)[:]
-                    break
-#                n_files += len(files)
-            assert top_folder_contents is not None, 'internal error using os.walk?'
-            overall_file_count = n_files
+            if not len(os.path.listdir(lz_path)):
+                LOGGER.error("Ingest directory {} contains no files".format(lz_path))
+                raise HubmapApiInputException("Ingest directory contains no files")
         else:
-            LOGGER.error("cannot find the ingest data for '%s' '%s '%s' (expected %s)"
+            LOGGER.error("cannot find the ingest data for '%s' '%s' '%s' (expected %s)"
                          % (provider, submission_id, process, lz_path))
             raise HubmapApiInputException("Cannot find the expected ingest directory for '%s' '%s' '%s'"
                                           % (provider, submission_id, process))
     
-    LOGGER.info('get_request_ingest_reply_parms returning {} {}'.format(overall_file_count, top_folder_contents))
-    return overall_file_count, top_folder_contents
-
 
 """
 Parameters for this request (all required)
@@ -243,8 +235,6 @@ Parameters included in the response:
 Key        Type    Description
 ingest_id  string  Unique ID string to be used in references to this request
 run_id     string  The identifier by which the ingest run is known to Airflow
-overall_file_count  int  Total number of files and directories in submission
-top_folder_contents list list of all files and directories in the top level folder
 """
 @csrf.exempt
 @api_bp.route('/request_ingest', methods=['POST'])
@@ -281,10 +271,9 @@ def request_ingest():
     except HubmapApiConfigException:
         return HubmapApiResponse.bad_request('{} is not a known ingestion process'.format(process))
     
-    overall_file_count, top_folder_contents = get_request_ingest_reply_parms(provider, submission_id,
-                                                                             process)
-    
     try:
+        check_ingest_parms(provider, submission_id, process)
+    
         session = settings.Session()
 
         dagbag = DagBag('dags')
@@ -320,13 +309,13 @@ def request_ingest():
 
         if find_dag_runs(session, dag_id, run_id, execution_date):
             # The run already happened??
-            return HubmapAPIResponse.server_error('The request happened twice?')
+            raise AirflowException('The request happened twice?')
 
         try:
             dr = trigger_dag.trigger_dag(dag_id, run_id, conf, execution_date=execution_date)
         except AirflowException as err:
             LOGGER.error(err)
-            return HubmapApiResponse.server_error("Attempt to trigger run produced an error: {}".format(err))
+            raise AirflowException("Attempt to trigger run produced an error: {}".format(err))
         LOGGER.info('dagrun follows: {}'.format(dr))
 
 #             dag.create_dagrun(
