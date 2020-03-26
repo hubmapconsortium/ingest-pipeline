@@ -14,8 +14,3 @@ RUN echo 'airflow ALL=(ALL) NOPASSWD: /bin/chown airflow ., /bin/chgrp airflow .
     
 USER airflow
 
-# Airflow API, including hubmap plugin
-EXPOSE 8789
-
-# Flower API
-EXPOSE 5555

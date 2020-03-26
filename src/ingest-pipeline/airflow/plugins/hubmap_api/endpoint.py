@@ -18,7 +18,7 @@ from sqlalchemy import or_
 from airflow import settings
 from airflow.exceptions import AirflowException, AirflowConfigException
 from airflow.www.app import csrf
-from airflow.models import DagBag, DagRun, Variable
+from airflow.models import DagBag, DagRun, Connection
 from airflow.utils import timezone
 from airflow.utils.dates import date_range as utils_date_range
 from airflow.utils.state import State
@@ -37,23 +37,43 @@ LOGGER = logging.getLogger(__name__)
 
 airflow_conf.read(os.path.join(os.environ['AIRFLOW_HOME'], 'instance', 'app.cfg'))
 
-"""
-Potentially helpful code for creating a connection
+# Tables of configuration elements needed at start-up.
+# Config elements must be lowercase
+NEEDED_ENV_VARS = [
+    'AIRFLOW_CONN_INGEST_API_CONNECTION',
+    ]
+NEEDED_CONFIG_SECTIONS = [
+    'ingest_map',
+    ]
+NEEDED_CONFIGS = [
+    ('connections', 'app_client_id'),
+    ('connections', 'app_client_secret'),
+    ('hubmap_api_plugin', 'build_number'),
+    ('connections', 'lz_path'),
+    ('connections', 'src_path'),
+    ('core', 'timezone'),
+    ]
 
-from airflow import settings
-from airflow.models import Connection
-conn = Connection(
-        conn_id=conn_id,
-        conn_type=conn_type,
-        host=host,
-        login=login,
-        password=password,
-        port=port
-) #create a connection object
-session = settings.Session() # get the session
-session.add(conn)
-session.commit() # it will insert the connection object programmatically.
-"""
+def check_config():
+    # Check for needed configuration elements, since it's better to fail early
+    dct = airflow_conf.as_dict()
+    failed = 0
+    for elt in NEEDED_ENV_VARS:
+        if elt not in os.environ:
+            LOGGER.error('The environment variable {} is not set'.format(elt))
+            failed += 1
+    for key in NEEDED_CONFIG_SECTIONS + [a for a, b in NEEDED_CONFIGS]:
+        if not (key in dct or key.upper() in dct):
+            LOGGER.error('The configuration section {} does not exist'.format(key))
+            failed += 1
+    for key1, key2 in NEEDED_CONFIGS:
+        sub_dct = dct[key1] if key1 in dct else dct[key1.upper()]
+        if not (key2 in sub_dct or key2.upper() in sub_dct):
+            LOGGER.error('The configuration parameter [{}] {} does not exist'.format(key1, key2))
+            failed += 1
+    assert failed == 0, 'ingest-pipeline plugin found {} configuration errors'.format(failed)
+check_config()
+
 
 def config(section, key):
     dct = airflow_conf.as_dict()
