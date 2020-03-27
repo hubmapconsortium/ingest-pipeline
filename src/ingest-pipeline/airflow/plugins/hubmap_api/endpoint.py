@@ -46,11 +46,12 @@ NEEDED_CONFIG_SECTIONS = [
     'ingest_map',
     ]
 NEEDED_CONFIGS = [
+    ('hubmap_api_plugin', 'build_number'),
     ('connections', 'app_client_id'),
     ('connections', 'app_client_secret'),
-    ('hubmap_api_plugin', 'build_number'),
     ('connections', 'lz_path'),
     ('connections', 'src_path'),
+    ('connections', 'output_group_name')
     ('core', 'timezone'),
     ]
 

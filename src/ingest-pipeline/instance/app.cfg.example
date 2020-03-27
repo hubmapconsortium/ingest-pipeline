@@ -15,10 +15,11 @@ timezone = US/Eastern
 APP_CLIENT_ID = '_some_string_'
 APP_CLIENT_SECRET = '_some_string_'
 
-INGEST_API_URL = 'http://localhost:8484'
-
 # Path to LZ as seen by airflow
 LZ_PATH = '/hive/hubmap/lz/{provider}/{submission_id}'
+
+# Path to src/ingest-pipeline directory as seen by airflow
+SRC_PATH = '/usr/src/app/src'
 
 # Group to which output directories are set, typically shared with Globus
 OUTPUT_GROUP_NAME = 'dataaccessgroup'
