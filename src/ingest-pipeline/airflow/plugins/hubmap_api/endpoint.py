@@ -51,7 +51,7 @@ NEEDED_CONFIGS = [
     ('connections', 'app_client_secret'),
     ('connections', 'lz_path'),
     ('connections', 'src_path'),
-    ('connections', 'output_group_name')
+    ('connections', 'output_group_name'),
     ('core', 'timezone'),
     ]
 
