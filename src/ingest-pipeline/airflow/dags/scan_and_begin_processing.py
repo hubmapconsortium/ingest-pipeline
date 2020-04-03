@@ -137,7 +137,7 @@ with DAG('scan_and_begin_processing',
                                     'rslt.yml')
             with open(md_fname, 'r') as f:
                 md = yaml.safe_load(f)
-            if collectiontype in ['rnaseq_10x', 'codex']:
+            if collectiontype in ['rnaseq_10x', 'codex', 'devtest']:
                 payload = {'ingest_id' : context['run_id'],
                            #'ingest_id' : ctx['ingest_id'],
                            'auth_tok' : ctx['auth_tok'],
