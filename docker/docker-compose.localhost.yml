@@ -7,6 +7,8 @@ services:
       # Mount the source code to container.  This includes the instance/app.cfg file
       # one directory below.
       - "../src/ingest-pipeline:/usr/src/app/src"
+      # Logic for finding schemata from dags requires a specific route to schemata
+      - "../src/ingest-pipeline/schemata:/usr/local/schemata"
       # Map the actual root of the staging area to container
       - "/hubmap-data:/usr/local/airflow/lz"
     environment:
