@@ -257,6 +257,7 @@ with DAG('devtest_step2',
 
 
     def send_status_msg(**kwargs):
+        ctx = kwargs['dag_run'].conf
         retcode_ops = ['pipeline_exec', 'move_data']
         retcodes = [int(kwargs['ti'].xcom_pull(task_ids=op))
                     for op in retcode_ops]
@@ -265,6 +266,10 @@ with DAG('devtest_step2',
         derived_dataset_uuid = kwargs['ti'].xcom_pull(key='derived_dataset_uuid',
                                                       task_ids="send_create_dataset")
         ds_dir = kwargs['ti'].xcom_pull(task_ids='send_create_dataset')
+        if 'metadata_to_return' in ctx['metadata']:
+            md_to_return = ctx['metadata']['metadata_to_return']
+        else:
+            md_to_return = {}
         http_conn_id='ingest_api_connection'
         endpoint='/datasets/status'
         method='PUT'
@@ -287,7 +292,8 @@ with DAG('devtest_step2',
             dag_prv.update(utils.get_git_provenance_dict([__file__]))
             file_md = utils.get_file_metadata(ds_dir)
             md = {'dag_provenance' : dag_prv,
-                  'files' : file_md}
+                  'files' : file_md,
+                  'metadata' : md_to_return}
             try:
                 assert_json_matches_schema(md, 'dataset_metadata_schema.yml')
                 data = {'dataset_id' : derived_dataset_uuid,

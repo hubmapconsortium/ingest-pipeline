@@ -6,6 +6,7 @@ import glob
 import pandas as pd
 import numpy as np
 import types
+import yaml
 from pprint import pprint
 
 from data_collection import DataCollection
@@ -14,7 +15,7 @@ class DEVTESTDataCollection(DataCollection):
     category_name = 'DEVTEST';
 
     # expected_file pairs are (globable name, filetype key)
-    expected_files = [('*.yml', "YAML"),
+    expected_files = [('test.yml', "YAML"),
                       ]
     
     optional_files = []
@@ -30,6 +31,12 @@ class DEVTESTDataCollection(DataCollection):
             if not any(glob.iglob(os.path.join(path, match))):
                 print('not found!')
                 return False
+        assert 'test.yml' in [a for a, b in cls.expected_files], 'name of my info file has changed?'
+        with open(os.path.join(path, 'test.yml'), 'r') as f:
+            md = yaml.safe_load(f)
+            if 'collectiontype' not in md or md['collectiontype'] != 'devtest':
+                return False
+        
         return True
     
     def __init__(self, path):
