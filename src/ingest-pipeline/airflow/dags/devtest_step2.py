@@ -34,11 +34,15 @@ default_args = {
 }
 
 
+def tmp_dir_path(run_id):
+    return "{}/data/temp/{}".format(os.environ['AIRFLOW_HOME'], run_id)
+
 with DAG('devtest_step2', 
          schedule_interval=None, 
          is_paused_upon_creation=False, 
          default_args=default_args,
-         max_active_runs=1
+         max_active_runs=1,
+         user_defined_macros={'tmp_dir_path' : tmp_dir_path}
          ) as dag:
 
     pipeline_name = 'devtest-step2-pipeline'
@@ -67,8 +71,7 @@ with DAG('devtest_step2',
     def build_cwltool_cmd1(**kwargs):
         ctx = kwargs['dag_run'].conf
         run_id = kwargs['run_id']
-        tmpdir = os.path.join(os.environ['AIRFLOW_HOME'],
-                              'data', 'temp', run_id)
+        tmpdir = tmp_dir_path(run_id)
         print('tmpdir: ', tmpdir)
         tmp_subdir = os.path.join(tmpdir, 'cwl_out')
         print('tmp_subdir: ', tmp_subdir)
@@ -167,7 +170,7 @@ with DAG('devtest_step2',
     t_move_data = BashOperator(
         task_id='move_data',
         bash_command="""
-        tmp_dir="${AIRFLOW_HOME}/data/temp/{{run_id}}" ; \
+        tmp_dir="{{tmp_dir_path(run_id)}}" ; \
         ds_dir="{{ti.xcom_pull(task_ids="send_create_dataset")}}" ; \
         groupname="{{conf.as_dict()['connections']['OUTPUT_GROUP_NAME']}}" ; \
         pushd "$ds_dir" ; \
@@ -233,8 +236,7 @@ with DAG('devtest_step2',
                         'message' : 'internal error; schema violation: {}'.format(e),
                         'metadata': {}}
         else:
-            log_fname = os.path.join(os.environ['AIRFLOW_HOME'],
-                                     'data/temp', kwargs['run_id'],
+            log_fname = os.path.join(tmp_dir_path(kwargs['run_id']),
                                      'session.log')
             with open(log_fname, 'r') as f:
                 err_txt = '\n'.join(f.readlines())
@@ -261,14 +263,14 @@ with DAG('devtest_step2',
     
     t_create_tmpdir = BashOperator(
         task_id='create_temp_dir',
-        bash_command='mkdir ${AIRFLOW_HOME}/data/temp/{{run_id}}',
+        bash_command='mkdir {{tmp_dir_path(run_id)}}',
         provide_context=True
         )
 
 
     t_cleanup_tmpdir = BashOperator(
         task_id='cleanup_temp_dir',
-        bash_command='rm -r ${AIRFLOW_HOME}/data/temp/{{run_id}}',
+        bash_command='rm -r {{tmp_dir_path(run_id)}}',
         )
  
 
