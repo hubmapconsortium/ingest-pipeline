@@ -1,9 +1,13 @@
 from os import environ, walk
-from os.path import basename, dirname, relpath, join, getsize, realpath
+from os.path import basename, dirname, relpath, split, join, getsize, realpath
 from pathlib import Path
 from typing import List
 from subprocess import check_call, check_output, CalledProcessError
 import re
+import json
+from pprint import pprint
+
+from airflow.hooks.http_hook import HttpHook
 
 # Some constants
 PIPELINE_BASE_DIR = Path(environ['AIRFLOW_HOME']) / 'pipeline_git_repos'
@@ -151,7 +155,141 @@ def get_file_metadata(root_dir: str):
                          'size': getsize(join(root_dir, rp, fn)),
                          'sha1sum': cs})
     return rslt
+
+
+def pythonop_trigger_target(**kwargs):
+    """
+    When used as the python_callable of a PythonOperator,this just logs
+    data provided to the running DAG.
+    """
+    ctx = kwargs['dag_run'].conf
+    run_id = kwargs['run_id']
+    print('run_id: ', run_id)
+    print('dag_run.conf:')
+    pprint(ctx)
+    print('kwargs:')
+    pprint(kwargs)
+ 
+
+def pythonop_maybe_keep(**kwargs):
+    """
+    accepts the following via the caller's op_kwargs:
+    'next_op': the operator to call on success
+    'bail_op': the operator to which to bail on failure (default 'no_keep')
+    'test_op': the operator providing the success code
+    'test_key': xcom key to test.  Defaults to None for return code
+    """
+    bail_op = kwargs['bail_op'] if 'bail_op' in kwargs else 'no_keep'
+    test_op = kwargs['test_op']
+    test_key = kwargs['test_key'] if 'test_key' in kwargs else None
+    retcode = int(kwargs['ti'].xcom_pull(task_ids=test_op, key=test_key))
+    print('%s key %s: %s\n' % (test_op, test_key, retcode))
+    if retcode is 0:
+        return kwargs['next_op']
+    else:
+        return bail_op
+
+
+def pythonop_send_create_dataset(**kwargs):
+    """
+    Requests creation of a new dataset.  Returns dataset info via XCOM
     
+    Accepts the following via the caller's op_kwargs:
+    'http_conn_id' : the http connection to be used
+    'endpoint' : the REST endpoint
+    'parent_dataset_uuid_callable' : called with **kwargs; returns uuid
+                                     of the parent of the new dataset
+    'dataset_name_callable' : called with **kwargs; returns the
+                              display name of the new dataset                                     
+    'dataset_types' : the types list of the new dataset
+    
+    Returns the following via XCOM:
+    (no key) : data_directory_path for the new dataset
+    'derived_dataset_uuid' : uuid for the created dataset
+    'group_uuid' : group uuid for the created dataset
+    """
+    for arg in ['parent_dataset_uuid_callable', 'http_conn_id', 'endpoint',
+                'dataset_name_callable', 'dataset_types']:
+        assert arg in kwargs, "missing required argument {}".format(arg)
+    http_conn_id = kwargs['http_conn_id']
+    endpoint = kwargs['endpoint']
+    
+    ctx = kwargs['dag_run'].conf
+    method='POST'
+    headers={
+        'authorization' : 'Bearer ' + ctx['auth_tok'],
+        'content-type' : 'application/json'}
+    print('headers:')
+    pprint(headers)
+    extra_options=[]
+    http = HttpHook(method,
+                    http_conn_id=http_conn_id)
+    data = {
+        "source_dataset_uuid": kwargs['parent_dataset_uuid_callable'](**kwargs),
+        "derived_dataset_name": kwargs['dataset_name_callable'](**kwargs),
+        "derived_dataset_types": kwargs['dataset_types']
+    }
+    print('data: ')
+    pprint(data)
+    response = http.run(endpoint,
+                        json.dumps(data),
+                        headers,
+                        extra_options)
+    print('response: ')
+    pprint(response.json())
+    lz_root = split(ctx['parent_lz_path'])[0]
+    lz_root = split(lz_root)[0]
+    data_dir_path = join(lz_root,
+                         response.json()['group_display_name'],
+                         response.json()['derived_dataset_uuid'])
+    kwargs['ti'].xcom_push(key='group_uuid',
+                           value=response.json()['group_uuid'])
+    kwargs['ti'].xcom_push(key='derived_dataset_uuid', 
+                           value=response.json()['derived_dataset_uuid'])
+    return data_dir_path
+
+
+def pythonop_set_dataset_processing(**kwargs):
+    """
+    Sets the status of a dataset to 'Processing'
+    
+    Accepts the following via the caller's op_kwargs:
+    'dataset_uuid_callable' : called with **kwargs; returns the
+                              uuid of the dataset to be modified
+    'http_conn_id' : the http connection to be used
+    'endpoint' : the REST endpoint
+    """
+    for arg in ['dataset_uuid_callable', 'http_conn_id', 'endpoint']:
+        assert arg in kwargs, "missing required argument {}".format(arg)
+    dataset_uuid = kwargs['dataset_uuid_callable'](**kwargs)
+    http_conn_id = kwargs['http_conn_id']
+    endpoint = kwargs['endpoint']
+    method='PUT'
+    headers={
+        'authorization' : 'Bearer ' + kwargs['dag_run'].conf['auth_tok'],
+        'content-type' : 'application/json'}
+    print('headers:')
+    pprint(headers)
+    extra_options=[]
+     
+    http = HttpHook(method,
+                    http_conn_id=http_conn_id)
+
+    data = {'dataset_id' : dataset_uuid,
+            'status' : 'Processing',
+            'message' : 'update state',
+            'metadata': {}}
+    print('data: ')
+    pprint(data)
+
+    response = http.run(endpoint,
+                        json.dumps(data),
+                        headers,
+                        extra_options)
+    print('response: ')
+    pprint(response.json())
+
+
 def main():
     print(__file__)
     print(get_git_commits([__file__]))

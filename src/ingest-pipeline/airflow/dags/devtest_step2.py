@@ -41,25 +41,29 @@ with DAG('devtest_step2',
          max_active_runs=1
          ) as dag:
 
- 
-    def trigger_target(**kwargs):
-        ctx = kwargs['dag_run'].conf
-        run_id = kwargs['run_id']
-        print('run_id: ', run_id)
-        print('dag_run.conf:')
-        pprint(ctx)
-        print('kwargs:')
-        pprint(kwargs)
- 
+    pipeline_name = 'devtest-step2-pipeline'
+
+    def get_parent_dataset_uuid(**kwargs):
+        return kwargs['dag_run'].conf['parent_submission_id']
+    
+    
+    def get_dataset_uuid(**kwargs):
+        return kwargs['ti'].xcom_pull(key='derived_dataset_uuid',
+                                      task_ids="send_create_dataset")
+    
+    
+    def build_dataset_name(**kwargs):
+        return '{}__{}__{}'.format(dag.dag_id,
+                                   kwargs['dag_run'].conf['parent_submission_id'],
+                                   pipeline_name),
+
 
     t1 = PythonOperator(
         task_id='trigger_target',
-        python_callable = trigger_target,
+        python_callable = utils.pythonop_trigger_target,
         )
     
     
-    pipeline_name = 'devtest-step2-pipeline'
-
     def build_cwltool_cmd1(**kwargs):
         ctx = kwargs['dag_run'].conf
         run_id = kwargs['run_id']
@@ -120,27 +124,9 @@ with DAG('devtest_step2',
         """
     )
 
-    def maybe_keep(**kwargs):
-        """
-        accepts the following via the caller's op_kwargs:
-        'next_op': the operator to call on success
-        'bail_op': the operator to which to bail on failure (default 'no_keep')
-        'test_op': the operator providing the success code
-        'test_key': xcom key to test.  Defaults to None for return code
-        """
-        bail_op = kwargs['bail_op'] if 'bail_op' in kwargs else 'no_keep'
-        test_op = kwargs['test_op']
-        test_key = kwargs['test_key'] if 'test_key' in kwargs else None
-        retcode = int(kwargs['ti'].xcom_pull(task_ids=test_op, key=test_key))
-        print('%s key %s: %s\n' % (test_op, test_key, retcode))
-        if retcode is 0:
-            return kwargs['next_op']
-        else:
-            return bail_op
-    
     t_maybe_keep_cwl1 = BranchPythonOperator(
         task_id='maybe_keep_cwl1',
-        python_callable=maybe_keep,
+        python_callable=utils.pythonop_maybe_keep,
         provide_context=True,
         op_kwargs = {'next_op' : 'send_create_dataset',
                      'test_op' : 'pipeline_exec'}
@@ -153,89 +139,28 @@ with DAG('devtest_step2',
         task_id='join',
         trigger_rule='one_success')
 
-    def send_create_dataset(**kwargs):
-        #ctx = fake_conf
-        ctx = kwargs['dag_run'].conf
-        http_conn_id='ingest_api_connection'
-        endpoint='/datasets/derived'
-        method='POST'
-        headers={
-            'authorization' : 'Bearer ' + ctx['auth_tok'],
-            'content-type' : 'application/json'}
-        print('headers:')
-        pprint(headers)
-        extra_options=[]
-        http = HttpHook(method,
-                        http_conn_id=http_conn_id)
-        data = {
-            "source_dataset_uuid":ctx['parent_submission_id'],
-            "derived_dataset_name":'{}__{}__{}'.format(dag.dag_id,
-                                                       ctx['parent_submission_id'],
-                                                       pipeline_name),
-            "derived_dataset_types":["dataset",
-                                     "devtest"]
-        }
-        print('data: ')
-        pprint(data)
-        response = http.run(endpoint,
-                            json.dumps(data),
-                            headers,
-                            extra_options)
-        print('response: ')
-        pprint(response.json())
-        lz_root = os.path.split(ctx['parent_lz_path'])[0]
-        lz_root = os.path.split(lz_root)[0]
-        data_dir_path = os.path.join(lz_root,
-                                     response.json()['group_display_name'],
-                                     response.json()['derived_dataset_uuid'])
-        kwargs['ti'].xcom_push(key='group_uuid',
-                               value=response.json()['group_uuid'])
-        kwargs['ti'].xcom_push(key='derived_dataset_uuid', 
-                               value=response.json()['derived_dataset_uuid'])
-        return data_dir_path
 
     t_send_create_dataset = PythonOperator(
         task_id='send_create_dataset',
-        python_callable=send_create_dataset,
-        provide_context=True
+        python_callable=utils.pythonop_send_create_dataset,
+        provide_context=True,
+        op_kwargs = {'parent_dataset_uuid_callable' : get_parent_dataset_uuid,
+                     'http_conn_id' : 'ingest_api_connection',
+                     'endpoint' : '/datasets/derived',
+                     'dataset_name_callable' : build_dataset_name,
+                     'dataset_types' :["dataset", "devtest"]
+                     }
     )
-
-
-    def set_dataset_processing(**kwargs):
-        derived_dataset_uuid = kwargs['ti'].xcom_pull(key='derived_dataset_uuid',
-                                                      task_ids="send_create_dataset")
-        http_conn_id='ingest_api_connection'
-        endpoint='/datasets/status'
-        method='PUT'
-        headers={
-            'authorization' : 'Bearer ' + kwargs['dag_run'].conf['auth_tok'],
-            'content-type' : 'application/json'}
-        print('headers:')
-        pprint(headers)
-        extra_options=[]
-         
-        http = HttpHook(method,
-                        http_conn_id=http_conn_id)
- 
-        data = {'dataset_id' : derived_dataset_uuid,
-                'status' : 'Processing',
-                'message' : 'update state',
-                'metadata': {}}
-        print('data: ')
-        pprint(data)
-
-        response = http.run(endpoint,
-                            json.dumps(data),
-                            headers,
-                            extra_options)
-        print('response: ')
-        pprint(response.json())
 
 
     t_set_dataset_processing = PythonOperator(
         task_id='set_dataset_processing',
-        python_callable=set_dataset_processing,
-        provide_context=True
+        python_callable=utils.pythonop_set_dataset_processing,
+        provide_context=True,
+        op_kwargs = {'dataset_uuid_callable' : get_dataset_uuid,
+                     'http_conn_id' : 'ingest_api_connection',
+                     'endpoint' : '/datasets/status'
+                     }
     )
 
 
@@ -343,7 +268,7 @@ with DAG('devtest_step2',
 
     t_cleanup_tmpdir = BashOperator(
         task_id='cleanup_temp_dir',
-        bash_command='echo rm -r ${AIRFLOW_HOME}/data/temp/{{run_id}}',
+        bash_command='rm -r ${AIRFLOW_HOME}/data/temp/{{run_id}}',
         )
  
 
