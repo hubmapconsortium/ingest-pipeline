@@ -14,9 +14,25 @@ from airflow.operators.dummy_operator import DummyOperator
 from airflow.hooks.http_hook import HttpHook
 
 import utils
+from utils import get_tmp_dir_path as tmp_dir_path
 
 sys.path.append(str(Path(__file__).resolve().parent.parent / 'lib'))
 from schema_tools import assert_json_matches_schema
+
+
+def set_dataset_state_error(contextDict, **kwargs):
+    msg = 'An internal error occurred in the {} workflow step {}'.format(contextDict['dag'].dag_id,
+                                                                         contextDict['task'].task_id)
+    new_kwargs = kwargs.copy()
+    new_kwargs.update(contextDict)
+    new_kwargs.update({'dataset_uuid_callable' : get_dataset_uuid,
+                     'http_conn_id' : 'ingest_api_connection',
+                     'endpoint' : '/datasets/status',
+                     'ds_state' : 'Error',
+                     'message' : msg
+                     })
+    utils.pythonop_set_dataset_state(**new_kwargs)
+
 
 # Following are defaults which can be overridden later on
 default_args = {
@@ -30,12 +46,10 @@ default_args = {
     'retry_delay': timedelta(minutes=1),
     'provide_context': True,
     'xcom_push': True,
-    'queue': 'general'
+    'queue': 'general',
+    'on_failure_callback': set_dataset_state_error
 }
 
-
-def tmp_dir_path(run_id):
-    return "{}/data/temp/{}".format(os.environ['AIRFLOW_HOME'], run_id)
 
 with DAG('devtest_step2', 
          schedule_interval=None, 
@@ -127,6 +141,7 @@ with DAG('devtest_step2',
         """
     )
 
+
     t_maybe_keep_cwl1 = BranchPythonOperator(
         task_id='maybe_keep_cwl1',
         python_callable=utils.pythonop_maybe_keep,
@@ -135,12 +150,9 @@ with DAG('devtest_step2',
                      'test_op' : 'pipeline_exec'}
         )
 
+
     t_no_keep = DummyOperator(
         task_id='no_keep')
-
-    t_join = DummyOperator(
-        task_id='join',
-        trigger_rule='one_success')
 
 
     t_send_create_dataset = PythonOperator(
@@ -158,7 +170,7 @@ with DAG('devtest_step2',
 
     t_set_dataset_processing = PythonOperator(
         task_id='set_dataset_processing',
-        python_callable=utils.pythonop_set_dataset_processing,
+        python_callable=utils.pythonop_set_dataset_state,
         provide_context=True,
         op_kwargs = {'dataset_uuid_callable' : get_dataset_uuid,
                      'http_conn_id' : 'ingest_api_connection',
@@ -261,6 +273,11 @@ with DAG('devtest_step2',
     )
 
     
+    t_join = DummyOperator(
+        task_id='join',
+        trigger_rule='one_success')
+
+
     t_create_tmpdir = BashOperator(
         task_id='create_temp_dir',
         bash_command='mkdir {{tmp_dir_path(run_id)}}',
@@ -271,6 +288,7 @@ with DAG('devtest_step2',
     t_cleanup_tmpdir = BashOperator(
         task_id='cleanup_temp_dir',
         bash_command='rm -r {{tmp_dir_path(run_id)}}',
+        trigger_rule='all_success'
         )
  
 

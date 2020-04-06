@@ -249,7 +249,7 @@ def pythonop_send_create_dataset(**kwargs):
     return data_dir_path
 
 
-def pythonop_set_dataset_processing(**kwargs):
+def pythonop_set_dataset_state(**kwargs):
     """
     Sets the status of a dataset to 'Processing'
     
@@ -258,12 +258,16 @@ def pythonop_set_dataset_processing(**kwargs):
                               uuid of the dataset to be modified
     'http_conn_id' : the http connection to be used
     'endpoint' : the REST endpoint
+    'ds_state' : one of 'QA', 'Processing', 'Error', 'Invalid'. Default: 'Processing'
+    'message' : update message. Default: 'update state'
     """
     for arg in ['dataset_uuid_callable', 'http_conn_id', 'endpoint']:
         assert arg in kwargs, "missing required argument {}".format(arg)
     dataset_uuid = kwargs['dataset_uuid_callable'](**kwargs)
     http_conn_id = kwargs['http_conn_id']
     endpoint = kwargs['endpoint']
+    ds_state = kwargs['ds_state'] if 'ds_state' in kwargs else 'Processing'
+    message = kwargs['message'] if 'message' in kwargs else 'update state'
     method='PUT'
     headers={
         'authorization' : 'Bearer ' + kwargs['dag_run'].conf['auth_tok'],
@@ -276,8 +280,8 @@ def pythonop_set_dataset_processing(**kwargs):
                     http_conn_id=http_conn_id)
 
     data = {'dataset_id' : dataset_uuid,
-            'status' : 'Processing',
-            'message' : 'update state',
+            'status' : ds_state,
+            'message' : message,
             'metadata': {}}
     print('data: ')
     pprint(data)
@@ -289,6 +293,12 @@ def pythonop_set_dataset_processing(**kwargs):
     print('response: ')
     pprint(response.json())
 
+
+def get_tmp_dir_path(run_id):
+    """
+    Given the run_id, return the path to the dag run's scratch directory
+    """
+    return "{}/data/temp/{}".format(environ['AIRFLOW_HOME'], run_id)
 
 def main():
     print(__file__)
