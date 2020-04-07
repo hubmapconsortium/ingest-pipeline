@@ -1,19 +1,31 @@
 version: "3.7"
 
-# Will use the hostname when talking between services on the same network
 services:
-  
+
+  postgres:
+    image: postgres:9.6
+    environment:
+      - POSTGRES_USER=airflow
+      - POSTGRES_PASSWORD=airflow
+      - POSTGRES_DB=airflow
+    logging:
+      options:
+        max-size: 10m
+        max-file: "3"
+    networks:
+      - gateway_hubmap
+
+
   ingest-pipeline:
     build: ./ingest-pipeline
     # Build the image with name and tag
     image: ingest-pipeline:0.1
+    restart: always
+    depends_on:
+      - postgres
     hostname: ingest-pipeline
     container_name: ingest-pipeline
     volumes:
-      # Mount the logging to container
-
-      # Have to disable this log due to permission issue
-      #- "../logs:/usr/local/airflow/logs"
       # Mount dags, plugins, and data
       - "../src/ingest-pipeline/airflow/dags:/usr/local/airflow/dags:rw"
       - "../src/ingest-pipeline/airflow/lib:/usr/local/airflow/lib:rw"
@@ -21,16 +33,27 @@ services:
       - "../src/ingest-pipeline/airflow/data:/usr/local/airflow/data:rw"
       - "../src/ingest-pipeline/instance:/usr/local/airflow/instance"
       # Mount requirements.txt
-      - ${PWD}/../src/ingest-pipeline/requirements.txt:/requirements.txt
+      - "../src/ingest-pipeline/requirements.txt:/requirements.txt"
     environment:
+      - LOAD_EX=n
+      - EXECUTOR=Local
       - FLASK_ENV=development
       - FLASK_DEBUG=1
       - AIRFLOW__HUBMAP_API_PLUGIN__BUILD_NUMBER=${INGEST_PIPELINE_BUILD_NUM:-0}
-
+    logging:
+      options:
+        max-size: 10m
+        max-file: "3"
     networks:
       - gateway_hubmap
     ports:
       - "8789:8789"
+    command: webserver
+    healthcheck:
+      test: ["CMD-SHELL", "[ -f /usr/local/airflow/airflow-webserver.pid ]"]
+      interval: 30s
+      timeout: 30s
+      retries: 3
      
 
 networks:
