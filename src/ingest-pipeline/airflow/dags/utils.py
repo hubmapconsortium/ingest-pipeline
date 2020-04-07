@@ -300,6 +300,27 @@ def get_tmp_dir_path(run_id):
     """
     return "{}/data/temp/{}".format(environ['AIRFLOW_HOME'], run_id)
 
+
+def create_dataset_state_error_callback(dataset_uuid_callable):
+    def set_dataset_state_error(contextDict, **kwargs):
+        """
+        This routine is meant to be 
+        """
+        msg = 'An internal error occurred in the {} workflow step {}'.format(contextDict['dag'].dag_id,
+                                                                             contextDict['task'].task_id)
+        new_kwargs = kwargs.copy()
+        new_kwargs.update(contextDict)
+        new_kwargs.update({'dataset_uuid_callable' : dataset_uuid_callable,
+                         'http_conn_id' : 'ingest_api_connection',
+                         'endpoint' : '/datasets/status',
+                         'ds_state' : 'Error',
+                         'message' : msg
+                         })
+        pythonop_set_dataset_state(**new_kwargs)
+    return set_dataset_state_error
+
+
+
 def main():
     print(__file__)
     print(get_git_commits([__file__]))

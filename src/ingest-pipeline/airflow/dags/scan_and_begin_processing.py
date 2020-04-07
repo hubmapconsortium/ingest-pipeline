@@ -19,6 +19,12 @@ import utils
 sys.path.append(str(Path(__file__).resolve().parent.parent / 'lib'))
 from schema_tools import assert_json_matches_schema
 
+
+def get_dataset_uuid(**kwargs):
+    ctx = kwargs['dag_run'].conf
+    return ctx['submission_id']
+
+
 # Following are defaults which can be overridden later on
 default_args = {
     'owner': 'hubmap',
@@ -31,27 +37,20 @@ default_args = {
     'retry_delay': timedelta(minutes=1),
     'provide_context': True,
     'xcom_push': True,
-    'queue': 'general'
+    'queue': 'general',
+    'on_failure_callback': utils.create_dataset_state_error_callback(get_dataset_uuid)    
 }
-
-
-fake_ctx = {
-    'auth_tok': 'AgWob7mDM3vo141ny8WYXE47WJ0bWrelDJB5zd2qEr0MGqoGPKFgC38z2PO6r7r7WpNdNana8p0EBwf48YnE2Hq3bz',
-    'submission_id': '367214b19695cb89ed20b55ef78bba9c',
-    'lz_path': '/hive/hubmap/lz/University of Florida TMC/03043e079260d180099579045f16cd53',
-    'src_path': os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'md')
-}
-
-FAKE_MODE = False
 
 
 with DAG('scan_and_begin_processing', 
          schedule_interval=None, 
          is_paused_upon_creation=False, 
-         default_args=default_args) as dag:
+         default_args=default_args,
+         user_defined_macros={'tmp_dir_path' : utils.get_tmp_dir_path}         
+         ) as dag:
         
     def send_status_msg(**kwargs):
-        ctx = fake_ctx if FAKE_MODE else kwargs['dag_run'].conf
+        ctx = kwargs['dag_run'].conf
         retcode_ops = ['run_md_extract']
         retcodes = [int(kwargs['ti'].xcom_pull(task_ids=op))
                     for op in retcode_ops]
@@ -71,8 +70,7 @@ with DAG('scan_and_begin_processing',
                         http_conn_id=http_conn_id)
  
         if success:
-            md_fname = os.path.join(os.environ['AIRFLOW_HOME'],
-                                    'data/temp', kwargs['run_id'],
+            md_fname = os.path.join(utils.get_tmp_dir_path(kwargs['run_id']),
                                     'rslt.yml')
             with open(md_fname, 'r') as f:
                 scanned_md = yaml.safe_load(f)
@@ -99,8 +97,7 @@ with DAG('scan_and_begin_processing',
                                           if 'collectiontype' in scanned_md
                                           else None))
         else:
-            log_fname = os.path.join(os.environ['AIRFLOW_HOME'],
-                                     'data/temp', kwargs['run_id'],
+            log_fname = os.path.join(utils.get_tmp_dir_path(kwargs['run_id']),
                                      'session.log')
             with open(log_fname, 'r') as f:
                 err_txt = '\n'.join(f.readlines())
@@ -127,13 +124,12 @@ with DAG('scan_and_begin_processing',
         """
         print('context:')
         pprint(context)
-        ctx = fake_ctx if FAKE_MODE else context['dag_run'].conf
+        ctx = context['dag_run'].conf
         md_extract_retcode = int(context['ti'].xcom_pull(task_ids="run_md_extract"))
         collectiontype = context['ti'].xcom_pull(key='collectiontype',
                                                  task_ids='send_status_msg')
         if md_extract_retcode == 0 and collectiontype is not None:
-            md_fname = os.path.join(os.environ['AIRFLOW_HOME'],
-                                    'data/temp', context['run_id'],
+            md_fname = os.path.join(utils.get_tmp_dir_path(context['run_id']),
                                     'rslt.yml')
             with open(md_fname, 'r') as f:
                 md = yaml.safe_load(f)
@@ -164,20 +160,13 @@ with DAG('scan_and_begin_processing',
         else:
             return 'maybe_spawn_dag'
 
-    t_create_tmpdir = BashOperator(
-        task_id='create_temp_dir',
-        bash_command='mkdir ${AIRFLOW_HOME}/data/temp/{{run_id}}',
-        provide_context=True
-        )
-
-
     t_run_md_extract = BashOperator(
         task_id='run_md_extract',
         bash_command=""" \
         lz_dir="{{dag_run.conf.lz_path}}" ; \
         src_dir="{{dag_run.conf.src_path}}/md" ; \
         lib_dir="{{dag_run.conf.src_path}}/airflow/lib" ; \
-        work_dir="${AIRFLOW_HOME}/data/temp/{{run_id}}" ; \
+        work_dir="{{tmp_dir_path(run_id)}}" ; \
         cd $work_dir ; \
         env PYTHONPATH=${PYTHONPATH}:$lib_dir \
         python $src_dir/metadata_extract.py --out ./rslt.yml --yaml "$lz_dir" \
@@ -213,9 +202,17 @@ with DAG('scan_and_begin_processing',
         )
  
 
+    t_create_tmpdir = BashOperator(
+        task_id='create_temp_dir',
+        bash_command='mkdir {{tmp_dir_path(run_id)}}',
+        provide_context=True
+        )
+
+
     t_cleanup_tmpdir = BashOperator(
         task_id='cleanup_temp_dir',
-        bash_command='rm -r ${AIRFLOW_HOME}/data/temp/{{run_id}}',
+        bash_command='rm -r {{tmp_dir_path(run_id)}}',
+        trigger_rule='all_success'
         )
 
     (dag >> t_create_tmpdir >> t_run_md_extract >> t_send_status

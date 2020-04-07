@@ -14,27 +14,30 @@ from airflow.operators.dummy_operator import DummyOperator
 from airflow.hooks.http_hook import HttpHook
 
 import utils
-from utils import get_tmp_dir_path as tmp_dir_path
 
 sys.path.append(str(Path(__file__).resolve().parent.parent / 'lib'))
 from schema_tools import assert_json_matches_schema
 
 
-def set_dataset_state_error(contextDict, **kwargs):
-    msg = 'An internal error occurred in the {} workflow step {}'.format(contextDict['dag'].dag_id,
-                                                                         contextDict['task'].task_id)
-    new_kwargs = kwargs.copy()
-    new_kwargs.update(contextDict)
-    new_kwargs.update({'dataset_uuid_callable' : get_dataset_uuid,
-                     'http_conn_id' : 'ingest_api_connection',
-                     'endpoint' : '/datasets/status',
-                     'ds_state' : 'Error',
-                     'message' : msg
-                     })
-    utils.pythonop_set_dataset_state(**new_kwargs)
+def get_parent_dataset_uuid(**kwargs):
+    return kwargs['dag_run'].conf['parent_submission_id']
 
 
-# Following are defaults which can be overridden later on
+def get_dataset_uuid(**kwargs):
+    return kwargs['ti'].xcom_pull(key='derived_dataset_uuid',
+                                  task_ids="send_create_dataset")
+
+def get_uuid_for_error(**kwargs):
+    """
+    Return the uuid for the derived dataset if it exists, and of the parent dataset otherwise.
+    """
+    rslt = get_dataset_uuid(**kwargs)
+    if rslt is None:
+        rslt = get_parent_dataset_uuid(**kwargs)
+    return rslt
+        
+    
+
 default_args = {
     'owner': 'hubmap',
     'depends_on_past': False,
@@ -47,7 +50,7 @@ default_args = {
     'provide_context': True,
     'xcom_push': True,
     'queue': 'general',
-    'on_failure_callback': set_dataset_state_error
+    'on_failure_callback': utils.create_dataset_state_error_callback(get_uuid_for_error)
 }
 
 
@@ -56,20 +59,11 @@ with DAG('devtest_step2',
          is_paused_upon_creation=False, 
          default_args=default_args,
          max_active_runs=1,
-         user_defined_macros={'tmp_dir_path' : tmp_dir_path}
+         user_defined_macros={'tmp_dir_path' : utils.get_tmp_dir_path}
          ) as dag:
 
     pipeline_name = 'devtest-step2-pipeline'
 
-    def get_parent_dataset_uuid(**kwargs):
-        return kwargs['dag_run'].conf['parent_submission_id']
-    
-    
-    def get_dataset_uuid(**kwargs):
-        return kwargs['ti'].xcom_pull(key='derived_dataset_uuid',
-                                      task_ids="send_create_dataset")
-    
-    
     def build_dataset_name(**kwargs):
         return '{}__{}__{}'.format(dag.dag_id,
                                    kwargs['dag_run'].conf['parent_submission_id'],
@@ -85,7 +79,7 @@ with DAG('devtest_step2',
     def build_cwltool_cmd1(**kwargs):
         ctx = kwargs['dag_run'].conf
         run_id = kwargs['run_id']
-        tmpdir = tmp_dir_path(run_id)
+        tmpdir = utils.get_tmp_dir_path(run_id)
         print('tmpdir: ', tmpdir)
         tmp_subdir = os.path.join(tmpdir, 'cwl_out')
         print('tmp_subdir: ', tmp_subdir)
@@ -146,13 +140,10 @@ with DAG('devtest_step2',
         task_id='maybe_keep_cwl1',
         python_callable=utils.pythonop_maybe_keep,
         provide_context=True,
-        op_kwargs = {'next_op' : 'send_create_dataset',
+        op_kwargs = {'next_op' : 'move_data',
+                     'bail_op' : 'set_dataset_error',
                      'test_op' : 'pipeline_exec'}
         )
-
-
-    t_no_keep = DummyOperator(
-        task_id='no_keep')
 
 
     t_send_create_dataset = PythonOperator(
@@ -175,6 +166,19 @@ with DAG('devtest_step2',
         op_kwargs = {'dataset_uuid_callable' : get_dataset_uuid,
                      'http_conn_id' : 'ingest_api_connection',
                      'endpoint' : '/datasets/status'
+                     }
+    )
+
+
+    t_set_dataset_error = PythonOperator(
+        task_id='set_dataset_error',
+        python_callable=utils.pythonop_set_dataset_state,
+        provide_context=True,
+        op_kwargs = {'dataset_uuid_callable' : get_dataset_uuid,
+                     'http_conn_id' : 'ingest_api_connection',
+                     'endpoint' : '/datasets/status',
+                     'ds_state' : 'Error',
+                     'message' : 'An error occurred in {}'.format(pipeline_name)
                      }
     )
 
@@ -248,7 +252,7 @@ with DAG('devtest_step2',
                         'message' : 'internal error; schema violation: {}'.format(e),
                         'metadata': {}}
         else:
-            log_fname = os.path.join(tmp_dir_path(kwargs['run_id']),
+            log_fname = os.path.join(utils.get_tmp_dir_path(kwargs['run_id']),
                                      'session.log')
             with open(log_fname, 'r') as f:
                 err_txt = '\n'.join(f.readlines())
@@ -293,11 +297,10 @@ with DAG('devtest_step2',
  
 
     (dag >> t1 >> t_create_tmpdir
-     >> t_build_cmd1 >> t_pipeline_exec >> t_maybe_keep_cwl1
      >> t_send_create_dataset >> t_set_dataset_processing
-     >> t_move_data
-     >> t_send_status >> t_join)
-    t_maybe_keep_cwl1 >> t_no_keep >> t_join
+     >> t_build_cmd1 >> t_pipeline_exec >> t_maybe_keep_cwl1
+     >> t_move_data >> t_send_status >> t_join)
+    t_maybe_keep_cwl1 >> t_set_dataset_error >> t_join
     t_join >> t_cleanup_tmpdir
 
 
