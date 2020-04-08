@@ -6,6 +6,43 @@ This repository implements the internals of the HuBMAP data repository
 processing pipeline. This code is independent of the UI but works in
 response to requests from the data-ingest UI backend.
 
+## Using the devtest assay type
+
+*devtest* is a mock assay for use by developers.  It provides a testing tool controlled by a simple YAML file, allowing a developer to simulate execution of a full ingest pipeline without the need for real data.  To do a devtest run, follow this procedure.
+
+1) Create an input dataset, for example using the ingest UI.
+  - It must have a valid Source ID.
+  - Its datatype must be Other -> devtest
+2) Insert a control file named *test.yml* into the top-level directory of the dataset.  The file format is described below.  You may include any other files in the directory, as long as test.yml exists.
+3) Submit the dataset.
+
+Ingest operations will proceed normally from that point:
+1) The state of the original dataset will change from New through Processing to QA.
+2) A secondary dataset will be created, and will move through Processing to QA with an adjustable delay (see below).
+3) Files specified in *test.yml* may be moved into the dataset directory of the secondary dataset.
+4) All normal metadata will be returned, including extra metadata specified in *test.yml* (see below).
+
+The format for *test.yml* is:
+```
+{
+  # the following line is required for the submission to be properly identified at assay 'devtest'
+  collectiontype: devtest,
+  
+  # The pipeline_exec stage will delay for this many seconds before returning (default 30 seconds)
+  delay_sec: 120,
+  
+  # If this list is present, the listed files will be copied from the submission directory to the derived dataset.
+  files_to_copy: ["file_068.bov", "file_068.doubles"],
+  
+  # If present, the given metadata will be returned as dataset metadata for the derived dataset.
+  metadata_to_return: {
+    mymessage: 'hello world',
+    othermessage: 'and also this'
+  }
+}
+
+```
+
 ## API
 
 | <strong>API Test</strong>         |                                          |
