@@ -12,10 +12,9 @@ class AkoyaCODEXDataCollection(DataCollection):
     top_target = 'experiment.json'
 
     # expected_file pairs are (globable name, filetype key)
-    expected_files = [('experiment.json',
-                       "JSON"),
-                       ('segmentation.json',
-                       "JSON")
+    expected_files = [('*-metadata.tsv', 'METADATATSV'),
+                      ('{offsetdir}/experiment.json', "JSON"),
+                      ('{offsetdir}/segmentation.json', "JSON")
                       ]
     
     optional_files = [('exposure_times.txt', 'CSV')]
@@ -48,8 +47,8 @@ class AkoyaCODEXDataCollection(DataCollection):
         if offsetdir is None:
             return False
         for match, _ in cls.expected_files:
-            print('testing %s' % match)
-            if not any(glob.iglob(os.path.join(path,offsetdir, match))):
+            print('testing %s' % match.format(offsetdir=offsetdir))
+            if not any(glob.iglob(os.path.join(path,match.format(offsetdir=offsetdir)))):
                 print('not found!')
                 return False
         return True
@@ -66,18 +65,19 @@ class AkoyaCODEXDataCollection(DataCollection):
     def collect_metadata(self):
         rslt = {}
         md_type_tbl = self.get_md_type_tbl()
+        cl = []
         for match, md_type in self.expected_files + self.optional_files:
-            print('collect match %s' % match)
-            for fpath in glob.iglob(os.path.join(self.topdir, self.offsetdir, match)):
+            print('collect match %s' % match.format(offsetdir=self.offsetdir))
+            for fpath in glob.iglob(os.path.join(self.topdir,
+                                                 match.format(offsetdir=self.offsetdir))):
                 print('collect from path %s' % fpath)
                 this_md = md_type_tbl[md_type](fpath).collect_metadata()
                 if this_md is not None:
                     rslt[os.path.relpath(fpath, self.topdir)] = this_md
-        cl = []
-        for fname in os.listdir(os.path.join(self.topdir, self.offsetdir)):
-            fullname = os.path.join(self.topdir, self.offsetdir, fname)
-            if os.path.isdir(fullname) and fname.startswith('cyc'):
-                cl.append(fname)
+                    fname = os.path.basename(fpath)
+                    if 'metadata' in fname and fname.endswith('.tsv'):
+                        assert isinstance(this_md, list), 'metadata...tsv did not produce a list'
+                        cl.extend(this_md)
         rslt['components'] = cl
         rslt['collectiontype'] = 'codex'
         return rslt
@@ -90,16 +90,6 @@ class AkoyaCODEXDataCollection(DataCollection):
         """
         rslt = {k : metadata[k] for k in ['collectiontype', 'components']}
 
-#         for elt in metadata:
-#             # each element is the pathname of the file from which it was extracted
-#             if not os.path.dirname(elt) and elt.endswith('spatial_meta.txt'):
-#                 spatial_meta = metadata[elt]
-#                 break
-#             else:
-#                 raise MetadataError('The spatial metadata is unexpectedly missing')
-# 
-#         rslt['ccf_spatial'] = {k : v for k, v in spatial_meta.items()}
-        
         other_d = {}
         for k in metadata:
             if k not in rslt:

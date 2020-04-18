@@ -14,11 +14,15 @@
         },
         "files": {
           "$ref": "file_info_schema.json#/definitions/file_info"
+        },
+        "files_info_alt_path": {
+          "type": "string",
+          "description": "absolute path on shared filesystem at which json-encoded file information can be found"
         }
       },
-      "required": [
-        "dag_provenance",
-        "files"
+      "oneOf": [
+        {"required" : ["dag_provenance", "files"]},
+        {"required" : ["dag_provenance", "files_info_alt_path"]}
       ]
     }
   }

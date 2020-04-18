@@ -1,16 +1,25 @@
 from os import environ, walk
 from os.path import basename, dirname, relpath, split, join, getsize, realpath
+import sys
 from pathlib import Path
 from typing import List
 from subprocess import check_call, check_output, CalledProcessError
 import re
 import json
 from pprint import pprint
+import uuid
+
+sys.path.append(str(Path(__file__).resolve().parent.parent / 'lib'))
+from schema_tools import assert_json_matches_schema
 
 from airflow.hooks.http_hook import HttpHook
 
 # Some constants
 PIPELINE_BASE_DIR = Path(environ['AIRFLOW_HOME']) / 'pipeline_git_repos'
+
+# default maximum for number of files for which info should be returned in_line
+# rather than via an alternative scratch file
+MAX_IN_LINE_FILES = 500
 
 GIT = 'git'
 GIT_CLONE_COMMAND = [
@@ -147,15 +156,33 @@ def get_file_metadata(root_dir: str):
         for fn in fnames:
             full_path = join(root_dir, rp, fn)
             sz = getsize(full_path)
-            line = check_output([word.format(fname=full_path)
-                                 for word in SHA1SUM_COMMAND])
-            cs = line.split()[0].strip().decode('utf-8')
+            # sha1sum disabled because of run time issues on large data collections
+            #line = check_output([word.format(fname=full_path)
+            #                     for word in SHA1SUM_COMMAND])
+            #cs = line.split()[0].strip().decode('utf-8')
             rslt.append({'rel_path': join(rp, fn),
                          'type': _get_file_type(full_path),
                          'size': getsize(join(root_dir, rp, fn)),
-                         'sha1sum': cs})
+                         #'sha1sum': cs
+                         })
     return rslt
 
+
+def get_file_metadata_dict(root_dir: str, alt_file_dir: str, max_in_line_files : int = MAX_IN_LINE_FILES):
+    """
+    This routine returns file metadata, either directly as JSON in the form
+    {'files': [{...}, {...}, ...]} with the list returned by get_file_metadata() or the form
+    {'files_info_alt_path': path} where path is the full path of a unique file in alt_file_dir
+    """
+    file_info = get_file_metadata(root_dir)
+    if len(file_info) > max_in_line_files:
+        assert_json_matches_schema(file_info, 'file_info_schema.yml')
+        fpath = join(alt_file_dir, '{}.json'.format(uuid.uuid4()))
+        with open(fpath, 'w') as f:
+            json.dump({'files': file_info}, f)
+        return {'files_info_alt_path' : fpath}
+    else:
+        return {'files' : file_info}
 
 def pythonop_trigger_target(**kwargs):
     """

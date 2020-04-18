@@ -11,8 +11,9 @@ from .scn_tiff_metadata_file import ScnTiffMetadataFile
 from .imzml_metadata_file import ImzMLMetadataFile
 from .fastq_metadata_file import FASTQMetadataFile
 from .csv_metadata_file import CSVMetadataFile
+from .metadatatsv_metadata_file import MetadataTSVMetadataFile
 __all__ = ["IgnoreMetadataFile", "YamlMetadataFile", "JSONMetadataFile",
            "TxtTformMetadataFile", "MtxTformMetadataFile", "CZIMetadataFile",
            "OMETiffMetadataFile", "ScnTiffMetadataFile", "ImzMLMetadataFile",
            "FASTQMetadataFile", "FalseJSONMetadataFile", "TxtWordListMetadataFile",
-           "CSVMetadataFile"]
+           "CSVMetadataFile", "MetadataTSVMetadataFile"]

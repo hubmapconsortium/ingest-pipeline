@@ -18,10 +18,6 @@
         },
         "filetype": {
           "$ref": "enumerated_types_schema.json#/definitions/file_type"
-        },
-        "sha1sum": {
-          "type": "string",
-          "pattern": "^[a-fA-F0-9]{40}$"
         }
       }
     },

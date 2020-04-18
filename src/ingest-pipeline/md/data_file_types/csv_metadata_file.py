@@ -12,8 +12,10 @@ class CSVMetadataFile(MetadataFile):
     def collect_metadata(self):
         print('parsing csv from %s' % self.path)
         md = []
-        with open(self.path, 'rU') as f:
-            reader = csv.DictReader(f)
+        with open(self.path, 'rU', newline='') as f:
+            dialect = csv.Sniffer().sniff(f.read(1024))
+            f.seek(0)
+            reader = csv.DictReader(f, dialect=dialect)
             for row in reader:
                 md.append({k : v for k, v in row.items()})
         return md
