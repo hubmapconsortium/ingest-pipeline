@@ -9,11 +9,15 @@ import yaml
 from type_base import MetadataError
 from data_collection import DataCollection
 import data_collection_types
-from schema_tools import assert_json_matches_schema
-
-DEFAULT_SCHEMA = 'datacollection_metadata_schema.yml'
+from hubmap_commons.schema_tools import assert_json_matches_schema, set_schema_base_path
 
 _KNOWN_DATA_COLLECTION_TYPES = None
+
+DEFAULT_SCHEMA = 'datacollection_metadata_schema.yml'
+SCHEMA_BASE_PATH = os.path.join(os.path.dirname(os.path.realpath(os.path.dirname(__file__))),
+                                'schemata')
+SCHEMA_BASE_URI = 'http://schemata.hubmapconsortium.org/'
+set_schema_base_path(SCHEMA_BASE_PATH, SCHEMA_BASE_URI)
 
 
 def scan(target_dir, out_fname, schema_fname, yaml_flag=False):

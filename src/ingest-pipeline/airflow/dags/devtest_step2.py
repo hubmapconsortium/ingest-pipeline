@@ -15,8 +15,7 @@ from airflow.hooks.http_hook import HttpHook
 
 import utils
 
-sys.path.append(str(Path(__file__).resolve().parent.parent / 'lib'))
-from schema_tools import assert_json_matches_schema
+from utils import localized_assert_json_matches_schema as assert_json_matches_schema
 
 
 def get_parent_dataset_uuid(**kwargs):
