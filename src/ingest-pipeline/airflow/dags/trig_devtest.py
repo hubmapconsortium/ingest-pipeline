@@ -37,7 +37,6 @@ with DAG('trig_devtest',
         pprint(kwargs['dag_run'].conf)
         metadata = kwargs['dag_run'].conf['metadata']
         auth_tok = kwargs['dag_run'].conf['auth_tok']
-        assert 'components' in metadata, 'devtest metadata with no components'
         payload = {k:kwargs['dag_run'].conf[k] for k in kwargs['dag_run'].conf}
         payload['apply'] = 'devtest_step2'
         if 'dag_provenance' in payload:

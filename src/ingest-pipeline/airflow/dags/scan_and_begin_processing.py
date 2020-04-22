@@ -75,10 +75,10 @@ with DAG('scan_and_begin_processing',
             with open(md_fname, 'r') as f:
                 scanned_md = yaml.safe_load(f)
             dag_prv = utils.get_git_provenance_dict([__file__])
-            file_md = utils.get_file_metadata(ds_dir)
             md = {'dag_provenance' : dag_prv,
-                  'files' : file_md,
                   'metadata' : scanned_md}
+            md.update(utils.get_file_metadata_dict(ds_dir,
+                                                   utils.get_tmp_dir_path(kwargs['run_id'])))
             try:
                 assert_json_matches_schema(md, 'dataset_metadata_schema.yml')
                 data = {'dataset_id' : ctx['submission_id'],
@@ -166,9 +166,10 @@ with DAG('scan_and_begin_processing',
         lz_dir="{{dag_run.conf.lz_path}}" ; \
         src_dir="{{dag_run.conf.src_path}}/md" ; \
         lib_dir="{{dag_run.conf.src_path}}/airflow/lib" ; \
+        top_dir="{{dag_run.conf.src_path}}" ; \
         work_dir="{{tmp_dir_path(run_id)}}" ; \
         cd $work_dir ; \
-        env PYTHONPATH=${PYTHONPATH}:$lib_dir \
+        env PYTHONPATH=${PYTHONPATH}:$lib_dir:$top_dir \
         python $src_dir/metadata_extract.py --out ./rslt.yml --yaml "$lz_dir" \
           > ./session.log 2>&1 ; \
         echo $?

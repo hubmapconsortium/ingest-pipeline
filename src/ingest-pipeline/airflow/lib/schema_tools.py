@@ -145,6 +145,10 @@ def main():
             ],
             'dag_provenance': {'trig_codex.py': '0123456789abcdefABCDEF'}
         }
+    sample2_json = {
+            'files_info_alt_path': '/some/data/path.json',
+            'dag_provenance': {'trig_codex.py': '0123456789abcdefABCDEF'}
+        }
     bad_json = {
         'files': [
             {'rel_path': './trig_rnaseq_10x.py', 'type': 'unknown', 'size': 2198, 
@@ -161,7 +165,7 @@ def main():
             'dag_provenance': {'trig_codex.py': '0123456789abcdefABCDEFG'}
         }
 
-    for lbl, jsondata in [('correct', sample_json), ('incorrect', bad_json)]:
+    for lbl, jsondata in [('correct', sample_json), ('correct2', sample2_json), ('incorrect', bad_json)]:
         try:
             assert_json_matches_schema(jsondata, 'dataset_metadata_schema.yml')
             print('assertion passed for {}'.format(lbl))

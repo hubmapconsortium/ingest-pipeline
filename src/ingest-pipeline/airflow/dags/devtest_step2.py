@@ -234,10 +234,10 @@ with DAG('devtest_step2',
             pipeline_base_dir = os.path.join(os.environ['AIRFLOW_HOME'],
                                              'dags', 'cwl')
             dag_prv.update(utils.get_git_provenance_dict([__file__]))
-            file_md = utils.get_file_metadata(ds_dir)
             md = {'dag_provenance' : dag_prv,
-                  'files' : file_md,
                   'metadata' : md_to_return}
+            md.update(utils.get_file_metadata_dict(ds_dir,
+                                                   utils.get_tmp_dir_path(kwargs['run_id'])))
             try:
                 assert_json_matches_schema(md, 'dataset_metadata_schema.yml')
                 data = {'dataset_id' : derived_dataset_uuid,

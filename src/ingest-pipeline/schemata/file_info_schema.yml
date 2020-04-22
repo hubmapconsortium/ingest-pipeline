@@ -13,7 +13,7 @@
         'rel_path': {'type': 'string', 'pattern': '^[^/].+[^/]$'}
         'filetype': {'$ref': 'enumerated_types_schema.yml#/definitions/file_type'}
         'size': {'type': 'integer', 'minimum': 0}
-        'sha1sum': {'type': 'string', 'pattern': '^[a-fA-F0-9]{40}$'}
+        #'sha1sum': {'type': 'string', 'pattern': '^[a-fA-F0-9]{40}$'}
   'file_info':
     'type': 'array'
     'items': {'$ref': '#/definitions/file_info_record'}

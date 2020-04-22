@@ -37,7 +37,6 @@ with DAG('trig_codex',
         pprint(kwargs['dag_run'].conf)
         metadata = kwargs['dag_run'].conf['metadata']
         auth_tok = kwargs['dag_run'].conf['auth_tok']
-        assert 'components' in metadata, 'codex metadata with no components'
         payload = {k:kwargs['dag_run'].conf[k] for k in kwargs['dag_run'].conf}
         payload['apply'] = 'codex_cytokit'
         if 'dag_provenance' in payload:

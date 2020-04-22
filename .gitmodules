@@ -4,3 +4,6 @@
 [submodule "src/ingest-pipeline/airflow/dags/cwl/codex-pipeline"]
 	path = src/ingest-pipeline/airflow/dags/cwl/codex-pipeline
 	url = git@github.com:hubmapconsortium/codex-pipeline.git
+[submodule "src/ingest-pipeline/submodules/ingest-validation-tools"]
+	path = src/ingest-pipeline/submodules/ingest-validation-tools
+	url = git@github.com:hubmapconsortium/ingest-validation-tools.git
