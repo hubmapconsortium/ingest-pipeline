@@ -9,8 +9,10 @@ import json
 from pprint import pprint
 import uuid
 
+from airflow.configuration import conf as airflow_conf
+
 from hubmap_commons.schema_tools import assert_json_matches_schema, set_schema_base_path
-SCHEMA_BASE_PATH = join(dirname(dirname(realpath(dirname(__file__)))),
+SCHEMA_BASE_PATH = join(dirname(dirname(dirname(realpath(__file__)))),
                         'schemata')
 SCHEMA_BASE_URI = 'http://schemata.hubmapconsortium.org/'
 
@@ -329,6 +331,16 @@ def get_tmp_dir_path(run_id):
     """
     return "{}/data/temp/{}".format(environ['AIRFLOW_HOME'], run_id)
 
+
+def map_queue_name(raw_queue_name: str):
+    """
+    If the configuration contains QUEUE_NAME_TEMPLATE, use it to customize the
+    provided queue name.  This allows job separation under Celery.
+    """
+    if 'QUEUE_NAME_TEMPLATE' in airflow_conf.as_dict()['connections']:
+        return airflow_conf.as_dict()['connections']['QUEUE_NAME_TEMPLATE'].format(raw_queue_name)
+    else:
+        return raw_queue_name
 
 def create_dataset_state_error_callback(dataset_uuid_callable):
     def set_dataset_state_error(contextDict, **kwargs):

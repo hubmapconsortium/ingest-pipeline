@@ -34,7 +34,7 @@ default_args = {
     'retry_delay': timedelta(minutes=1),
     'provide_context': True,
     'xcom_push': True,
-    'queue': 'general'
+    'queue': utils.map_queue_name('general')
 }
 
 fake_conf = {'apply': 'salmon_rnaseq_10x',

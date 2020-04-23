@@ -36,7 +36,7 @@ default_args = {
     'retry_delay': timedelta(minutes=1),
     'provide_context': True,
     'xcom_push': True,
-    'queue': 'general',
+    'queue': utils.map_queue_name('general'),
     'on_failure_callback': utils.create_dataset_state_error_callback(get_dataset_uuid)    
 }
 
