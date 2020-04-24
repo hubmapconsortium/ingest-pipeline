@@ -161,7 +161,7 @@ with DAG('codex_cytokit',
                      'http_conn_id' : 'ingest_api_connection',
                      'endpoint' : '/datasets/derived',
                      'dataset_name_callable' : build_dataset_name,
-                     "dataset_types":["dataset", "codex", "cytokit"]
+                     "dataset_types":["dataset", "codex_cytokit"]
                      }
     )
 
