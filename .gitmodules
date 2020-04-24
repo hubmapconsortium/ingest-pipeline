@@ -7,3 +7,6 @@
 [submodule "src/ingest-pipeline/submodules/ingest-validation-tools"]
 	path = src/ingest-pipeline/submodules/ingest-validation-tools
 	url = git@github.com:hubmapconsortium/ingest-validation-tools.git
+[submodule "src/ingest-pipeline/airflow/dags/cwl/portal-containers"]
+	path = src/ingest-pipeline/airflow/dags/cwl/portal-containers
+	url = git@github.com:hubmapconsortium/portal-containers.git
