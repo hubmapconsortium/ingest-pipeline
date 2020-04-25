@@ -14,8 +14,8 @@ class MetadataTSVMetadataFile(MetadataFile):
     category_name = 'METADATATSV';
 
     def collect_metadata(self):
-#         print('validating {} as metadata.tsv'.format(self.path))
-#         dirpath = Path(os.path.dirname(self.path))
+        print('validating {} as metadata.tsv'.format(self.path))
+        dirpath = Path(os.path.dirname(self.path))
 #         submission = ingest_validation_tools_submission.Submission(directory_path=dirpath)
 #         report = ingest_validation_tools_error_report.ErrorReport(submission.get_errors())
 #         if report.errors:
