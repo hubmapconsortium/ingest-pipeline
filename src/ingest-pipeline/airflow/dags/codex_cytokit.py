@@ -15,8 +15,7 @@ from airflow.hooks.http_hook import HttpHook
 
 import utils
 
-sys.path.append(str(Path(__file__).resolve().parent.parent / 'lib'))
-from schema_tools import assert_json_matches_schema
+from utils import localized_assert_json_matches_schema as assert_json_matches_schema
 
 import cwltool  # used to find its path
 
@@ -49,7 +48,7 @@ default_args = {
     'retry_delay': timedelta(minutes=1),
     'provide_context': True,
     'xcom_push': True,
-    'queue': 'general',
+    'queue': utils.map_queue_name('general'),
     'on_failure_callback': utils.create_dataset_state_error_callback(get_uuid_for_error)
 }
 
@@ -133,7 +132,7 @@ with DAG('codex_cytokit',
 
     t_pipeline_exec = BashOperator(
         task_id='pipeline_exec',
-        queue='gpu000_q1',
+        queue=utils.map_queue_name('gpu000_q1'),
         bash_command=""" \
         tmp_dir={{tmp_dir_path(run_id)}} ; \
         mkdir -p ${tmp_dir}/cwl_out ; \
@@ -162,7 +161,7 @@ with DAG('codex_cytokit',
                      'http_conn_id' : 'ingest_api_connection',
                      'endpoint' : '/datasets/derived',
                      'dataset_name_callable' : build_dataset_name,
-                     "dataset_types":["dataset", "codex", "cytokit"]
+                     "dataset_types":["codex_cytokit"]
                      }
     )
 

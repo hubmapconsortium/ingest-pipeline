@@ -15,8 +15,7 @@ from airflow.hooks.http_hook import HttpHook
 
 import utils
 
-sys.path.append(str(Path(__file__).resolve().parent.parent / 'lib'))
-from schema_tools import assert_json_matches_schema
+from utils import localized_assert_json_matches_schema as assert_json_matches_schema
 
 
 def get_parent_dataset_uuid(**kwargs):
@@ -49,7 +48,7 @@ default_args = {
     'retry_delay': timedelta(minutes=1),
     'provide_context': True,
     'xcom_push': True,
-    'queue': 'general',
+    'queue': utils.map_queue_name('general'),
     'on_failure_callback': utils.create_dataset_state_error_callback(get_uuid_for_error)
 }
 
@@ -154,7 +153,7 @@ with DAG('devtest_step2',
                      'http_conn_id' : 'ingest_api_connection',
                      'endpoint' : '/datasets/derived',
                      'dataset_name_callable' : build_dataset_name,
-                     'dataset_types' :["dataset", "devtest"]
+                     'dataset_types' :["devtest"]
                      }
     )
 

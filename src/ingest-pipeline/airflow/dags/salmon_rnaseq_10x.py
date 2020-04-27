@@ -15,8 +15,8 @@ from airflow.hooks.http_hook import HttpHook
 
 import utils
 
-sys.path.append(str(Path(__file__).resolve().parent.parent / 'lib'))
-from schema_tools import assert_json_matches_schema
+from utils import localized_assert_json_matches_schema as assert_json_matches_schema
+
 
 import cwltool  # used to find its path
 
@@ -34,7 +34,7 @@ default_args = {
     'retry_delay': timedelta(minutes=1),
     'provide_context': True,
     'xcom_push': True,
-    'queue': 'general'
+    'queue': utils.map_queue_name('general')
 }
 
 fake_conf = {'apply': 'salmon_rnaseq_10x',
@@ -287,8 +287,7 @@ with DAG('salmon_rnaseq_10x',
             "derived_dataset_name":'{}__{}__{}'.format(ctx['metadata']['tmc_uuid'],
                                                        ctx['parent_submission_id'],
                                                        pipeline_name),
-            "derived_dataset_types":["dataset",
-                                     "salmon_rnaseq_10x"]
+            "derived_dataset_types":["salmon_rnaseq_10x"]
         }
         print('data: ')
         pprint(data)

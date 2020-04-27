@@ -9,8 +9,12 @@ import json
 from pprint import pprint
 import uuid
 
-sys.path.append(str(Path(__file__).resolve().parent.parent / 'lib'))
-from schema_tools import assert_json_matches_schema
+from airflow.configuration import conf as airflow_conf
+
+from hubmap_commons.schema_tools import assert_json_matches_schema, set_schema_base_path
+SCHEMA_BASE_PATH = join(dirname(dirname(dirname(realpath(__file__)))),
+                        'schemata')
+SCHEMA_BASE_URI = 'http://schemata.hubmapconsortium.org/'
 
 from airflow.hooks.http_hook import HttpHook
 
@@ -176,7 +180,7 @@ def get_file_metadata_dict(root_dir: str, alt_file_dir: str, max_in_line_files :
     """
     file_info = get_file_metadata(root_dir)
     if len(file_info) > max_in_line_files:
-        assert_json_matches_schema(file_info, 'file_info_schema.yml')
+        localized_assert_json_matches_schema(file_info, 'file_info_schema.yml')
         fpath = join(alt_file_dir, '{}.json'.format(uuid.uuid4()))
         with open(fpath, 'w') as f:
             json.dump({'files': file_info}, f)
@@ -328,6 +332,19 @@ def get_tmp_dir_path(run_id):
     return "{}/data/temp/{}".format(environ['AIRFLOW_HOME'], run_id)
 
 
+def map_queue_name(raw_queue_name: str):
+    """
+    If the configuration contains QUEUE_NAME_TEMPLATE, use it to customize the
+    provided queue name.  This allows job separation under Celery.
+    """
+    if 'QUEUE_NAME_TEMPLATE' in airflow_conf.as_dict()['connections']:
+        template = airflow_conf.as_dict()['connections']['QUEUE_NAME_TEMPLATE']
+        template = template.strip("'").strip('"')  # remove quotes that may be on the config string
+        rslt = template.format(raw_queue_name)
+        return rslt
+    else:
+        return raw_queue_name
+
 def create_dataset_state_error_callback(dataset_uuid_callable):
     def set_dataset_state_error(contextDict, **kwargs):
         """
@@ -346,6 +363,11 @@ def create_dataset_state_error_callback(dataset_uuid_callable):
         pythonop_set_dataset_state(**new_kwargs)
     return set_dataset_state_error
 
+
+set_schema_base_path(SCHEMA_BASE_PATH, SCHEMA_BASE_URI)
+
+def localized_assert_json_matches_schema(jsn, schemafile):
+    return assert_json_matches_schema(jsn, schemafile)  # localized by set_schema_base_path
 
 
 def main():

@@ -16,8 +16,7 @@ from airflow.hooks.http_hook import HttpHook
 
 import utils
 
-sys.path.append(str(Path(__file__).resolve().parent.parent / 'lib'))
-from schema_tools import assert_json_matches_schema
+from utils import localized_assert_json_matches_schema as assert_json_matches_schema
 
 
 def get_dataset_uuid(**kwargs):
@@ -37,7 +36,7 @@ default_args = {
     'retry_delay': timedelta(minutes=1),
     'provide_context': True,
     'xcom_push': True,
-    'queue': 'general',
+    'queue': utils.map_queue_name('general'),
     'on_failure_callback': utils.create_dataset_state_error_callback(get_dataset_uuid)    
 }
 
@@ -165,11 +164,10 @@ with DAG('scan_and_begin_processing',
         bash_command=""" \
         lz_dir="{{dag_run.conf.lz_path}}" ; \
         src_dir="{{dag_run.conf.src_path}}/md" ; \
-        lib_dir="{{dag_run.conf.src_path}}/airflow/lib" ; \
         top_dir="{{dag_run.conf.src_path}}" ; \
         work_dir="{{tmp_dir_path(run_id)}}" ; \
         cd $work_dir ; \
-        env PYTHONPATH=${PYTHONPATH}:$lib_dir:$top_dir \
+        env PYTHONPATH=${PYTHONPATH}:$top_dir \
         python $src_dir/metadata_extract.py --out ./rslt.yml --yaml "$lz_dir" \
           > ./session.log 2>&1 ; \
         echo $?
