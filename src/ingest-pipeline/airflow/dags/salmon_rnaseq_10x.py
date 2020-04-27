@@ -287,8 +287,7 @@ with DAG('salmon_rnaseq_10x',
             "derived_dataset_name":'{}__{}__{}'.format(ctx['metadata']['tmc_uuid'],
                                                        ctx['parent_submission_id'],
                                                        pipeline_name),
-            "derived_dataset_types":["dataset",
-                                     "salmon_rnaseq_10x"]
+            "derived_dataset_types":["salmon_rnaseq_10x"]
         }
         print('data: ')
         pprint(data)
