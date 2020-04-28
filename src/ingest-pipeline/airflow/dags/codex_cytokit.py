@@ -63,6 +63,7 @@ with DAG('codex_cytokit',
 
     pipeline_name = 'codex-pipeline'
     cwl_workflow1 = os.path.join(pipeline_name, 'pipeline.cwl')
+    cwl_workflow2 = os.path.join('portal_containers', 'ome-tiff-offsets.cwl')
 
     def build_dataset_name(**kwargs):
         return '{}__{}__{}'.format(dag.dag_id,
@@ -77,7 +78,7 @@ with DAG('codex_cytokit',
     
 #     prepare_cwl1 = PythonOperator(
 #         python_callable=utils.clone_or_update_pipeline,
-#         task_id='clone_or_update_cwl1',
+#         task_id='prepare_cwl1',
 #         op_kwargs={'pipeline_name': cwl_workflow1}
 #     )
 
@@ -130,8 +131,8 @@ with DAG('codex_cytokit',
         )
 
 
-    t_pipeline_exec = BashOperator(
-        task_id='pipeline_exec',
+    t_pipeline_exec_cwl1 = BashOperator(
+        task_id='pipeline_exec_cwl1',
         queue=utils.map_queue_name('gpu000_q1'),
         bash_command=""" \
         tmp_dir={{tmp_dir_path(run_id)}} ; \
@@ -147,10 +148,82 @@ with DAG('codex_cytokit',
         task_id='maybe_keep_cwl1',
         python_callable=utils.pythonop_maybe_keep,
         provide_context=True,
+        op_kwargs = {'next_op' : 'prepare_cwl2',
+                     'bail_op' : 'set_dataset_error',
+                     'test_op' : 'pipeline_exec_cwl1'}
+        )
+
+
+#     prepare_cwl2 = PythonOperator(
+#         python_callable=utils.clone_or_update_pipeline,
+#         task_id='prepare_cwl2',
+#         op_kwargs={'pipeline_name': cwl_workflow2}
+#     )
+
+    prepare_cwl2 = DummyOperator(
+        task_id='prepare_cwl2'
+        )
+    
+    def build_cwltool_cmd2(**kwargs):
+        ctx = kwargs['dag_run'].conf
+        run_id = kwargs['run_id']
+        tmpdir = utils.get_tmp_dir_path(run_id)
+        print('tmpdir: ', tmpdir)
+        parent_data_dir = ctx['parent_lz_path']
+        print('parent_data_dir: ', parent_data_dir)
+        data_dir = os.path.join(tmpdir, 'cwl_out')  # This stage reads input from stage 1
+        print('data_dir: ', data_dir)
+        pipeline_base_dir = str(Path(__file__).resolve().parent / 'cwl')
+        cwltool_dir = os.path.dirname(cwltool.__file__)
+        while cwltool_dir:
+            part1, part2 = os.path.split(cwltool_dir)
+            cwltool_dir = part1
+            if part2 == 'lib':
+                break
+        assert cwltool_dir, 'Failed to find cwltool bin directory'
+        cwltool_dir = os.path.join(cwltool_dir, 'bin')
+
+        command = [
+            'env',
+            'PATH=%s:%s' % (cwltool_dir, os.environ['PATH']),
+            'cwltool',
+            os.path.join(pipeline_base_dir, cwl_workflow2),
+            '--input_dir',
+            data_dir,
+        ]
+        
+        command_str = ' '.join(shlex.quote(piece) for piece in command)
+        print('final command_str: %s' % command_str)
+        return command_str
+
+
+    t_build_cmd2 = PythonOperator(
+        task_id='build_cmd2',
+        python_callable=build_cwltool_cmd2
+        )
+
+
+    t_pipeline_exec_cwl2 = BashOperator(
+        task_id='pipeline_exec_cwl2',
+        queue=utils.map_queue_name('general'),
+        bash_command=""" \
+        tmp_dir={{tmp_dir_path(run_id)}} ; \
+        cd ${tmp_dir}/cwl_out ; \
+        {{ti.xcom_pull(task_ids='build_cmd2')}} > $tmp_dir/session.log 2>&1 ; \
+        echo $?
+        """
+    )
+
+
+    t_maybe_keep_cwl2 = BranchPythonOperator(
+        task_id='maybe_keep_cwl2',
+        python_callable=utils.pythonop_maybe_keep,
+        provide_context=True,
         op_kwargs = {'next_op' : 'move_data',
                      'bail_op' : 'set_dataset_error',
-                     'test_op' : 'pipeline_exec'}
+                     'test_op' : 'pipeline_exec_cwl2'}
         )
+
 
 
     t_send_create_dataset = PythonOperator(
@@ -208,7 +281,7 @@ with DAG('codex_cytokit',
 
 
     def send_status_msg(**kwargs):
-        retcode_ops = ['pipeline_exec', 'move_data']
+        retcode_ops = ['pipeline_exec_cwl1', 'pipeline_exec_cwl2', 'move_data']
         retcodes = [int(kwargs['ti'].xcom_pull(task_ids=op))
                     for op in retcode_ops]
         print('retcodes: ', {k:v for k, v in zip(retcode_ops, retcodes)})
@@ -302,10 +375,11 @@ with DAG('codex_cytokit',
 
     (dag >> t1 >> t_create_tmpdir
      >> t_send_create_dataset >> t_set_dataset_processing
-     >> prepare_cwl1
-     >> t_build_cmd1 >> t_pipeline_exec >> t_maybe_keep_cwl1
+     >> prepare_cwl1 >> t_build_cmd1 >> t_pipeline_exec_cwl1 >> t_maybe_keep_cwl1
+     >> prepare_cwl2 >> t_build_cmd2 >> t_pipeline_exec_cwl2 >> t_maybe_keep_cwl2
      >> t_move_data >> t_send_status >> t_join)
     t_maybe_keep_cwl1 >> t_set_dataset_error >> t_join
+    t_maybe_keep_cwl2 >> t_set_dataset_error >> t_join
     t_join >> t_cleanup_tmpdir
 
 
