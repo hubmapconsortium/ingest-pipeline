@@ -27,6 +27,7 @@ def get_dataset_uuid(**kwargs):
     return kwargs['ti'].xcom_pull(key='derived_dataset_uuid',
                                   task_ids="send_create_dataset")
 
+
 def get_uuid_for_error(**kwargs):
     """
     Return the uuid for the derived dataset if it exists, and of the parent dataset otherwise.
@@ -63,7 +64,7 @@ with DAG('codex_cytokit',
 
     pipeline_name = 'codex-pipeline'
     cwl_workflow1 = os.path.join(pipeline_name, 'pipeline.cwl')
-    cwl_workflow2 = os.path.join('portal_containers', 'ome-tiff-offsets.cwl')
+    cwl_workflow2 = os.path.join('portal-containers', 'ome-tiff-offsets.cwl')
 
     def build_dataset_name(**kwargs):
         return '{}__{}__{}'.format(dag.dag_id,
@@ -223,7 +224,6 @@ with DAG('codex_cytokit',
                      'bail_op' : 'set_dataset_error',
                      'test_op' : 'pipeline_exec_cwl2'}
         )
-
 
 
     t_send_create_dataset = PythonOperator(

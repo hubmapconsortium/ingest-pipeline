@@ -22,7 +22,25 @@ import cwltool  # used to find its path
 
 THREADS = 6  # to be used by the CWL worker
 
-# Following are defaults which can be overridden later on
+def get_parent_dataset_uuid(**kwargs):
+    return kwargs['dag_run'].conf['parent_submission_id']
+
+
+def get_dataset_uuid(**kwargs):
+    return kwargs['ti'].xcom_pull(key='derived_dataset_uuid',
+                                  task_ids="send_create_dataset")
+
+
+def get_uuid_for_error(**kwargs):
+    """
+    Return the uuid for the derived dataset if it exists, and of the parent dataset otherwise.
+    """
+    rslt = get_dataset_uuid(**kwargs)
+    if rslt is None:
+        rslt = get_parent_dataset_uuid(**kwargs)
+    return rslt
+
+
 default_args = {
     'owner': 'hubmap',
     'depends_on_past': False,
@@ -34,63 +52,35 @@ default_args = {
     'retry_delay': timedelta(minutes=1),
     'provide_context': True,
     'xcom_push': True,
-    'queue': utils.map_queue_name('general')
+    'queue': utils.map_queue_name('general'),
+    'on_failure_callback': utils.create_dataset_state_error_callback(get_uuid_for_error)
 }
 
-fake_conf = {'apply': 'salmon_rnaseq_10x',
-             'auth_tok': 'AgWob7mDM3vo141ny8WYXE47WJ0bWrelDJB5zd2qEr0MGqoGPKFgC38z2PO6r7r7WpNdNana8p0EBwf48YnE2Hq3bz',
-             'component': '1_H3S1-1_L001_SI-GA-D8-1',
-             'parent_lz_path': '/usr/local/airflow/lz/IEC Testing '
-             'Group/cb8a37c188d2754f10dea76cd4958679',
-             #'parent_lz_path': '/hubmap-data/test-stage/IEC Testing '
-             #'Group/c7ebfd11223af5aa74ca42de211f87cd',
-             'parent_submission_id': '80cd0a1fadbb654f023daf197d8a0bfe',
-             'metadata': {'collectiontype': 'rnaseq_10x',
-                          'components': ['1_H3S1-1_L001_SI-GA-D8-1',
-                                         '1_H3S1-1_L002_SI-GA-D8-1'],
-                          'dataset': {'10x_Genomics_Index_well_ID': 'SI-GA-D8',
-                                      'Concentration_ng_ul': 16.8,
-                                      'HuBMAP Case Identifier': 'Case3  Spleen  CC1',
-                                      'Name': 'HBMP3_spleen_CC1',
-                                      'Quantification_method': 'Qubit',
-                                      'SI_INDEX_SEQUENCE': 'GCAACAAA',
-                                      'Seq_run': 'NS-1699',
-                                      'Sequencing_concentration_reported_from_ICBR': '225 pM',
-                                      'UUID Identifier': 'UFL0001-SP-1-3',
-                                      'Unnamed: 10': 'TAGTTGTC',
-                                      'Unnamed: 11': 'CGCCATCG',
-                                      'Unnamed: 12': 'ATTGGCGT',
-                                      'Volume_ul': 10},
-                          'tmc_uuid': 'raw_HBMP3_spleen_CC1'}}
 
 with DAG('salmon_rnaseq_10x', 
          schedule_interval=None, 
          is_paused_upon_creation=False, 
          default_args=default_args,
-         max_active_runs=1
+         max_active_runs=1,
+         user_defined_macros={'tmp_dir_path' : utils.get_tmp_dir_path}
          ) as dag:
 
  
-    def trigger_target(**kwargs):
-        ctx = kwargs['dag_run'].conf
-        run_id = kwargs['run_id']
-        print('run_id: ', run_id)
-        print('dag_run.conf:')
-        pprint(ctx)
-        print('kwargs:')
-        pprint(kwargs)
- 
-
-    t1 = PythonOperator(
-        task_id='trigger_target',
-        python_callable = trigger_target,
-        )
-    
-    
     pipeline_name = 'salmon_rnaseq_10x'
     cwl_workflow1 = os.path.join(pipeline_name, 'pipeline.cwl')
     cwl_workflow2 = os.path.join('portal-container-h5ad-to-arrow', 'workflow.cwl')
 
+    def build_dataset_name(**kwargs):
+        return '{}__{}__{}'.format(dag.dag_id,
+                                   kwargs['dag_run'].conf['parent_submission_id'],
+                                   pipeline_name),
+
+    t1 = PythonOperator(
+        task_id='trigger_target',
+        python_callable = utils.pythonop_trigger_target,
+        )
+    
+    
 #     prepare_cwl1 = PythonOperator(
 #         python_callable=utils.clone_or_update_pipeline,
 #         task_id='clone_or_update_cwl1',
@@ -112,17 +102,13 @@ with DAG('salmon_rnaseq_10x',
         )
     
     def build_cwltool_cmd1(**kwargs):
-        #ctx = fake_conf
         ctx = kwargs['dag_run'].conf
         run_id = kwargs['run_id']
-        tmpdir = os.path.join(os.environ['AIRFLOW_HOME'],
-                              'data', 'temp', run_id)
+        tmpdir = utils.get_tmp_dir_path(run_id)
         print('tmpdir: ', tmpdir)
-        data_dir = os.path.join(ctx['parent_lz_path'],
-                               ctx['metadata']['tmc_uuid'])
+        data_dir = ctx['parent_lz_path']
         print('data_dir: ', data_dir)
-        pipeline_base_dir = os.path.join(os.environ['AIRFLOW_HOME'],
-                                         'dags', 'cwl')
+        pipeline_base_dir = str(Path(__file__).resolve().parent / 'cwl')
         cwltool_dir = os.path.dirname(cwltool.__file__)
         while cwltool_dir:
             part1, part2 = os.path.split(cwltool_dir)
@@ -160,17 +146,13 @@ with DAG('salmon_rnaseq_10x',
         return command_str
 
     def build_cwltool_cmd2(**kwargs):
-        #ctx = fake_conf
         ctx = kwargs['dag_run'].conf
         run_id = kwargs['run_id']
-        tmpdir = os.path.join(os.environ['AIRFLOW_HOME'],
-                              'data', 'temp', run_id)
+        tmpdir = utils.get_tmp_dir_path(run_id)
         print('tmpdir: ', tmpdir)
-        data_dir = os.path.join(ctx['parent_lz_path'],
-                               ctx['metadata']['tmc_uuid'])
+        data_dir = ctx['parent_lz_path']
         print('data_dir: ', data_dir)
-        pipeline_base_dir = os.path.join(os.environ['AIRFLOW_HOME'],
-                                         'dags', 'cwl')
+        pipeline_base_dir = str(Path(__file__).resolve().parent / 'cwl')
         cwltool_dir = os.path.dirname(cwltool.__file__)
         while cwltool_dir:
             part1, part2 = os.path.split(cwltool_dir)
@@ -206,7 +188,7 @@ with DAG('salmon_rnaseq_10x',
     t_pipeline_exec = BashOperator(
         task_id='pipeline_exec',
         bash_command=""" \
-        tmp_dir=${AIRFLOW_HOME}/data/temp/{{run_id}} ; \
+        tmp_dir={{tmp_dir_path(run_id)}} ; \
         {{ti.xcom_pull(task_ids='build_cmd1')}} > $tmp_dir/session.log 2>&1 ; \
         echo $?
         """
@@ -215,7 +197,7 @@ with DAG('salmon_rnaseq_10x',
     t_make_arrow1 = BashOperator(
         task_id='make_arrow1',
         bash_command=""" \
-        tmp_dir="${AIRFLOW_HOME}/data/temp/{{run_id}}" ; \
+        tmp_dir={{tmp_dir_path(run_id)}} ; \
         ds_dir="{{ti.xcom_pull(task_ids="send_create_dataset")}}" ; \
         cd "$ds_dir"/cluster-marker-genes ; \
         {{ti.xcom_pull(task_ids='build_cmd2')}} >> $tmp_dir/session.log 2>&1 ; \
@@ -227,7 +209,7 @@ with DAG('salmon_rnaseq_10x',
     t_make_arrow2 = BashOperator(
         task_id='make_arrow2',
         bash_command=""" \
-        tmp_dir="${AIRFLOW_HOME}/data/temp/{{run_id}}" ; \
+        tmp_dir={{tmp_dir_path(run_id)}} ; \
         ds_dir="{{ti.xcom_pull(task_ids="send_create_dataset")}}" ; \
         cd "$ds_dir"/dim_reduced_clustered ;\
         {{ti.xcom_pull(task_ids='build_cmd2')}} >> $tmp_dir/session.log 2>&1 ; \
@@ -235,128 +217,67 @@ with DAG('salmon_rnaseq_10x',
         """
     )
 
-    def maybe_keep(**kwargs):
-        """
-        accepts the following via the caller's op_kwargs:
-        'next_op': the operator to call on success
-        'bail_op': the operator to which to bail on failure (default 'no_keep')
-        'test_op': the operator providing the success code
-        'test_key': xcom key to test.  Defaults to None for return code
-        """
-        bail_op = kwargs['bail_op'] if 'bail_op' in kwargs else 'no_keep'
-        test_op = kwargs['test_op']
-        test_key = kwargs['test_key'] if 'test_key' in kwargs else None
-        retcode = int(kwargs['ti'].xcom_pull(task_ids=test_op, key=test_key))
-        print('%s key %s: %s\n' % (test_op, test_key, retcode))
-        if retcode is 0:
-            return kwargs['next_op']
-        else:
-            return bail_op
-    
     t_maybe_keep_cwl1 = BranchPythonOperator(
         task_id='maybe_keep_cwl1',
-        python_callable=maybe_keep,
+        python_callable=utils.pythonop_maybe_keep,
         provide_context=True,
         op_kwargs = {'next_op' : 'move_files',
+                     'bail_op' : 'set_dataset_error',
                      'test_op' : 'pipeline_exec'}
         )
 
-    t_no_keep = DummyOperator(
-        task_id='no_keep')
+
+    t_maybe_keep_cwl2 = BranchPythonOperator(
+        task_id='maybe_keep_cwl2',
+        python_callable=utils.pythonop_maybe_keep,
+        provide_context=True,
+        op_kwargs = {'next_op' : 'move_data',
+                     'bail_op' : 'set_dataset_error',
+                     'test_op' : 'make_arrow2'}
+        )
 
     t_join = DummyOperator(
         task_id='join',
         trigger_rule='one_success')
 
-    def send_create_dataset(**kwargs):
-        #ctx = fake_conf
-        ctx = kwargs['dag_run'].conf
-        http_conn_id='ingest_api_connection'
-        endpoint='/datasets/derived'
-        method='POST'
-        headers={
-            'authorization' : 'Bearer ' + ctx['auth_tok'],
-            'content-type' : 'application/json'}
-        print('headers:')
-        pprint(headers)
-        extra_options=[]
-        http = HttpHook(method,
-                        http_conn_id=http_conn_id)
-        data = {
-            "source_dataset_uuid":ctx['parent_submission_id'],
-            "derived_dataset_name":'{}__{}__{}'.format(ctx['metadata']['tmc_uuid'],
-                                                       ctx['parent_submission_id'],
-                                                       pipeline_name),
-            "derived_dataset_types":["salmon_rnaseq_10x"]
-        }
-        print('data: ')
-        pprint(data)
-        response = http.run(endpoint,
-                            json.dumps(data),
-                            headers,
-                            extra_options)
-        print('response: ')
-        pprint(response.json())
-        lz_root = os.path.split(ctx['parent_lz_path'])[0]
-        lz_root = os.path.split(lz_root)[0]
-        data_dir_path = os.path.join(lz_root,
-                                     response.json()['group_display_name'],
-                                     response.json()['derived_dataset_uuid'])
-        kwargs['ti'].xcom_push(key='group_uuid',
-                               value=response.json()['group_uuid'])
-        kwargs['ti'].xcom_push(key='derived_dataset_uuid', 
-                               value=response.json()['derived_dataset_uuid'])
-        return data_dir_path
-
     t_send_create_dataset = PythonOperator(
         task_id='send_create_dataset',
-        python_callable=send_create_dataset,
-        provide_context=True
+        python_callable=utils.pythonop_send_create_dataset,
+        provide_context=True,
+        op_kwargs = {'parent_dataset_uuid_callable' : get_parent_dataset_uuid,
+                     'http_conn_id' : 'ingest_api_connection',
+                     'endpoint' : '/datasets/derived',
+                     'dataset_name_callable' : build_dataset_name,
+                     "dataset_types":["salmon_rnaseq_10x"]
+                     }
     )
-
-
-    def set_dataset_processing(**kwargs):
-        derived_dataset_uuid = kwargs['ti'].xcom_pull(key='derived_dataset_uuid',
-                                                      task_ids="send_create_dataset")
-        http_conn_id='ingest_api_connection'
-        endpoint='/datasets/status'
-        method='PUT'
-        headers={
-            'authorization' : 'Bearer ' + kwargs['dag_run'].conf['auth_tok'],
-            'content-type' : 'application/json'}
-        print('headers:')
-        pprint(headers)
-        extra_options=[]
-         
-        http = HttpHook(method,
-                        http_conn_id=http_conn_id)
- 
-        data = {'dataset_id' : derived_dataset_uuid,
-                'status' : 'Processing',
-                'message' : 'update state',
-                'metadata': {}}
-        print('data: ')
-        pprint(data)
-
-        response = http.run(endpoint,
-                            json.dumps(data),
-                            headers,
-                            extra_options)
-        print('response: ')
-        pprint(response.json())
-
-
     t_set_dataset_processing = PythonOperator(
         task_id='set_dataset_processing',
-        python_callable=set_dataset_processing,
-        provide_context=True
+        python_callable=utils.pythonop_set_dataset_state,
+        provide_context=True,
+        op_kwargs = {'dataset_uuid_callable' : get_dataset_uuid,
+                     'http_conn_id' : 'ingest_api_connection',
+                     'endpoint' : '/datasets/status'
+                     }
+    )
+
+    t_set_dataset_error = PythonOperator(
+        task_id='set_dataset_error',
+        python_callable=utils.pythonop_set_dataset_state,
+        provide_context=True,
+        op_kwargs = {'dataset_uuid_callable' : get_dataset_uuid,
+                     'http_conn_id' : 'ingest_api_connection',
+                     'endpoint' : '/datasets/status',
+                     'ds_state' : 'Error',
+                     'message' : 'An error occurred in {}'.format(pipeline_name)
+                     }
     )
 
 
     t_move_data = BashOperator(
         task_id='move_data',
         bash_command="""
-        tmp_dir="${AIRFLOW_HOME}/data/temp/{{run_id}}" ; \
+        tmp_dir={{tmp_dir_path(run_id)}} ; \
         ds_dir="{{ti.xcom_pull(task_ids="send_create_dataset")}}" ; \
         groupname="{{conf.as_dict()['connections']['OUTPUT_GROUP_NAME']}}" ; \
         pushd "$ds_dir" ; \
@@ -373,7 +294,7 @@ with DAG('salmon_rnaseq_10x',
     t_move_files = BashOperator(
         task_id='move_files',
         bash_command="""
-        tmp_dir="${AIRFLOW_HOME}/data/temp/{{run_id}}" ; \
+        tmp_dir={{tmp_dir_path(run_id)}} ; \
         cd "$tmp_dir"/cwl_out ; \
         mkdir cluster-marker-genes ; \
         mv cluster_marker_genes.h5ad cluster-marker-genes ; \
@@ -435,8 +356,7 @@ with DAG('salmon_rnaseq_10x',
                         'message' : 'internal error; schema violation: {}'.format(e),
                         'metadata': {}}
         else:
-            log_fname = os.path.join(os.environ['AIRFLOW_HOME'],
-                                     'data/temp', kwargs['run_id'],
+            log_fname = os.path.join(utils.get_tmp_dir_path(kwargs['run_id']),
                                      'session.log')
             with open(log_fname, 'r') as f:
                 err_txt = '\n'.join(f.readlines())
@@ -463,28 +383,26 @@ with DAG('salmon_rnaseq_10x',
     
     t_create_tmpdir = BashOperator(
         task_id='create_temp_dir',
-        bash_command='mkdir ${AIRFLOW_HOME}/data/temp/{{run_id}}',
+        bash_command='mkdir {{tmp_dir_path(run_id)}}',
         provide_context=True
         )
 
 
     t_cleanup_tmpdir = BashOperator(
         task_id='cleanup_temp_dir',
-        bash_command='rm -r ${AIRFLOW_HOME}/data/temp/{{run_id}}',
+        bash_command='rm -r {{tmp_dir_path(run_id)}}',
+        trigger_rule='all_success'
         )
  
 
     (dag >> t1 >> t_create_tmpdir
-     >> prepare_cwl1 >> prepare_cwl2
-     >> t_build_cmd1 >> t_pipeline_exec >> t_maybe_keep_cwl1
-     >> t_move_files 
      >> t_send_create_dataset >> t_set_dataset_processing
-     >> t_move_data
-     >> t_build_cmd2
-     >> t_make_arrow1
-     >> t_make_arrow2
-     >> t_send_status >> t_join)
-    t_maybe_keep_cwl1 >> t_no_keep >> t_join
+     >> prepare_cwl1 >> t_build_cmd1 >> t_pipeline_exec >> t_maybe_keep_cwl1
+     >> t_move_files 
+     >> prepare_cwl2 >> t_build_cmd2 >> t_make_arrow1 >> t_make_arrow2 >> t_maybe_keep_cwl2
+     >> t_move_data >> t_send_status >> t_join)
+    t_maybe_keep_cwl1 >> t_set_dataset_error >> t_join
+    t_maybe_keep_cwl2 >> t_set_dataset_error >> t_join
     t_join >> t_cleanup_tmpdir
 
 
