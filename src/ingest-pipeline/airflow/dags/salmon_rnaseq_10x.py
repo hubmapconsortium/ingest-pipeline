@@ -68,7 +68,7 @@ with DAG('salmon_rnaseq_10x',
  
     pipeline_name = 'salmon_rnaseq_10x'
     cwl_workflow1 = os.path.join(pipeline_name, 'pipeline.cwl')
-    cwl_workflow2 = os.path.join('portal-container-h5ad-to-arrow', 'workflow.cwl')
+    cwl_workflow2 = os.path.join('portal-containers', 'h5ad-to-arrow.cwl')
 
     def build_dataset_name(**kwargs):
         return '{}__{}__{}'.format(dag.dag_id,
