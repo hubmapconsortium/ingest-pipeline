@@ -60,7 +60,7 @@ with DAG('reset_submission_to_new',
         op_kwargs = {'dataset_uuid_callable' : get_dataset_uuid,
                      'http_conn_id' : 'ingest_api_connection',
                      'endpoint' : '/datasets/status',
-                     'ds_state' : 'NEW',
+                     'ds_state' : 'New',
                      'message' : 'Resetting state to NEW',
                      'auth_tok' : 'fill_this_in_at_run_time'
                      }
