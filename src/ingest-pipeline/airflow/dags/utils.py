@@ -302,7 +302,7 @@ def pythonop_set_dataset_state(**kwargs):
     method='PUT'
     auth_tok = kwargs['auth_tok'] if 'auth_tok' in kwargs else kwargs['dag_run'].conf['auth_tok'] 
     headers={
-        'authorization' : 'Bearer ' + auth_tok
+        'authorization' : 'Bearer ' + auth_tok,
         'content-type' : 'application/json'}
     print('headers:')
     pprint(headers)
