@@ -300,8 +300,9 @@ def pythonop_set_dataset_state(**kwargs):
     ds_state = kwargs['ds_state'] if 'ds_state' in kwargs else 'Processing'
     message = kwargs['message'] if 'message' in kwargs else 'update state'
     method='PUT'
+    auth_tok = kwargs['auth_tok'] if 'auth_tok' in kwargs else kwargs['dag_run'].conf['auth_tok'] 
     headers={
-        'authorization' : 'Bearer ' + kwargs['dag_run'].conf['auth_tok'],
+        'authorization' : 'Bearer ' + auth_tok
         'content-type' : 'application/json'}
     print('headers:')
     pprint(headers)

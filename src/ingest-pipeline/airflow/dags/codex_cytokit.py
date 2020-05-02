@@ -190,7 +190,7 @@ with DAG('codex_cytokit',
             'cwltool',
             os.path.join(pipeline_base_dir, cwl_workflow2),
             '--input_dir',
-            data_dir,
+            os.path.join(data_dir, 'output', 'extract', 'expressions', 'ome-tiff')
         ]
         
         command_str = ' '.join(shlex.quote(piece) for piece in command)
