@@ -20,6 +20,15 @@ from utils import localized_assert_json_matches_schema as assert_json_matches_sc
 def get_dataset_uuid(**kwargs):
     return 'b40eb3abccf2341f274cfd4ba809c03e'
 
+
+def get_uuid_for_error(**kwargs):
+    """
+    Return the uuid for the derived dataset if it exists, and of the parent dataset otherwise.
+    """
+    rslt = get_dataset_uuid(**kwargs)
+    return rslt
+
+
 default_args = {
     'owner': 'hubmap',
     'depends_on_past': False,
