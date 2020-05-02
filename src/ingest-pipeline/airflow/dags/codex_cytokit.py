@@ -206,7 +206,6 @@ with DAG('codex_cytokit',
 
     t_pipeline_exec_cwl2 = BashOperator(
         task_id='pipeline_exec_cwl2',
-        queue=utils.map_queue_name('general'),
         bash_command=""" \
         tmp_dir={{tmp_dir_path(run_id)}} ; \
         cd ${tmp_dir}/cwl_out ; \
@@ -310,7 +309,9 @@ with DAG('codex_cytokit',
                                              'dags', 'cwl')
             dag_prv.update(utils.get_git_provenance_dict([__file__,
                                                           os.path.join(pipeline_base_dir,
-                                                                       cwl_workflow1)]))
+                                                                       cwl_workflow1),
+                                                          os.path.join(pipeline_base_dir,
+                                                                       cwl_workflow2)]))
             file_md = utils.get_file_metadata(ds_dir)
             md = {'dag_provenance' : dag_prv}
             md.update(utils.get_file_metadata_dict(ds_dir,
