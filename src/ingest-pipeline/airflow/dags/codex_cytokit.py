@@ -20,7 +20,7 @@ from utils import localized_assert_json_matches_schema as assert_json_matches_sc
 import cwltool  # used to find its path
 
 def get_parent_dataset_uuid(**kwargs):
-    return kwargs['dag_run'].conf['parent_submission_ id']
+    return kwargs['dag_run'].conf['parent_submission_id']
 
 
 def get_dataset_uuid(**kwargs):
