@@ -34,7 +34,8 @@ def translate_timestamp(tstr, default_tz):
                 except:
                     raise MetadataError('Cannot translate time string {}'.format(tstr))
 
-def inner_close_enough_match(v1, v2, tp):
+
+def close_enough_match(v1, v2, tp):
     """
     Converts both values to the given type, and returns True if they match closely enough to
     satisfy consistency rules for metadata.tsv, false otherwise.
@@ -64,11 +65,6 @@ def inner_close_enough_match(v1, v2, tp):
         raise MetadataError('close_enough_match does not know how to compare values of type {}'
                             .format(tp.__name__))
 
-
-def close_enough_match(v1, v2, tp):
-    rslt = inner_close_enough_match(v1, v2, tp)
-    print('{} {} {} -> {}'.format(v1, v2, tp.__name__, rslt))
-    return rslt
 
 class AkoyaCODEXDataCollection(DataCollection):
     category_name = 'AKOYA_CODEX';
@@ -185,7 +181,6 @@ class AkoyaCODEXDataCollection(DataCollection):
             if expt_nm not in experiment_md:
                 raise MetadataError("experiment.json is missing expected element {}".format(expt_nm))
             if not close_enough_match(rslt[rslt_nm], experiment_md[expt_nm], tp):
-                print('FAILING')
                 raise MetadataError("metadata field {} does not match experiment.json field {}"
                                     .format(rslt_nm, expt_nm))
                 
