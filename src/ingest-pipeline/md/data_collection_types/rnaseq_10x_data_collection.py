@@ -77,8 +77,7 @@ class RNASEQ10XDataCollection(DataCollection):
     
     def collect_metadata(self):
         md_type_tbl = self.get_md_type_tbl()
-        rslt = {'collectiontype' : 'rnaseq_10x',
-                'components' : []}
+        rslt = {}
         cl = []
         for match, md_type in self.expected_files + self.optional_files:
             print('collect match %s' % match.format(offsetdir=self.offsetdir))
