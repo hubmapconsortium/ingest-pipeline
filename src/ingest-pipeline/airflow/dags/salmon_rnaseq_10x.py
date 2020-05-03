@@ -199,7 +199,7 @@ with DAG('salmon_rnaseq_10x',
         bash_command=""" \
         tmp_dir={{tmp_dir_path(run_id)}} ; \
         ds_dir="{{ti.xcom_pull(task_ids="send_create_dataset")}}" ; \
-        cd "$tmp_dir"/cluster-marker-genes ; \
+        cd "$tmp_dir"/cwl_out/cluster-marker-genes ; \
         {{ti.xcom_pull(task_ids='build_cmd2')}} >> $tmp_dir/session.log 2>&1 ; \
         echo $?
         """,
@@ -211,7 +211,7 @@ with DAG('salmon_rnaseq_10x',
         bash_command=""" \
         tmp_dir={{tmp_dir_path(run_id)}} ; \
         ds_dir="{{ti.xcom_pull(task_ids="send_create_dataset")}}" ; \
-        cd "$tmp_dir"/dim_reduced_clustered ;\
+        cd "$tmp_dir"/cwl_out/dim_reduced_clustered ;\
         {{ti.xcom_pull(task_ids='build_cmd2')}} >> $tmp_dir/session.log 2>&1 ; \
         echo $?
         """
