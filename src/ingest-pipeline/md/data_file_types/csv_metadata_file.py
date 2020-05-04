@@ -2,6 +2,7 @@
 
 from metadata_file import MetadataFile
 import csv
+from pprint import pprint
 
 class CSVMetadataFile(MetadataFile):
     """
@@ -13,7 +14,7 @@ class CSVMetadataFile(MetadataFile):
         print('parsing csv from %s' % self.path)
         md = []
         with open(self.path, 'rU', newline='') as f:
-            dialect = csv.Sniffer().sniff(f.read(1024))
+            dialect = csv.Sniffer().sniff(f.read(256))
             f.seek(0)
             reader = csv.DictReader(f, dialect=dialect)
             for row in reader:

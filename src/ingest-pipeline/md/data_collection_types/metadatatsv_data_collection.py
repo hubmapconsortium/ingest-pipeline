@@ -10,7 +10,6 @@ import json
 import glob
 import types
 import re
-from pprint import pprint
 
 from type_base import MetadataError
 from data_collection import DataCollection
