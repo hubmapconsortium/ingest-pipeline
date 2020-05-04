@@ -5,7 +5,6 @@ import json
 import glob
 import types
 import re
-from pprint import pprint
 
 from type_base import MetadataError
 from data_collection import DataCollection
@@ -106,8 +105,8 @@ class RNASEQ10XDataCollection(DataCollection):
         rslt.update(raw_metadata['components'][0])
         
         # Hard-coded reality checks
-        if 'assay_type' not in rslt or rslt['assay_type'] != 'scRNA-Seq-10xGenomics':
-            raise MetadataError('assay_type is not ' 'scRNA-Seq-10xGenomics')
+        if 'assay_type' not in rslt or rslt['assay_type'] != 'scRNAseq-10xGenomics':
+            raise MetadataError('assay_type is not ' 'scRNAseq-10xGenomics')
 
         return rslt
 
