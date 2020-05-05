@@ -253,6 +253,7 @@ with DAG('codex_cytokit',
         task_id='set_dataset_error',
         python_callable=utils.pythonop_set_dataset_state,
         provide_context=True,
+        trigger_rule='one_success',
         op_kwargs = {'dataset_uuid_callable' : get_dataset_uuid,
                      'http_conn_id' : 'ingest_api_connection',
                      'endpoint' : '/datasets/status',
@@ -379,8 +380,9 @@ with DAG('codex_cytokit',
      >> prepare_cwl1 >> t_build_cmd1 >> t_pipeline_exec_cwl1 >> t_maybe_keep_cwl1
      >> prepare_cwl2 >> t_build_cmd2 >> t_pipeline_exec_cwl2 >> t_maybe_keep_cwl2
      >> t_move_data >> t_send_status >> t_join)
-    t_maybe_keep_cwl1 >> t_set_dataset_error >> t_join
-    t_maybe_keep_cwl2 >> t_set_dataset_error >> t_join
+    t_maybe_keep_cwl1 >> t_set_dataset_error
+    t_maybe_keep_cwl2 >> t_set_dataset_error
+    t_set_dataset_error >> t_join
     t_join >> t_cleanup_tmpdir
 
 

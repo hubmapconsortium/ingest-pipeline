@@ -61,7 +61,7 @@ with DAG('salmon_rnaseq_10x',
          schedule_interval=None, 
          is_paused_upon_creation=False, 
          default_args=default_args,
-         max_active_runs=1,
+         max_active_runs=4,
          user_defined_macros={'tmp_dir_path' : utils.get_tmp_dir_path}
          ) as dag:
 
@@ -265,6 +265,7 @@ with DAG('salmon_rnaseq_10x',
         task_id='set_dataset_error',
         python_callable=utils.pythonop_set_dataset_state,
         provide_context=True,
+        trigger_rule='one_success',
         op_kwargs = {'dataset_uuid_callable' : get_dataset_uuid,
                      'http_conn_id' : 'ingest_api_connection',
                      'endpoint' : '/datasets/status',
@@ -401,8 +402,9 @@ with DAG('salmon_rnaseq_10x',
      >> t_move_files 
      >> prepare_cwl2 >> t_build_cmd2 >> t_make_arrow1 >> t_make_arrow2 >> t_maybe_keep_cwl2
      >> t_move_data >> t_send_status >> t_join)
-    t_maybe_keep_cwl1 >> t_set_dataset_error >> t_join
-    t_maybe_keep_cwl2 >> t_set_dataset_error >> t_join
+    t_maybe_keep_cwl1 >> t_set_dataset_error
+    t_maybe_keep_cwl2 >> t_set_dataset_error
+    t_set_dataset_error >> t_join
     t_join >> t_cleanup_tmpdir
 
 
