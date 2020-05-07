@@ -10,3 +10,6 @@
 [submodule "src/ingest-pipeline/airflow/dags/cwl/portal-containers"]
 	path = src/ingest-pipeline/airflow/dags/cwl/portal-containers
 	url = git@github.com:hubmapconsortium/portal-containers.git
+[submodule "src/ingest-pipeline/airflow/dags/cwl/salmon-rnaseq"]
+	path = src/ingest-pipeline/airflow/dags/cwl/salmon-rnaseq
+	url = git@github.com:hubmapconsortium/salmon-rnaseq.git
