@@ -42,7 +42,10 @@ with DAG('trig_devtest',
         if 'dag_provenance' in payload:
             payload['dag_provenance'].update(utils.get_git_provenance_dict(__file__))
         else:
-            payload['dag_provenance'] = utils.get_git_provenance_dict(__file__)
+            new_prov = utils.get_git_provenance_list(__file__)
+            if 'dag_provenance_list' in payload:
+                new_prov.extend(payload['dag_provenance_list'])
+            payload['dag_provenance_list'] = new_prov
         yield DagRunOrder(payload=payload)
 
 

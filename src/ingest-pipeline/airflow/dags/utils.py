@@ -47,6 +47,12 @@ GIT_LOG_COMMAND = [
     '--oneline',
     '{fname}',
 ]
+GIT_ORIGIN_COMMAND = [
+    GIT,
+    'config',
+    '--get',
+    'remote.origin.url'
+]
 SHA1SUM_COMMAND = [
     'sha1sum',
     '{fname}'
@@ -131,12 +137,51 @@ def get_git_commits(file_list: List[str] or str):
         return rslt
 
 
+def get_git_origins(file_list: List[str] or str):
+    rslt = []
+    if not isinstance(file_list, list):
+        file_list = [file_list]
+        unroll = True
+    else:
+        unroll = False
+    for fname in file_list:
+        command = [piece.format(fname=fname)
+                   for piece in GIT_ORIGIN_COMMAND]
+        try:
+            dirnm = dirname(fname)
+            if dirnm == '':
+                dirnm = '.'
+            line = check_output(command, cwd=dirnm)
+        except CalledProcessError as e:
+            # Git will fail if this is not running from a git repo
+            line = 'https://unknown/unknown.git git call failed: {}'.format(e.output)
+            line = line.encode('utf-8')
+        url = line.split()[0].strip().decode('utf-8')
+        rslt.append(url)
+    if unroll:
+        return rslt[0]
+    else:
+        return rslt
+
+
 def get_git_provenance_dict(file_list: List[str] or str):
     if not isinstance(file_list, list):
         file_list = [file_list]
     return {basename(fname) : get_git_commits(realpath(fname))
             for fname in file_list}
 
+
+def get_git_provenance_list(file_list: List[str] or str):
+    if not isinstance(file_list, list):
+        file_list = [file_list]
+    name_l = [basename(fname) for fname in file_list]
+    hash_l = [get_git_commits(realpath(fname)) for fname in file_list]
+    origin_l = [get_git_origins(realpath(fname)) for fname in file_list]
+    rslt = [{'name' : name,
+             'hash' : hash,
+             'origin' : origin} for name, hash, origin in zip(name_l, hash_l, origin_l)]
+    #pprint(rslt)
+    return rslt
 
 
 def _get_file_type(path: str):
@@ -368,7 +413,11 @@ def create_dataset_state_error_callback(dataset_uuid_callable):
 set_schema_base_path(SCHEMA_BASE_PATH, SCHEMA_BASE_URI)
 
 def localized_assert_json_matches_schema(jsn, schemafile):
-    return assert_json_matches_schema(jsn, schemafile)  # localized by set_schema_base_path
+    try:
+        return assert_json_matches_schema(jsn, schemafile)  # localized by set_schema_base_path
+    except AssertionError as e:
+        print('ASSERTION FAILED: {}'.format(e))
+        raise
 
 
 def main():
@@ -380,6 +429,15 @@ def main():
         dirnm = '.'
     for elt in get_file_metadata(dirnm):
         print(elt)
+    pprint(get_git_provenance_list(__file__))
+    md = {'metadata' : {'my_string' : 'hello world'},
+          'files' : get_file_metadata(dirnm),
+          'dag_provenance_list' : get_git_provenance_list(__file__)}
+    try:
+        localized_assert_json_matches_schema(md, 'dataset_metadata_schema.yml')
+        print('ASSERT passed')
+    except AssertionError as e:
+        print('ASSERT failed')
  
  
 if __name__ == "__main__":

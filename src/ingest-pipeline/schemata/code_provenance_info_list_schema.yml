@@ -1,0 +1,19 @@
+'$schema': 'http://json-schema.org/schema#'
+'$id': 'http://schemata.hubmapconsortium.org/code_provenance_info_list_schema.yml'
+'title': 'code provenance info list schema'
+'description': 'code provenance info list schema'
+
+'allOf': [{'$ref': '#/definitions/code_provenance_info_list'}]
+
+'definitions':
+
+  'code_provenance_info_record':
+    'type': 'object'
+    'description': 'provenance information for a single file'
+    'properties':
+      'name': {'type': 'string'}
+      'hash': {'type': 'string', 'pattern': '^[a-fA-F0-9]+$'}
+      'origin': {'type': 'string', 'format': 'uri'}
+  'code_provenance_info_list':
+    'type': 'array'
+    'items': {'$ref': '#/definitions/code_provenance_info_record'}
