@@ -375,7 +375,9 @@ def get_tmp_dir_path(run_id):
     """
     Given the run_id, return the path to the dag run's scratch directory
     """
-    return "{}/data/temp/{}".format(environ['AIRFLOW_HOME'], run_id)
+    scratch_path = airflow_conf.as_dict()['connections']['WORKFLOW_SCRATCH']
+    scratch_path = scratch_path.strip("'").strip('"')  # remove quotes that may be on the string
+    return join(scratch_path, run_id)
 
 
 def map_queue_name(raw_queue_name: str):

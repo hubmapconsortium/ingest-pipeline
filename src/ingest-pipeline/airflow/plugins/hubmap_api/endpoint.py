@@ -52,6 +52,7 @@ NEEDED_CONFIGS = [
     ('connections', 'lz_path'),
     ('connections', 'src_path'),
     ('connections', 'output_group_name'),
+    ('connections', 'workflow_scratch'),
     ('core', 'timezone'),
     ]
 
