@@ -12,6 +12,9 @@
         "dag_provenance": {
           "$ref": "code_provenance_info_schema.json#/definitions/code_provenance_info"
         },
+        "dag_provenance_list": {
+          "$ref": "code_provenance_info_list_schema.json#/definitions/code_provenance_info_list"
+        },
         "files": {
           "$ref": "file_info_schema.json#/definitions/file_info"
         },
@@ -22,7 +25,9 @@
       },
       "oneOf": [
         {"required" : ["dag_provenance", "files"]},
-        {"required" : ["dag_provenance", "files_info_alt_path"]}
+        {"required" : ["dag_provenance", "files_info_alt_path"]},
+        {"required" : ["dag_provenance_list", "files"]},
+        {"required" : ["dag_provenance_list", "files_info_alt_path"]}
       ]
     }
   }

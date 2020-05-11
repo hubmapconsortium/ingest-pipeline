@@ -330,19 +330,29 @@ with DAG('salmon_rnaseq_10x',
                         http_conn_id=http_conn_id)
  
         if success:
-            dag_prv = (kwargs['dag_run'].conf['dag_provenance']
-                       if 'dag_provenance' in kwargs['dag_run'].conf
-                       else {})
+            md = {}
             pipeline_base_dir = os.path.join(os.environ['AIRFLOW_HOME'],
                                              'dags', 'cwl')
-            dag_prv.update(utils.get_git_provenance_dict([__file__,
-                                                          os.path.join(pipeline_base_dir,
-                                                                       cwl_workflow1),
-                                                          os.path.join(pipeline_base_dir,
-                                                                       cwl_workflow2)]))
-            file_md = utils.get_file_metadata(ds_dir)
-            md = {'dag_provenance' : dag_prv,
-                  'files' : file_md}
+            if 'dag_provenance' in kwargs['dag_run'].conf:
+                md['dag_provenance'] = kwargs['dag_run'].conf['dag_provenance'].copy()
+                new_prv_dct = utils.get_git_provenance_dict([__file__,
+                                                             os.path.join(pipeline_base_dir,
+                                                                          cwl_workflow1),
+                                                             os.path.join(pipeline_base_dir,
+                                                                          cwl_workflow2)])
+                md['dag_provenance'].update(new_prv_dct)
+            else:
+                dag_prv = (kwargs['dag_run'].conf['dag_provenance_list']
+                           if 'dag_provenance_list' in kwargs['dag_run'].conf
+                           else [])
+                dag_prv.extend(utils.get_git_provenance_list([__file__,
+                                                              os.path.join(pipeline_base_dir,
+                                                                           cwl_workflow1),
+                                                              os.path.join(pipeline_base_dir,
+                                                                           cwl_workflow2)]))
+                md['dag_provenance_list'] = dag_prv
+            md.update(utils.get_file_metadata_dict(ds_dir,
+                                                   utils.get_tmp_dir_path(kwargs['run_id'])))
             try:
                 assert_json_matches_schema(md, 'dataset_metadata_schema.yml')
                 data = {'dataset_id' : derived_dataset_uuid,

@@ -73,8 +73,8 @@ with DAG('scan_and_begin_processing',
                                     'rslt.yml')
             with open(md_fname, 'r') as f:
                 scanned_md = yaml.safe_load(f)
-            dag_prv = utils.get_git_provenance_dict([__file__])
-            md = {'dag_provenance' : dag_prv,
+            dag_prv = utils.get_git_provenance_list([__file__])
+            md = {'dag_provenance_list' : dag_prv,
                   'metadata' : scanned_md}
             md.update(utils.get_file_metadata_dict(ds_dir,
                                                    utils.get_tmp_dir_path(kwargs['run_id'])))

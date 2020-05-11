@@ -11,9 +11,12 @@
      'type': 'object'
      'properties':
         'dag_provenance': {'$ref': 'code_provenance_info_schema.yml#/definitions/code_provenance_info'}
+        'dag_provenance_list': {'$ref': 'code_provenance_info_list_schema.yml#/definitions/code_provenance_info_list'}
         'files': {'$ref': 'file_info_schema.yml#/definitions/file_info'}
         'files_info_alt_path': {'type': 'string'}
      'oneOf':
        - 'required': ['dag_provenance', 'files']
        - 'required': ['dag_provenance', 'files_info_alt_path']
+       - 'required': ['dag_provenance_list', 'files']
+       - 'required': ['dag_provenance_list', 'files_info_alt_path']
     

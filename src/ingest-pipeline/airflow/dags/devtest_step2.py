@@ -227,14 +227,16 @@ with DAG('devtest_step2',
                         http_conn_id=http_conn_id)
  
         if success:
-            dag_prv = (kwargs['dag_run'].conf['dag_provenance']
-                       if 'dag_provenance' in kwargs['dag_run'].conf
-                       else {})
-            pipeline_base_dir = os.path.join(os.environ['AIRFLOW_HOME'],
-                                             'dags', 'cwl')
-            dag_prv.update(utils.get_git_provenance_dict([__file__]))
-            md = {'dag_provenance' : dag_prv,
-                  'metadata' : md_to_return}
+            md = {'metadata' : md_to_return}
+            if 'dag_provenance' in kwargs['dag_run'].conf:
+                md['dag_provenance'] = kwargs['dag_run'].conf['dag_provenance'].copy()
+                md['dag_provenance'].update(utils.get_git_provenance_dict([__file__]))
+            else:
+                dag_prv = (kwargs['dag_run'].conf['dag_provenance_list']
+                           if 'dag_provenance_list' in kwargs['dag_run'].conf
+                           else [])
+                dag_prv.extend(utils.get_git_provenance_list([__file__]))
+                md['dag_provenance_list'] = dag_prv
             md.update(utils.get_file_metadata_dict(ds_dir,
                                                    utils.get_tmp_dir_path(kwargs['run_id'])))
             try:
