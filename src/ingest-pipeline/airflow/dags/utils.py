@@ -221,7 +221,8 @@ def get_file_metadata_dict(root_dir: str, alt_file_dir: str, max_in_line_files :
     """
     This routine returns file metadata, either directly as JSON in the form
     {'files': [{...}, {...}, ...]} with the list returned by get_file_metadata() or the form
-    {'files_info_alt_path': path} where path is the full path of a unique file in alt_file_dir
+    {'files_info_alt_path': path} where path is the path of a unique file in alt_file_dir
+    relative to the WORKFLOW_SCRATCH config parameter
     """
     file_info = get_file_metadata(root_dir)
     if len(file_info) > max_in_line_files:
@@ -229,7 +230,7 @@ def get_file_metadata_dict(root_dir: str, alt_file_dir: str, max_in_line_files :
         fpath = join(alt_file_dir, '{}.json'.format(uuid.uuid4()))
         with open(fpath, 'w') as f:
             json.dump({'files': file_info}, f)
-        return {'files_info_alt_path' : fpath}
+        return {'files_info_alt_path' : relpath(fpath, _get_scratch_base_path())}
     else:
         return {'files' : file_info}
 
@@ -371,13 +372,17 @@ def pythonop_set_dataset_state(**kwargs):
     pprint(response.json())
 
 
+def _get_scratch_base_path():
+    scratch_path = airflow_conf.as_dict()['connections']['WORKFLOW_SCRATCH']
+    scratch_path = scratch_path.strip("'").strip('"')  # remove quotes that may be on the string
+    return scratch_path
+
+
 def get_tmp_dir_path(run_id):
     """
     Given the run_id, return the path to the dag run's scratch directory
     """
-    scratch_path = airflow_conf.as_dict()['connections']['WORKFLOW_SCRATCH']
-    scratch_path = scratch_path.strip("'").strip('"')  # remove quotes that may be on the string
-    return join(scratch_path, run_id)
+    return join(_get_scratch_base_path(), run_id)
 
 
 def map_queue_name(raw_queue_name: str):
