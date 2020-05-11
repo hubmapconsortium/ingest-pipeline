@@ -8,7 +8,6 @@ import re
 import json
 from pprint import pprint
 import uuid
-import time
 
 from airflow.configuration import conf as airflow_conf
 
@@ -230,7 +229,6 @@ def get_file_metadata_dict(root_dir: str, alt_file_dir: str, max_in_line_files :
         fpath = join(alt_file_dir, '{}.json'.format(uuid.uuid4()))
         with open(fpath, 'w') as f:
             json.dump({'files': file_info}, f)
-        time.sleep(5) # delay to minimize latency problems on parallel filesystem
         return {'files_info_alt_path' : fpath}
     else:
         return {'files' : file_info}
