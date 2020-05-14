@@ -139,7 +139,8 @@ class RNASEQ10XDataCollection(DataCollection):
             if elt != experiment_md:
                 raise MetadataError("Multiple README.csv files that do not match")
 
-        self.internal_consistency_checks(rslt, readme_md)
+        # Disable internal consistency checks because we trust metadata.tsv
+        #self.internal_consistency_checks(rslt, readme_md)
 
         rslt['other_metadata'] = readme_md
             
