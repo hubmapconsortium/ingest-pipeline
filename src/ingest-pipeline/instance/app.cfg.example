@@ -21,6 +21,9 @@ LZ_PATH = '/hive/hubmap/lz/{provider}/{submission_id}'
 # Path to src/ingest-pipeline directory as seen by airflow
 SRC_PATH = '/usr/src/app/src'
 
+# Path to temporary storage for workflow as seen by airflow
+WORKFLOW_SCRATCH = '/hive/hubmap/scratch'
+
 # Group to which output directories are set, typically shared with Globus
 OUTPUT_GROUP_NAME = 'dataaccessgroup'
 

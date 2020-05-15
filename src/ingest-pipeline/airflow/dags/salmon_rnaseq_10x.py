@@ -206,17 +206,6 @@ with DAG('salmon_rnaseq_10x',
         provide_context=True
     )
 
-    t_make_arrow2 = BashOperator(
-        task_id='make_arrow2',
-        bash_command=""" \
-        tmp_dir={{tmp_dir_path(run_id)}} ; \
-        ds_dir="{{ti.xcom_pull(task_ids="send_create_dataset")}}" ; \
-        cd "$tmp_dir"/cwl_out/dim_reduced_clustered ;\
-        {{ti.xcom_pull(task_ids='build_cmd2')}} >> $tmp_dir/session.log 2>&1 ; \
-        echo $?
-        """
-    )
-
     t_maybe_keep_cwl1 = BranchPythonOperator(
         task_id='maybe_keep_cwl1',
         python_callable=utils.pythonop_maybe_keep,
@@ -233,7 +222,7 @@ with DAG('salmon_rnaseq_10x',
         provide_context=True,
         op_kwargs = {'next_op' : 'move_data',
                      'bail_op' : 'set_dataset_error',
-                     'test_op' : 'make_arrow2'}
+                     'test_op' : 'make_arrow1'}
         )
 
     t_join = DummyOperator(
@@ -299,8 +288,6 @@ with DAG('salmon_rnaseq_10x',
         cd "$tmp_dir"/cwl_out ; \
         mkdir cluster-marker-genes ; \
         mv cluster_marker_genes.h5ad cluster-marker-genes ; \
-        mkdir dim_reduced_clustered ; \
-        mv dim_reduced_clustered.h5ad dim_reduced_clustered ; \
         echo $?
         """,
         provide_context=True
@@ -308,7 +295,7 @@ with DAG('salmon_rnaseq_10x',
 
 
     def send_status_msg(**kwargs):
-        retcode_ops = ['pipeline_exec', 'move_data', 'make_arrow1', 'make_arrow2']
+        retcode_ops = ['pipeline_exec', 'move_data', 'make_arrow1']
         retcodes = [int(kwargs['ti'].xcom_pull(task_ids=op))
                     for op in retcode_ops]
         print('retcodes: ', {k:v for k, v in zip(retcode_ops, retcodes)})
@@ -410,7 +397,7 @@ with DAG('salmon_rnaseq_10x',
      >> t_send_create_dataset >> t_set_dataset_processing
      >> prepare_cwl1 >> t_build_cmd1 >> t_pipeline_exec >> t_maybe_keep_cwl1
      >> t_move_files 
-     >> prepare_cwl2 >> t_build_cmd2 >> t_make_arrow1 >> t_make_arrow2 >> t_maybe_keep_cwl2
+     >> prepare_cwl2 >> t_build_cmd2 >> t_make_arrow1 >> t_maybe_keep_cwl2
      >> t_move_data >> t_send_status >> t_join)
     t_maybe_keep_cwl1 >> t_set_dataset_error
     t_maybe_keep_cwl2 >> t_set_dataset_error

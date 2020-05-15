@@ -76,8 +76,9 @@ with DAG('scan_and_begin_processing',
             dag_prv = utils.get_git_provenance_list([__file__])
             md = {'dag_provenance_list' : dag_prv,
                   'metadata' : scanned_md}
-            md.update(utils.get_file_metadata_dict(ds_dir,
-                                                   utils.get_tmp_dir_path(kwargs['run_id'])))
+            # Inclusion of files information in this message is getting disabled due to size
+            #md.update(utils.get_file_metadata_dict(ds_dir,
+            #                                       utils.get_tmp_dir_path(kwargs['run_id'])))
             try:
                 assert_json_matches_schema(md, 'dataset_metadata_schema.yml')
                 data = {'dataset_id' : ctx['submission_id'],

@@ -55,8 +55,9 @@ class StanfordCODEXDataCollection(AkoyaCODEXDataCollection):
                  ("execution_datetime", "date", datetime),
                  #("acquisition_instrument_model", "codex_instrument", str),
                  ]
-        self.internal_consistency_checks(rslt, raw_metadata[expt_json_path], tests,
-                                         None)  #raw_metadata[channel_names_pth])
+        # Disable internal consistency checks because we trust metadata.tsv
+        #self.internal_consistency_checks(rslt, raw_metadata[expt_json_path], tests,
+        #                                 None)  #raw_metadata[channel_names_pth])
 #         if 'other_meta' in rslt and 'hande_components' in rslt['other_meta']:
 #             del rslt['other_meta']['hande_components']
 

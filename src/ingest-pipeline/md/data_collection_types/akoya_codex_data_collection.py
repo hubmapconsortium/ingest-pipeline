@@ -221,7 +221,8 @@ class AkoyaCODEXDataCollection(DataCollection):
                  ]
         if 'channelNames' not in experiment_md or 'channelNamesArray' not in experiment_md['channelNames']:
             raise MetadataError('experiment.json is missing expected element channelNamesArray')
-        self.internal_consistency_checks(rslt, experiment_md, tests, experiment_md['channelNames']['channelNamesArray'])
+        # disable internal consistency checks because we trust metadata.tsv
+        #self.internal_consistency_checks(rslt, experiment_md, tests, experiment_md['channelNames']['channelNamesArray'])
 
         return rslt
             
