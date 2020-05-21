@@ -429,6 +429,8 @@ def localized_assert_json_matches_schema(jsn, schemafile):
 
 
 def downstream_workflow_iter(collectiontype, assay_type):
+    collectiontype = collectiontype or ''
+    assay_type = assay_type or ''
     map_path = join(dirname(__file__), 'workflow_map.yml')
     with open(map_path, 'r') as f:
         map = yaml.safe_load(f)
