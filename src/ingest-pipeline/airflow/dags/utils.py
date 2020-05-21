@@ -8,6 +8,7 @@ import re
 import json
 from pprint import pprint
 import uuid
+import yaml
 
 from airflow.configuration import conf as airflow_conf
 
@@ -427,6 +428,18 @@ def localized_assert_json_matches_schema(jsn, schemafile):
         raise
 
 
+def downstream_workflow_iter(collectiontype, assay_type):
+    map_path = join(dirname(__file__), 'workflow_map.yml')
+    with open(map_path, 'r') as f:
+        map = yaml.safe_load(f)
+    for dct in map['workflow_map']:
+        ct_re = re.compile(dct['collection_type'])
+        at_re = re.compile(dct['assay_type'])
+        if ct_re.match(collectiontype) and at_re.match(assay_type):
+            yield dct['workflow']
+
+
+
 def main():
     print(__file__)
     print(get_git_commits([__file__]))
@@ -445,6 +458,13 @@ def main():
         print('ASSERT passed')
     except AssertionError as e:
         print('ASSERT failed')
+    
+    assay_pairs = [('devtest', 'devtest'), ('codex', 'CODEX'),
+                   ('codex', 'SOMEOTHER'), ('someother', 'CODEX')]
+    for collectiontype, assay_type in assay_pairs:
+        print('collectiontype {}, assay_type {}:'.format(collectiontype, assay_type))
+        for elt in downstream_workflow_iter(collectiontype, assay_type):
+            print('  -> {}'.format(elt))
  
  
 if __name__ == "__main__":
