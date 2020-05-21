@@ -16,6 +16,7 @@ from data_collection import DataCollection
 
 class MetadataTSVDataCollection(DataCollection):
     category_name = 'METADATATSV';
+    match_priority = 1.0 # >= 0.0; higher is better
     top_target = None
     dir_regex = None
 

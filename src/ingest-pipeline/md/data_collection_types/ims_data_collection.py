@@ -7,7 +7,8 @@ import glob
 from data_collection import DataCollection
 
 class IMSDataCollection(DataCollection):
-    category_name = 'IMS';
+    category_name = 'IMS'
+    match_priority = 1.0 # >= 0.0; higher is better    
 
     # expected_file pairs are (globable name, filetype key)
     expected_files = [('*-spatial_meta.txt',

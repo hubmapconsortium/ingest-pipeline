@@ -10,7 +10,8 @@ from type_base import MetadataError
 from data_collection import DataCollection
 
 class RNASEQ10XDataCollection(DataCollection):
-    category_name = 'RNASEQ10X';
+    category_name = 'RNASEQ10X'
+    match_priority = 1.0 # >= 0.0; higher is better
     top_target = 'README.csv'
     dir_regex = re.compile('raw_.*')
 

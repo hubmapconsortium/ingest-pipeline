@@ -1,0 +1,12 @@
+workflow_map:
+  - 'collection_type': 'devtest'
+    'assay_type': '.*'
+    'workflow': 'devtest_step2'
+  - 'collection_type': 'rnaseq_10x'
+    'assay_type': 'scRNAseq-10xGenomics'
+    'workflow': 'salmon_rnaseq_10x'
+  - 'collection_type': 'codex'
+    'assay_type': 'CODEX'
+    'workflow': 'codex_cytokit'
+
+  

@@ -12,7 +12,8 @@ from pprint import pprint
 from data_collection import DataCollection
 
 class DEVTESTDataCollection(DataCollection):
-    category_name = 'DEVTEST';
+    category_name = 'DEVTEST'
+    match_priority = 1.0 # >= 0.0; higher is better
 
     # expected_file pairs are (globable name, filetype key)
     expected_files = [('test.yml', "YAML"),

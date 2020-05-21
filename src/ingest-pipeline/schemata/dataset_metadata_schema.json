@@ -24,10 +24,8 @@
         }
       },
       "oneOf": [
-        {"required" : ["dag_provenance", "files"]},
-        {"required" : ["dag_provenance", "files_info_alt_path"]},
-        {"required" : ["dag_provenance_list", "files"]},
-        {"required" : ["dag_provenance_list", "files_info_alt_path"]}
+        {"required" : ["dag_provenance"]},
+        {"required" : ["dag_provenance_list"]}
       ]
     }
   }

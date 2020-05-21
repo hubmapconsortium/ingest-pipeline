@@ -11,7 +11,8 @@ _MD_TYPE_TBL = None  # lazy initialization
 
 
 class DataCollection(object):
-    category_name = 'Base';
+    category_name = 'Base'
+    match_priority = -1.0 # normally >= 0.0, higher is better
     
     @classmethod
     def test_match(cls, path):

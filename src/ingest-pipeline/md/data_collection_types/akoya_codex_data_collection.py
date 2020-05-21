@@ -67,7 +67,8 @@ def close_enough_match(v1, v2, tp):
 
 
 class AkoyaCODEXDataCollection(DataCollection):
-    category_name = 'AKOYA_CODEX';
+    category_name = 'AKOYA_CODEX'
+    match_priority = 1.0 # >= 0.0; higher is better
     top_target = 'experiment.json'
     dir_regex = re.compile('src_.*')
 

@@ -11,7 +11,8 @@ from data_collection import DataCollection
 from .akoya_codex_data_collection import AkoyaCODEXDataCollection
 
 class StanfordCODEXDataCollection(AkoyaCODEXDataCollection):
-    category_name = 'STANFORD_CODEX';
+    category_name = 'STANFORD_CODEX'
+    match_priority = 1.0 # >= 0.0; higher is better
     top_target = 'processingOptions.json'
     dir_regex = re.compile('.*')
 
