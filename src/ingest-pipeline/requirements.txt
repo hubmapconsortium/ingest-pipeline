@@ -1,4 +1,4 @@
-git+git://github.com/hubmapconsortium/commons.git@feature/schema_tools_optional_arguments#egg=hubmap-commons
+git+git://github.com/hubmapconsortium/commons.git@master#egg=hubmap-commons
 prov==1.5.1
 pylibczi>=1.1.1
 xmltodict>=0.12.0
