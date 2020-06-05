@@ -1,0 +1,15 @@
+[submodule "src/ingest-pipeline/airflow/cwltool"]
+	path = src/ingest-pipeline/airflow/cwltool
+	url = git@github.com:hubmapconsortium/cwltool.git
+[submodule "src/ingest-pipeline/airflow/dags/cwl/codex-pipeline"]
+	path = src/ingest-pipeline/airflow/dags/cwl/codex-pipeline
+	url = git@github.com:hubmapconsortium/codex-pipeline.git
+[submodule "src/ingest-pipeline/submodules/ingest-validation-tools"]
+	path = src/ingest-pipeline/submodules/ingest-validation-tools
+	url = git@github.com:hubmapconsortium/ingest-validation-tools.git
+[submodule "src/ingest-pipeline/airflow/dags/cwl/portal-containers"]
+	path = src/ingest-pipeline/airflow/dags/cwl/portal-containers
+	url = git@github.com:hubmapconsortium/portal-containers.git
+[submodule "src/ingest-pipeline/airflow/dags/cwl/salmon-rnaseq"]
+	path = src/ingest-pipeline/airflow/dags/cwl/salmon-rnaseq
+	url = git@github.com:hubmapconsortium/salmon-rnaseq.git

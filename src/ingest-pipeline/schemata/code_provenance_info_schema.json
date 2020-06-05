@@ -1,0 +1,19 @@
+{
+  "$schema": "http://json-schema.org/schema#",
+  "$id": "http://schemata.hubmapconsortium.org/code_provenance_info_schema.json",
+  "title": "code provenance info schema",
+  "description": "code provenance info schema",
+  "allOf":[{"$ref": "#/definitions/code_provenance_info"}],
+  "definitions": {
+    "code_provenance_info": {
+      "type": "object",
+      "description": "a list of filenames and the git hashes of the versions used",
+      "patternProperties": {
+        "^[^/]+$": {
+          "type": "string",
+          "pattern": "^[a-fA-F0-9]+$"
+        }
+      }
+    }
+  }
+}

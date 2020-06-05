@@ -76,7 +76,7 @@ with DAG('test_ingest_vanderbilt',
         print('md_extract_retcode: ', md_extract_retcode)
         http_conn_id='ingest_api_connection'
         endpoint='/datasets/status'
-        method='POST'
+        method='PUT'
         headers={
             #'authorization' : 'Bearer ' + kwargs['params']['auth_tok'],
                  'content-type' : 'application/json'}
@@ -94,9 +94,8 @@ with DAG('test_ingest_vanderbilt',
                                     'rslt.yml')
             with open(md_fname, 'r') as f:
                 md = yaml.safe_load(f)
-            data = {'ingest_id' : kwargs['run_id'],
-                    #'ingest_id' : kwargs['dag_run'].conf['ingest_id'],
-                    'status' : 'success',
+            data = {'dataset_id' : kwargs['dag_run'].conf['submission_id'],
+                    'status' : 'QA',
                     'message' : 'the process ran',
                     'metadata': md}
         else:
@@ -107,7 +106,7 @@ with DAG('test_ingest_vanderbilt',
                 err_txt = '\n'.join(f.readlines())
             data = {'ingest_id' : kwargs['run_id'],
                     #'ingest_id' : kwargs['dag_run'].conf['ingest_id'],
-                    'status' : 'failure',
+                    'status' : 'Invalid',
                     'message' : err_txt}
         print('data: ', data)
         # print("Calling HTTP method")
@@ -179,15 +178,6 @@ with DAG('test_ingest_vanderbilt',
     #     python_callable=send_status_msg
     #     )
 
-#     t3 = SimpleHttpOperator(
-#         task_id='pass_md_to_REST',
-#         http_conn_id='ingest_api_connection',
-#         endpoint='/datasets/status',
-#         method='POST',
-#         data=build_status_msg()
-#         #data=json.dumps({'ingest_id':}),
-#         log_response=True
-#         )
 
     dag >> t0 >> t1 >> t_create_tmpdir >> t_run_md_extract >> t_send_status >> t_cleanup_tmpdir
 

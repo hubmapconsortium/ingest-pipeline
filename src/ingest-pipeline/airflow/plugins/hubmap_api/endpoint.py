@@ -18,7 +18,7 @@ from sqlalchemy import or_
 from airflow import settings
 from airflow.exceptions import AirflowException, AirflowConfigException
 from airflow.www.app import csrf
-from airflow.models import DagBag, DagRun, Variable
+from airflow.models import DagBag, DagRun, Connection
 from airflow.utils import timezone
 from airflow.utils.dates import date_range as utils_date_range
 from airflow.utils.state import State
@@ -31,41 +31,70 @@ from hubmap_api.manager import show_template
 from hubmap_commons.hm_auth import AuthHelper, AuthCache, secured
 #from hubmap_api.hm_auth import AuthHelper, AuthCache, secured
 
-API_VERSION = 1
+API_VERSION = 2
 
 LOGGER = logging.getLogger(__name__)
 
 airflow_conf.read(os.path.join(os.environ['AIRFLOW_HOME'], 'instance', 'app.cfg'))
 
-"""
-Potentially helpful code for creating a connection
+# Tables of configuration elements needed at start-up.
+# Config elements must be lowercase
+NEEDED_ENV_VARS = [
+    'AIRFLOW_CONN_INGEST_API_CONNECTION',
+    ]
+NEEDED_CONFIG_SECTIONS = [
+    'ingest_map',
+    ]
+NEEDED_CONFIGS = [
+    ('hubmap_api_plugin', 'build_number'),
+    ('connections', 'app_client_id'),
+    ('connections', 'app_client_secret'),
+    ('connections', 'lz_path'),
+    ('connections', 'src_path'),
+    ('connections', 'output_group_name'),
+    ('connections', 'workflow_scratch'),
+    ('core', 'timezone'),
+    ]
 
-from airflow import settings
-from airflow.models import Connection
-conn = Connection(
-        conn_id=conn_id,
-        conn_type=conn_type,
-        host=host,
-        login=login,
-        password=password,
-        port=port
-) #create a connection object
-session = settings.Session() # get the session
-session.add(conn)
-session.commit() # it will insert the connection object programmatically.
-"""
+def check_config():
+    # Check for needed configuration elements, since it's better to fail early
+    dct = airflow_conf.as_dict()
+    failed = 0
+    for elt in NEEDED_ENV_VARS:
+        if elt not in os.environ:
+            LOGGER.error('The environment variable {} is not set'.format(elt))
+            failed += 1
+    for key in NEEDED_CONFIG_SECTIONS + [a for a, b in NEEDED_CONFIGS]:
+        if not (key in dct or key.upper() in dct):
+            LOGGER.error('The configuration section {} does not exist'.format(key))
+            failed += 1
+    for key1, key2 in NEEDED_CONFIGS:
+        sub_dct = dct[key1] if key1 in dct else dct[key1.upper()]
+        if not (key2 in sub_dct or key2.upper() in sub_dct):
+            LOGGER.error('The configuration parameter [{}] {} does not exist'.format(key1, key2))
+            failed += 1
+    assert failed == 0, 'ingest-pipeline plugin found {} configuration errors'.format(failed)
+check_config()
+
 
 def config(section, key):
     dct = airflow_conf.as_dict()
-    if section in dct and key in dct[section]:
-        rslt = dct[section][key]
+    if section in dct:
+        if key in dct[section]:
+            rslt = dct[section][key]
+        elif key.lower() in dct[section]:
+            rslt = dct[section][key.lower()]
+        elif key.upper() in dct[section]:
+            rslt = dct[section][key.upper()]
+        else:
+            raise AirflowConfigException('No config entry for [{}] {}'.format(section, key))
         # airflow config reader leaves quotes, which we want to strip
         for qc in ['"', "'"]:
             if rslt.startswith(qc) and rslt.endswith(qc):
                 rslt = rslt.strip(qc)
         return rslt
     else:
-        raise AirflowConfigException('No config entry for [{}] {}'.format(section, key))
+        raise AirflowConfigException('No config section [{}]'.format(section))
 
 
 AUTH_HELPER = None
@@ -182,46 +211,39 @@ def _get_required_string(data, st):
         raise HubmapApiInputException(st)
 
 
-def get_request_ingest_reply_parms(provider, submission_id, process):
+def check_ingest_parms(provider, submission_id, process):
     """
-    This routine finds and returns the response parameters required by the request_ingest message,
-    as an ordered tuple.  The input parameters correspond to the values in the request_ingest request.
+    This routine performs consistency checks on the parameters of an ingest request.
+    On error, HubmapApiInputException is raised.
+    Return value is None.
     """
     if process.startswith('mock.'):
         # test request; there should be pre-recorded response data
-        yml_path = os.path.join(os.path.dirname(__file__),
-                                '../../data/mock_data/',
+        here_dir = os.path.dirname(os.path.resolve(__file__))
+        yml_path = os.path.join(here_dir,'../../dags/mock_data/',
                                 process + '.yml')
         try:
             with open(yml_path, 'r') as f:
                 mock_data = yaml.safe_load(f)
-                overall_file_count = mock_data['request_ingest_response']['overall_file_count']
-                top_folder_contents = mock_data['request_ingest_response']['top_folder_contents']
+        except yaml.YamlError as e:
+            LOGGER.error('mock data contains invalid YAML: {}'.format(e))
+            raise HubmapApiInputException('Mock data is invalid YAML for process %s', process)
         except IOError as e:
             LOGGER.error('mock data load failed: {}'.format(e))
             raise HubmapApiInputException('No mock data found for process %s', process)
     else:
-        #dct = {'provider' : provider, 'submission_id' : submission_id, 'process' : process}
-        dct = {'provider' : 'Vanderbilt TMC', 'submission_id' : 'VAN0001-RK-1-21_24', 'process' : process}
+        dct = {'provider' : provider, 'submission_id' : submission_id, 'process' : process}
         lz_path = config('connections', 'lz_path').format(**dct)
         if os.path.exists(lz_path) and os.path.isdir(lz_path):
-            n_files = 0
-            top_folder_contents = None
-            for root, subdirs, files in os.walk(lz_path):
-                if root == lz_path:
-                    top_folder_contents = (subdirs + files)[:]
-                n_files += len(files)
-            assert top_folder_contents is not None, 'internal error using os.walk?'
-            overall_file_count = n_files
+            if not len(os.listdir(lz_path)):
+                LOGGER.error("Ingest directory {} contains no files".format(lz_path))
+                raise HubmapApiInputException("Ingest directory contains no files")
         else:
-            LOGGER.error("cannot find the ingest data for '%s' '%s '%s' (expected %s)"
+            LOGGER.error("cannot find the ingest data for '%s' '%s' '%s' (expected %s)"
                          % (provider, submission_id, process, lz_path))
             raise HubmapApiInputException("Cannot find the expected ingest directory for '%s' '%s' '%s'"
                                           % (provider, submission_id, process))
     
-    LOGGER.info('get_request_ingest_reply_parms returning {} {}'.format(overall_file_count, top_folder_contents))
-    return overall_file_count, top_folder_contents
-
 
 """
 Parameters for this request (all required)
@@ -235,8 +257,6 @@ Parameters included in the response:
 Key        Type    Description
 ingest_id  string  Unique ID string to be used in references to this request
 run_id     string  The identifier by which the ingest run is known to Airflow
-overall_file_count  int  Total number of files and directories in submission
-top_folder_contents list list of all files and directories in the top level folder
 """
 @csrf.exempt
 @api_bp.route('/request_ingest', methods=['POST'])
@@ -245,10 +265,14 @@ def request_ingest():
     authorization = request.headers.get('authorization')
     LOGGER.info('top of request_ingest: AUTH %s', authorization)
     assert authorization[:len('BEARER')].lower() == 'bearer', 'authorization is not BEARER'
-    auth_dct = ast.literal_eval(authorization[len('BEARER'):].strip())
-    LOGGER.info('auth_dct: %s', auth_dct)
-    assert 'nexus_token' in auth_dct, 'authorization has no nexus_token'
-    auth_tok = auth_dct['nexus_token']
+    substr = authorization[len('BEARER'):].strip()
+    if 'nexus' in substr:
+        auth_dct = ast.literal_eval(authorization[len('BEARER'):].strip())
+        LOGGER.info('auth_dct: %s', auth_dct)
+        assert 'nexus_token' in auth_dct, 'authorization has no nexus_token'
+        auth_tok = auth_dct['nexus_token']
+    else:
+        auth_tok = substr
     LOGGER.info('auth_tok: %s', auth_tok)
   
     # decode input
@@ -269,15 +293,18 @@ def request_ingest():
     except HubmapApiConfigException:
         return HubmapApiResponse.bad_request('{} is not a known ingestion process'.format(process))
     
-    overall_file_count, top_folder_contents = get_request_ingest_reply_parms(provider, submission_id,
-                                                                             process)
-    
     try:
+        check_ingest_parms(provider, submission_id, process)
+    
         session = settings.Session()
 
         dagbag = DagBag('dags')
  
         if dag_id not in dagbag.dags:
+            LOGGER.warning('Requested dag {} not among {}'.format(dag_id,
+                                                                  [did for did
+                                                                   in dagbag.dags]))
+            LOGGER.warning('Dag dir full path {}'.os.path.abspath('dags'))
             return HubmapApiResponse.not_found("Dag id {} not found".format(dag_id))
  
         dag = dagbag.get_dag(dag_id)
@@ -285,7 +312,8 @@ def request_ingest():
         # Produce one and only one run
         tz = pytz.timezone(config('core', 'timezone'))
         execution_date = datetime.now(tz)
-        LOGGER.info('execution_date: {}'.format(execution_date))
+        LOGGER.info('starting {} with execution_date: {}'.format(dag_id,
+                                                                 execution_date))
 
         run_id = '{}_{}_{}'.format(submission_id, process, execution_date.isoformat())
         ingest_id = run_id
@@ -296,18 +324,20 @@ def request_ingest():
                 'dag_id': dag_id,
                 'run_id': run_id,
                 'ingest_id': ingest_id,
-                'auth_tok': auth_tok
+                'auth_tok': auth_tok,
+                'src_path': config('connections', 'src_path')
                 }
+        conf['lz_path'] = config('connections', 'lz_path').format(**conf)
 
         if find_dag_runs(session, dag_id, run_id, execution_date):
             # The run already happened??
-            return HubmapAPIResponse.server_error('The request happened twice?')
+            raise AirflowException('The request happened twice?')
 
         try:
             dr = trigger_dag.trigger_dag(dag_id, run_id, conf, execution_date=execution_date)
         except AirflowException as err:
             LOGGER.error(err)
-            return HubmapApiResponse.server_error("Attempt to trigger run produced an error: {}".format(err))
+            raise AirflowException("Attempt to trigger run produced an error: {}".format(err))
         LOGGER.info('dagrun follows: {}'.format(dr))
 
 #             dag.create_dagrun(
@@ -330,9 +360,7 @@ def request_ingest():
         return HubmapApiResponse.server_error(str(e))
 
     return HubmapApiResponse.success({'ingest_id': ingest_id,
-                                      'run_id': run_id,
-                                      'overall_file_count': overall_file_count,
-                                      'top_folder_contents': top_folder_contents})
+                                      'run_id': run_id})
 
 """
 Parameters for this request: None

@@ -1,0 +1,47 @@
+{
+  "$schema": "http://json-schema.org/schema#",
+  "$id": "http://schemata.hubmapconsortium.org/enumerated_types_schema.yml",
+  "title": "enumerated types schema",
+  "description": "enumerated types schema",
+  "definitions": {
+    "file_type": {
+      "type": "string",
+      "enum": [
+        "unknown",
+        "hdf5",
+        "h5ad",
+        "pdf",
+        "json",
+        "arrow",
+        "csv",
+        "fastq"
+      ]
+    },
+    "pipeline_type": {
+      "type": "string",
+      "enum": [
+        "salmon_rnaseq_10x"
+      ]
+    },
+    "dataset_data_type": {
+      "type": "string",
+      "enum": [
+        "rnaseq_10x",
+        "salmon_rnaseq_10x"
+      ]
+    },
+    "enumerated_types": {
+      "oneOf": [
+        {
+          "$ref": "#/definitions/file_type"
+        },
+        {
+          "$ref": "#/definitions/pipeline_type"
+        },
+        {
+          "$ref": "#/definitions/dataset_data_type"
+        }
+      ]
+    }
+  }
+}

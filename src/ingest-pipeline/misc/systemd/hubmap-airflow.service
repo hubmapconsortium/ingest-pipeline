@@ -1,0 +1,16 @@
+# A wrapper service for the several components of HuBMAP Airflow
+# Structured like http://alesnosek.com/blog/2016/12/04/controlling-a-multi-service-application-with-systemd/
+# by Ales Nosek
+
+[Unit]
+Description=Wrapper to control the component services of the HuBMAP Airflow pipeline
+
+[Service]
+User=hive
+Group=hive
+Type=oneshot
+ExecStart=/bin/true
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

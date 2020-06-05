@@ -1,0 +1,3 @@
+input_directory:
+  class: Directory
+  path: test-input

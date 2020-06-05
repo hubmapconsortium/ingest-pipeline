@@ -7,7 +7,8 @@ import glob
 from data_collection import DataCollection
 
 class IMSDataCollection(DataCollection):
-    category_name = 'IMS';
+    category_name = 'IMS'
+    match_priority = 1.0 # >= 0.0; higher is better    
 
     # expected_file pairs are (globable name, filetype key)
     expected_files = [('*-spatial_meta.txt',
@@ -52,6 +53,8 @@ class IMSDataCollection(DataCollection):
                        "OME_TIFF"),
                       ]
     
+    optional_files = []
+    
     @classmethod
     def test_match(cls, path):
         """
@@ -74,7 +77,7 @@ class IMSDataCollection(DataCollection):
     def collect_metadata(self):
         rslt = {}
         md_type_tbl = self.get_md_type_tbl()
-        for match, md_type in type(self).expected_files:
+        for match, md_type in self.expected_files + self.optional_files:
             #print('collect match %s' % match)
             for fpath in glob.iglob(os.path.join(self.topdir, match)):
                 #print('collect from path %s' % fpath)

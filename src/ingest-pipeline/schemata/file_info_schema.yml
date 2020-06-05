@@ -1,0 +1,20 @@
+'$schema': 'http://json-schema.org/schema#'
+'$id': 'http://schemata.hubmapconsortium.org/file_info_schema.yml'
+'title': 'file info schema'
+'description': 'file info schema'
+
+'allOf': [{'$ref': '#/definitions/file_info'}]
+
+'definitions':
+
+  'file_info_record':
+     'type': 'object'
+     'properties':
+        'rel_path': {'type': 'string', 'pattern': '^[^/].+[^/]$'}
+        'filetype': {'$ref': 'enumerated_types_schema.yml#/definitions/file_type'}
+        'size': {'type': 'integer', 'minimum': 0}
+        #'sha1sum': {'type': 'string', 'pattern': '^[a-fA-F0-9]{40}$'}
+  'file_info':
+    'type': 'array'
+    'items': {'$ref': '#/definitions/file_info_record'}
+     

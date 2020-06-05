@@ -9,19 +9,16 @@ import yaml
 from type_base import MetadataError
 from data_collection import DataCollection
 import data_collection_types
-
-DEFAULT_SCHEMA = 'metadata_schema.yml'
+from hubmap_commons.schema_tools import assert_json_matches_schema, set_schema_base_path
 
 _KNOWN_DATA_COLLECTION_TYPES = None
 
+DEFAULT_SCHEMA = 'datacollection_metadata_schema.yml'
+SCHEMA_BASE_PATH = os.path.join(os.path.dirname(os.path.realpath(os.path.dirname(__file__))),
+                                'schemata')
+SCHEMA_BASE_URI = 'http://schemata.hubmapconsortium.org/'
+set_schema_base_path(SCHEMA_BASE_PATH, SCHEMA_BASE_URI)
 
-def check_schema(jsn, schema_fname):
-    """
-    Check the given json data against the jsonschema in the given schema file,
-    raising an exception on error.
-    """
-    pass
-    
 
 def scan(target_dir, out_fname, schema_fname, yaml_flag=False):
     global _KNOWN_DATA_COLLECTION_TYPES
@@ -31,7 +28,9 @@ def scan(target_dir, out_fname, schema_fname, yaml_flag=False):
         for nm in dir(data_collection_types):
             elt = getattr(data_collection_types, nm)
             if isinstance(elt, type) and issubclass(elt, DataCollection):
-                lst.append(elt)
+                lst.append((elt.match_priority, elt.category_name, elt))
+        lst.sort(reverse=True)
+        lst = [c for a, b, c in lst]
         _KNOWN_DATA_COLLECTION_TYPES = lst
 
     for collection_type in _KNOWN_DATA_COLLECTION_TYPES:
@@ -45,7 +44,7 @@ def scan(target_dir, out_fname, schema_fname, yaml_flag=False):
     else:
         raise MetadataError('%s does not match any known data collection type'
                             % target_dir)
-    check_schema(metadata, schema_fname)
+    assert_json_matches_schema(metadata, schema_fname)
     if yaml_flag:
         with sys.stdout if out_fname is None else open(out_fname, 'w') as f:
             yaml.dump(metadata, f)
@@ -58,7 +57,8 @@ def main(myargv=None):
     if myargv is None:
         myargv = sys.argv
 
-    default_schema_path = os.path.join(os.path.dirname(__file__), '../schemata/', DEFAULT_SCHEMA)
+    #default_schema_path = os.path.join(os.path.dirname(__file__), '../schemata/', DEFAULT_SCHEMA)
+    default_schema_path = DEFAULT_SCHEMA  # trust the schema tools to know where to look
 
     parser = argparse.ArgumentParser(description='Scan a directory tree of data'
                                      ' files and extract metadata');

@@ -1,0 +1,33 @@
+'$schema': 'http://json-schema.org/schema#'
+'$id': 'http://schemata.hubmapconsortium.org/workflow_map_schema.yml'
+'title': 'workflow map schema'
+'description': 'workflow map schema'
+
+'allOf': [{'$ref': '#/definitions/workflow_map_wrapper'}]
+
+'definitions':
+
+  'workflow_map_record':
+     'type': 'object'
+     'properties':
+        'collection_type': {
+          'type': 'string',
+          'description': 'a data collection type, e.g. "rnaseq_10x"'
+        }
+        'assay_type': {
+          'type': 'string',
+          'description': 'an assay type, e.g. "scRNAseq-10xGenomics"'
+        }
+        'workflow': {
+          'type': 'string',
+          'description': 'name of a downstream workflow, e.g. "salmon_rnaseq_10x"'
+        }
+  'workflow_map':
+    'type': 'array'
+    'items': {'$ref': '#/definitions/workflow_map_record'}
+  'workflow_map_wrapper':  # to avoid exposing array at top level of JSON object
+    'type': 'object'
+    'properties':
+      'workflow_map': {'$ref': '#/definitions/workflow_map'}
+    'required': ['workflow_map']
+    

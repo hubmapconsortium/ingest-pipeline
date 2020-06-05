@@ -35,7 +35,7 @@ with DAG('ingest_vanderbilt',
         print('md_extract_retcode: ', md_extract_retcode)
         http_conn_id='ingest_api_connection'
         endpoint='/datasets/status'
-        method='POST'
+        method='PUT'
         headers={
             #'authorization' : 'Bearer ' + kwargs['params']['auth_tok'],
                  'content-type' : 'application/json'}
@@ -53,8 +53,8 @@ with DAG('ingest_vanderbilt',
                                     'rslt.yml')
             with open(md_fname, 'r') as f:
                 md = yaml.safe_load(f)
-            data = {'ingest_id' : kwargs['dag_run'].conf['ingest_id'],
-                    'status' : 'success',
+            data = {'dataset_id' : kwargs['dag_run'].conf['submission_id'],
+                    'status' : 'QA',
                     'message' : 'the process ran',
                     'metadata': md}
         else:
@@ -63,8 +63,8 @@ with DAG('ingest_vanderbilt',
                                      'session.log')
             with open(log_fname, 'r') as f:
                 err_txt = '\n'.join(f.readlines())
-            data = {'ingest_id' : kwargs['dag_run'].conf['ingest_id'],
-                    'status' : 'failure',
+            data = {'dataset_id' : kwargs['dag_run'].conf['submission_id'],
+                    'status' : 'Invalid',
                     'message' : err_txt}
         print('data: ', data)
 
@@ -85,9 +85,9 @@ with DAG('ingest_vanderbilt',
     t_run_md_extract = BashOperator(
         task_id='run_md_extract',
         bash_command=""" \
-        lz_dir="/hive/hubmap/lz/{{dag_run.conf.provider}}/{{dag_run.conf.submission_id}}" ; \
+        lz_dir="{{dag_run.conf.lz_path}}" ; \
         work_dir="${AIRFLOW_HOME}/data/temp/{{run_id}}" ; \
-        src_dir="/hive/users/welling/git/hubmap/ingest-pipeline/src/ingest-pipeline/md" ; \
+        src_dir="{{dag_run.conf.src_path}}/md" ; \
         cd $work_dir ; \
         python $src_dir/metadata_extract.py --out ./rslt.yml --yaml "$lz_dir" \
           > ./session.log 2>&1 ; \
