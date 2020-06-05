@@ -4,7 +4,10 @@ from .stanford_codex_data_collection import StanfordCODEXDataCollection
 from .akoya_codex_data_collection import AkoyaCODEXDataCollection
 from .devtest_data_collection import DEVTESTDataCollection
 from .metadatatsv_data_collection import MetadataTSVDataCollection
+from .generic_metadatatsv_data_collection import GenericMetadataTSVDataCollection
 
 __all__ = [MetadataTSVDataCollection,
-           IMSDataCollection, RNASEQ10XDataCollection, StanfordCODEXDataCollection,
-           AkoyaCODEXDataCollection, DEVTESTDataCollection]
+           IMSDataCollection, RNASEQ10XDataCollection, 
+           StanfordCODEXDataCollection,
+           AkoyaCODEXDataCollection, DEVTESTDataCollection,
+           GenericMetadataTSVDataCollection]

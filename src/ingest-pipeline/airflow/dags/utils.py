@@ -2,16 +2,20 @@ from os import environ, walk
 from os.path import basename, dirname, relpath, split, join, getsize, realpath
 import sys
 from pathlib import Path
-from typing import List
+from typing import Iterable, Callable, Mapping, Union, Any, List, Dict
 from subprocess import check_call, check_output, CalledProcessError
 import re
 import json
 from pprint import pprint
 import uuid
+import yaml
 
 from airflow.configuration import conf as airflow_conf
 
 from hubmap_commons.schema_tools import assert_json_matches_schema, set_schema_base_path
+
+JSONType = Union[str, int, float, bool, None, Dict[str, Any], List[Any]]
+
 SCHEMA_BASE_PATH = join(dirname(dirname(dirname(realpath(__file__)))),
                         'schemata')
 SCHEMA_BASE_URI = 'http://schemata.hubmapconsortium.org/'
@@ -68,8 +72,15 @@ FILE_TYPE_MATCHERS = [('^.*\.csv$', 'csv'),  # format is (regex, type)
                       ]
 COMPILED_TYPE_MATCHERS = None
 
+"""
+Lazy construction; a list of tuples (collection_type_regex, assay_type_regex, workflow)
+"""
+WORKFLOW_MAP_FILENAME = 'workflow_map.yml'  # Expected to be found in the same dir as this file
+WORKFLOW_MAP_SCHEMA = 'workflow_map_schema.yml'
+COMPILED_WORKFLOW_MAP = None
 
-def clone_or_update_pipeline(pipeline_name: str, ref: str = 'origin/master'):
+
+def clone_or_update_pipeline(pipeline_name: str, ref: str = 'origin/master') -> None:
     """
     Ensure that a Git clone of a specific pipeline exists inside the
     PIPELINE_BASE_DIR directory.
@@ -110,9 +121,12 @@ def clone_or_update_pipeline(pipeline_name: str, ref: str = 'origin/master'):
     check_call(checkout_command, cwd=pipeline_dir)
 
 
-def get_git_commits(file_list: List[str] or str):
+def get_git_commits(file_list: Iterable[str]) -> Union[str, List[str]]:
+    """
+    Given a list of file paths, return a list of the current short commit hashes of those files
+    """
     rslt = []
-    if not isinstance(file_list, list):
+    if isinstance(file_list, str):  # sadly, a str is an Iterable[str]
         file_list = [file_list]
         unroll = True
     else:
@@ -137,9 +151,12 @@ def get_git_commits(file_list: List[str] or str):
         return rslt
 
 
-def get_git_origins(file_list: List[str] or str):
+def get_git_origins(file_list: Iterable[str]) -> Union[str, List[str]]:
+    """
+    Given a list of file paths, return a list of the git origins of those files
+    """
     rslt = []
-    if not isinstance(file_list, list):
+    if isinstance(file_list, str):  # sadly, a str is an Iterable[str]
         file_list = [file_list]
         unroll = True
     else:
@@ -164,15 +181,25 @@ def get_git_origins(file_list: List[str] or str):
         return rslt
 
 
-def get_git_provenance_dict(file_list: List[str] or str):
-    if not isinstance(file_list, list):
+def get_git_provenance_dict(file_list: Iterable[str]) -> List[Mapping[str, str]]:
+    """
+    Given a list of file paths, return a list of dicts of the form:
+    
+      [{<file base name>:<file commit hash>}, ...]
+    """
+    if isinstance(file_list, str):  # sadly, a str is an Iterable[str]
         file_list = [file_list]
     return {basename(fname) : get_git_commits(realpath(fname))
             for fname in file_list}
 
 
-def get_git_provenance_list(file_list: List[str] or str):
-    if not isinstance(file_list, list):
+def get_git_provenance_list(file_list: Iterable[str]) -> List[Mapping[str, Any]]:
+    """
+    Given a list of file paths, return a list of dicts of the form:
+    
+      [{'name':<file base name>, 'hash':<file commit hash>, 'origin':<file git origin>},...]
+    """
+    if isinstance(file_list, str):  # sadly, a str is an Iterable[str]
         file_list = [file_list]
     name_l = [basename(fname) for fname in file_list]
     hash_l = [get_git_commits(realpath(fname)) for fname in file_list]
@@ -184,7 +211,10 @@ def get_git_provenance_list(file_list: List[str] or str):
     return rslt
 
 
-def _get_file_type(path: str):
+def _get_file_type(path: str) -> str:
+    """
+    Given a path, guess the type of the file
+    """
     global COMPILED_TYPE_MATCHERS
     if COMPILED_TYPE_MATCHERS is None:
         lst = []
@@ -198,7 +228,14 @@ def _get_file_type(path: str):
     return 'unknown'
     
 
-def get_file_metadata(root_dir: str):
+def get_file_metadata(root_dir: str) -> List[Mapping[str, Any]]:
+    """
+    Given a root directory, return a list of the form:
+    
+      [{'rel_path':<relative path>, 'type':<file type>, 'size':<file size>}, ...]
+    
+    containing an entry for every file below the given root directory:
+    """
     rslt = []
     for dirpth, dirnames, fnames in walk(root_dir):
         rp = relpath(dirpth, start=root_dir)
@@ -217,7 +254,8 @@ def get_file_metadata(root_dir: str):
     return rslt
 
 
-def get_file_metadata_dict(root_dir: str, alt_file_dir: str, max_in_line_files : int = MAX_IN_LINE_FILES):
+def get_file_metadata_dict(root_dir: str, alt_file_dir: str,
+                           max_in_line_files : int = MAX_IN_LINE_FILES) -> Mapping[str, Any]:
     """
     This routine returns file metadata, either directly as JSON in the form
     {'files': [{...}, {...}, ...]} with the list returned by get_file_metadata() or the form
@@ -234,7 +272,7 @@ def get_file_metadata_dict(root_dir: str, alt_file_dir: str, max_in_line_files :
     else:
         return {'files' : file_info}
 
-def pythonop_trigger_target(**kwargs):
+def pythonop_trigger_target(**kwargs) -> None:
     """
     When used as the python_callable of a PythonOperator,this just logs
     data provided to the running DAG.
@@ -248,7 +286,7 @@ def pythonop_trigger_target(**kwargs):
     pprint(kwargs)
  
 
-def pythonop_maybe_keep(**kwargs):
+def pythonop_maybe_keep(**kwargs) -> None:
     """
     accepts the following via the caller's op_kwargs:
     'next_op': the operator to call on success
@@ -267,7 +305,7 @@ def pythonop_maybe_keep(**kwargs):
         return bail_op
 
 
-def pythonop_send_create_dataset(**kwargs):
+def pythonop_send_create_dataset(**kwargs) -> None:
     """
     Requests creation of a new dataset.  Returns dataset info via XCOM
     
@@ -326,7 +364,7 @@ def pythonop_send_create_dataset(**kwargs):
     return data_dir_path
 
 
-def pythonop_set_dataset_state(**kwargs):
+def pythonop_set_dataset_state(**kwargs) -> None:
     """
     Sets the status of a dataset to 'Processing'
     
@@ -372,20 +410,20 @@ def pythonop_set_dataset_state(**kwargs):
     pprint(response.json())
 
 
-def _get_scratch_base_path():
+def _get_scratch_base_path() -> str:
     scratch_path = airflow_conf.as_dict()['connections']['WORKFLOW_SCRATCH']
     scratch_path = scratch_path.strip("'").strip('"')  # remove quotes that may be on the string
     return scratch_path
 
 
-def get_tmp_dir_path(run_id):
+def get_tmp_dir_path(run_id: str) -> str:
     """
     Given the run_id, return the path to the dag run's scratch directory
     """
     return join(_get_scratch_base_path(), run_id)
 
 
-def map_queue_name(raw_queue_name: str):
+def map_queue_name(raw_queue_name: str) -> str:
     """
     If the configuration contains QUEUE_NAME_TEMPLATE, use it to customize the
     provided queue name.  This allows job separation under Celery.
@@ -398,8 +436,9 @@ def map_queue_name(raw_queue_name: str):
     else:
         return raw_queue_name
 
-def create_dataset_state_error_callback(dataset_uuid_callable):
-    def set_dataset_state_error(contextDict, **kwargs):
+def create_dataset_state_error_callback(dataset_uuid_callable: Callable[[Any], str]) -> Callable[[Mapping, Any],
+                                                                                                 None]:
+    def set_dataset_state_error(contextDict: Mapping, **kwargs) -> None:
         """
         This routine is meant to be 
         """
@@ -419,12 +458,47 @@ def create_dataset_state_error_callback(dataset_uuid_callable):
 
 set_schema_base_path(SCHEMA_BASE_PATH, SCHEMA_BASE_URI)
 
-def localized_assert_json_matches_schema(jsn, schemafile):
+def localized_assert_json_matches_schema(jsn: JSONType, schemafile:str) -> None:
+    """
+    This version of assert_json_matches_schema knows where to find schemata used by this module
+    """
     try:
         return assert_json_matches_schema(jsn, schemafile)  # localized by set_schema_base_path
     except AssertionError as e:
         print('ASSERTION FAILED: {}'.format(e))
         raise
+
+
+def _get_workflow_map() -> Iterable[str]:
+    """
+    Lazy compilation of workflow map
+    """
+    global COMPILED_WORKFLOW_MAP
+    if COMPILED_WORKFLOW_MAP is None:
+        map_path = join(dirname(__file__), WORKFLOW_MAP_FILENAME)
+        with open(map_path, 'r') as f:
+            map = yaml.safe_load(f)
+        localized_assert_json_matches_schema(map, WORKFLOW_MAP_SCHEMA)
+        cmp_map = []
+        for dct in map['workflow_map']:
+            ct_re = re.compile(dct['collection_type'])
+            at_re = re.compile(dct['assay_type'])
+            cmp_map.append((ct_re, at_re, dct['workflow']))
+        COMPILED_WORKFLOW_MAP = cmp_map
+    return COMPILED_WORKFLOW_MAP
+            
+
+def downstream_workflow_iter(collectiontype: str, assay_type: str) -> Iterable[str]:
+    """
+    Returns an iterator over zero or more workflow names matching the given
+    collectiontype and assay_type.  Each workflow name is expected to correspond to
+    a known workflow, e.g. an Airflow DAG implemented by workflow_name.py .
+    """
+    collectiontype = collectiontype or ''
+    assay_type = assay_type or ''
+    for ct_re, at_re, workflow in _get_workflow_map():
+        if ct_re.match(collectiontype) and at_re.match(assay_type):
+            yield workflow
 
 
 def main():
@@ -445,6 +519,13 @@ def main():
         print('ASSERT passed')
     except AssertionError as e:
         print('ASSERT failed')
+    
+    assay_pairs = [('devtest', 'devtest'), ('codex', 'CODEX'),
+                   ('codex', 'SOMEOTHER'), ('someother', 'CODEX')]
+    for collectiontype, assay_type in assay_pairs:
+        print('collectiontype {}, assay_type {}:'.format(collectiontype, assay_type))
+        for elt in downstream_workflow_iter(collectiontype, assay_type):
+            print('  -> {}'.format(elt))
  
  
 if __name__ == "__main__":

@@ -11,9 +11,11 @@ from airflow.operators.bash_operator import BashOperator
 from airflow.operators.python_operator import PythonOperator
 from airflow.operators.python_operator import BranchPythonOperator
 from airflow.operators.dummy_operator import DummyOperator
-from airflow.operators.dagrun_operator import TriggerDagRunOperator
+from airflow.operators.dagrun_operator import TriggerDagRunOperator, DagRunOrder
+from airflow.operators.multi_dagrun import TriggerMultiDagRunOperator
 from airflow.hooks.http_hook import HttpHook
 
+from hubmap_operators.flex_multi_dag_run import FlexMultiDagRunOperator
 import utils
 
 from utils import localized_assert_json_matches_schema as assert_json_matches_schema
@@ -51,6 +53,7 @@ with DAG('scan_and_begin_processing',
     def send_status_msg(**kwargs):
         ctx = kwargs['dag_run'].conf
         retcode_ops = ['run_md_extract']
+        print('raw: ', [kwargs['ti'].xcom_pull(task_ids=op) for op in retcode_ops])
         retcodes = [int(kwargs['ti'].xcom_pull(task_ids=op))
                     for op in retcode_ops]
         print('retcodes: ', {k:v for k, v in zip(retcode_ops, retcodes)})
@@ -96,6 +99,10 @@ with DAG('scan_and_begin_processing',
                                    value=(scanned_md['collectiontype']
                                           if 'collectiontype' in scanned_md
                                           else None))
+            kwargs['ti'].xcom_push(key='assay_type',
+                                   value=(scanned_md['assay_type']
+                                          if 'assay_type' in scanned_md
+                                          else None))
         else:
             log_fname = os.path.join(utils.get_tmp_dir_path(kwargs['run_id']),
                                      'session.log')
@@ -114,51 +121,6 @@ with DAG('scan_and_begin_processing',
                             extra_options)
         print('response: ')
         pprint(response.json())
-
-
-    def maybe_spawn_dag(context, dag_run_obj):
-        """
-        This needs to be table-driven.  Its purpose is to suppress
-        triggering the dependent DAG if the collectiontype doesn't
-        have a dependent DAG.
-        """
-        print('context:')
-        pprint(context)
-        ctx = context['dag_run'].conf
-        md_extract_retcode = int(context['ti'].xcom_pull(task_ids="run_md_extract"))
-        collectiontype = context['ti'].xcom_pull(key='collectiontype',
-                                                 task_ids='send_status_msg')
-        if md_extract_retcode == 0 and collectiontype is not None:
-            md_fname = os.path.join(utils.get_tmp_dir_path(context['run_id']),
-                                    'rslt.yml')
-            with open(md_fname, 'r') as f:
-                md = yaml.safe_load(f)
-            if collectiontype in ['rnaseq_10x', 'codex', 'devtest']:
-                payload = {'ingest_id' : context['run_id'],
-                           #'ingest_id' : ctx['ingest_id'],
-                           'auth_tok' : ctx['auth_tok'],
-                           'parent_lz_path' : ctx['lz_path'],
-                           'parent_submission_id' : ctx['submission_id'],
-                           'metadata': md}
-                dag_run_obj.payload = payload
-                return dag_run_obj
-            else:
-                print('Extracted metadata has no "collectiontype" element')
-                return None
-        else:
-            # The extraction of metadata failed or collectiontype is unknown,
-            # so spawn no child runs
-            return None
-
-
-    def trigger_or_skip(**kwargs):
-        collectiontype = kwargs['ti'].xcom_pull(key='collectiontype',
-                                                task_ids="send_status_msg")
-        print('collectiontype: <%s>' % collectiontype)
-        if collectiontype is None:
-            return 'no_spawn'
-        else:
-            return 'maybe_spawn_dag'
 
     t_run_md_extract = BashOperator(
         task_id='run_md_extract',
@@ -182,26 +144,6 @@ with DAG('scan_and_begin_processing',
         provide_context=True
     )
 
-    t_maybe_trigger = BranchPythonOperator(
-        task_id='maybe_trigger',
-        python_callable=trigger_or_skip,
-        provide_context=True
-        )
-
-    t_join = DummyOperator(
-        task_id='join',
-        trigger_rule='one_success')
-
-    t_no_spawn = DummyOperator(
-        task_id='no_spawn')
-
-    t_spawn_dag = TriggerDagRunOperator(
-        task_id="maybe_spawn_dag",
-        trigger_dag_id="trig_{{ti.xcom_pull(key='collectiontype', task_ids='send_status_msg')}}",
-        python_callable = maybe_spawn_dag
-        )
- 
-
     t_create_tmpdir = BashOperator(
         task_id='create_temp_dir',
         bash_command='mkdir {{tmp_dir_path(run_id)}}',
@@ -215,9 +157,46 @@ with DAG('scan_and_begin_processing',
         trigger_rule='all_success'
         )
 
+
+    def flex_maybe_spawn(**kwargs):
+        """
+        This is a generator which returns appropriate DagRunOrders
+        """
+        print('kwargs:')
+        pprint(kwargs)
+        print('dag_run conf:')
+        ctx = kwargs['dag_run'].conf
+        pprint(ctx)
+        md_extract_retcode = int(kwargs['ti'].xcom_pull(task_ids="run_md_extract"))
+        if md_extract_retcode == 0:
+            collectiontype = kwargs['ti'].xcom_pull(key='collectiontype',
+                                                    task_ids="send_status_msg")
+            assay_type = kwargs['ti'].xcom_pull(key='assay_type',
+                                                task_ids="send_status_msg")
+            print('collectiontype: <{}>, assay_type: <{}>'.format(collectiontype, assay_type))
+            md_fname = os.path.join(utils.get_tmp_dir_path(ctx['run_id']), 'rslt.yml')
+            with open(md_fname, 'r') as f:
+                md = yaml.safe_load(f)
+            payload = {k:kwargs['dag_run'].conf[k] for k in kwargs['dag_run'].conf}
+            payload = {'ingest_id' : ctx['run_id'],
+                       'auth_tok' : ctx['auth_tok'],
+                       'parent_lz_path' : ctx['lz_path'],
+                       'parent_submission_id' : ctx['submission_id'],
+                       'metadata': md,
+                       'dag_provenance_list' : utils.get_git_provenance_list(__file__)
+                       }
+            for next_dag in utils.downstream_workflow_iter(collectiontype, assay_type):
+                yield next_dag, DagRunOrder(payload=payload)
+        else:
+            return None
+
+
+    t_maybe_spawn = FlexMultiDagRunOperator(
+        task_id='flex_maybe_spawn',
+        provide_context=True,
+        python_callable=flex_maybe_spawn
+        )
+
     (dag >> t_create_tmpdir >> t_run_md_extract >> t_send_status
-     >> t_maybe_trigger)
-    t_maybe_trigger >> t_spawn_dag >> t_join
-    t_maybe_trigger >> t_no_spawn >> t_join
-    t_join >> t_cleanup_tmpdir
+     >> t_maybe_spawn >> t_cleanup_tmpdir)
 

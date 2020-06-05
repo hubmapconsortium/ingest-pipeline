@@ -14,9 +14,9 @@ import re
 from type_base import MetadataError
 from data_collection import DataCollection
 
-class MetadataTSVDataCollection(DataCollection):
-    category_name = 'METADATATSV';
-    match_priority = 1.0 # >= 0.0; higher is better
+class GenericMetadataTSVDataCollection(DataCollection):
+    category_name = 'GENERICMETADATATSV';
+    match_priority = 0.1 # >= 0.0; higher is better
     top_target = None
     dir_regex = None
 
@@ -45,8 +45,16 @@ class MetadataTSVDataCollection(DataCollection):
         print('Checking for lone metadata.tsv at top level')
         if offsetdir is None:
             return False
-        candidates = os.listdir(os.path.join(path, offsetdir))
-        return (len(candidates) == 1 and candidates[0].endswith('-metadata.tsv'))
+        mf_glob = cls.expected_files[0][0].format(offsetdir=offsetdir)
+        hits = [elt for elt in glob.iglob(os.path.join(path, offsetdir, mf_glob))]
+        if hits:
+            if len(hits) == 1:
+                return True
+            else:
+                print('Too many matches!')
+                return False
+        else:
+            return False
             
     
     def __init__(self, path):

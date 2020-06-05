@@ -28,7 +28,9 @@ def scan(target_dir, out_fname, schema_fname, yaml_flag=False):
         for nm in dir(data_collection_types):
             elt = getattr(data_collection_types, nm)
             if isinstance(elt, type) and issubclass(elt, DataCollection):
-                lst.append(elt)
+                lst.append((elt.match_priority, elt.category_name, elt))
+        lst.sort(reverse=True)
+        lst = [c for a, b, c in lst]
         _KNOWN_DATA_COLLECTION_TYPES = lst
 
     for collection_type in _KNOWN_DATA_COLLECTION_TYPES:
