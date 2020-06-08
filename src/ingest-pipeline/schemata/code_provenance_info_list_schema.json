@@ -19,8 +19,9 @@
           "type": "string",
           "format": "uri"
         }
-      }
-    },
+      },
+      "required": ["hash","origin"]
+	},
     "code_provenance_info_list": {
       "type":  "array",
       "items": {"$ref": "#/definitions/code_provenance_info_record"}

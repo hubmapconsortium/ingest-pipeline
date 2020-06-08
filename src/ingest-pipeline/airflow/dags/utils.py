@@ -48,14 +48,18 @@ GIT_LOG_COMMAND = [
     GIT,
     'log',
     '-n1',
-    '--oneline',
-    '{fname}',
+    '--oneline'
 ]
 GIT_ORIGIN_COMMAND = [
     GIT,
     'config',
     '--get',
     'remote.origin.url'
+]
+GIT_ROOT_COMMAND = [
+    GIT,
+    'rev-parse',
+    '--show-toplevel'
 ]
 SHA1SUM_COMMAND = [
     'sha1sum',
@@ -181,6 +185,34 @@ def get_git_origins(file_list: Iterable[str]) -> Union[str, List[str]]:
         return rslt
 
 
+def get_git_root_paths(file_list: Iterable[str]) -> Union[str, List[str]]:
+    """
+    Given a list of file paths, return a list of the root directories of the git
+    working trees of the files.
+    """
+    rslt = []
+    if isinstance(file_list, str):  # sadly, a str is an Iterable[str]
+        file_list = [file_list]
+        unroll = True
+    else:
+        unroll = False
+    for fname in file_list:
+        command = [piece.format(fname=fname)
+                   for piece in GIT_ROOT_COMMAND]
+        try:
+            dirnm = dirname(fname)
+            if dirnm == '':
+                dirnm = '.'
+            root_path = check_output(command, cwd=dirnm)
+        except CalledProcessError as e:
+            root_path = dirname(fname).encode('utf-8')
+        rslt.append(root_path.strip().decode('utf-8'))
+    if unroll:
+        return rslt[0]
+    else:
+        return rslt
+
+
 def get_git_provenance_dict(file_list: Iterable[str]) -> List[Mapping[str, str]]:
     """
     Given a list of file paths, return a list of dicts of the form:
@@ -201,12 +233,21 @@ def get_git_provenance_list(file_list: Iterable[str]) -> List[Mapping[str, Any]]
     """
     if isinstance(file_list, str):  # sadly, a str is an Iterable[str]
         file_list = [file_list]
-    name_l = [basename(fname) for fname in file_list]
+    name_l = file_list
     hash_l = [get_git_commits(realpath(fname)) for fname in file_list]
     origin_l = [get_git_origins(realpath(fname)) for fname in file_list]
-    rslt = [{'name' : name,
-             'hash' : hash,
-             'origin' : origin} for name, hash, origin in zip(name_l, hash_l, origin_l)]
+    root_l = get_git_root_paths(file_list)
+    rel_name_l = [relpath(name, root) for name, root in zip(name_l, root_l)]
+    # Make sure each repo appears only once
+    repo_d = {origin: {'name': name, 'hash': hash}
+              for origin, name, hash in zip(origin_l, rel_name_l, hash_l)}
+    rslt = []
+    for origin in repo_d:
+        dct = repo_d[origin].copy()
+        dct['origin'] = origin
+        if not dct['name'].endswith('cwl'):
+            del dct['name']  # include explicit names for workflows only
+        rslt.append(dct)
     #pprint(rslt)
     return rslt
 
