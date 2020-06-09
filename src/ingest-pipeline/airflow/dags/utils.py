@@ -1,4 +1,5 @@
-from os import environ, walk
+from abc import ABC, abstractmethod
+from os import environ, fspath, walk
 from os.path import basename, dirname, relpath, split, join, getsize, realpath
 import sys
 from pathlib import Path
@@ -85,6 +86,64 @@ Lazy construction; a list of tuples (collection_type_regex, assay_type_regex, wo
 WORKFLOW_MAP_FILENAME = 'workflow_map.yml'  # Expected to be found in the same dir as this file
 WORKFLOW_MAP_SCHEMA = 'workflow_map_schema.yml'
 COMPILED_WORKFLOW_MAP: Optional[List[Tuple[Pattern, Pattern, str]]] = None
+
+
+class FileMatcher(ABC):
+    @abstractmethod
+    def get_file_metadata(self, file_path: Path) -> Tuple[bool, Optional[str], Optional[str]]:
+        """
+        :return: A 3-tuple:
+         [0] bool, whether to add `file_path` to a downstream index
+         [1] formatted description if [0] is True, otherwise None
+         [2] EDAM ontology term if [0] is True, otherwise None
+        """
+
+
+class PipelineFileMatcher(FileMatcher):
+    # (file/directory regex, description template, EDAM ontology term)
+    matchers: List[Tuple[Pattern, str, str]]
+
+    def __init__(self, pipeline_file_manifest: Optional[Path] = None):
+        self.matchers = []
+
+    @classmethod
+    def read_manifest(cls, pipeline_file_manifest: Path) -> Iterable[Tuple[Pattern, str, str]]:
+        with open(pipeline_file_manifest) as f:
+            manifest = json.load(f)
+
+        for annotation in manifest:
+            pattern = re.compile(annotation['pattern'])
+            yield pattern, annotation['description'], annotation['type']
+
+    @classmethod
+    def create_from_file(cls, pipeline_file_manifest: Path):
+        obj = cls()
+        obj.matchers.extend(cls.read_manifest(pipeline_file_manifest))
+        return obj
+
+    def get_file_metadata(self, file_path: Path) -> Tuple[bool, Optional[str], Optional[str]]:
+        """
+        Checks `file_path` against the list of patterns stored in this object.
+        At the first match, return the associated description and ontology term.
+        If no match, return `None`. Patterns are ordered in the JSON file, so
+        the "first-match" behavior is deliberate.
+        """
+        path_str = fspath(file_path)
+        for pattern, description_template, ontology_term in self.matchers:
+            m = pattern.match(path_str)
+            if m:
+                formatted_description = description_template.format_map(m.groupdict())
+                return True, formatted_description, ontology_term
+        return False, None, None
+
+
+class DummyFileMatcher(FileMatcher):
+    """
+    Drop-in replacement for PipelineFileMatcher which allows everything and always
+    provides empty descriptions and ontology terms.
+    """
+    def get_file_metadata(self, file_path: Path) -> Tuple[bool, Optional[str], Optional[str]]:
+        return True, '', ''
 
 
 def clone_or_update_pipeline(pipeline_name: str, ref: str = 'origin/master') -> None:
@@ -255,7 +314,7 @@ def get_git_provenance_list(file_list: Iterable[str]) -> List[Mapping[str, Any]]
     return rslt
 
 
-def _get_file_type(path: str) -> str:
+def _get_file_type(path: Path) -> str:
     """
     Given a path, guess the type of the file
     """
@@ -267,46 +326,70 @@ def _get_file_type(path: str) -> str:
         COMPILED_TYPE_MATCHERS = lst
     for regex, tpnm in COMPILED_TYPE_MATCHERS:
         #print('testing ', regex, tpnm)
-        if regex.match(path):
+        if regex.match(fspath(path)):
             return tpnm
     return 'unknown'
-    
 
-def get_file_metadata(root_dir: str) -> List[Mapping[str, Any]]:
+
+def get_file_metadata(root_dir: str, matcher: FileMatcher) -> List[Mapping[str, Any]]:
     """
     Given a root directory, return a list of the form:
     
-      [{'rel_path':<relative path>, 'type':<file type>, 'size':<file size>}, ...]
+      [
+        {
+          'rel_path': <relative path>,
+          'type': <file type>,
+          'size': <file size>,
+          'description': <human-readable file description>,
+          'edam_term': <EDAM ontology term>,
+        },
+        ...
+      ]
     
     containing an entry for every file below the given root directory:
     """
+    root_path = Path(root_dir)
     rslt = []
     for dirpth, dirnames, fnames in walk(root_dir):
-        rp = relpath(dirpth, start=root_dir)
+        dp = Path(dirpth)
         for fn in fnames:
-            full_path = join(root_dir, rp, fn)
-            sz = getsize(full_path)
-            # sha1sum disabled because of run time issues on large data collections
-            #line = check_output([word.format(fname=full_path)
-            #                     for word in SHA1SUM_COMMAND])
-            #cs = line.split()[0].strip().decode('utf-8')
-            rslt.append({'rel_path': join(rp, fn),
-                         'type': _get_file_type(full_path),
-                         'size': getsize(join(root_dir, rp, fn)),
-                         #'sha1sum': cs
-                         })
+            full_path = dp / fn
+            relative_path = full_path.relative_to(root_path)
+            add_to_index, description, ontology_term = matcher.get_file_metadata(relative_path)
+            if add_to_index:
+                # sha1sum disabled because of run time issues on large data collections
+                #line = check_output([word.format(fname=full_path)
+                #                     for word in SHA1SUM_COMMAND])
+                #cs = line.split()[0].strip().decode('utf-8')
+                rslt.append(
+                    {
+                        'rel_path': fspath(relative_path),
+                        'type': _get_file_type(full_path),
+                        'size': getsize(full_path),
+                        'description': description,
+                        'edam_term': ontology_term,
+                         #'sha1sum': cs,
+                    }
+                )
     return rslt
 
-
-def get_file_metadata_dict(root_dir: str, alt_file_dir: str,
-                           max_in_line_files : int = MAX_IN_LINE_FILES) -> Mapping[str, Any]:
+def get_file_metadata_dict(
+        root_dir: str,
+        alt_file_dir: str,
+        pipeline_file_manifest: Optional[Path],
+        max_in_line_files: int = MAX_IN_LINE_FILES,
+) -> Mapping[str, Any]:
     """
     This routine returns file metadata, either directly as JSON in the form
     {'files': [{...}, {...}, ...]} with the list returned by get_file_metadata() or the form
     {'files_info_alt_path': path} where path is the path of a unique file in alt_file_dir
     relative to the WORKFLOW_SCRATCH config parameter
     """
-    file_info = get_file_metadata(root_dir)
+    if pipeline_file_manifest is None:
+        matcher = DummyFileMatcher()
+    else:
+        matcher = PipelineFileMatcher.create_from_file(pipeline_file_manifest)
+    file_info = get_file_metadata(root_dir, matcher)
     if len(file_info) > max_in_line_files:
         localized_assert_json_matches_schema(file_info, 'file_info_schema.yml')
         fpath = join(alt_file_dir, '{}.json'.format(uuid.uuid4()))
