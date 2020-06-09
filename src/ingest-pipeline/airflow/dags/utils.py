@@ -2,7 +2,7 @@ from os import environ, walk
 from os.path import basename, dirname, relpath, split, join, getsize, realpath
 import sys
 from pathlib import Path
-from typing import Iterable, Callable, Mapping, Union, Any, List, Dict
+from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Pattern, Tuple, TypeVar, Union
 from subprocess import check_call, check_output, CalledProcessError
 import re
 import json
@@ -15,6 +15,9 @@ from airflow.configuration import conf as airflow_conf
 from hubmap_commons.schema_tools import assert_json_matches_schema, set_schema_base_path
 
 JSONType = Union[str, int, float, bool, None, Dict[str, Any], List[Any]]
+
+# Some functions accept a `str` or `List[str]` and return that same type
+StrOrListStr = TypeVar('StrOrListStr', str, List[str])
 
 SCHEMA_BASE_PATH = join(dirname(dirname(dirname(realpath(__file__)))),
                         'schemata')
@@ -74,14 +77,14 @@ FILE_TYPE_MATCHERS = [(r'^.*\.csv$', 'csv'),  # format is (regex, type)
                       (r'(^.*\.fastq$)|(^.*\.fastq.gz$)', 'fastq'),
                       (r'(^.*\.yml$)|(^.*\.yaml$)', 'yaml')
                       ]
-COMPILED_TYPE_MATCHERS = None
+COMPILED_TYPE_MATCHERS: Optional[List[Tuple[Pattern, str]]] = None
 
 """
 Lazy construction; a list of tuples (collection_type_regex, assay_type_regex, workflow)
 """
 WORKFLOW_MAP_FILENAME = 'workflow_map.yml'  # Expected to be found in the same dir as this file
 WORKFLOW_MAP_SCHEMA = 'workflow_map_schema.yml'
-COMPILED_WORKFLOW_MAP = None
+COMPILED_WORKFLOW_MAP: Optional[List[Tuple[Pattern, Pattern, str]]] = None
 
 
 def clone_or_update_pipeline(pipeline_name: str, ref: str = 'origin/master') -> None:
@@ -125,7 +128,7 @@ def clone_or_update_pipeline(pipeline_name: str, ref: str = 'origin/master') -> 
     check_call(checkout_command, cwd=pipeline_dir)
 
 
-def get_git_commits(file_list: Iterable[str]) -> Union[str, List[str]]:
+def get_git_commits(file_list: StrOrListStr) -> StrOrListStr:
     """
     Given a list of file paths, return a list of the current short commit hashes of those files
     """
@@ -155,7 +158,7 @@ def get_git_commits(file_list: Iterable[str]) -> Union[str, List[str]]:
         return rslt
 
 
-def get_git_origins(file_list: Iterable[str]) -> Union[str, List[str]]:
+def get_git_origins(file_list: StrOrListStr) -> StrOrListStr:
     """
     Given a list of file paths, return a list of the git origins of those files
     """
@@ -213,7 +216,7 @@ def get_git_root_paths(file_list: Iterable[str]) -> Union[str, List[str]]:
         return rslt
 
 
-def get_git_provenance_dict(file_list: Iterable[str]) -> List[Mapping[str, str]]:
+def get_git_provenance_dict(file_list: Iterable[str]) -> Mapping[str, str]:
     """
     Given a list of file paths, return a list of dicts of the form:
     
@@ -346,7 +349,7 @@ def pythonop_maybe_keep(**kwargs) -> None:
         return bail_op
 
 
-def pythonop_send_create_dataset(**kwargs) -> None:
+def pythonop_send_create_dataset(**kwargs) -> str:
     """
     Requests creation of a new dataset.  Returns dataset info via XCOM
     
@@ -510,7 +513,7 @@ def localized_assert_json_matches_schema(jsn: JSONType, schemafile:str) -> None:
         raise
 
 
-def _get_workflow_map() -> Iterable[str]:
+def _get_workflow_map() -> List[Tuple[Pattern, Pattern, str]]:
     """
     Lazy compilation of workflow map
     """
@@ -527,7 +530,7 @@ def _get_workflow_map() -> Iterable[str]:
             cmp_map.append((ct_re, at_re, dct['workflow']))
         COMPILED_WORKFLOW_MAP = cmp_map
     return COMPILED_WORKFLOW_MAP
-            
+
 
 def downstream_workflow_iter(collectiontype: str, assay_type: str) -> Iterable[str]:
     """
