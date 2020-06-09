@@ -18,6 +18,12 @@
         },
         "filetype": {
           "$ref": "enumerated_types_schema.json#/definitions/file_type"
+        },
+        "description": {
+          "type": "string"
+        },
+        "edam_term": {
+          "type": "string"
         }
       }
     },
