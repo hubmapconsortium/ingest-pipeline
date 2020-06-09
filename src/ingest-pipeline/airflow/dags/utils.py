@@ -65,14 +65,14 @@ SHA1SUM_COMMAND = [
     'sha1sum',
     '{fname}'
 ]
-FILE_TYPE_MATCHERS = [('^.*\.csv$', 'csv'),  # format is (regex, type)
-                      ('^.*\.hdf5$', 'hdf5'),
-                      ('^.*\.h5ad$', 'h5ad'),
-                      ('^.*\.pdf$', 'pdf'),
-                      ('^.*\.json$', 'json'),
-                      ('^.*\.arrow$', 'arrow'),
-                      ('(^.*\.fastq$)|(^.*\.fastq.gz$)', 'fastq'),
-                      ('(^.*\.yml$)|(^.*\.yaml$)', 'yaml')
+FILE_TYPE_MATCHERS = [(r'^.*\.csv$', 'csv'),  # format is (regex, type)
+                      (r'^.*\.hdf5$', 'hdf5'),
+                      (r'^.*\.h5ad$', 'h5ad'),
+                      (r'^.*\.pdf$', 'pdf'),
+                      (r'^.*\.json$', 'json'),
+                      (r'^.*\.arrow$', 'arrow'),
+                      (r'(^.*\.fastq$)|(^.*\.fastq.gz$)', 'fastq'),
+                      (r'(^.*\.yml$)|(^.*\.yaml$)', 'yaml')
                       ]
 COMPILED_TYPE_MATCHERS = None
 
