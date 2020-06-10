@@ -555,8 +555,9 @@ def map_queue_name(raw_queue_name: str) -> str:
     If the configuration contains QUEUE_NAME_TEMPLATE, use it to customize the
     provided queue name.  This allows job separation under Celery.
     """
-    if 'QUEUE_NAME_TEMPLATE' in airflow_conf.as_dict()['connections']:
-        template = airflow_conf.as_dict()['connections']['QUEUE_NAME_TEMPLATE']
+    conf_dict = airflow_conf.as_dict()
+    if 'QUEUE_NAME_TEMPLATE' in conf_dict.get('connections', {}):
+        template = conf_dict['connections']['QUEUE_NAME_TEMPLATE']
         template = template.strip("'").strip('"')  # remove quotes that may be on the config string
         rslt = template.format(raw_queue_name)
         return rslt
