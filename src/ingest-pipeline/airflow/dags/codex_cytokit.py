@@ -393,7 +393,7 @@ with DAG('codex_cytokit',
 
     t_cleanup_tmpdir = BashOperator(
         task_id='cleanup_temp_dir',
-        bash_command='rm -r {{tmp_dir_path(run_id)}}',
+        bash_command='echo rm -r {{tmp_dir_path(run_id)}}',
         trigger_rule='all_success'
         )
  
