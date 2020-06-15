@@ -117,15 +117,10 @@ class PipelineFileMatcher(FileMatcher):
 
     @classmethod
     def create_from_files(cls, pipeline_file_manifests: Iterable[Path]):
-        # TODO: consider consolidating this
         obj = cls()
         for manifest in pipeline_file_manifests:
             obj.matchers.extend(cls.read_manifest(manifest))
         return obj
-
-    @classmethod
-    def create_from_file(cls, pipeline_file_manifest: Path):
-        return cls.create_from_files([pipeline_file_manifest])
 
     def get_file_metadata(self, file_path: Path) -> Tuple[bool, Optional[str], Optional[str]]:
         """
@@ -152,17 +147,18 @@ class DummyFileMatcher(FileMatcher):
         return True, '', ''
 
 
-def find_pipeline_manifest(cwl_file: Path) -> Optional[Path]:
+def find_pipeline_manifests(*cwl_files: Path) -> List[Path]:
     """
     Constructs a manifest path from the CWL file (strip '.cwl',
     append '-manifest.json'), and check whether the manifest exists.
     If so, return that `Path`. Otherwise, return `None`.
     """
-    manifest_file = cwl_file.with_name(f'{cwl_file.stem}-manifest.json')
-    if manifest_file.is_file():
-        return manifest_file
-    else:
-        return None
+    manifests = []
+    for cwl_file in cwl_files:
+        manifest_file = cwl_file.with_name(f'{cwl_file.stem}-manifest.json')
+        if manifest_file.is_file():
+            manifests.append(manifest_file)
+    return manifests
 
 
 def clone_or_update_pipeline(pipeline_name: str, ref: str = 'origin/master') -> None:
@@ -395,7 +391,7 @@ def get_file_metadata(root_dir: str, matcher: FileMatcher) -> List[Mapping[str, 
 def get_file_metadata_dict(
         root_dir: str,
         alt_file_dir: str,
-        pipeline_file_manifest: Optional[Path],
+        pipeline_file_manifests: List[Path],
         max_in_line_files: int = MAX_IN_LINE_FILES,
 ) -> Mapping[str, Any]:
     """
@@ -404,10 +400,10 @@ def get_file_metadata_dict(
     {'files_info_alt_path': path} where path is the path of a unique file in alt_file_dir
     relative to the WORKFLOW_SCRATCH config parameter
     """
-    if pipeline_file_manifest is None:
+    if not pipeline_file_manifests:
         matcher = DummyFileMatcher()
     else:
-        matcher = PipelineFileMatcher.create_from_file(pipeline_file_manifest)
+        matcher = PipelineFileMatcher.create_from_files(pipeline_file_manifests)
     file_info = get_file_metadata(root_dir, matcher)
     if len(file_info) > max_in_line_files:
         localized_assert_json_matches_schema(file_info, 'file_info_schema.yml')
