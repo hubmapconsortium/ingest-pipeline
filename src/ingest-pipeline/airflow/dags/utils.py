@@ -116,10 +116,16 @@ class PipelineFileMatcher(FileMatcher):
             yield pattern, annotation['description'], annotation['type']
 
     @classmethod
-    def create_from_file(cls, pipeline_file_manifest: Path):
+    def create_from_files(cls, pipeline_file_manifests: Iterable[Path]):
+        # TODO: consider consolidating this
         obj = cls()
-        obj.matchers.extend(cls.read_manifest(pipeline_file_manifest))
+        for manifest in pipeline_file_manifests:
+            obj.matchers.extend(cls.read_manifest(manifest))
         return obj
+
+    @classmethod
+    def create_from_file(cls, pipeline_file_manifest: Path):
+        return cls.create_from_files([pipeline_file_manifest])
 
     def get_file_metadata(self, file_path: Path) -> Tuple[bool, Optional[str], Optional[str]]:
         """
@@ -144,6 +150,19 @@ class DummyFileMatcher(FileMatcher):
     """
     def get_file_metadata(self, file_path: Path) -> Tuple[bool, Optional[str], Optional[str]]:
         return True, '', ''
+
+
+def find_pipeline_manifest(cwl_file: Path) -> Optional[Path]:
+    """
+    Constructs a manifest path from the CWL file (strip '.cwl',
+    append '-manifest.json'), and check whether the manifest exists.
+    If so, return that `Path`. Otherwise, return `None`.
+    """
+    manifest_file = cwl_file.with_name(f'{cwl_file.stem}-manifest.json')
+    if manifest_file.is_file():
+        return manifest_file
+    else:
+        return None
 
 
 def clone_or_update_pipeline(pipeline_name: str, ref: str = 'origin/master') -> None:
