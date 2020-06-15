@@ -52,11 +52,12 @@ with DAG('scan_and_begin_processing',
         
     def send_status_msg(**kwargs):
         ctx = kwargs['dag_run'].conf
-        retcode_ops = ['run_md_extract']
+        retcode_ops = ['run_md_extract', 'md_consistency_tests']
         print('raw: ', [kwargs['ti'].xcom_pull(task_ids=op) for op in retcode_ops])
         retcodes = [int(kwargs['ti'].xcom_pull(task_ids=op))
                     for op in retcode_ops]
-        print('retcodes: ', {k:v for k, v in zip(retcode_ops, retcodes)})
+        retcode_dct = {k:v for k, v in zip(retcode_ops, retcodes)}
+        print('retcodes: ', retcode_dct)
         success = all([rc == 0 for rc in retcodes])
         ds_dir = ctx['lz_path']
         http_conn_id='ingest_api_connection'
@@ -104,10 +105,18 @@ with DAG('scan_and_begin_processing',
                                           if 'assay_type' in scanned_md
                                           else None))
         else:
-            log_fname = os.path.join(utils.get_tmp_dir_path(kwargs['run_id']),
-                                     'session.log')
-            with open(log_fname, 'r') as f:
-                err_txt = '\n'.join(f.readlines())
+            for op in retcode_ops:
+                if retcode_dct[op]:
+                    if op == 'run_md_extract':
+                        log_fname = os.path.join(utils.get_tmp_dir_path(kwargs['run_id']),
+                                                 'session.log')
+                        with open(log_fname, 'r') as f:
+                            err_txt = '\n'.join(f.readlines())
+                    else:
+                        err_txt = kwargs['ti'].xcom_pull(task_ids=op, key='err_msg')
+                    break
+            else:
+                err_txt = 'Unknown error'
             data = {'dataset_id' : ctx['submission_id'],
                     'status' : 'Invalid',
                     'message' : err_txt}
@@ -138,11 +147,18 @@ with DAG('scan_and_begin_processing',
         provide_context = True
         )
 
+    t_md_consistency_tests = PythonOperator(
+        task_id='md_consistency_tests',
+        python_callable=utils.pythonop_md_consistency_tests,
+        provide_context=True,
+        op_kwargs = {'metadata_fname' : 'rslt.yml'}
+        )
+
     t_send_status = PythonOperator(
         task_id='send_status_msg',
         python_callable=send_status_msg,
         provide_context=True
-    )
+        )
 
     t_create_tmpdir = BashOperator(
         task_id='create_temp_dir',
@@ -153,7 +169,7 @@ with DAG('scan_and_begin_processing',
 
     t_cleanup_tmpdir = BashOperator(
         task_id='cleanup_temp_dir',
-        bash_command='rm -r {{tmp_dir_path(run_id)}}',
+        bash_command='echo rm -r {{tmp_dir_path(run_id)}}',
         trigger_rule='all_success'
         )
 
@@ -168,13 +184,14 @@ with DAG('scan_and_begin_processing',
         ctx = kwargs['dag_run'].conf
         pprint(ctx)
         md_extract_retcode = int(kwargs['ti'].xcom_pull(task_ids="run_md_extract"))
-        if md_extract_retcode == 0:
+        md_consistency_retcode = int(kwargs['ti'].xcom_pull(task_ids="md_consistency_tests"))
+        if md_extract_retcode == 0 and md_consistency_retcode == 0:
             collectiontype = kwargs['ti'].xcom_pull(key='collectiontype',
                                                     task_ids="send_status_msg")
             assay_type = kwargs['ti'].xcom_pull(key='assay_type',
                                                 task_ids="send_status_msg")
             print('collectiontype: <{}>, assay_type: <{}>'.format(collectiontype, assay_type))
-            md_fname = os.path.join(utils.get_tmp_dir_path(ctx['run_id']), 'rslt.yml')
+            md_fname = os.path.join(utils.get_tmp_dir_path(kwargs['run_id']), 'rslt.yml')
             with open(md_fname, 'r') as f:
                 md = yaml.safe_load(f)
             payload = {k:kwargs['dag_run'].conf[k] for k in kwargs['dag_run'].conf}
@@ -197,6 +214,6 @@ with DAG('scan_and_begin_processing',
         python_callable=flex_maybe_spawn
         )
 
-    (dag >> t_create_tmpdir >> t_run_md_extract >> t_send_status
-     >> t_maybe_spawn >> t_cleanup_tmpdir)
+    (dag >> t_create_tmpdir >> t_run_md_extract >> t_md_consistency_tests >>
+     t_send_status >> t_maybe_spawn >> t_cleanup_tmpdir)
 
