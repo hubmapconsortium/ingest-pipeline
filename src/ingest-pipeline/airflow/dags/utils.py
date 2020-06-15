@@ -426,7 +426,7 @@ def pythonop_maybe_keep(**kwargs) -> None:
     test_key = kwargs['test_key'] if 'test_key' in kwargs else None
     retcode = int(kwargs['ti'].xcom_pull(task_ids=test_op, key=test_key))
     print('%s key %s: %s\n' % (test_op, test_key, retcode))
-    if retcode is 0:
+    if retcode == 0:
         return kwargs['next_op']
     else:
         return bail_op
