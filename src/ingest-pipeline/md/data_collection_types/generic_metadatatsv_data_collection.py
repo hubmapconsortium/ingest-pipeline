@@ -1,8 +1,8 @@
 #! /usr/bin/env python
 
 """
-This data collection type expects a single metadata.tsv file at top level, and
-nothing else.  It is intended as a convenience for developers.
+This data collection type expects a single metadata.tsv file at top level.
+It is intended as a convenience for developers.
 """
 
 import os

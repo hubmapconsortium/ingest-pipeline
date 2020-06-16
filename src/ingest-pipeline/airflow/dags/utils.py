@@ -327,7 +327,7 @@ def pythonop_trigger_target(**kwargs) -> None:
     pprint(kwargs)
  
 
-def pythonop_maybe_keep(**kwargs) -> None:
+def pythonop_maybe_keep(**kwargs) -> str:
     """
     accepts the following via the caller's op_kwargs:
     'next_op': the operator to call on success
@@ -346,7 +346,7 @@ def pythonop_maybe_keep(**kwargs) -> None:
         return bail_op
 
 
-def pythonop_send_create_dataset(**kwargs) -> None:
+def pythonop_send_create_dataset(**kwargs) -> str:
     """
     Requests creation of a new dataset.  Returns dataset info via XCOM
     
@@ -450,6 +450,51 @@ def pythonop_set_dataset_state(**kwargs) -> None:
     print('response: ')
     pprint(response.json())
 
+
+def _uuid_lookup(uuid, **kwargs):
+    http_conn_id = 'uuid_api_connection'
+    endpoint = 'hmuuid/{}'.format(uuid)
+    method='GET'
+    auth_tok = kwargs['auth_tok'] if 'auth_tok' in kwargs else kwargs['dag_run'].conf['auth_tok'] 
+    headers={'authorization' : 'Bearer ' + auth_tok}
+#     print('headers:')
+#     pprint(headers)
+    extra_options=[]
+     
+    http = HttpHook(method,
+                    http_conn_id=http_conn_id)
+
+    response = http.run(endpoint,
+                        None,
+                        headers,
+                        extra_options)
+#     print('response: ')
+#     pprint(response.json())
+    return response.json()
+    
+
+def pythonop_md_consistency_tests(**kwargs) -> int:
+    md_path = join(get_tmp_dir_path(kwargs['run_id']), kwargs['metadata_fname'])
+    with open(md_path, 'r') as f:
+        md = yaml.safe_load(f)
+#     print('metadata from {} follows:'.format(md_path))
+#     pprint(md)
+    if '_from_metadatatsv' in md and md['_from_metadatatsv']:
+        try:
+            for elt in ['tissue_id', 'donor_id']:
+                assert elt in md, 'metadata is missing {}'.format(elt)
+            assert md['tissue_id'].startswith(md['donor_id']+'-'), 'tissue_id does not match'
+            tissue_info = _uuid_lookup(md['tissue_id'], **kwargs)
+#             print('tissue_info:')
+#             pprint(tissue_info)
+            assert tissue_info and len(tissue_info) >= 1, 'tissue_id not found on lookup'
+            return 0
+        except AssertionError as e:
+            kwargs['ti'].xcom_push(key='err_msg',
+                                   value='Assertion Failed: {}'.format(e))
+            return 1
+    else:
+        return 0
 
 def _get_scratch_base_path() -> str:
     scratch_path = airflow_conf.as_dict()['connections']['WORKFLOW_SCRATCH']

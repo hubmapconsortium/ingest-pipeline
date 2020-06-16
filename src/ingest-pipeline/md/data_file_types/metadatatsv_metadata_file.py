@@ -31,5 +31,7 @@ class MetadataTSVMetadataFile(MetadataFile):
             f.seek(0)
             reader = csv.DictReader(f, dialect=dialect)
             for row in reader:
-                md.append({k : v for k, v in row.items()})
+                dct = {k : v for k, v in row.items()}
+                dct['_from_metadatatsv'] = True
+                md.append(dct)
         return md
