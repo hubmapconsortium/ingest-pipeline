@@ -131,6 +131,7 @@ class PipelineFileMatcher(FileMatcher):
         """
         path_str = fspath(file_path)
         for pattern, description_template, ontology_term in self.matchers:
+            # TODO: walrus operator
             m = pattern.match(path_str)
             if m:
                 formatted_description = description_template.format_map(m.groupdict())
@@ -149,9 +150,9 @@ class DummyFileMatcher(FileMatcher):
 
 def find_pipeline_manifests(*cwl_files: Path) -> List[Path]:
     """
-    Constructs a manifest path from the CWL file (strip '.cwl',
-    append '-manifest.json'), and check whether the manifest exists.
-    If so, return that `Path`. Otherwise, return `None`.
+    Constructs manifest paths from CWL files (strip '.cwl', append
+    '-manifest.json'), and check whether each manifest exists. Return
+    a list of `Path`s that exist on disk.
     """
     manifests = []
     for cwl_file in cwl_files:
