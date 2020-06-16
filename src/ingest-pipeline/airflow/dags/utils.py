@@ -1,8 +1,9 @@
-from os import environ, walk
+from abc import ABC, abstractmethod
+from os import environ, fspath, walk
 from os.path import basename, dirname, relpath, split, join, getsize, realpath
 import sys
 from pathlib import Path
-from typing import Iterable, Callable, Mapping, Union, Any, List, Dict
+from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Pattern, Tuple, TypeVar, Union
 from subprocess import check_call, check_output, CalledProcessError
 import re
 import json
@@ -16,6 +17,9 @@ from hubmap_commons.schema_tools import assert_json_matches_schema, set_schema_b
 
 JSONType = Union[str, int, float, bool, None, Dict[str, Any], List[Any]]
 
+# Some functions accept a `str` or `List[str]` and return that same type
+StrOrListStr = TypeVar('StrOrListStr', str, List[str])
+
 SCHEMA_BASE_PATH = join(dirname(dirname(dirname(realpath(__file__)))),
                         'schemata')
 SCHEMA_BASE_URI = 'http://schemata.hubmapconsortium.org/'
@@ -23,7 +27,7 @@ SCHEMA_BASE_URI = 'http://schemata.hubmapconsortium.org/'
 from airflow.hooks.http_hook import HttpHook
 
 # Some constants
-PIPELINE_BASE_DIR = Path(environ['AIRFLOW_HOME']) / 'pipeline_git_repos'
+PIPELINE_BASE_DIR = Path(__file__).resolve().parent / 'cwl'
 
 # default maximum for number of files for which info should be returned in_line
 # rather than via an alternative scratch file
@@ -65,67 +69,100 @@ SHA1SUM_COMMAND = [
     'sha1sum',
     '{fname}'
 ]
-FILE_TYPE_MATCHERS = [('^.*\.csv$', 'csv'),  # format is (regex, type)
-                      ('^.*\.hdf5$', 'hdf5'),
-                      ('^.*\.h5ad$', 'h5ad'),
-                      ('^.*\.pdf$', 'pdf'),
-                      ('^.*\.json$', 'json'),
-                      ('^.*\.arrow$', 'arrow'),
-                      ('(^.*\.fastq$)|(^.*\.fastq.gz$)', 'fastq'),
-                      ('(^.*\.yml$)|(^.*\.yaml$)', 'yaml')
+FILE_TYPE_MATCHERS = [(r'^.*\.csv$', 'csv'),  # format is (regex, type)
+                      (r'^.*\.hdf5$', 'hdf5'),
+                      (r'^.*\.h5ad$', 'h5ad'),
+                      (r'^.*\.pdf$', 'pdf'),
+                      (r'^.*\.json$', 'json'),
+                      (r'^.*\.arrow$', 'arrow'),
+                      (r'(^.*\.fastq$)|(^.*\.fastq.gz$)', 'fastq'),
+                      (r'(^.*\.yml$)|(^.*\.yaml$)', 'yaml')
                       ]
-COMPILED_TYPE_MATCHERS = None
+COMPILED_TYPE_MATCHERS: Optional[List[Tuple[Pattern, str]]] = None
 
 """
 Lazy construction; a list of tuples (collection_type_regex, assay_type_regex, workflow)
 """
 WORKFLOW_MAP_FILENAME = 'workflow_map.yml'  # Expected to be found in the same dir as this file
 WORKFLOW_MAP_SCHEMA = 'workflow_map_schema.yml'
-COMPILED_WORKFLOW_MAP = None
+COMPILED_WORKFLOW_MAP: Optional[List[Tuple[Pattern, Pattern, str]]] = None
 
 
-def clone_or_update_pipeline(pipeline_name: str, ref: str = 'origin/master') -> None:
+class FileMatcher(ABC):
+    @abstractmethod
+    def get_file_metadata(self, file_path: Path) -> Tuple[bool, Optional[str], Optional[str]]:
+        """
+        :return: A 3-tuple:
+         [0] bool, whether to add `file_path` to a downstream index
+         [1] formatted description if [0] is True, otherwise None
+         [2] EDAM ontology term if [0] is True, otherwise None
+        """
+
+
+class PipelineFileMatcher(FileMatcher):
+    # (file/directory regex, description template, EDAM ontology term)
+    matchers: List[Tuple[Pattern, str, str]]
+
+    def __init__(self, pipeline_file_manifest: Optional[Path] = None):
+        self.matchers = []
+
+    @classmethod
+    def read_manifest(cls, pipeline_file_manifest: Path) -> Iterable[Tuple[Pattern, str, str]]:
+        with open(pipeline_file_manifest) as f:
+            manifest = json.load(f)
+
+        for annotation in manifest:
+            pattern = re.compile(annotation['pattern'])
+            yield pattern, annotation['description'], annotation['type']
+
+    @classmethod
+    def create_from_files(cls, pipeline_file_manifests: Iterable[Path]):
+        obj = cls()
+        for manifest in pipeline_file_manifests:
+            obj.matchers.extend(cls.read_manifest(manifest))
+        return obj
+
+    def get_file_metadata(self, file_path: Path) -> Tuple[bool, Optional[str], Optional[str]]:
+        """
+        Checks `file_path` against the list of patterns stored in this object.
+        At the first match, return the associated description and ontology term.
+        If no match, return `None`. Patterns are ordered in the JSON file, so
+        the "first-match" behavior is deliberate.
+        """
+        path_str = fspath(file_path)
+        for pattern, description_template, ontology_term in self.matchers:
+            # TODO: walrus operator
+            m = pattern.match(path_str)
+            if m:
+                formatted_description = description_template.format_map(m.groupdict())
+                return True, formatted_description, ontology_term
+        return False, None, None
+
+
+class DummyFileMatcher(FileMatcher):
     """
-    Ensure that a Git clone of a specific pipeline exists inside the
-    PIPELINE_BASE_DIR directory.
-
-    If it doesn't exist already, clone it and check out the specified ref.
-    If it already exists, run 'git fetch' inside, then check out the specified ref.
-    With the default ref (origin/master), this will mimic running 'git pull'.
-
-    :param pipeline_name: the name of a public repository on GitHub, under the
-      'hubmapconsortium' organization. The remote repository URL will be constructed
-      as 'https://github.com/hubmapconsortium/{pipeline_name}'.
-    :param ref: which reference to check out in the repository after cloning
-      or fetching. This can be a remote branch (prefixed with 'origin/') or a
-      tag if a pipeline should be pinned to a specific version.
+    Drop-in replacement for PipelineFileMatcher which allows everything and always
+    provides empty descriptions and ontology terms.
     """
-    PIPELINE_BASE_DIR.mkdir(parents=True, exist_ok=True)
-    pipeline_dir = PIPELINE_BASE_DIR / pipeline_name
-    if pipeline_dir.is_dir():
-        # Already exists. Fetch and update
-        check_call(GIT_FETCH_COMMAND, cwd=pipeline_dir)
-    else:
-        repository_url = f'https://github.com/hubmapconsortium/{pipeline_name}'
-        clone_command = [
-            piece.format(repository=repository_url)
-            for piece in GIT_CLONE_COMMAND
-        ]
-        check_call(clone_command, cwd=PIPELINE_BASE_DIR)
-
-    # Whether we just cloned the repository or fetched any updates that may
-    # exist, check out the ref given as the argument to this function.
-    # This is required even when cloning, since you can't do (e.g.)
-    #   `git clone -b origin/master whatever-repo`
-
-    checkout_command = [
-        piece.format(ref=ref)
-        for piece in GIT_CHECKOUT_COMMAND
-    ]
-    check_call(checkout_command, cwd=pipeline_dir)
+    def get_file_metadata(self, file_path: Path) -> Tuple[bool, Optional[str], Optional[str]]:
+        return True, '', ''
 
 
-def get_git_commits(file_list: Iterable[str]) -> Union[str, List[str]]:
+def find_pipeline_manifests(*cwl_files: Path) -> List[Path]:
+    """
+    Constructs manifest paths from CWL files (strip '.cwl', append
+    '-manifest.json'), and check whether each manifest exists. Return
+    a list of `Path`s that exist on disk.
+    """
+    manifests = []
+    for cwl_file in cwl_files:
+        manifest_file = cwl_file.with_name(f'{cwl_file.stem}-manifest.json')
+        if manifest_file.is_file():
+            manifests.append(manifest_file)
+    return manifests
+
+
+def get_git_commits(file_list: StrOrListStr) -> StrOrListStr:
     """
     Given a list of file paths, return a list of the current short commit hashes of those files
     """
@@ -155,7 +192,7 @@ def get_git_commits(file_list: Iterable[str]) -> Union[str, List[str]]:
         return rslt
 
 
-def get_git_origins(file_list: Iterable[str]) -> Union[str, List[str]]:
+def get_git_origins(file_list: StrOrListStr) -> StrOrListStr:
     """
     Given a list of file paths, return a list of the git origins of those files
     """
@@ -213,7 +250,7 @@ def get_git_root_paths(file_list: Iterable[str]) -> Union[str, List[str]]:
         return rslt
 
 
-def get_git_provenance_dict(file_list: Iterable[str]) -> List[Mapping[str, str]]:
+def get_git_provenance_dict(file_list: Iterable[str]) -> Mapping[str, str]:
     """
     Given a list of file paths, return a list of dicts of the form:
     
@@ -252,7 +289,7 @@ def get_git_provenance_list(file_list: Iterable[str]) -> List[Mapping[str, Any]]
     return rslt
 
 
-def _get_file_type(path: str) -> str:
+def _get_file_type(path: Path) -> str:
     """
     Given a path, guess the type of the file
     """
@@ -264,46 +301,70 @@ def _get_file_type(path: str) -> str:
         COMPILED_TYPE_MATCHERS = lst
     for regex, tpnm in COMPILED_TYPE_MATCHERS:
         #print('testing ', regex, tpnm)
-        if regex.match(path):
+        if regex.match(fspath(path)):
             return tpnm
     return 'unknown'
-    
 
-def get_file_metadata(root_dir: str) -> List[Mapping[str, Any]]:
+
+def get_file_metadata(root_dir: str, matcher: FileMatcher) -> List[Mapping[str, Any]]:
     """
     Given a root directory, return a list of the form:
     
-      [{'rel_path':<relative path>, 'type':<file type>, 'size':<file size>}, ...]
+      [
+        {
+          'rel_path': <relative path>,
+          'type': <file type>,
+          'size': <file size>,
+          'description': <human-readable file description>,
+          'edam_term': <EDAM ontology term>,
+        },
+        ...
+      ]
     
     containing an entry for every file below the given root directory:
     """
+    root_path = Path(root_dir)
     rslt = []
     for dirpth, dirnames, fnames in walk(root_dir):
-        rp = relpath(dirpth, start=root_dir)
+        dp = Path(dirpth)
         for fn in fnames:
-            full_path = join(root_dir, rp, fn)
-            sz = getsize(full_path)
-            # sha1sum disabled because of run time issues on large data collections
-            #line = check_output([word.format(fname=full_path)
-            #                     for word in SHA1SUM_COMMAND])
-            #cs = line.split()[0].strip().decode('utf-8')
-            rslt.append({'rel_path': join(rp, fn),
-                         'type': _get_file_type(full_path),
-                         'size': getsize(join(root_dir, rp, fn)),
-                         #'sha1sum': cs
-                         })
+            full_path = dp / fn
+            relative_path = full_path.relative_to(root_path)
+            add_to_index, description, ontology_term = matcher.get_file_metadata(relative_path)
+            if add_to_index:
+                # sha1sum disabled because of run time issues on large data collections
+                #line = check_output([word.format(fname=full_path)
+                #                     for word in SHA1SUM_COMMAND])
+                #cs = line.split()[0].strip().decode('utf-8')
+                rslt.append(
+                    {
+                        'rel_path': fspath(relative_path),
+                        'type': _get_file_type(full_path),
+                        'size': getsize(full_path),
+                        'description': description,
+                        'edam_term': ontology_term,
+                         #'sha1sum': cs,
+                    }
+                )
     return rslt
 
-
-def get_file_metadata_dict(root_dir: str, alt_file_dir: str,
-                           max_in_line_files : int = MAX_IN_LINE_FILES) -> Mapping[str, Any]:
+def get_file_metadata_dict(
+        root_dir: str,
+        alt_file_dir: str,
+        pipeline_file_manifests: List[Path],
+        max_in_line_files: int = MAX_IN_LINE_FILES,
+) -> Mapping[str, Any]:
     """
     This routine returns file metadata, either directly as JSON in the form
     {'files': [{...}, {...}, ...]} with the list returned by get_file_metadata() or the form
     {'files_info_alt_path': path} where path is the path of a unique file in alt_file_dir
     relative to the WORKFLOW_SCRATCH config parameter
     """
-    file_info = get_file_metadata(root_dir)
+    if not pipeline_file_manifests:
+        matcher = DummyFileMatcher()
+    else:
+        matcher = PipelineFileMatcher.create_from_files(pipeline_file_manifests)
+    file_info = get_file_metadata(root_dir, matcher)
     if len(file_info) > max_in_line_files:
         localized_assert_json_matches_schema(file_info, 'file_info_schema.yml')
         fpath = join(alt_file_dir, '{}.json'.format(uuid.uuid4()))
@@ -340,7 +401,7 @@ def pythonop_maybe_keep(**kwargs) -> str:
     test_key = kwargs['test_key'] if 'test_key' in kwargs else None
     retcode = int(kwargs['ti'].xcom_pull(task_ids=test_op, key=test_key))
     print('%s key %s: %s\n' % (test_op, test_key, retcode))
-    if retcode is 0:
+    if retcode == 0:
         return kwargs['next_op']
     else:
         return bail_op
@@ -514,8 +575,9 @@ def map_queue_name(raw_queue_name: str) -> str:
     If the configuration contains QUEUE_NAME_TEMPLATE, use it to customize the
     provided queue name.  This allows job separation under Celery.
     """
-    if 'QUEUE_NAME_TEMPLATE' in airflow_conf.as_dict()['connections']:
-        template = airflow_conf.as_dict()['connections']['QUEUE_NAME_TEMPLATE']
+    conf_dict = airflow_conf.as_dict()
+    if 'QUEUE_NAME_TEMPLATE' in conf_dict.get('connections', {}):
+        template = conf_dict['connections']['QUEUE_NAME_TEMPLATE']
         template = template.strip("'").strip('"')  # remove quotes that may be on the config string
         rslt = template.format(raw_queue_name)
         return rslt
@@ -555,7 +617,7 @@ def localized_assert_json_matches_schema(jsn: JSONType, schemafile:str) -> None:
         raise
 
 
-def _get_workflow_map() -> Iterable[str]:
+def _get_workflow_map() -> List[Tuple[Pattern, Pattern, str]]:
     """
     Lazy compilation of workflow map
     """
@@ -572,7 +634,7 @@ def _get_workflow_map() -> Iterable[str]:
             cmp_map.append((ct_re, at_re, dct['workflow']))
         COMPILED_WORKFLOW_MAP = cmp_map
     return COMPILED_WORKFLOW_MAP
-            
+
 
 def downstream_workflow_iter(collectiontype: str, assay_type: str) -> Iterable[str]:
     """

@@ -15,12 +15,16 @@ from airflow.hooks.http_hook import HttpHook
 
 import utils
 
-from utils import localized_assert_json_matches_schema as assert_json_matches_schema
-
+from utils import (
+    PIPELINE_BASE_DIR,
+    find_pipeline_manifests,
+    localized_assert_json_matches_schema as assert_json_matches_schema,
+)
 
 import cwltool  # used to find its path
 
 THREADS = 6  # to be used by the CWL worker
+
 
 def get_parent_dataset_uuid(**kwargs):
     return kwargs['dag_run'].conf['parent_submission_id']
@@ -65,7 +69,6 @@ with DAG('salmon_rnaseq_10x',
          user_defined_macros={'tmp_dir_path' : utils.get_tmp_dir_path}
          ) as dag:
 
- 
     pipeline_name = 'salmon-rnaseq'
     cwl_workflow1 = os.path.join(pipeline_name, 'pipeline.cwl')
     cwl_workflow2 = os.path.join('portal-containers', 'h5ad-to-arrow.cwl')
@@ -108,7 +111,6 @@ with DAG('salmon_rnaseq_10x',
         print('tmpdir: ', tmpdir)
         data_dir = ctx['parent_lz_path']
         print('data_dir: ', data_dir)
-        pipeline_base_dir = str(Path(__file__).resolve().parent / 'cwl')
         cwltool_dir = os.path.dirname(cwltool.__file__)
         while cwltool_dir:
             part1, part2 = os.path.split(cwltool_dir)
@@ -126,7 +128,7 @@ with DAG('salmon_rnaseq_10x',
             '--outdir',
             os.path.join(tmpdir, 'cwl_out'),
             '--parallel',
-            os.path.join(pipeline_base_dir, cwl_workflow1),
+            os.fspath(PIPELINE_BASE_DIR / cwl_workflow1),
             '--fastq_dir',
             data_dir,
             '--threads',
@@ -152,7 +154,6 @@ with DAG('salmon_rnaseq_10x',
         print('tmpdir: ', tmpdir)
         data_dir = ctx['parent_lz_path']
         print('data_dir: ', data_dir)
-        pipeline_base_dir = str(Path(__file__).resolve().parent / 'cwl')
         cwltool_dir = os.path.dirname(cwltool.__file__)
         while cwltool_dir:
             part1, part2 = os.path.split(cwltool_dir)
@@ -166,7 +167,7 @@ with DAG('salmon_rnaseq_10x',
             'env',
             'PATH=%s:%s' % (cwltool_dir, os.environ['PATH']),
             'cwltool',
-            os.path.join(pipeline_base_dir, cwl_workflow2),
+            os.fspath(PIPELINE_BASE_DIR / cwl_workflow2),
             '--input_dir',
             '.'
         ]
@@ -214,7 +215,6 @@ with DAG('salmon_rnaseq_10x',
                      'bail_op' : 'set_dataset_error',
                      'test_op' : 'pipeline_exec'}
         )
-
 
     t_maybe_keep_cwl2 = BranchPythonOperator(
         task_id='maybe_keep_cwl2',
@@ -311,21 +311,19 @@ with DAG('salmon_rnaseq_10x',
             'content-type' : 'application/json'}
         print('headers:')
         pprint(headers)
-        extra_options=[]
-         
+        extra_options = []
+
         http = HttpHook(method,
                         http_conn_id=http_conn_id)
- 
+
         if success:
             md = {}
-            pipeline_base_dir = os.path.join(os.environ['AIRFLOW_HOME'],
-                                             'dags', 'cwl')
             if 'dag_provenance' in kwargs['dag_run'].conf:
                 md['dag_provenance'] = kwargs['dag_run'].conf['dag_provenance'].copy()
                 new_prv_dct = utils.get_git_provenance_dict([__file__,
-                                                             os.path.join(pipeline_base_dir,
+                                                             os.path.join(PIPELINE_BASE_DIR,
                                                                           cwl_workflow1),
-                                                             os.path.join(pipeline_base_dir,
+                                                             os.path.join(PIPELINE_BASE_DIR,
                                                                           cwl_workflow2)])
                 md['dag_provenance'].update(new_prv_dct)
             else:
@@ -333,13 +331,19 @@ with DAG('salmon_rnaseq_10x',
                            if 'dag_provenance_list' in kwargs['dag_run'].conf
                            else [])
                 dag_prv.extend(utils.get_git_provenance_list([__file__,
-                                                              os.path.join(pipeline_base_dir,
+                                                              os.path.join(PIPELINE_BASE_DIR,
                                                                            cwl_workflow1),
-                                                              os.path.join(pipeline_base_dir,
+                                                              os.path.join(PIPELINE_BASE_DIR,
                                                                            cwl_workflow2)]))
                 md['dag_provenance_list'] = dag_prv
+
+            manifest_files = find_pipeline_manifests(
+                PIPELINE_BASE_DIR / cwl_workflow1,
+                PIPELINE_BASE_DIR / cwl_workflow2,
+            )
             md.update(utils.get_file_metadata_dict(ds_dir,
-                                                   utils.get_tmp_dir_path(kwargs['run_id'])))
+                                                   utils.get_tmp_dir_path(kwargs['run_id']),
+                                                   manifest_files))
             try:
                 assert_json_matches_schema(md, 'dataset_metadata_schema.yml')
                 data = {'dataset_id' : derived_dataset_uuid,
@@ -391,7 +395,7 @@ with DAG('salmon_rnaseq_10x',
         bash_command='echo rm -r {{tmp_dir_path(run_id)}}',
         trigger_rule='all_success'
         )
- 
+
 
     (dag >> t1 >> t_create_tmpdir
      >> t_send_create_dataset >> t_set_dataset_processing
