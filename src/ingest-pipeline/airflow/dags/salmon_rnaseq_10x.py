@@ -16,16 +16,14 @@ from airflow.hooks.http_hook import HttpHook
 import utils
 
 from utils import (
+    PIPELINE_BASE_DIR,
     find_pipeline_manifests,
     localized_assert_json_matches_schema as assert_json_matches_schema,
 )
 
-
 import cwltool  # used to find its path
 
 THREADS = 6  # to be used by the CWL worker
-
-PIPELINE_BASE_DIR = Path(__file__).resolve().parent / 'cwl'
 
 
 def get_parent_dataset_uuid(**kwargs):
@@ -320,14 +318,12 @@ with DAG('salmon_rnaseq_10x',
 
         if success:
             md = {}
-            # Is this necessary? Is it the same as the global PIPELINE_BASE_DIR?
-            pipeline_base_dir = Path(os.environ['AIRFLOW_HOME']) / 'dags/cwl'
             if 'dag_provenance' in kwargs['dag_run'].conf:
                 md['dag_provenance'] = kwargs['dag_run'].conf['dag_provenance'].copy()
                 new_prv_dct = utils.get_git_provenance_dict([__file__,
-                                                             os.path.join(pipeline_base_dir,
+                                                             os.path.join(PIPELINE_BASE_DIR,
                                                                           cwl_workflow1),
-                                                             os.path.join(pipeline_base_dir,
+                                                             os.path.join(PIPELINE_BASE_DIR,
                                                                           cwl_workflow2)])
                 md['dag_provenance'].update(new_prv_dct)
             else:
@@ -335,15 +331,15 @@ with DAG('salmon_rnaseq_10x',
                            if 'dag_provenance_list' in kwargs['dag_run'].conf
                            else [])
                 dag_prv.extend(utils.get_git_provenance_list([__file__,
-                                                              os.path.join(pipeline_base_dir,
+                                                              os.path.join(PIPELINE_BASE_DIR,
                                                                            cwl_workflow1),
-                                                              os.path.join(pipeline_base_dir,
+                                                              os.path.join(PIPELINE_BASE_DIR,
                                                                            cwl_workflow2)]))
                 md['dag_provenance_list'] = dag_prv
 
             manifest_files = find_pipeline_manifests(
-                pipeline_base_dir / cwl_workflow1,
-                pipeline_base_dir / cwl_workflow2,
+                PIPELINE_BASE_DIR / cwl_workflow1,
+                PIPELINE_BASE_DIR / cwl_workflow2,
             )
             md.update(utils.get_file_metadata_dict(ds_dir,
                                                    utils.get_tmp_dir_path(kwargs['run_id']),

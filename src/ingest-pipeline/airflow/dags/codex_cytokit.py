@@ -15,7 +15,11 @@ from airflow.hooks.http_hook import HttpHook
 
 import utils
 
-from utils import localized_assert_json_matches_schema as assert_json_matches_schema
+from utils import (
+    PIPELINE_BASE_DIR,
+    find_pipeline_manifests,
+    localized_assert_json_matches_schema as assert_json_matches_schema,
+)
 
 import cwltool  # used to find its path
 
@@ -94,7 +98,6 @@ with DAG('codex_cytokit',
         print('tmpdir: ', tmpdir)
         data_dir = ctx['parent_lz_path']
         print('data_dir: ', data_dir)
-        pipeline_base_dir = str(Path(__file__).resolve().parent / 'cwl')
         cwltool_dir = os.path.dirname(cwltool.__file__)
         while cwltool_dir:
             part1, part2 = os.path.split(cwltool_dir)
@@ -108,7 +111,7 @@ with DAG('codex_cytokit',
             'env',
             'PATH=%s:%s' % (cwltool_dir, os.environ['PATH']),
             'cwltool',
-            os.path.join(pipeline_base_dir, cwl_workflow1),
+            os.fspath(PIPELINE_BASE_DIR / cwl_workflow1),
             '--data_dir',
             data_dir,
         ]
@@ -174,7 +177,6 @@ with DAG('codex_cytokit',
         print('parent_data_dir: ', parent_data_dir)
         data_dir = os.path.join(tmpdir, 'cwl_out')  # This stage reads input from stage 1
         print('data_dir: ', data_dir)
-        pipeline_base_dir = str(Path(__file__).resolve().parent / 'cwl')
         cwltool_dir = os.path.dirname(cwltool.__file__)
         while cwltool_dir:
             part1, part2 = os.path.split(cwltool_dir)
@@ -188,11 +190,11 @@ with DAG('codex_cytokit',
             'env',
             'PATH=%s:%s' % (cwltool_dir, os.environ['PATH']),
             'cwltool',
-            os.path.join(pipeline_base_dir, cwl_workflow2),
+            os.fspath(PIPELINE_BASE_DIR / cwl_workflow2),
             '--input_dir',
             os.path.join(data_dir, 'output', 'extract', 'expressions', 'ome-tiff')
         ]
-        
+
         command_str = ' '.join(shlex.quote(piece) for piece in command)
         print('final command_str: %s' % command_str)
         return command_str
@@ -318,14 +320,12 @@ with DAG('codex_cytokit',
  
         if success:
             md = {}
-            pipeline_base_dir = os.path.join(os.environ['AIRFLOW_HOME'],
-                                             'dags', 'cwl')
             if 'dag_provenance' in kwargs['dag_run'].conf:
                 md['dag_provenance'] = kwargs['dag_run'].conf['dag_provenance'].copy()
                 new_prv_dct = utils.get_git_provenance_dict([__file__,
-                                                             os.path.join(pipeline_base_dir,
+                                                             os.path.join(PIPELINE_BASE_DIR,
                                                                           cwl_workflow1),
-                                                             os.path.join(pipeline_base_dir,
+                                                             os.path.join(PIPELINE_BASE_DIR,
                                                                           cwl_workflow2)])
                 md['dag_provenance'].update(new_prv_dct)
             else:
@@ -333,13 +333,18 @@ with DAG('codex_cytokit',
                            if 'dag_provenance_list' in kwargs['dag_run'].conf
                            else [])
                 dag_prv.extend(utils.get_git_provenance_list([__file__,
-                                                              os.path.join(pipeline_base_dir,
+                                                              os.path.join(PIPELINE_BASE_DIR,
                                                                            cwl_workflow1),
-                                                              os.path.join(pipeline_base_dir,
+                                                              os.path.join(PIPELINE_BASE_DIR,
                                                                            cwl_workflow2)]))
                 md['dag_provenance_list'] = dag_prv
+            manifest_files = find_pipeline_manifests(
+                PIPELINE_BASE_DIR / cwl_workflow1,
+                PIPELINE_BASE_DIR / cwl_workflow2,
+            )
             md.update(utils.get_file_metadata_dict(ds_dir,
-                                                   utils.get_tmp_dir_path(kwargs['run_id'])))
+                                                   utils.get_tmp_dir_path(kwargs['run_id']),
+                                                   manifest_files))
             try:
                 assert_json_matches_schema(md, 'dataset_metadata_schema.yml')
                 data = {'dataset_id' : derived_dataset_uuid,
