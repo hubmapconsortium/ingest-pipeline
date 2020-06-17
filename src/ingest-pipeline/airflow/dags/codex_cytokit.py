@@ -12,7 +12,11 @@ from airflow.operators.dummy_operator import DummyOperator
 from airflow.hooks.http_hook import HttpHook
 
 import utils
-
+from operators import (
+    t_join,
+    t_cleanup_tmpdir,
+    t_create_tmpdir,
+)
 from utils import (
     PIPELINE_BASE_DIR,
     find_pipeline_manifests,
@@ -366,25 +370,6 @@ with DAG('codex_cytokit',
         provide_context=True
     )
 
-    
-    t_join = DummyOperator(
-        task_id='join',
-        trigger_rule='one_success')
-
-
-    t_create_tmpdir = BashOperator(
-        task_id='create_temp_dir',
-        bash_command='mkdir {{tmp_dir_path(run_id)}}',
-        provide_context=True
-        )
-
-
-    t_cleanup_tmpdir = BashOperator(
-        task_id='cleanup_temp_dir',
-        bash_command='rm -r {{tmp_dir_path(run_id)}}',
-        trigger_rule='all_success'
-        )
- 
 
     (dag >> t1 >> t_create_tmpdir
      >> t_send_create_dataset >> t_set_dataset_processing
