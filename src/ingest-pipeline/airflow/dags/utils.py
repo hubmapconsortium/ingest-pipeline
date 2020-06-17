@@ -110,6 +110,7 @@ class PipelineFileMatcher(FileMatcher):
     def read_manifest(cls, pipeline_file_manifest: Path) -> Iterable[Tuple[Pattern, str, str]]:
         with open(pipeline_file_manifest) as f:
             manifest = json.load(f)
+            localized_assert_json_matches_schema(manifest, 'pipeline_file_manifest.yml')
 
         for annotation in manifest:
             pattern = re.compile(annotation['pattern'])
