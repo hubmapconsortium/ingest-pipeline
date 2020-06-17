@@ -13,9 +13,12 @@ from airflow.hooks.http_hook import HttpHook
 
 import utils
 from operators import (
-    t_join,
+    t1,
     t_cleanup_tmpdir,
     t_create_tmpdir,
+    t_join,
+    t_move_data,
+    t_set_dataset_processing,
 )
 from utils import (
     PIPELINE_BASE_DIR,
@@ -62,12 +65,7 @@ with DAG('codex_cytokit',
                                    kwargs['dag_run'].conf['parent_submission_id'],
                                    pipeline_name),
 
-    t1 = PythonOperator(
-        task_id='trigger_target',
-        python_callable = utils.pythonop_trigger_target,
-        )
-    
-    
+
 #     prepare_cwl1 = PythonOperator(
 #         python_callable=utils.clone_or_update_pipeline,
 #         task_id='prepare_cwl1',
@@ -227,17 +225,6 @@ with DAG('codex_cytokit',
     )
 
 
-    t_set_dataset_processing = PythonOperator(
-        task_id='set_dataset_processing',
-        python_callable=utils.pythonop_set_dataset_state,
-        provide_context=True,
-        op_kwargs = {'dataset_uuid_callable' : get_dataset_uuid,
-                     'http_conn_id' : 'ingest_api_connection',
-                     'endpoint' : '/datasets/status'
-                     }
-    )
-
-
     t_set_dataset_error = PythonOperator(
         task_id='set_dataset_error',
         python_callable=utils.pythonop_set_dataset_state,
@@ -250,23 +237,6 @@ with DAG('codex_cytokit',
                      'message' : 'An error occurred in {}'.format(pipeline_name)
                      }
     )
-
-
-    t_move_data = BashOperator(
-        task_id='move_data',
-        bash_command="""
-        tmp_dir="{{tmp_dir_path(run_id)}}" ; \
-        ds_dir="{{ti.xcom_pull(task_ids="send_create_dataset")}}" ; \
-        groupname="{{conf.as_dict()['connections']['OUTPUT_GROUP_NAME']}}" ; \
-        pushd "$ds_dir" ; \
-        sudo chown airflow . ; \
-        sudo chgrp $groupname . ; \
-        popd ; \
-        mv "$tmp_dir"/cwl_out/* "$ds_dir" >> "$tmp_dir/session.log" 2>&1 ; \
-        echo $?
-        """,
-        provide_context=True
-        )
 
 
     t_expand_symlinks = BashOperator(
@@ -363,13 +333,11 @@ with DAG('codex_cytokit',
         print('response: ')
         pprint(response.json())
 
-
     t_send_status = PythonOperator(
         task_id='send_status_msg',
         python_callable=send_status_msg,
         provide_context=True
     )
-
 
     (dag >> t1 >> t_create_tmpdir
      >> t_send_create_dataset >> t_set_dataset_processing

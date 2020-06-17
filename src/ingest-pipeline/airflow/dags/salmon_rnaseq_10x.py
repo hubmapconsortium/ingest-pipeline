@@ -12,7 +12,14 @@ from airflow.operators.dummy_operator import DummyOperator
 from airflow.hooks.http_hook import HttpHook
 
 import utils
-from operators import t_cleanup_tmpdir, t_create_tmpdir
+from operators import (
+    t1,
+    t_cleanup_tmpdir,
+    t_create_tmpdir,
+    t_join,
+    t_move_data,
+    t_set_dataset_processing,
+)
 from utils import (
     PIPELINE_BASE_DIR,
     find_pipeline_manifests,
@@ -60,12 +67,6 @@ with DAG('salmon_rnaseq_10x',
                                    kwargs['dag_run'].conf['parent_submission_id'],
                                    pipeline_name),
 
-    t1 = PythonOperator(
-        task_id='trigger_target',
-        python_callable = utils.pythonop_trigger_target,
-        )
-    
-    
 #     prepare_cwl1 = PythonOperator(
 #         python_callable=utils.clone_or_update_pipeline,
 #         task_id='clone_or_update_cwl1',
@@ -207,10 +208,6 @@ with DAG('salmon_rnaseq_10x',
                      'test_op' : 'make_arrow1'}
         )
 
-    t_join = DummyOperator(
-        task_id='join',
-        trigger_rule='one_success')
-
     t_send_create_dataset = PythonOperator(
         task_id='send_create_dataset',
         python_callable=utils.pythonop_send_create_dataset,
@@ -220,15 +217,6 @@ with DAG('salmon_rnaseq_10x',
                      'endpoint' : '/datasets/derived',
                      'dataset_name_callable' : build_dataset_name,
                      "dataset_types":["salmon_rnaseq_10x"]
-                     }
-    )
-    t_set_dataset_processing = PythonOperator(
-        task_id='set_dataset_processing',
-        python_callable=utils.pythonop_set_dataset_state,
-        provide_context=True,
-        op_kwargs = {'dataset_uuid_callable' : get_dataset_uuid,
-                     'http_conn_id' : 'ingest_api_connection',
-                     'endpoint' : '/datasets/status'
                      }
     )
 
@@ -245,24 +233,6 @@ with DAG('salmon_rnaseq_10x',
                      }
     )
 
-
-    t_move_data = BashOperator(
-        task_id='move_data',
-        bash_command="""
-        tmp_dir={{tmp_dir_path(run_id)}} ; \
-        ds_dir="{{ti.xcom_pull(task_ids="send_create_dataset")}}" ; \
-        groupname="{{conf.as_dict()['connections']['OUTPUT_GROUP_NAME']}}" ; \
-        pushd "$ds_dir" ; \
-        sudo chown airflow . ; \
-        sudo chgrp $groupname . ; \
-        popd ; \
-        mv "$tmp_dir"/cwl_out/* "$ds_dir" >> "$tmp_dir/session.log" 2>&1 ; \
-        echo $?
-        """,
-        provide_context=True
-        )
-
-
     t_move_files = BashOperator(
         task_id='move_files',
         bash_command="""
@@ -274,7 +244,6 @@ with DAG('salmon_rnaseq_10x',
         """,
         provide_context=True
         )
-
 
     def send_status_msg(**kwargs):
         retcode_ops = ['pipeline_exec', 'move_data', 'make_arrow1']
@@ -356,7 +325,6 @@ with DAG('salmon_rnaseq_10x',
                             extra_options)
         print('response: ')
         pprint(response.json())
-
 
     t_send_status = PythonOperator(
         task_id='send_status_msg',

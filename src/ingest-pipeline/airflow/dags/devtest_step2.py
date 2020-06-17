@@ -13,9 +13,11 @@ from airflow.hooks.http_hook import HttpHook
 import utils
 
 from operators import (
+    t1,
     t_join,
     t_cleanup_tmpdir,
     t_create_tmpdir,
+    t_set_dataset_processing,
 )
 from utils import (
     get_dataset_uuid,
@@ -57,12 +59,6 @@ with DAG('devtest_step2',
                                    pipeline_name),
 
 
-    t1 = PythonOperator(
-        task_id='trigger_target',
-        python_callable = utils.pythonop_trigger_target,
-        )
-    
-    
     def build_cwltool_cmd1(**kwargs):
         ctx = kwargs['dag_run'].conf
         run_id = kwargs['run_id']
@@ -142,17 +138,6 @@ with DAG('devtest_step2',
                      'endpoint' : '/datasets/derived',
                      'dataset_name_callable' : build_dataset_name,
                      'dataset_types' :["devtest"]
-                     }
-    )
-
-
-    t_set_dataset_processing = PythonOperator(
-        task_id='set_dataset_processing',
-        python_callable=utils.pythonop_set_dataset_state,
-        provide_context=True,
-        op_kwargs = {'dataset_uuid_callable' : get_dataset_uuid,
-                     'http_conn_id' : 'ingest_api_connection',
-                     'endpoint' : '/datasets/status'
                      }
     )
 
