@@ -1,8 +1,6 @@
-import sys
 import os
 import json
 import shlex
-from pathlib import Path
 from pprint import pprint
 from datetime import datetime, timedelta
 
@@ -15,27 +13,13 @@ from airflow.hooks.http_hook import HttpHook
 
 import utils
 
-from utils import localized_assert_json_matches_schema as assert_json_matches_schema
+from utils import (
+    get_dataset_uuid,
+    get_parent_dataset_uuid,
+    get_uuid_for_error,
+    localized_assert_json_matches_schema as assert_json_matches_schema,
+)
 
-
-def get_parent_dataset_uuid(**kwargs):
-    return kwargs['dag_run'].conf['parent_submission_id']
-
-
-def get_dataset_uuid(**kwargs):
-    return kwargs['ti'].xcom_pull(key='derived_dataset_uuid',
-                                  task_ids="send_create_dataset")
-
-def get_uuid_for_error(**kwargs):
-    """
-    Return the uuid for the derived dataset if it exists, and of the parent dataset otherwise.
-    """
-    rslt = get_dataset_uuid(**kwargs)
-    if rslt is None:
-        rslt = get_parent_dataset_uuid(**kwargs)
-    return rslt
-        
-    
 
 default_args = {
     'owner': 'hubmap',
