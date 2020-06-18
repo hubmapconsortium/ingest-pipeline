@@ -10,6 +10,7 @@ import json
 from pprint import pprint
 import uuid
 import yaml
+from cryptography.fernet import Fernet
 
 from airflow.configuration import conf as airflow_conf
 
@@ -555,6 +556,10 @@ def _uuid_lookup(uuid, **kwargs):
     
 
 def pythonop_md_consistency_tests(**kwargs) -> int:
+    """
+    Perform simple consistency checks of the metadata stored as YAML in kwargs['metadata_fname'].
+    This includes accessing the UUID api via its Airflow connection ID to verify uuids.
+    """
     md_path = join(get_tmp_dir_path(kwargs['run_id']), kwargs['metadata_fname'])
     with open(md_path, 'r') as f:
         md = yaml.safe_load(f)
@@ -669,6 +674,18 @@ def downstream_workflow_iter(collectiontype: str, assay_type: str) -> Iterable[s
             yield workflow
 
 
+def encrypt_tok(cleartext_tok: str) -> bytes:
+    key = airflow_conf.as_dict(display_sensitive=True)['core']['fernet_key']
+    fernet = Fernet(key.encode())
+    return fernet.encrypt(cleartext_tok.encode())
+
+
+def decrypt_tok(crypt_tok: bytes) -> str:
+    key = airflow_conf.as_dict(display_sensitive=True)['core']['fernet_key']
+    fernet = Fernet(key.encode())
+    return fernet.decrypt(crypt_tok).decode()
+
+
 def main():
     print(__file__)
     print(get_git_commits([__file__]))
@@ -676,11 +693,11 @@ def main():
     dirnm = dirname(__file__)
     if dirnm == '':
         dirnm = '.'
-    for elt in get_file_metadata(dirnm):
+    for elt in get_file_metadata(dirnm, DummyFileMatcher()):
         print(elt)
     pprint(get_git_provenance_list(__file__))
     md = {'metadata' : {'my_string' : 'hello world'},
-          'files' : get_file_metadata(dirnm),
+          'files' : get_file_metadata(dirnm, DummyFileMatcher()),
           'dag_provenance_list' : get_git_provenance_list(__file__)}
     try:
         localized_assert_json_matches_schema(md, 'dataset_metadata_schema.yml')
@@ -694,6 +711,11 @@ def main():
         print('collectiontype {}, assay_type {}:'.format(collectiontype, assay_type))
         for elt in downstream_workflow_iter(collectiontype, assay_type):
             print('  -> {}'.format(elt))
+
+    s = 'hello world'
+    crypt_s = encrypt_tok(s)
+    s2 = decrypt_tok(crypt_s)
+    print('crypto test: {} -> {} -> {}'.format(s, crypt_s, s2))
  
  
 if __name__ == "__main__":
