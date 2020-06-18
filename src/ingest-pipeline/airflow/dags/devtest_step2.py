@@ -8,17 +8,18 @@ from airflow import DAG
 from airflow.operators.bash_operator import BashOperator
 from airflow.operators.python_operator import PythonOperator
 from airflow.operators.python_operator import BranchPythonOperator
+from airflow.operators.dummy_operator import DummyOperator
+from hubmap_operators.common_operators import (
+    LogInfoOperator,
+    JoinOperator,
+    CreateTmpDirOperator,
+    CleanupTmpDirOperator,
+    SetDatasetProcessingOperator
+)
 from airflow.hooks.http_hook import HttpHook
 
 import utils
 
-from operators import (
-    t1,
-    t_join,
-    t_cleanup_tmpdir,
-    t_create_tmpdir,
-    t_set_dataset_processing,
-)
 from utils import (
     get_dataset_uuid,
     get_parent_dataset_uuid,
@@ -250,9 +251,14 @@ with DAG('devtest_step2',
         python_callable=send_status_msg,
         provide_context=True
     )
+    
+    t_log_info = LogInfoOperator(task_id='log_info')
+    t_join = JoinOperator(task_id='join')
+    t_create_tmpdir = CreateTmpDirOperator(task_id='create_tmpdir')
+    t_cleanup_tmpdir = CleanupTmpDirOperator(task_id='cleanup_tmpdir')
+    t_set_dataset_processing = SetDatasetProcessingOperator(task_id='set_dataset_processing')
 
-
-    (dag >> t1 >> t_create_tmpdir
+    (dag >> t_log_info >> t_create_tmpdir
      >> t_send_create_dataset >> t_set_dataset_processing
      >> t_build_cmd1 >> t_pipeline_exec >> t_maybe_keep_cwl1
      >> t_move_data >> t_send_status >> t_join)

@@ -10,16 +10,16 @@ from airflow.operators.python_operator import PythonOperator
 from airflow.operators.python_operator import BranchPythonOperator
 from airflow.operators.dummy_operator import DummyOperator
 from airflow.hooks.http_hook import HttpHook
+from hubmap_operators.common_operators import (
+    LogInfoOperator,
+    JoinOperator,
+    CreateTmpDirOperator,
+    CleanupTmpDirOperator,
+    SetDatasetProcessingOperator,
+    MoveDataOperator
+)
 
 import utils
-from operators import (
-    t1,
-    t_cleanup_tmpdir,
-    t_create_tmpdir,
-    t_join,
-    t_move_data,
-    t_set_dataset_processing,
-)
 from utils import (
     PIPELINE_BASE_DIR,
     find_pipeline_manifests,
@@ -196,7 +196,7 @@ with DAG('codex_cytokit',
         bash_command=""" \
         tmp_dir={{tmp_dir_path(run_id)}} ; \
         cd ${tmp_dir}/cwl_out ; \
-        {{ti.xcom_pull(task_ids='build_cmd2')}} > $tmp_dir/session.log 2>&1 ; \
+        {{ti.xcom_pull(task_ids='build_cmd2')}} >> $tmp_dir/session.log 2>&1 ; \
         echo $?
         """
     )
@@ -339,7 +339,14 @@ with DAG('codex_cytokit',
         provide_context=True
     )
 
-    (dag >> t1 >> t_create_tmpdir
+    t_log_info = LogInfoOperator(task_id='log_info')
+    t_join = JoinOperator(task_id='join')
+    t_create_tmpdir = CreateTmpDirOperator(task_id='create_tmpdir')
+    t_cleanup_tmpdir = CleanupTmpDirOperator(task_id='cleanup_tmpdir')
+    t_set_dataset_processing = SetDatasetProcessingOperator(task_id='set_dataset_processing')
+    t_move_data = MoveDataOperator(task_id='move_data')
+
+    (dag >> t_log_info >> t_create_tmpdir
      >> t_send_create_dataset >> t_set_dataset_processing
      >> prepare_cwl1 >> t_build_cmd1 >> t_pipeline_exec_cwl1 >> t_maybe_keep_cwl1
      >> prepare_cwl2 >> t_build_cmd2 >> t_pipeline_exec_cwl2 >> t_maybe_keep_cwl2
