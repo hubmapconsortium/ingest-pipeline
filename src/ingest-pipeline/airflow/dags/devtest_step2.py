@@ -1,8 +1,6 @@
-import sys
 import os
 import json
 import shlex
-from pathlib import Path
 from pprint import pprint
 from datetime import datetime, timedelta
 
@@ -11,31 +9,24 @@ from airflow.operators.bash_operator import BashOperator
 from airflow.operators.python_operator import PythonOperator
 from airflow.operators.python_operator import BranchPythonOperator
 from airflow.operators.dummy_operator import DummyOperator
+from hubmap_operators.common_operators import (
+    LogInfoOperator,
+    JoinOperator,
+    CreateTmpDirOperator,
+    CleanupTmpDirOperator,
+    SetDatasetProcessingOperator
+)
 from airflow.hooks.http_hook import HttpHook
 
 import utils
 
-from utils import localized_assert_json_matches_schema as assert_json_matches_schema
+from utils import (
+    get_dataset_uuid,
+    get_parent_dataset_uuid,
+    get_uuid_for_error,
+    localized_assert_json_matches_schema as assert_json_matches_schema,
+)
 
-
-def get_parent_dataset_uuid(**kwargs):
-    return kwargs['dag_run'].conf['parent_submission_id']
-
-
-def get_dataset_uuid(**kwargs):
-    return kwargs['ti'].xcom_pull(key='derived_dataset_uuid',
-                                  task_ids="send_create_dataset")
-
-def get_uuid_for_error(**kwargs):
-    """
-    Return the uuid for the derived dataset if it exists, and of the parent dataset otherwise.
-    """
-    rslt = get_dataset_uuid(**kwargs)
-    if rslt is None:
-        rslt = get_parent_dataset_uuid(**kwargs)
-    return rslt
-        
-    
 
 default_args = {
     'owner': 'hubmap',
@@ -69,12 +60,6 @@ with DAG('devtest_step2',
                                    pipeline_name),
 
 
-    t1 = PythonOperator(
-        task_id='trigger_target',
-        python_callable = utils.pythonop_trigger_target,
-        )
-    
-    
     def build_cwltool_cmd1(**kwargs):
         ctx = kwargs['dag_run'].conf
         run_id = kwargs['run_id']
@@ -154,17 +139,6 @@ with DAG('devtest_step2',
                      'endpoint' : '/datasets/derived',
                      'dataset_name_callable' : build_dataset_name,
                      'dataset_types' :["devtest"]
-                     }
-    )
-
-
-    t_set_dataset_processing = PythonOperator(
-        task_id='set_dataset_processing',
-        python_callable=utils.pythonop_set_dataset_state,
-        provide_context=True,
-        op_kwargs = {'dataset_uuid_callable' : get_dataset_uuid,
-                     'http_conn_id' : 'ingest_api_connection',
-                     'endpoint' : '/datasets/status'
                      }
     )
 
@@ -277,32 +251,16 @@ with DAG('devtest_step2',
         python_callable=send_status_msg,
         provide_context=True
     )
-
     
-    t_join = DummyOperator(
-        task_id='join',
-        trigger_rule='one_success')
+    t_log_info = LogInfoOperator(task_id='log_info')
+    t_join = JoinOperator(task_id='join')
+    t_create_tmpdir = CreateTmpDirOperator(task_id='create_tmpdir')
+    t_cleanup_tmpdir = CleanupTmpDirOperator(task_id='cleanup_tmpdir')
+    t_set_dataset_processing = SetDatasetProcessingOperator(task_id='set_dataset_processing')
 
-
-    t_create_tmpdir = BashOperator(
-        task_id='create_temp_dir',
-        bash_command='mkdir {{tmp_dir_path(run_id)}}',
-        provide_context=True
-        )
-
-
-    t_cleanup_tmpdir = BashOperator(
-        task_id='cleanup_temp_dir',
-        bash_command='rm -r {{tmp_dir_path(run_id)}}',
-        trigger_rule='all_success'
-        )
- 
-
-    (dag >> t1 >> t_create_tmpdir
+    (dag >> t_log_info >> t_create_tmpdir
      >> t_send_create_dataset >> t_set_dataset_processing
      >> t_build_cmd1 >> t_pipeline_exec >> t_maybe_keep_cwl1
      >> t_move_data >> t_send_status >> t_join)
     t_maybe_keep_cwl1 >> t_set_dataset_error >> t_join
     t_join >> t_cleanup_tmpdir
-
-

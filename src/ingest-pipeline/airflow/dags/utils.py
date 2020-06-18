@@ -162,6 +162,25 @@ def find_pipeline_manifests(*cwl_files: Path) -> List[Path]:
     return manifests
 
 
+def get_parent_dataset_uuid(**kwargs):
+    return kwargs['dag_run'].conf['parent_submission_id']
+
+
+def get_dataset_uuid(**kwargs):
+    return kwargs['ti'].xcom_pull(key='derived_dataset_uuid',
+                                  task_ids="send_create_dataset")
+
+
+def get_uuid_for_error(**kwargs):
+    """
+    Return the uuid for the derived dataset if it exists, and of the parent dataset otherwise.
+    """
+    rslt = get_dataset_uuid(**kwargs)
+    if rslt is None:
+        rslt = get_parent_dataset_uuid(**kwargs)
+    return rslt
+
+
 def get_git_commits(file_list: StrOrListStr) -> StrOrListStr:
     """
     Given a list of file paths, return a list of the current short commit hashes of those files
