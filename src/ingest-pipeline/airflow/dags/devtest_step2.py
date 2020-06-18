@@ -238,7 +238,8 @@ with DAG('devtest_step2',
                 dag_prv.extend(utils.get_git_provenance_list([__file__]))
                 md['dag_provenance_list'] = dag_prv
             md.update(utils.get_file_metadata_dict(ds_dir,
-                                                   utils.get_tmp_dir_path(kwargs['run_id'])))
+                                                   utils.get_tmp_dir_path(kwargs['run_id']),
+                                                   []))
             try:
                 assert_json_matches_schema(md, 'dataset_metadata_schema.yml')
                 data = {'dataset_id' : derived_dataset_uuid,

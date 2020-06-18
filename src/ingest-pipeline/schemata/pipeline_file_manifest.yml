@@ -1,0 +1,17 @@
+'$schema': 'http://json-schema.org/schema#'
+'$id': 'http://schemata.hubmapconsortium.org/pipeline_file_manifest.yml'
+'title': 'pipeline file manifest schema'
+'description': 'pipeline file manifest schema'
+'type': 'array'
+'items':
+  'type': 'object'
+  'properties':
+    'pattern':
+      'type': 'string'
+      'description': 'Regular expression of relative file paths for pipeline outputs'
+    'description':
+      'type': 'string'
+      'description': 'human-readable description of this pipeline output file'
+    'edam_ontology_term':
+      'type': 'string'
+      'description': 'Term in the EDAM ontology describing this pipeline output file'
