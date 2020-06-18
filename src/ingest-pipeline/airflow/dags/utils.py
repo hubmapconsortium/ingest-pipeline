@@ -113,7 +113,7 @@ class PipelineFileMatcher(FileMatcher):
 
         for annotation in manifest:
             pattern = re.compile(annotation['pattern'])
-            yield pattern, annotation['description'], annotation['type']
+            yield pattern, annotation['description'], annotation['edam_ontology_term']
 
     @classmethod
     def create_from_files(cls, pipeline_file_manifests: Iterable[Path]):
