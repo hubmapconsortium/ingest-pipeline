@@ -20,6 +20,6 @@
         "description": "Term in the EDAM ontology describing this pipeline output file"
       }
     },
-    "required": ["pattern", "edam_ontology_term"]
+    "required": ["pattern", "description", "edam_ontology_term"]
   }
 }
