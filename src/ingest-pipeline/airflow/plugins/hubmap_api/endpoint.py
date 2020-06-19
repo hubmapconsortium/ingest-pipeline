@@ -61,7 +61,7 @@ NEEDED_CONFIGS = [
 
 def check_config():
     # Check for needed configuration elements, since it's better to fail early
-    dct = airflow_conf.as_dict()
+    dct = airflow_conf.as_dict(display_sensitive=True)
     failed = 0
     for elt in NEEDED_ENV_VARS:
         if elt not in os.environ:
@@ -81,7 +81,7 @@ check_config()
 
 
 def config(section, key):
-    dct = airflow_conf.as_dict()
+    dct = airflow_conf.as_dict(display_sensitive=True)
     if section in dct:
         if key in dct[section]:
             rslt = dct[section][key]
