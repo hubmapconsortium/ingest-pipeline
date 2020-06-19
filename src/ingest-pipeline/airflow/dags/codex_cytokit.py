@@ -27,6 +27,7 @@ from utils import (
     get_parent_dataset_uuid,
     get_uuid_for_error,
     localized_assert_json_matches_schema as assert_json_matches_schema,
+    decrypt_tok
 )
 
 import cwltool  # used to find its path
@@ -265,8 +266,9 @@ with DAG('codex_cytokit',
         http_conn_id='ingest_api_connection'
         endpoint='/datasets/status'
         method='PUT'
+        crypt_auth_tok = kwargs['dag_run'].conf['crypt_auth_tok']
         headers={
-            'authorization' : 'Bearer ' + kwargs['dag_run'].conf['auth_tok'],
+            'authorization' : 'Bearer ' + decrypt_tok(crypt_auth_tok.encode()),
             'content-type' : 'application/json'}
         print('headers:')
         pprint(headers)

@@ -257,11 +257,12 @@ with DAG('salmon_rnaseq_10x',
         http_conn_id='ingest_api_connection'
         endpoint='/datasets/status'
         method='PUT'
+        crypt_auth_tok = kwargs['dag_run'].conf['crypt_auth_tok']
         headers={
-            'authorization' : 'Bearer ' + kwargs['dag_run'].conf['auth_tok'],
+            'authorization' : 'Bearer ' + decrypt_tok(crypt_auth_tok.encode()),
             'content-type' : 'application/json'}
-        print('headers:')
-        pprint(headers)
+        # print('headers:')
+        # pprint(headers)  # reduce visibility of auth_tok
         extra_options = []
 
         http = HttpHook(method,

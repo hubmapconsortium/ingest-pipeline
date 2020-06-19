@@ -455,7 +455,7 @@ def pythonop_send_create_dataset(**kwargs) -> str:
     ctx = kwargs['dag_run'].conf
     method='POST'
     headers={
-        'authorization' : 'Bearer ' + ctx['auth_tok'],
+        'authorization' : 'Bearer ' + decrypt_tok(ctx['crypt_auth_tok'].encode()),
         'content-type' : 'application/json'}
     print('headers:')
     pprint(headers)
@@ -507,12 +507,13 @@ def pythonop_set_dataset_state(**kwargs) -> None:
     ds_state = kwargs['ds_state'] if 'ds_state' in kwargs else 'Processing'
     message = kwargs['message'] if 'message' in kwargs else 'update state'
     method='PUT'
-    auth_tok = kwargs['auth_tok'] if 'auth_tok' in kwargs else kwargs['dag_run'].conf['auth_tok'] 
+    crypt_auth_tok = (kwargs['crypt_auth_tok'] if 'crypt_auth_tok' in kwargs 
+                      else kwargs['dag_run'].conf['crypt_auth_tok'])
     headers={
-        'authorization' : 'Bearer ' + auth_tok,
+        'authorization' : 'Bearer ' + decrypt_tok(crypt_auth_tok.encode()),
         'content-type' : 'application/json'}
-    print('headers:')
-    pprint(headers)
+    # print('headers:')
+    # pprint(headers)  # reduce visibility of auth_tok
     extra_options=[]
      
     http = HttpHook(method,
@@ -537,8 +538,9 @@ def _uuid_lookup(uuid, **kwargs):
     http_conn_id = 'uuid_api_connection'
     endpoint = 'hmuuid/{}'.format(uuid)
     method='GET'
-    auth_tok = kwargs['auth_tok'] if 'auth_tok' in kwargs else kwargs['dag_run'].conf['auth_tok'] 
-    headers={'authorization' : 'Bearer ' + auth_tok}
+    crypt_auth_tok = (kwargs['crypt_auth_tok'] if 'crypt_auth_tok' in kwargs 
+                      else kwargs['dag_run'].conf['crypt_auth_tok'])
+    headers={'authorization' : 'Bearer ' + decrypt_tok(crypt_auth_tok.encode())}
 #     print('headers:')
 #     pprint(headers)
     extra_options=[]
