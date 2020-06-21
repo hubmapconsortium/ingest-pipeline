@@ -27,6 +27,7 @@ from utils import (
     get_parent_dataset_uuid,
     get_uuid_for_error,
     localized_assert_json_matches_schema as assert_json_matches_schema,
+    decrypt_tok
 )
 
 import cwltool  # used to find its path
