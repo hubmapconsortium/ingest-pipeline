@@ -35,7 +35,7 @@ class CreateTmpDirOperator(BashOperator):
     @apply_defaults
     def __init__(self, *args, **kwargs):
         super().__init__(
-            bash_command='mkdir {{tmp_dir_path(run_id)}}',
+            bash_command='mkdir -p {{tmp_dir_path(run_id)}}',
             provide_context=True,
             trigger_rule='all_success',
             *args, **kwargs)

@@ -15,3 +15,4 @@
     'edam_ontology_term':
       'type': 'string'
       'description': 'Term in the EDAM ontology describing this pipeline output file'
+  'required': ['pattern', 'description', 'edam_ontology_term']
