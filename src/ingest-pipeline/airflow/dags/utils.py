@@ -133,7 +133,7 @@ class PipelineFileMatcher(FileMatcher):
         path_str = fspath(file_path)
         for pattern, description_template, ontology_term in self.matchers:
             # TODO: walrus operator
-            m = pattern.match(path_str)
+            m = pattern.search(path_str)
             if m:
                 formatted_description = description_template.format_map(m.groupdict())
                 return True, formatted_description, ontology_term
