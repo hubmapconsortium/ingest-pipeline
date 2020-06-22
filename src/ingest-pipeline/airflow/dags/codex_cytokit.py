@@ -59,6 +59,7 @@ with DAG('codex_cytokit',
     pipeline_name = 'codex-pipeline'
     cwl_workflow1 = os.path.join(pipeline_name, 'pipeline.cwl')
     cwl_workflow2 = os.path.join('portal-containers', 'ome-tiff-offsets.cwl')
+    cwl_workflow3 = os.path.join('portal-containers', 'sprm-to-json.cwl')
 
     def build_dataset_name(**kwargs):
         return '{}__{}__{}'.format(dag.dag_id,
@@ -206,9 +207,78 @@ with DAG('codex_cytokit',
         task_id='maybe_keep_cwl2',
         python_callable=utils.pythonop_maybe_keep,
         provide_context=True,
-        op_kwargs = {'next_op' : 'move_data',
+        op_kwargs = {'next_op' : 'prepare_cwl3',
                      'bail_op' : 'set_dataset_error',
                      'test_op' : 'pipeline_exec_cwl2'}
+        )
+
+
+#     prepare_cwl3 = PythonOperator(
+#         python_callable=utils.clone_or_update_pipeline,
+#         task_id='prepare_cwl3',
+#         op_kwargs={'pipeline_name': cwl_workflow3}
+#     )
+
+    prepare_cwl3 = DummyOperator(
+        task_id='prepare_cwl3'
+        )
+    
+    def build_cwltool_cmd3(**kwargs):
+        ctx = kwargs['dag_run'].conf
+        run_id = kwargs['run_id']
+        tmpdir = utils.get_tmp_dir_path(run_id)
+        print('tmpdir: ', tmpdir)
+        parent_data_dir = ctx['parent_lz_path']
+        print('parent_data_dir: ', parent_data_dir)
+        data_dir = os.path.join(tmpdir, 'cwl_out')  # This stage reads input from stage 1
+        print('data_dir: ', data_dir)
+        cwltool_dir = os.path.dirname(cwltool.__file__)
+        while cwltool_dir:
+            part1, part2 = os.path.split(cwltool_dir)
+            cwltool_dir = part1
+            if part2 == 'lib':
+                break
+        assert cwltool_dir, 'Failed to find cwltool bin directory'
+        cwltool_dir = os.path.join(cwltool_dir, 'bin')
+
+        command = [
+            'env',
+            'PATH=%s:%s' % (cwltool_dir, os.environ['PATH']),
+            'cwltool',
+            os.fspath(PIPELINE_BASE_DIR / cwl_workflow3),
+            '--input_dir',
+            os.path.join(data_dir, 'sprm_outputs')
+        ]
+
+        command_str = ' '.join(shlex.quote(piece) for piece in command)
+        print('final command_str: %s' % command_str)
+        return command_str
+
+
+    t_build_cmd3 = PythonOperator(
+        task_id='build_cmd3',
+        python_callable=build_cwltool_cmd3
+        )
+
+
+    t_pipeline_exec_cwl3 = BashOperator(
+        task_id='pipeline_exec_cwl3',
+        bash_command=""" \
+        tmp_dir={{tmp_dir_path(run_id)}} ; \
+        cd ${tmp_dir}/cwl_out ; \
+        {{ti.xcom_pull(task_ids='build_cmd3')}} >> $tmp_dir/session.log 2>&1 ; \
+        echo $?
+        """
+    )
+
+
+    t_maybe_keep_cwl3 = BranchPythonOperator(
+        task_id='maybe_keep_cwl3',
+        python_callable=utils.pythonop_maybe_keep,
+        provide_context=True,
+        op_kwargs = {'next_op' : 'move_data',
+                     'bail_op' : 'set_dataset_error',
+                     'test_op' : 'pipeline_exec_cwl3'}
         )
 
 
@@ -254,7 +324,8 @@ with DAG('codex_cytokit',
 
 
     def send_status_msg(**kwargs):
-        retcode_ops = ['pipeline_exec_cwl1', 'pipeline_exec_cwl2', 'move_data']
+        retcode_ops = ['pipeline_exec_cwl1', 'pipeline_exec_cwl2', 
+                       'pipeline_exec_cwl3', 'move_data']
         retcodes = [int(kwargs['ti'].xcom_pull(task_ids=op))
                     for op in retcode_ops]
         print('retcodes: ', {k:v for k, v in zip(retcode_ops, retcodes)})
@@ -277,27 +348,26 @@ with DAG('codex_cytokit',
  
         if success:
             md = {}
+            
+            workflows = [cwl_workflow1,
+                         cwl_workflow2,
+                         cwl_workflow3]
             if 'dag_provenance' in kwargs['dag_run'].conf:
                 md['dag_provenance'] = kwargs['dag_run'].conf['dag_provenance'].copy()
-                new_prv_dct = utils.get_git_provenance_dict([__file__,
-                                                             os.path.join(PIPELINE_BASE_DIR,
-                                                                          cwl_workflow1),
-                                                             os.path.join(PIPELINE_BASE_DIR,
-                                                                          cwl_workflow2)])
+                new_prv_dct = utils.get_git_provenance_dict([__file__]
+                                                            + [PIPELINE_BASE_DIR / cwl
+                                                               for cwl in workflows])
                 md['dag_provenance'].update(new_prv_dct)
             else:
                 dag_prv = (kwargs['dag_run'].conf['dag_provenance_list']
                            if 'dag_provenance_list' in kwargs['dag_run'].conf
                            else [])
-                dag_prv.extend(utils.get_git_provenance_list([__file__,
-                                                              os.path.join(PIPELINE_BASE_DIR,
-                                                                           cwl_workflow1),
-                                                              os.path.join(PIPELINE_BASE_DIR,
-                                                                           cwl_workflow2)]))
+                dag_prv.extend(utils.get_git_provenance_list([__file__]
+                                                             + [PIPELINE_BASE_DIR / cwl
+                                                                for cwl in workflows]))
                 md['dag_provenance_list'] = dag_prv
             manifest_files = find_pipeline_manifests(
-                PIPELINE_BASE_DIR / cwl_workflow1,
-                PIPELINE_BASE_DIR / cwl_workflow2,
+                *[PIPELINE_BASE_DIR / cwl for cwl in workflows]
             )
             md.update(utils.get_file_metadata_dict(ds_dir,
                                                    utils.get_tmp_dir_path(kwargs['run_id']),
@@ -350,9 +420,11 @@ with DAG('codex_cytokit',
      >> t_send_create_dataset >> t_set_dataset_processing
      >> prepare_cwl1 >> t_build_cmd1 >> t_pipeline_exec_cwl1 >> t_maybe_keep_cwl1
      >> prepare_cwl2 >> t_build_cmd2 >> t_pipeline_exec_cwl2 >> t_maybe_keep_cwl2
+     >> prepare_cwl3 >> t_build_cmd3 >> t_pipeline_exec_cwl3 >> t_maybe_keep_cwl3
      >> t_move_data >> t_expand_symlinks >> t_send_status >> t_join)
     t_maybe_keep_cwl1 >> t_set_dataset_error
     t_maybe_keep_cwl2 >> t_set_dataset_error
+    t_maybe_keep_cwl3 >> t_set_dataset_error
     t_set_dataset_error >> t_join
     t_join >> t_cleanup_tmpdir
 
