@@ -585,7 +585,15 @@ def pythonop_md_consistency_tests(**kwargs) -> int:
         return 0
 
 def _get_scratch_base_path() -> str:
-    scratch_path = airflow_conf.as_dict()['connections']['WORKFLOW_SCRATCH']
+    dct = airflow_conf.as_dict(display_sensitive=True)['connections']
+    if 'WORKFLOW_SCRATCH' in dct:
+        scratch_path = dct['WORKFLOW_SCRATCH']
+    elif 'workflow_scratch' in dct:
+        # support for lower case is necessary setting the scratch path via the
+        # environment variable AIRFLOW__CONNECTIONS__WORKFLOW_SCRATCH
+        scratch_path = dct['workflow_scratch']
+    else:
+        raise KeyError('WORKFLOW_SCRATCH')  # preserve original code behavior
     scratch_path = scratch_path.strip("'").strip('"')  # remove quotes that may be on the string
     return scratch_path
 
