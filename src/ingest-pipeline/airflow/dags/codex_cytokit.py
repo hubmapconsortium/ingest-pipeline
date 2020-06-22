@@ -27,9 +27,8 @@ from utils import (
     get_parent_dataset_uuid,
     get_uuid_for_error,
     localized_assert_json_matches_schema as assert_json_matches_schema,
+    get_cwltool_bin_path
 )
-
-import cwltool  # used to find its path
 
 
 default_args = {
@@ -84,14 +83,7 @@ with DAG('codex_cytokit',
         print('tmpdir: ', tmpdir)
         data_dir = ctx['parent_lz_path']
         print('data_dir: ', data_dir)
-        cwltool_dir = os.path.dirname(cwltool.__file__)
-        while cwltool_dir:
-            part1, part2 = os.path.split(cwltool_dir)
-            cwltool_dir = part1
-            if part2 == 'lib':
-                break
-        assert cwltool_dir, 'Failed to find cwltool bin directory'
-        cwltool_dir = os.path.join(cwltool_dir, 'bin')
+        cwltool_dir = get_cwltool_bin_path()
 
         command = [
             'env',
@@ -163,14 +155,7 @@ with DAG('codex_cytokit',
         print('parent_data_dir: ', parent_data_dir)
         data_dir = os.path.join(tmpdir, 'cwl_out')  # This stage reads input from stage 1
         print('data_dir: ', data_dir)
-        cwltool_dir = os.path.dirname(cwltool.__file__)
-        while cwltool_dir:
-            part1, part2 = os.path.split(cwltool_dir)
-            cwltool_dir = part1
-            if part2 == 'lib':
-                break
-        assert cwltool_dir, 'Failed to find cwltool bin directory'
-        cwltool_dir = os.path.join(cwltool_dir, 'bin')
+        cwltool_dir = get_cwltool_bin_path()
 
         command = [
             'env',
@@ -197,7 +182,7 @@ with DAG('codex_cytokit',
         bash_command=""" \
         tmp_dir={{tmp_dir_path(run_id)}} ; \
         cd ${tmp_dir}/cwl_out ; \
-        {{ti.xcom_pull(task_ids='build_cmd2')}} >> $tmp_dir/session.log 2>&1 ; \
+        {{ti.xcom_pull(task_ids='build_cmd2')}} >> ${tmp_dir}/session.log 2>&1 ; \
         echo $?
         """
     )
@@ -232,14 +217,7 @@ with DAG('codex_cytokit',
         print('parent_data_dir: ', parent_data_dir)
         data_dir = os.path.join(tmpdir, 'cwl_out')  # This stage reads input from stage 1
         print('data_dir: ', data_dir)
-        cwltool_dir = os.path.dirname(cwltool.__file__)
-        while cwltool_dir:
-            part1, part2 = os.path.split(cwltool_dir)
-            cwltool_dir = part1
-            if part2 == 'lib':
-                break
-        assert cwltool_dir, 'Failed to find cwltool bin directory'
-        cwltool_dir = os.path.join(cwltool_dir, 'bin')
+        cwltool_dir = get_cwltool_bin_path()
 
         command = [
             'env',
@@ -266,7 +244,7 @@ with DAG('codex_cytokit',
         bash_command=""" \
         tmp_dir={{tmp_dir_path(run_id)}} ; \
         cd ${tmp_dir}/cwl_out ; \
-        {{ti.xcom_pull(task_ids='build_cmd3')}} >> $tmp_dir/session.log 2>&1 ; \
+        {{ti.xcom_pull(task_ids='build_cmd3')}} >> ${tmp_dir}/session.log 2>&1 ; \
         echo $?
         """
     )
