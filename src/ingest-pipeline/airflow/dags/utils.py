@@ -10,6 +10,7 @@ import json
 from pprint import pprint
 import uuid
 import yaml
+from cryptography.fernet import Fernet
 
 from airflow.configuration import conf as airflow_conf
 
@@ -457,7 +458,7 @@ def pythonop_send_create_dataset(**kwargs) -> str:
     ctx = kwargs['dag_run'].conf
     method='POST'
     headers={
-        'authorization' : 'Bearer ' + ctx['auth_tok'],
+        'authorization' : 'Bearer ' + decrypt_tok(ctx['crypt_auth_tok'].encode()),
         'content-type' : 'application/json'}
     print('headers:')
     pprint(headers)
@@ -509,12 +510,13 @@ def pythonop_set_dataset_state(**kwargs) -> None:
     ds_state = kwargs['ds_state'] if 'ds_state' in kwargs else 'Processing'
     message = kwargs['message'] if 'message' in kwargs else 'update state'
     method='PUT'
-    auth_tok = kwargs['auth_tok'] if 'auth_tok' in kwargs else kwargs['dag_run'].conf['auth_tok'] 
+    crypt_auth_tok = (kwargs['crypt_auth_tok'] if 'crypt_auth_tok' in kwargs 
+                      else kwargs['dag_run'].conf['crypt_auth_tok'])
     headers={
-        'authorization' : 'Bearer ' + auth_tok,
+        'authorization' : 'Bearer ' + decrypt_tok(crypt_auth_tok.encode()),
         'content-type' : 'application/json'}
-    print('headers:')
-    pprint(headers)
+    # print('headers:')
+    # pprint(headers)  # reduce visibility of auth_tok
     extra_options=[]
      
     http = HttpHook(method,
@@ -539,8 +541,9 @@ def _uuid_lookup(uuid, **kwargs):
     http_conn_id = 'uuid_api_connection'
     endpoint = 'hmuuid/{}'.format(uuid)
     method='GET'
-    auth_tok = kwargs['auth_tok'] if 'auth_tok' in kwargs else kwargs['dag_run'].conf['auth_tok'] 
-    headers={'authorization' : 'Bearer ' + auth_tok}
+    crypt_auth_tok = (kwargs['crypt_auth_tok'] if 'crypt_auth_tok' in kwargs 
+                      else kwargs['dag_run'].conf['crypt_auth_tok'])
+    headers={'authorization' : 'Bearer ' + decrypt_tok(crypt_auth_tok.encode())}
 #     print('headers:')
 #     pprint(headers)
     extra_options=[]
@@ -558,6 +561,10 @@ def _uuid_lookup(uuid, **kwargs):
     
 
 def pythonop_md_consistency_tests(**kwargs) -> int:
+    """
+    Perform simple consistency checks of the metadata stored as YAML in kwargs['metadata_fname'].
+    This includes accessing the UUID api via its Airflow connection ID to verify uuids.
+    """
     md_path = join(get_tmp_dir_path(kwargs['run_id']), kwargs['metadata_fname'])
     with open(md_path, 'r') as f:
         md = yaml.safe_load(f)
@@ -581,7 +588,15 @@ def pythonop_md_consistency_tests(**kwargs) -> int:
         return 0
 
 def _get_scratch_base_path() -> str:
-    scratch_path = airflow_conf.as_dict()['connections']['WORKFLOW_SCRATCH']
+    dct = airflow_conf.as_dict(display_sensitive=True)['connections']
+    if 'WORKFLOW_SCRATCH' in dct:
+        scratch_path = dct['WORKFLOW_SCRATCH']
+    elif 'workflow_scratch' in dct:
+        # support for lower case is necessary setting the scratch path via the
+        # environment variable AIRFLOW__CONNECTIONS__WORKFLOW_SCRATCH
+        scratch_path = dct['workflow_scratch']
+    else:
+        raise KeyError('WORKFLOW_SCRATCH')  # preserve original code behavior
     scratch_path = scratch_path.strip("'").strip('"')  # remove quotes that may be on the string
     return scratch_path
 
@@ -684,6 +699,18 @@ def downstream_workflow_iter(collectiontype: str, assay_type: str) -> Iterable[s
             yield workflow
 
 
+def encrypt_tok(cleartext_tok: str) -> bytes:
+    key = airflow_conf.as_dict(display_sensitive=True)['core']['fernet_key']
+    fernet = Fernet(key.encode())
+    return fernet.encrypt(cleartext_tok.encode())
+
+
+def decrypt_tok(crypt_tok: bytes) -> str:
+    key = airflow_conf.as_dict(display_sensitive=True)['core']['fernet_key']
+    fernet = Fernet(key.encode())
+    return fernet.decrypt(crypt_tok).decode()
+
+
 def main():
     print(__file__)
     print(get_git_commits([__file__]))
@@ -711,6 +738,11 @@ def main():
             print('  -> {}'.format(elt))
     
     print(f'cwltool bin path: {get_cwltool_bin_path()}')
+
+    s = 'hello world'
+    crypt_s = encrypt_tok(s)
+    s2 = decrypt_tok(crypt_s)
+    print('crypto test: {} -> {} -> {}'.format(s, crypt_s, s2))
  
  
 if __name__ == "__main__":

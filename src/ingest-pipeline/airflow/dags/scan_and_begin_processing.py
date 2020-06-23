@@ -63,7 +63,7 @@ with DAG('scan_and_begin_processing',
         http_conn_id='ingest_api_connection'
         endpoint='/datasets/status'
         method='PUT'
-        headers={'authorization' : 'Bearer ' + ctx['auth_tok'],
+        headers={'authorization' : 'Bearer ' + utils.decrypt_tok(ctx['crypt_auth_tok'].encode()),
                  'content-type' : 'application/json'}
         print('headers:')
         pprint(headers)
@@ -196,7 +196,7 @@ with DAG('scan_and_begin_processing',
                 md = yaml.safe_load(f)
             payload = {k:kwargs['dag_run'].conf[k] for k in kwargs['dag_run'].conf}
             payload = {'ingest_id' : ctx['run_id'],
-                       'auth_tok' : ctx['auth_tok'],
+                       'crypt_auth_tok' : ctx['crypt_auth_tok'],
                        'parent_lz_path' : ctx['lz_path'],
                        'parent_submission_id' : ctx['submission_id'],
                        'metadata': md,

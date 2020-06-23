@@ -10,6 +10,7 @@ from datetime import datetime
 import pytz
 import yaml
 import ast
+from cryptography.fernet import Fernet
 
 from werkzeug.exceptions import HTTPException, NotFound 
 
@@ -55,11 +56,12 @@ NEEDED_CONFIGS = [
     ('connections', 'output_group_name'),
     ('connections', 'workflow_scratch'),
     ('core', 'timezone'),
+    ('core', 'fernet_key')
     ]
 
 def check_config():
     # Check for needed configuration elements, since it's better to fail early
-    dct = airflow_conf.as_dict()
+    dct = airflow_conf.as_dict(display_sensitive=True)
     failed = 0
     for elt in NEEDED_ENV_VARS:
         if elt not in os.environ:
@@ -79,7 +81,7 @@ check_config()
 
 
 def config(section, key):
-    dct = airflow_conf.as_dict()
+    dct = airflow_conf.as_dict(display_sensitive=True)
     if section in dct:
         if key in dct[section]:
             rslt = dct[section][key]
@@ -274,7 +276,7 @@ def request_ingest():
         auth_tok = auth_dct['nexus_token']
     else:
         auth_tok = substr
-    LOGGER.info('auth_tok: %s', auth_tok)
+    #LOGGER.info('auth_tok: %s', auth_tok)  # reduce visibility of auth_tok
   
     # decode input
     data = request.get_json(force=True)
@@ -318,6 +320,8 @@ def request_ingest():
 
         run_id = '{}_{}_{}'.format(submission_id, process, execution_date.isoformat())
         ingest_id = run_id
+        fernet = Fernet(config('core', 'fernet_key').encode())
+        crypt_auth_tok = fernet.encrypt(auth_tok.encode()).decode()
 
         conf = {'provider': provider,
                 'submission_id': submission_id,
@@ -325,7 +329,7 @@ def request_ingest():
                 'dag_id': dag_id,
                 'run_id': run_id,
                 'ingest_id': ingest_id,
-                'auth_tok': auth_tok,
+                'crypt_auth_tok': crypt_auth_tok,
                 'src_path': config('connections', 'src_path')
                 }
         conf['lz_path'] = config('connections', 'lz_path').format(**conf)

@@ -62,7 +62,7 @@ with DAG('reset_submission_to_new',
                      'endpoint' : '/datasets/status',
                      'ds_state' : 'New',
                      'message' : 'Resetting state to NEW',
-                     'auth_tok' : 'fill_this_in_at_run_time'
+                     'crypt_auth_tok' : utils.encrypt_tok('fill_this_in_at_run_time').decode()
                      }
     )
 
