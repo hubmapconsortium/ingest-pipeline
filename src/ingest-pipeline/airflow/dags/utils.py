@@ -16,6 +16,9 @@ from airflow.configuration import conf as airflow_conf
 
 from hubmap_commons.schema_tools import assert_json_matches_schema, set_schema_base_path
 
+import cwltool  # used to find its path
+
+
 JSONType = Union[str, int, float, bool, None, Dict[str, Any], List[Any]]
 
 # Some functions accept a `str` or `List[str]` and return that same type
@@ -605,6 +608,21 @@ def get_tmp_dir_path(run_id: str) -> str:
     return join(_get_scratch_base_path(), run_id)
 
 
+def get_cwltool_bin_path() -> str:
+    """
+    Returns the full path to the cwltool binary
+    """
+    cwltool_dir = dirname(cwltool.__file__)
+    while cwltool_dir:
+        part1, part2 = split(cwltool_dir)
+        cwltool_dir = part1
+        if part2 == 'lib':
+            break
+    assert cwltool_dir, 'Failed to find cwltool bin directory'
+    cwltool_dir = join(cwltool_dir, 'bin')
+    return cwltool_dir
+
+
 def map_queue_name(raw_queue_name: str) -> str:
     """
     If the configuration contains QUEUE_NAME_TEMPLATE, use it to customize the
@@ -721,6 +739,8 @@ def main():
         print('collectiontype {}, assay_type {}:'.format(collectiontype, assay_type))
         for elt in downstream_workflow_iter(collectiontype, assay_type):
             print('  -> {}'.format(elt))
+    
+    print(f'cwltool bin path: {get_cwltool_bin_path()}')
 
     s = 'hello world'
     crypt_s = encrypt_tok(s)
