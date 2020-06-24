@@ -457,8 +457,8 @@ def pythonop_send_create_dataset(**kwargs) -> str:
     headers={
         'authorization' : 'Bearer ' + decrypt_tok(ctx['crypt_auth_tok'].encode()),
         'content-type' : 'application/json'}
-    print('headers:')
-    pprint(headers)
+    #print('headers:')
+    #pprint(headers)  # Reduce exposure of auth_tok
     extra_options=[]
     http = HttpHook(method,
                     http_conn_id=http_conn_id)
@@ -468,7 +468,7 @@ def pythonop_send_create_dataset(**kwargs) -> str:
         "derived_dataset_types": kwargs['dataset_types']
     }
     print('data: ')
-    pprint(data)
+    pprint(data)  
     response = http.run(endpoint,
                         json.dumps(data),
                         headers,
