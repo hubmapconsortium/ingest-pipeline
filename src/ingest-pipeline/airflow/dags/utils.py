@@ -608,7 +608,10 @@ def get_tmp_dir_path(run_id: str) -> str:
     return join(_get_scratch_base_path(), run_id)
 
 
-def get_cwltool_bin_path():
+def get_cwltool_bin_path() -> str:
+    """
+    Returns the full path to the cwltool binary
+    """
     cwltool_dir = dirname(cwltool.__file__)
     while cwltool_dir:
         part1, part2 = split(cwltool_dir)

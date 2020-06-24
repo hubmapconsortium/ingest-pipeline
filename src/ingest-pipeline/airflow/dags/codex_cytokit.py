@@ -319,8 +319,8 @@ with DAG('codex_cytokit',
         headers={
             'authorization' : 'Bearer ' + decrypt_tok(crypt_auth_tok.encode()),
             'content-type' : 'application/json'}
-        print('headers:')
-        pprint(headers)
+        #print('headers:')
+        #pprint(headers)  # reduce visibility of auth_tok
         extra_options=[]
          
         http = HttpHook(method,
