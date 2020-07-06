@@ -582,7 +582,7 @@ def assert_id_known(id: str, **kwargs) -> None:
     Raises AssertionError if the ID is not known.
     """
     for slice in _generate_slices(id):
-        tissue_info = _uuid_lookup(md['tissue_id'], **kwargs)
+        tissue_info = _uuid_lookup(slice, **kwargs)
         assert tissue_info and len(tissue_info) >= 1, f'tissue_id {slice} not found on lookup'
 
 
