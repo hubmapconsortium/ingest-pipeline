@@ -8,5 +8,6 @@ workflow_map:
   - 'collection_type': 'codex'
     'assay_type': 'CODEX'
     'workflow': 'codex_cytokit'
-
-  
+  - 'collection_type': 'single_metadatatsv'
+    'assay_type': 'SNARE-seq2'
+    'workflow': 'sc_atac_seq_snare'
