@@ -40,6 +40,7 @@ services:
       - FLASK_ENV=development
       - FLASK_DEBUG=1
       - AIRFLOW__HUBMAP_API_PLUGIN__BUILD_NUMBER=${INGEST_PIPELINE_BUILD_NUM:-0}
+      - COMMONS_BRANCH=${COMMONS_BRANCH:-master}
     logging:
       options:
         max-size: 10m

@@ -34,6 +34,7 @@ echo 'The prompt for the new venv will be' \(${label}\)
 
 scl enable rh-python36 bash <<EOF
 
+  export COMMONS_BRANCH=${commons_branch}
   virtualenv --prompt=\(${label}\) venv
   . venv/bin/activate
   pip install --upgrade pip
