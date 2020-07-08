@@ -1,4 +1,4 @@
-git+git://github.com/hubmapconsortium/commons.git@master#egg=hubmap-commons
+git+git://github.com/hubmapconsortium/commons.git@${COMMONS_BRANCH}#egg=hubmap-commons
 prov==1.5.1
 pylibczi>=1.1.1
 xmltodict>=0.12.0
@@ -13,4 +13,4 @@ goodtables>=2.4.9
 PyYAML>=5.3.1
 rdflib==4.2.2
 rdflib-jsonld==0.4.0
-git+git://github.com/hubmapconsortium/cwltool.git@docker-gpu#egg=hubmap-cwltool
+git+git://github.com/hubmapconsortium/cwltool.git@docker-gpu#egg=cwltool
