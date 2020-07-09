@@ -138,15 +138,15 @@ with DAG('ometiff_pyramid',
         ctx = kwargs['dag_run'].conf
         run_id = kwargs['run_id']
 
+        #tmpdir is temp directory in /hubmap-tmp
+        tmpdir = utils.get_tmp_dir_path(run_id)
+        print('tmpdir: ', tmpdir)
+
         #get data directory
         parent_data_dir = ctx['parent_lz_path']
         print('parent_data_dir: ', parent_data_dir)
         data_dir = os.path.join(tmpdir, 'cwl_out')  # This stage reads input from stage 1
         print('data_dir: ', data_dir)
-
-        #tmpdir is temp directory in /hubmap-tmp
-        tmpdir = utils.get_tmp_dir_path(run_id)
-        print('tmpdir: ', tmpdir)
 
         #location of CWL files
         cwltool_dir = get_cwltool_bin_path()
