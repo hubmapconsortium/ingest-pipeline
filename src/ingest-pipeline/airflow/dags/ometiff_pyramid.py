@@ -159,8 +159,7 @@ with DAG('ometiff_pyramid',
             'cwltool',
             os.fspath(PIPELINE_BASE_DIR / cwl_workflow2),
             '--input_directory',
-            data_dir,
-            '&& mv -v output_offsets/* . && rm -rf output_offsets',
+            data_dir
         ]
 
         command_str = ' '.join(shlex.quote(piece) for piece in command)
