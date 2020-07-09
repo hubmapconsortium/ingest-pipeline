@@ -138,6 +138,12 @@ with DAG('ometiff_pyramid',
         ctx = kwargs['dag_run'].conf
         run_id = kwargs['run_id']
 
+        #get data directory
+        parent_data_dir = ctx['parent_lz_path']
+        print('parent_data_dir: ', parent_data_dir)
+        data_dir = os.path.join(tmpdir, 'cwl_out')  # This stage reads input from stage 1
+        print('data_dir: ', data_dir)
+
         #tmpdir is temp directory in /hubmap-tmp
         tmpdir = utils.get_tmp_dir_path(run_id)
         print('tmpdir: ', tmpdir)
@@ -152,7 +158,8 @@ with DAG('ometiff_pyramid',
             'PATH=%s:%s' % (cwltool_dir, os.environ['PATH']),
             'cwltool',
             os.fspath(PIPELINE_BASE_DIR / cwl_workflow2),
-            '. && mv -v output_offsets/* . && rm -rf output_offsets',
+            data_dir,
+            '&& mv -v output_offsets/* . && rm -rf output_offsets',
         ]
 
         command_str = ' '.join(shlex.quote(piece) for piece in command)
