@@ -75,7 +75,7 @@ with DAG('ometiff_pyramid',
                                    kwargs['dag_run'].conf['parent_submission_id'],
                                    pipeline_name),
 
-    #why is a dummy operator needed?
+    # CWL1 - collect-ometiff-files.cwl
     prepare_cwl1 = DummyOperator(
         task_id='prepare_cwl1'
         )
@@ -103,7 +103,6 @@ with DAG('ometiff_pyramid',
             'PATH=%s:%s' % (cwltool_dir, os.environ['PATH']),
             'cwltool',
             os.fspath(PIPELINE_BASE_DIR / cwl_workflow1),
-            '--debug',
             '--ometiff_directory',
             data_dir
         ]
@@ -129,6 +128,65 @@ with DAG('ometiff_pyramid',
         """
     )
 
+    #CWL2
+    prepare_cwl2 = DummyOperator(
+        task_id='prepare_cwl2'
+        )
+
+    #print useful info and build command line
+    def build_cwltool_cmd2(**kwargs):
+        ctx = kwargs['dag_run'].conf
+        run_id = kwargs['run_id']
+
+        #tmpdir is temp directory in /hubmap-tmp
+        tmpdir = utils.get_tmp_dir_path(run_id)
+        print('tmpdir: ', tmpdir)
+
+        #location of CWL files
+        cwltool_dir = get_cwltool_bin_path()
+        print('cwltool_dir: ', cwltool_dir)
+
+        #this is the call to the CWL
+        command = [
+            'env',
+            'PATH=%s:%s' % (cwltool_dir, os.environ['PATH']),
+            'cwltool',
+            os.fspath(PIPELINE_BASE_DIR / cwl_workflow1),
+            '. && mv -v output_offsets/* . && rm -rf output_offsets',
+        ]
+
+        command_str = ' '.join(shlex.quote(piece) for piece in command)
+        print('final command_str: %s' % command_str)
+        return command_str
+
+    t_build_cmd2 = PythonOperator(
+        task_id='build_cmd2',
+        python_callable=build_cwltool_cmd2
+        )
+
+    t_pipeline_exec_cwl2 = BashOperator(
+        task_id='pipeline_exec_cwl2',
+        queue=utils.map_queue_name('gpu000_q1'),
+        bash_command=""" \
+        tmp_dir={{tmp_dir_path(run_id)}} ; \
+        mkdir -p ${tmp_dir}/cwl_out ; \
+        cd ${tmp_dir}/cwl_out ; \
+        {{ti.xcom_pull(task_ids='build_cmd1')}} > $tmp_dir/session.log 2>&1 ; \
+        echo $?
+        """
+    )
+
+    #next_op if true, bail_op if false. test_op returns value for testing.
+    t_maybe_keep_cwl2 = BranchPythonOperator(
+        task_id='maybe_keep_cwl2',
+        python_callable=utils.pythonop_maybe_keep,
+        provide_context=True,
+        op_kwargs = {'next_op' : 'move_data',
+                     'bail_op' : 'set_dataset_error',
+                     'test_op' : 'pipeline_exec_cwl2'}
+        )
+
+    #Others
     t_send_create_dataset = PythonOperator(
         task_id='send_create_dataset',
         python_callable=utils.pythonop_send_create_dataset,
@@ -160,7 +218,7 @@ with DAG('ometiff_pyramid',
         task_id='maybe_keep_cwl1',
         python_callable=utils.pythonop_maybe_keep,
         provide_context=True,
-        op_kwargs = {'next_op' : 'move_data',
+        op_kwargs = {'next_op' : 'prepare_cwl2',
                      'bail_op' : 'set_dataset_error',
                      'test_op' : 'pipeline_exec_cwl1'}
         )
@@ -179,7 +237,7 @@ with DAG('ometiff_pyramid',
         )
 
     def send_status_msg(**kwargs):
-        retcode_ops = ['pipeline_exec_cwl1', 'move_data']
+        retcode_ops = ['pipeline_exec_cwl1', 'pipeline_exec_cwl2', 'move_data']
         retcodes = [int(kwargs['ti'].xcom_pull(task_ids=op))
                     for op in retcode_ops]
         print('retcodes: ', {k:v for k, v in zip(retcode_ops, retcodes)})
@@ -274,8 +332,12 @@ with DAG('ometiff_pyramid',
     (dag >> t_log_info >> t_create_tmpdir
      >> t_send_create_dataset >> t_set_dataset_processing
      >> prepare_cwl1 >> t_build_cmd1 >> t_pipeline_exec_cwl1
-     >> t_maybe_keep_cwl1 >> t_move_data >> t_expand_symlinks
+     >> t_maybe_keep_cwl1 >> prepare_cwl2 >> t_build_cmd2
+     >> t_pipeline_exec_cwl2 >> t_maybe_keep_cwl2
+     >> t_move_data >> t_expand_symlinks
      >> t_send_status >> t_join)
-    t_maybe_keep_cwl1 >> t_set_dataset_error >> t_join
+    t_maybe_keep_cwl1 >> t_set_dataset_error
+    t_maybe_keep_cwl2 >> t_set_dataset_error
+    t_set_dataset_error >> t_join
     t_join >> t_cleanup_tmpdir
 
