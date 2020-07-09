@@ -151,7 +151,7 @@ with DAG('ometiff_pyramid',
             'env',
             'PATH=%s:%s' % (cwltool_dir, os.environ['PATH']),
             'cwltool',
-            os.fspath(PIPELINE_BASE_DIR / cwl_workflow1),
+            os.fspath(PIPELINE_BASE_DIR / cwl_workflow2),
             '. && mv -v output_offsets/* . && rm -rf output_offsets',
         ]
 
