@@ -144,7 +144,7 @@ with DAG('ometiff_pyramid',
         #get data directory
         parent_data_dir = ctx['parent_lz_path']
         print('parent_data_dir: ', parent_data_dir)
-        data_dir = os.path.join(tmpdir, 'cwl_out')  # This stage reads input from stage 1
+        data_dir = os.path.join(tmpdir, 'cwl_out', 'ometiff-pyramids')  # This stage reads input from stage 1
         print('data_dir: ', data_dir)
 
         #location of CWL files
@@ -175,8 +175,8 @@ with DAG('ometiff_pyramid',
         queue=utils.map_queue_name('gpu000_q1'),
         bash_command=""" \
         tmp_dir={{tmp_dir_path(run_id)}} ; \
-        mkdir -p ${tmp_dir}/cwl_out ; \
         cd ${tmp_dir}/cwl_out ; \
+        find . -type f ; \
         {{ti.xcom_pull(task_ids='build_cmd2')}} > $tmp_dir/session.log 2>&1 ; \
         echo $?
         """
@@ -268,7 +268,7 @@ with DAG('ometiff_pyramid',
         if success:
             md = {}
 
-            workflows = [cwl_workflow1]
+            workflows = [cwl_workflow1, cwl_workflow1]
             if 'dag_provenance' in kwargs['dag_run'].conf:
                 md['dag_provenance'] = kwargs['dag_run'].conf['dag_provenance'].copy()
                 new_prv_dct = utils.get_git_provenance_dict([__file__]
@@ -345,4 +345,4 @@ with DAG('ometiff_pyramid',
     t_maybe_keep_cwl1 >> t_set_dataset_error
     t_maybe_keep_cwl2 >> t_set_dataset_error
     t_set_dataset_error >> t_join
-    t_join >> t_cleanup_tmpdir
+    #t_join >> t_cleanup_tmpdir
