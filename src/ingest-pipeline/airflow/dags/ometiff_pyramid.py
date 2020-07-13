@@ -229,18 +229,18 @@ with DAG('ometiff_pyramid',
                      'test_op' : 'pipeline_exec_cwl1'}
         )
 
-    t_expand_symlinks = BashOperator(
-        task_id='expand_symlinks',
-        bash_command="""
-        tmp_dir="{{tmp_dir_path(run_id)}}" ; \
-        ds_dir="{{ti.xcom_pull(task_ids="send_create_dataset")}}" ; \
-        groupname="{{conf.as_dict()['connections']['OUTPUT_GROUP_NAME']}}" ; \
-        cd "$ds_dir" ; \
-        tar -xf symlinks.tar ; \
-        echo $?
-        """,
-        provide_context=True
-        )
+    # t_expand_symlinks = BashOperator(
+    #     task_id='expand_symlinks',
+    #     bash_command="""
+    #     tmp_dir="{{tmp_dir_path(run_id)}}" ; \
+    #     ds_dir="{{ti.xcom_pull(task_ids="send_create_dataset")}}" ; \
+    #     groupname="{{conf.as_dict()['connections']['OUTPUT_GROUP_NAME']}}" ; \
+    #     cd "$ds_dir" ; \
+    #     tar -xf symlinks.tar ; \
+    #     echo $?
+    #     """,
+    #     provide_context=True
+    #     )
 
     def send_status_msg(**kwargs):
         retcode_ops = ['pipeline_exec_cwl1', 'pipeline_exec_cwl2', 'move_data']
@@ -340,9 +340,8 @@ with DAG('ometiff_pyramid',
      >> prepare_cwl1 >> t_build_cmd1 >> t_pipeline_exec_cwl1
      >> t_maybe_keep_cwl1 >> prepare_cwl2 >> t_build_cmd2
      >> t_pipeline_exec_cwl2 >> t_maybe_keep_cwl2
-     >> t_move_data >> t_expand_symlinks
-     >> t_send_status >> t_join)
+     >> t_move_data >> t_send_status >> t_join)
     t_maybe_keep_cwl1 >> t_set_dataset_error
     t_maybe_keep_cwl2 >> t_set_dataset_error
     t_set_dataset_error >> t_join
-    #t_join >> t_cleanup_tmpdir
+    t_join >> t_cleanup_tmpdir
