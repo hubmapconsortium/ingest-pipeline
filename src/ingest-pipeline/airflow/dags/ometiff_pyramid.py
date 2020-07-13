@@ -65,7 +65,7 @@ with DAG('ometiff_pyramid',
     pipeline_name = 'ometiff_pyramid'
 
     #this workflow creates the image pyramid
-    cwl_workflow1 = os.path.join('ome-tiff-pyramid', 'collect-ometiff-files.cwl')
+    cwl_workflow1 = os.path.join('ome-tiff-pyramid', 'pipeline.cwl')
 
     #this workflow computes the offsets
     cwl_workflow2 = os.path.join('portal-containers', 'ome-tiff-offsets.cwl')
@@ -75,7 +75,7 @@ with DAG('ometiff_pyramid',
                                    kwargs['dag_run'].conf['parent_submission_id'],
                                    pipeline_name),
 
-    # CWL1 - collect-ometiff-files.cwl
+    # CWL1 - pipeline.cwl
     prepare_cwl1 = DummyOperator(
         task_id='prepare_cwl1'
         )
@@ -347,4 +347,3 @@ with DAG('ometiff_pyramid',
     t_maybe_keep_cwl2 >> t_set_dataset_error
     t_set_dataset_error >> t_join
     t_join >> t_cleanup_tmpdir
-
