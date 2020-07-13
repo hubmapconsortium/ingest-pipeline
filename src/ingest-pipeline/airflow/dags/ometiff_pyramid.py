@@ -33,11 +33,10 @@ from utils import (
     decrypt_tok
 )
 
-# default arguments for the DAG
-# @icaoberg after this DAG is done you should have on disk
-# 1. OME.TIFF pyramid
-# 2. N5 file
-# 3. JSON file
+# after running this DAG you should have on disk
+# 1. 1 OME.TIFF pyramid per OME.TIFF in the original dataset
+# 2. 1 .N5 file per OME.TIFF in the original dataset
+# 3. 1 JSON file
 default_args = {
     'owner': 'hubmap',
     'depends_on_past': False,
