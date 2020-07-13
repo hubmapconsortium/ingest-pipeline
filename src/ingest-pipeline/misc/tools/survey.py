@@ -5,6 +5,7 @@ import argparse
 import requests
 import json
 from pprint import pprint
+import pandas as pd
 
 ENTITY_URL = 'https://entity.api.hubmapconsortium.org'  # no trailing slash
 SEARCH_URL = 'https://search.api.hubmapconsortium.org'
@@ -58,7 +59,14 @@ class Dataset(object):
         
         self.uuid = uuid
         self.status = prop_dct['status']
-        self.dag_provenance = prop_dct['metadata']['dag_provenance_list']
+        if 'metadata' in prop_dct:
+            if 'dag_provenance_list' in prop_dct['metadata']:
+                dag_prv = prop_dct['metadata']['dag_provenance_list']
+            else:
+                dag_prv = None
+        else:
+            dag_prv = None
+        self.dag_provenance = dag_prv
         self.parent_uuids = [elt['uuid'] for elt in prop_dct['immediate_ancestors']]
         self.parent_dataset_uuids = [elt['uuid'] for elt in prop_dct['immediate_ancestors']
                                      if elt['entity_type'] == 'Dataset']
@@ -81,18 +89,31 @@ class Dataset(object):
               file=file)
         for kid in self.kid_datasets:
             kid.describe(prefix=prefix+'    ', file=file)
-        
+
+def get_uuid(rec):
+    words = rec['data_path'].split('/')
+    uuid = words[1]
+    assert len(uuid)==32, f'putative uuid {uuid} has wrong length'
+    assert all([c in list('0123456789abcdef') for c in uuid]), f'putative uuid {uuid} has an unexpected character'
+    return uuid
+
 
 def main():
     """
     main
     """
     parser = argparse.ArgumentParser()
-    parser.add_argument("uuid")
+    parser.add_argument("metadatatsv")
     args = parser.parse_args()
     auth_tok = input('auth_tok: ')
-    ds = Dataset(args.uuid, auth_tok)
-    ds.describe()
+    in_df = pd.read_csv(args.metadatatsv, sep='\t')
+    in_df['uuid'] = in_df.apply(get_uuid, axis=1)
+    for idx, row in in_df.iterrows():
+        uuid = row['uuid']
+        ds = Dataset(uuid, auth_tok=auth_tok)
+        ds.describe()
+    #ds = Dataset(args.uuid, auth_tok)
+    #ds.describe()
     
     
 
