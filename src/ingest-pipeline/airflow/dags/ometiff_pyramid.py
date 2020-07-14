@@ -158,7 +158,7 @@ with DAG('ometiff_pyramid',
             'cwltool',
             os.fspath(PIPELINE_BASE_DIR / cwl_workflow2),
             '--input_directory',
-            data_dir
+            ./ometiff-pyramids
         ]
 
         command_str = ' '.join(shlex.quote(piece) for piece in command)
@@ -268,7 +268,7 @@ with DAG('ometiff_pyramid',
         if success:
             md = {}
 
-            workflows = [cwl_workflow1, cwl_workflow1]
+            workflows = [cwl_workflow1, cwl_workflow2]
             if 'dag_provenance' in kwargs['dag_run'].conf:
                 md['dag_provenance'] = kwargs['dag_run'].conf['dag_provenance'].copy()
                 new_prv_dct = utils.get_git_provenance_dict([__file__]
