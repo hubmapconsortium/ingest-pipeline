@@ -3,6 +3,9 @@
 # This becomes the prompt of the created venv
 label=dev
 
+com_br=${COMMONS_BRANCH:-master}
+export COMMONS_BRANCH=${com_br}
+
 function get_dir_of_this_script () {
     # This function sets DIR to the directory in which this script itself is found.
     # Thank you https://stackoverflow.com/questions/59895/how-to-get-the-source-directory-of-a-bash-script-from-within-the-script-itself
@@ -31,8 +34,10 @@ echo 'The prompt for the new venv will be' \(${label}\)
 
 scl enable rh-python36 bash <<EOF
 
+  export COMMONS_BRANCH=${commons_branch}
   virtualenv --prompt=\(${label}\) venv
   . venv/bin/activate
+  pip install --upgrade pip
   pip install 'apache-airflow[celery,crypto,postgres,redis,ssh]'
   pip install -r ingest-pipeline/src/ingest-pipeline/requirements.txt
 
