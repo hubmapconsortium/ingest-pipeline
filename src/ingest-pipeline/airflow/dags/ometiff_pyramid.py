@@ -158,7 +158,7 @@ with DAG('ometiff_pyramid',
             'cwltool',
             os.fspath(PIPELINE_BASE_DIR / cwl_workflow2),
             '--input_directory',
-            ./ometiff-pyramids
+            './ometiff-pyramids'
         ]
 
         command_str = ' '.join(shlex.quote(piece) for piece in command)
@@ -176,7 +176,6 @@ with DAG('ometiff_pyramid',
         bash_command=""" \
         tmp_dir={{tmp_dir_path(run_id)}} ; \
         cd ${tmp_dir}/cwl_out ; \
-        find . -type f ; \
         {{ti.xcom_pull(task_ids='build_cmd2')}} > $tmp_dir/session.log 2>&1 ; \
         echo $?
         """
@@ -201,7 +200,7 @@ with DAG('ometiff_pyramid',
                      'http_conn_id' : 'ingest_api_connection',
                      'endpoint' : '/datasets/derived',
                      'dataset_name_callable' : build_dataset_name,
-                     "dataset_types":["MxIF"]
+                     "dataset_types":["image_pyramid"]
                      }
     )
 
