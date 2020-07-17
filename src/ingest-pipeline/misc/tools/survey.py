@@ -191,12 +191,22 @@ class EntityFactory(object):
             return Entity(prop_dct, self)
 
 
+def is_uuid(s):
+    return s and len(s) == 32 and all([c in '0123456789abcdef' for c in list(s)])
+
+
+def robust_find_uuid(s):
+    words = s.split('/')
+    while words:
+        if is_uuid(words[0]):
+            return words[0]
+        else:
+            words = words[1:]
+    return None
+
+
 def get_uuid(rec):
-    words = rec['data_path'].split('/')
-    uuid = words[1]
-    assert len(uuid)==32, f'putative uuid {uuid} has wrong length'
-    assert all([c in list('0123456789abcdef') for c in uuid]), f'putative uuid {uuid} has an unexpected character'
-    return uuid
+    return robust_find_uuid(rec['data_path'])
 
 
 def main():
