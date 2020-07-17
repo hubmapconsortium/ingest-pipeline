@@ -53,6 +53,12 @@ class Entity(object):
             for kid in self.kid_dataset_uuids:
                 self.kids[kid].describe(prefix=prefix+'    ', file=file)
 
+    def all_uuids(self):
+        """
+        Returns a list of unique UUIDs associated with this entity
+        """
+        return [self.uuid]
+
 
 class Dataset(Entity):
     def __init__(self, prop_dct, entity_factory):
@@ -141,6 +147,12 @@ class Dataset(Entity):
     
         return rec
             
+    def all_uuids(self):
+        """
+        Returns a list of unique UUIDs associated with this entity
+        """
+        return super().all_uuids() + self.kid_uuids + self.parent_uuids
+    
 
 class Sample(Entity):
     def __init__(self, prop_dct, entity_factory):
@@ -222,11 +234,18 @@ def main():
     in_df = pd.read_csv(args.metadatatsv, sep='\t')
     in_df['uuid'] = in_df.apply(get_uuid, axis=1)
     out_recs = []
+    
+    known_uuids = set()
     for idx, row in in_df.iterrows():
         uuid = row['uuid']
         ds = entity_factory.get(uuid)
         ds.describe()
-        out_recs.append(ds.build_rec())
+        new_uuids = ds.all_uuids()
+        rec = ds.build_rec()
+        if any([uuid in known_uuids for uuid in new_uuids]):
+            rec['note'] = 'UUID COLLISION! ' + rec['note']
+        known_uuids = known_uuids.union(new_uuids)
+        out_recs.append(rec)
     out_df = pd.DataFrame(out_recs).rename(columns={'sample_display_doi':'sample_doi',
                                                     'sample_hubmap_display_id':'sample_display_id',
                                                     'qa_child_uuid':'derived_uuid',
