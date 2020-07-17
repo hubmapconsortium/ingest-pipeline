@@ -168,6 +168,20 @@ def find_pipeline_manifests(*cwl_files: Path) -> List[Path]:
     return manifests
 
 
+def get_absolute_workflows(workflows: Iterable[Path]) -> List[Path]:
+    """
+    :param workflows: iterable of `Path`s to CWL files, absolute
+      or relative
+    :return: Absolute paths to workflows: if the input paths were
+      already absolute, they are returned unchanged; if relative,
+      they are anchored to `PIPELINE_BASE_DIR`
+    """
+    return [
+        PIPELINE_BASE_DIR / workflow
+        for workflow in workflows
+    ]
+
+
 def get_parent_dataset_uuid(**kwargs):
     return kwargs['dag_run'].conf['parent_submission_id']
 

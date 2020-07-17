@@ -13,3 +13,6 @@
 [submodule "src/ingest-pipeline/airflow/dags/cwl/sc-atac-seq-pipeline"]
 	path = src/ingest-pipeline/airflow/dags/cwl/sc-atac-seq-pipeline
 	url = git@github.com:hubmapconsortium/sc-atac-seq-pipeline.git
+[submodule "src/ingest-pipeline/airflow/dags/cwl/ome-tiff-pyramid"]
+	path = src/ingest-pipeline/airflow/dags/cwl/ome-tiff-pyramid
+	url = git@github.com:hubmapconsortium/ome-tiff-pyramid.git
