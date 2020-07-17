@@ -14,3 +14,6 @@ workflow_map:
   - 'collection_type': 'single_metadatatsv'
     'assay_type': 'SNARE-seq2'
     'workflow': 'sc_atac_seq_snare'
+  - 'collection_type': 'single_metadatatsv'
+    'assay_type': 'bulk RNA'
+    'workflow': 'salmon_rnaseq_bulk'
