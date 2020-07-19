@@ -52,7 +52,7 @@ default_args = {
 }
 
 with DAG(
-        'sc_atac_seq_snare',
+        'salmon_rnaseq_bulk',
         schedule_interval=None,
         is_paused_upon_creation=False,
         default_args=default_args,
