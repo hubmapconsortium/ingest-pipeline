@@ -267,7 +267,7 @@ with DAG(
                 dag_prv.extend(utils.get_git_provenance_list(files_for_provenance))
                 md['dag_provenance_list'] = dag_prv
 
-            manifest_files = find_pipeline_manifests(cwl_workflows_absolute)
+            manifest_files = find_pipeline_manifests(*cwl_workflows_absolute)
             md.update(
                 utils.get_file_metadata_dict(
                     ds_dir,

@@ -117,7 +117,7 @@ with DAG(
         python_callable=utils.pythonop_maybe_keep,
         provide_context=True,
         op_kwargs={
-            'next_op': 'move_files',
+            'next_op': 'move_data',
             'bail_op': 'set_dataset_error',
             'test_op': 'pipeline_exec',
         },
@@ -257,7 +257,6 @@ with DAG(
     (dag >> t_log_info >> t_create_tmpdir
      >> t_send_create_dataset >> t_set_dataset_processing
      >> prepare_cwl1 >> t_build_cmd1 >> t_pipeline_exec >> t_maybe_keep_cwl1
-     >> t_move_files
      >> t_move_data >> t_send_status >> t_join)
     t_maybe_keep_cwl1 >> t_set_dataset_error
     t_set_dataset_error >> t_join
