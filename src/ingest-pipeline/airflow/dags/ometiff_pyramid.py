@@ -118,7 +118,6 @@ with DAG('ometiff_pyramid',
 
     t_pipeline_exec_cwl1 = BashOperator(
         task_id='pipeline_exec_cwl1',
-        queue=utils.map_queue_name('gpu000_q1'),
         bash_command=""" \
         tmp_dir={{tmp_dir_path(run_id)}} ; \
         mkdir -p ${tmp_dir}/cwl_out ; \
@@ -174,7 +173,6 @@ with DAG('ometiff_pyramid',
 
     t_pipeline_exec_cwl2 = BashOperator(
         task_id='pipeline_exec_cwl2',
-        queue=utils.map_queue_name('gpu000_q1'),
         bash_command=""" \
         tmp_dir={{tmp_dir_path(run_id)}} ; \
         cd ${tmp_dir}/cwl_out ; \
