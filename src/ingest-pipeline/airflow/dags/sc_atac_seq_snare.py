@@ -157,7 +157,7 @@ with DAG(
         bash_command=""" \
         tmp_dir={{tmp_dir_path(run_id)}} ; \
         ds_dir="{{ti.xcom_pull(task_ids="send_create_dataset")}}" ; \
-        cd "$tmp_dir"/cwl_out/cluster-marker-genes ; \
+        cd "$tmp_dir"/cwl_out ; \
         {{ti.xcom_pull(task_ids='build_cmd2')}} >> $tmp_dir/session.log 2>&1 ; \
         echo $?
         """,
@@ -211,18 +211,6 @@ with DAG(
             'ds_state': 'Error',
             'message': 'An error occurred in {}'.format(pipeline_name),
         },
-    )
-
-    t_move_files = BashOperator(
-        task_id='move_files',
-        bash_command="""
-        tmp_dir={{tmp_dir_path(run_id)}} ; \
-        cd "$tmp_dir"/cwl_out ; \
-        mkdir cluster-marker-genes ; \
-        mv cluster_marker_genes.h5ad cluster-marker-genes ; \
-        echo $?
-        """,
-        provide_context=True,
     )
 
     def send_status_msg(**kwargs):
@@ -332,7 +320,6 @@ with DAG(
     (dag >> t_log_info >> t_create_tmpdir
      >> t_send_create_dataset >> t_set_dataset_processing
      >> prepare_cwl1 >> t_build_cmd1 >> t_pipeline_exec >> t_maybe_keep_cwl1
-     >> t_move_files
      >> prepare_cwl2 >> t_build_cmd2 >> t_make_arrow1 >> t_maybe_keep_cwl2
      >> t_move_data >> t_send_status >> t_join)
     t_maybe_keep_cwl1 >> t_set_dataset_error
