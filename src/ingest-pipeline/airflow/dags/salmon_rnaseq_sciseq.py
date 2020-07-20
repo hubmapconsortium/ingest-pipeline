@@ -51,7 +51,7 @@ default_args = {
 }
 
 
-with DAG('salmon_rnaseq_10x', 
+with DAG('salmon_rnaseq_sciseq',
          schedule_interval=None, 
          is_paused_upon_creation=False, 
          default_args=default_args,
@@ -59,7 +59,7 @@ with DAG('salmon_rnaseq_10x',
          user_defined_macros={'tmp_dir_path' : utils.get_tmp_dir_path}
          ) as dag:
 
-    pipeline_name = 'salmon-rnaseq'
+    pipeline_name = 'salmon-rnaseq-sciseq'
     cwl_workflow1 = os.path.join(pipeline_name, 'pipeline.cwl')
     cwl_workflow2 = os.path.join('portal-containers', 'h5ad-to-arrow.cwl')
 
@@ -108,6 +108,7 @@ with DAG('salmon_rnaseq_10x',
             'env',
             'PATH=%s:%s' % (cwltool_dir, os.environ['PATH']),
             'cwltool',
+            '--relax-path-checks',
             '--debug',
             '--outdir',
             os.path.join(tmpdir, 'cwl_out'),
@@ -217,7 +218,7 @@ with DAG('salmon_rnaseq_10x',
                      'http_conn_id' : 'ingest_api_connection',
                      'endpoint' : '/datasets/derived',
                      'dataset_name_callable' : build_dataset_name,
-                     "dataset_types":["salmon_rnaseq_10x"]
+                     "dataset_types":["salmon_rnaseq_sciseq"]
                      }
     )
 
