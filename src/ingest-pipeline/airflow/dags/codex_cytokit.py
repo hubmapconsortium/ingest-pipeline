@@ -91,6 +91,7 @@ with DAG('codex_cytokit',
             'PATH=%s:%s' % (cwltool_dir, os.environ['PATH']),
             'cwltool',
             os.fspath(PIPELINE_BASE_DIR / cwl_workflow1),
+            '--gpus=0,1',
             '--data_dir',
             data_dir,
         ]

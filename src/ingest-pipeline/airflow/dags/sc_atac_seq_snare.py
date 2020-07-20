@@ -95,12 +95,13 @@ with DAG(
         command = [
             'env',
             'PATH=%s:%s' % (cwltool_dir, os.environ['PATH']),
+            'TMPDIR=%s' % tmpdir,
             'cwltool',
             '--outdir',
             os.path.join(tmpdir, 'cwl_out'),
             '--parallel',
             os.fspath(cwl_workflows_absolute[0]),
-            '--fastq_dir',
+            '--sequence_directory',
             data_dir,
             '--threads',
             str(THREADS),
@@ -202,7 +203,7 @@ with DAG(
         task_id='set_dataset_error',
         python_callable=utils.pythonop_set_dataset_state,
         provide_context=True,
-        trigger_rule='one_success',
+        trigger_rule='all_done',
         op_kwargs={
             'dataset_uuid_callable': get_dataset_uuid,
             'http_conn_id': 'ingest_api_connection',
@@ -266,7 +267,7 @@ with DAG(
                 dag_prv.extend(utils.get_git_provenance_list(files_for_provenance))
                 md['dag_provenance_list'] = dag_prv
 
-            manifest_files = find_pipeline_manifests(cwl_workflows_absolute)
+            manifest_files = find_pipeline_manifests(*cwl_workflows_absolute)
             md.update(
                 utils.get_file_metadata_dict(
                     ds_dir,
