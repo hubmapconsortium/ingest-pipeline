@@ -100,6 +100,7 @@ with DAG('ometiff_pyramid',
         command = [
             'env',
             'PATH=%s:%s' % (cwltool_dir, os.environ['PATH']),
+            'TMPDIR=%s' % tmpdir,
             'cwltool',
             os.fspath(PIPELINE_BASE_DIR / cwl_workflow1),
             '--ometiff_directory',
@@ -117,7 +118,6 @@ with DAG('ometiff_pyramid',
 
     t_pipeline_exec_cwl1 = BashOperator(
         task_id='pipeline_exec_cwl1',
-        queue=utils.map_queue_name('gpu000_q1'),
         bash_command=""" \
         tmp_dir={{tmp_dir_path(run_id)}} ; \
         mkdir -p ${tmp_dir}/cwl_out ; \
@@ -155,6 +155,7 @@ with DAG('ometiff_pyramid',
         command = [
             'env',
             'PATH=%s:%s' % (cwltool_dir, os.environ['PATH']),
+            'TMPDIR=%s' % tmpdir,
             'cwltool',
             os.fspath(PIPELINE_BASE_DIR / cwl_workflow2),
             '--input_directory',
@@ -172,11 +173,10 @@ with DAG('ometiff_pyramid',
 
     t_pipeline_exec_cwl2 = BashOperator(
         task_id='pipeline_exec_cwl2',
-        queue=utils.map_queue_name('gpu000_q1'),
         bash_command=""" \
         tmp_dir={{tmp_dir_path(run_id)}} ; \
         cd ${tmp_dir}/cwl_out ; \
-        {{ti.xcom_pull(task_ids='build_cmd2')}} > $tmp_dir/session.log 2>&1 ; \
+        {{ti.xcom_pull(task_ids='build_cmd2')}} >> $tmp_dir/session.log 2>&1 ; \
         echo $?
         """
     )
