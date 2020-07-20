@@ -176,7 +176,7 @@ with DAG('ometiff_pyramid',
         bash_command=""" \
         tmp_dir={{tmp_dir_path(run_id)}} ; \
         cd ${tmp_dir}/cwl_out ; \
-        {{ti.xcom_pull(task_ids='build_cmd2')}} > $tmp_dir/session.log 2>&1 ; \
+        {{ti.xcom_pull(task_ids='build_cmd2')}} >> $tmp_dir/session.log 2>&1 ; \
         echo $?
         """
     )
