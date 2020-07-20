@@ -16,3 +16,9 @@
 [submodule "src/ingest-pipeline/airflow/dags/cwl/ome-tiff-pyramid"]
 	path = src/ingest-pipeline/airflow/dags/cwl/ome-tiff-pyramid
 	url = git@github.com:hubmapconsortium/ome-tiff-pyramid.git
+[submodule "src/ingest-pipeline/airflow/dags/cwl/salmon-rnaseq-sciseq"]
+	path = src/ingest-pipeline/airflow/dags/cwl/salmon-rnaseq-sciseq
+	url = git@github.com:hubmapconsortium/salmon-rnaseq.git
+[submodule "src/ingest-pipeline/airflow/dags/cwl/salmon-rnaseq-snareseq"]
+	path = src/ingest-pipeline/airflow/dags/cwl/salmon-rnaseq-snareseq
+	url = git@github.com:hubmapconsortium/salmon-rnaseq.git
