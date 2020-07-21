@@ -169,7 +169,7 @@ with DAG(
         python_callable=utils.pythonop_maybe_keep,
         provide_context=True,
         op_kwargs={
-            'next_op': 'move_files',
+            'next_op': 'prepare_cwl2',
             'bail_op': 'set_dataset_error',
             'test_op': 'pipeline_exec',
         },
