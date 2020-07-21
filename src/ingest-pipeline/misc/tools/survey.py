@@ -226,12 +226,17 @@ def main():
     main
     """
     parser = argparse.ArgumentParser()
-    parser.add_argument("metadatatsv")
+    parser.add_argument("metadatatsv", help="input .tsv or .xlsx file")
     parser.add_argument("--out", help="name of the output .tsv file", required=True)
     args = parser.parse_args()
     auth_tok = input('auth_tok: ')
     entity_factory = EntityFactory(auth_tok)
-    in_df = pd.read_csv(args.metadatatsv, sep='\t')
+    if args.metadatatsv.endswith('.tsv'):
+        in_df = pd.read_csv(args.metadatatsv, sep='\t')
+    elif args.metadatatsv.endswith('.xlsx'):
+        in_df = pd.read_excel(args.metadatatsv)
+    else:
+        raise RuntimeError('Unrecognized input file format')
     in_df['uuid'] = in_df.apply(get_uuid, axis=1)
     out_recs = []
     
