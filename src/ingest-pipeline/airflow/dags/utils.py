@@ -13,6 +13,7 @@ import yaml
 from cryptography.fernet import Fernet
 
 from airflow.configuration import conf as airflow_conf
+from airflow.hooks.http_hook import HttpHook
 
 from hubmap_commons.schema_tools import assert_json_matches_schema, set_schema_base_path
 
@@ -28,10 +29,10 @@ SCHEMA_BASE_PATH = join(dirname(dirname(dirname(realpath(__file__)))),
                         'schemata')
 SCHEMA_BASE_URI = 'http://schemata.hubmapconsortium.org/'
 
-from airflow.hooks.http_hook import HttpHook
-
 # Some constants
 PIPELINE_BASE_DIR = Path(__file__).resolve().parent / 'cwl'
+
+RE_ID_WITH_SLICES = re.compile(r'([a-zA-Z0-9\-]*)-(\d*)_(\d*)')
 
 # default maximum for number of files for which info should be returned in_line
 # rather than via an alternative scratch file
@@ -165,6 +166,20 @@ def find_pipeline_manifests(*cwl_files: Path) -> List[Path]:
         if manifest_file.is_file():
             manifests.append(manifest_file)
     return manifests
+
+
+def get_absolute_workflows(workflows: Iterable[Path]) -> List[Path]:
+    """
+    :param workflows: iterable of `Path`s to CWL files, absolute
+      or relative
+    :return: Absolute paths to workflows: if the input paths were
+      already absolute, they are returned unchanged; if relative,
+      they are anchored to `PIPELINE_BASE_DIR`
+    """
+    return [
+        PIPELINE_BASE_DIR / workflow
+        for workflow in workflows
+    ]
 
 
 def get_parent_dataset_uuid(**kwargs):
@@ -560,6 +575,31 @@ def _uuid_lookup(uuid, **kwargs):
     return response.json()
     
 
+def _generate_slices(id: str) -> Iterable[str]:
+    mo = RE_ID_WITH_SLICES.fullmatch(id)
+    if mo:
+        base, lidx, hidx = mo.groups()
+        lidx = int(lidx)
+        hidx = int(hidx)
+        for idx in range(lidx, hidx+1):
+            yield(f'{base}-{idx}')
+    else:
+        yield id
+
+
+def assert_id_known(id: str, **kwargs) -> None:
+    """
+    Is the given id string known to the uuid database?  Id strings with suffixes like
+    myidstr-n1_n2 where n1 and n2 are integers are interpreted as representing multiple
+    ids with suffix integers in the range n1 to n2 inclusive.
+    
+    Raises AssertionError if the ID is not known.
+    """
+    for slice in _generate_slices(id):
+        tissue_info = _uuid_lookup(slice, **kwargs)
+        assert tissue_info and len(tissue_info) >= 1, f'tissue_id {slice} not found on lookup'
+
+
 def pythonop_md_consistency_tests(**kwargs) -> int:
     """
     Perform simple consistency checks of the metadata stored as YAML in kwargs['metadata_fname'].
@@ -575,10 +615,7 @@ def pythonop_md_consistency_tests(**kwargs) -> int:
             for elt in ['tissue_id', 'donor_id']:
                 assert elt in md, 'metadata is missing {}'.format(elt)
             assert md['tissue_id'].startswith(md['donor_id']+'-'), 'tissue_id does not match'
-            tissue_info = _uuid_lookup(md['tissue_id'], **kwargs)
-#             print('tissue_info:')
-#             pprint(tissue_info)
-            assert tissue_info and len(tissue_info) >= 1, 'tissue_id not found on lookup'
+            assert_id_known(md['tissue_id'], **kwargs)
             return 0
         except AssertionError as e:
             kwargs['ti'].xcom_push(key='err_msg',

@@ -27,9 +27,12 @@ from utils import (
     get_parent_dataset_uuid,
     get_uuid_for_error,
     localized_assert_json_matches_schema as assert_json_matches_schema,
-    get_cwltool_bin_path,
     decrypt_tok
 )
+
+import cwltool  # used to find its path
+
+THREADS = 6  # to be used by the CWL worker
 
 
 default_args = {
@@ -48,33 +51,41 @@ default_args = {
 }
 
 
-with DAG('codex_cytokit', 
+with DAG('salmon_rnaseq_sciseq',
          schedule_interval=None, 
          is_paused_upon_creation=False, 
          default_args=default_args,
-         max_active_runs=1,
+         max_active_runs=4,
          user_defined_macros={'tmp_dir_path' : utils.get_tmp_dir_path}
          ) as dag:
 
-    pipeline_name = 'codex-pipeline'
+    pipeline_name = 'salmon-rnaseq-sciseq'
     cwl_workflow1 = os.path.join(pipeline_name, 'pipeline.cwl')
-    cwl_workflow2 = os.path.join('portal-containers', 'ome-tiff-offsets.cwl')
-    cwl_workflow3 = os.path.join('portal-containers', 'sprm-to-json.cwl')
+    cwl_workflow2 = os.path.join('portal-containers', 'h5ad-to-arrow.cwl')
 
     def build_dataset_name(**kwargs):
         return '{}__{}__{}'.format(dag.dag_id,
                                    kwargs['dag_run'].conf['parent_submission_id'],
                                    pipeline_name),
 
-
 #     prepare_cwl1 = PythonOperator(
 #         python_callable=utils.clone_or_update_pipeline,
-#         task_id='prepare_cwl1',
+#         task_id='clone_or_update_cwl1',
 #         op_kwargs={'pipeline_name': cwl_workflow1}
+#     )
+
+#     prepare_cwl2 = PythonOperator(
+#         python_callable=utils.clone_or_update_pipeline,
+#         task_id='clone_or_update_cwl2',
+#         op_kwargs={'pipeline_name': cwl_workflow2}
 #     )
 
     prepare_cwl1 = DummyOperator(
         task_id='prepare_cwl1'
+        )
+    
+    prepare_cwl2 = DummyOperator(
+        task_id='prepare_cwl2'
         )
     
     def build_cwltool_cmd1(**kwargs):
@@ -84,16 +95,30 @@ with DAG('codex_cytokit',
         print('tmpdir: ', tmpdir)
         data_dir = ctx['parent_lz_path']
         print('data_dir: ', data_dir)
-        cwltool_dir = get_cwltool_bin_path()
+        cwltool_dir = os.path.dirname(cwltool.__file__)
+        while cwltool_dir:
+            part1, part2 = os.path.split(cwltool_dir)
+            cwltool_dir = part1
+            if part2 == 'lib':
+                break
+        assert cwltool_dir, 'Failed to find cwltool bin directory'
+        cwltool_dir = os.path.join(cwltool_dir, 'bin')
 
         command = [
             'env',
             'PATH=%s:%s' % (cwltool_dir, os.environ['PATH']),
+            'TMPDIR=${tmpdir}',
             'cwltool',
+            '--relax-path-checks',
+            '--debug',
+            '--outdir',
+            os.path.join(tmpdir, 'cwl_out'),
+            '--parallel',
             os.fspath(PIPELINE_BASE_DIR / cwl_workflow1),
-            '--gpus=0,1',
-            '--data_dir',
+            '--fastq_dir',
             data_dir,
+            '--threads',
+            str(THREADS),
         ]
         
 #         command = [
@@ -108,159 +133,84 @@ with DAG('codex_cytokit',
         print('final command_str: %s' % command_str)
         return command_str
 
+    def build_cwltool_cmd2(**kwargs):
+        ctx = kwargs['dag_run'].conf
+        run_id = kwargs['run_id']
+        tmpdir = utils.get_tmp_dir_path(run_id)
+        print('tmpdir: ', tmpdir)
+        data_dir = ctx['parent_lz_path']
+        print('data_dir: ', data_dir)
+        cwltool_dir = os.path.dirname(cwltool.__file__)
+        while cwltool_dir:
+            part1, part2 = os.path.split(cwltool_dir)
+            cwltool_dir = part1
+            if part2 == 'lib':
+                break
+        assert cwltool_dir, 'Failed to find cwltool bin directory'
+        cwltool_dir = os.path.join(cwltool_dir, 'bin')
+
+        command = [
+            'env',
+            'PATH=%s:%s' % (cwltool_dir, os.environ['PATH']),
+            'TMPDIR=${tmpdir}',
+            'cwltool',
+            os.fspath(PIPELINE_BASE_DIR / cwl_workflow2),
+            '--input_dir',
+            '.'
+        ]
+            
+        command_str = ' '.join(shlex.quote(piece) for piece in command)
+        print('final command_str: %s' % command_str)
+        return command_str
 
     t_build_cmd1 = PythonOperator(
         task_id='build_cmd1',
         python_callable=build_cwltool_cmd1
         )
 
-
-    t_pipeline_exec_cwl1 = BashOperator(
-        task_id='pipeline_exec_cwl1',
-        queue=utils.map_queue_name('gpu000_q1'),
-        bash_command=""" \
-        tmp_dir={{tmp_dir_path(run_id)}} ; \
-        mkdir -p ${tmp_dir}/cwl_out ; \
-        cd ${tmp_dir}/cwl_out ; \
-        {{ti.xcom_pull(task_ids='build_cmd1')}} > $tmp_dir/session.log 2>&1 ; \
-        echo $?
-        """
-    )
-
-
-    t_maybe_keep_cwl1 = BranchPythonOperator(
-        task_id='maybe_keep_cwl1',
-        python_callable=utils.pythonop_maybe_keep,
-        provide_context=True,
-        op_kwargs = {'next_op' : 'prepare_cwl2',
-                     'bail_op' : 'set_dataset_error',
-                     'test_op' : 'pipeline_exec_cwl1'}
-        )
-
-
-#     prepare_cwl2 = PythonOperator(
-#         python_callable=utils.clone_or_update_pipeline,
-#         task_id='prepare_cwl2',
-#         op_kwargs={'pipeline_name': cwl_workflow2}
-#     )
-
-    prepare_cwl2 = DummyOperator(
-        task_id='prepare_cwl2'
-        )
-    
-    def build_cwltool_cmd2(**kwargs):
-        ctx = kwargs['dag_run'].conf
-        run_id = kwargs['run_id']
-        tmpdir = utils.get_tmp_dir_path(run_id)
-        print('tmpdir: ', tmpdir)
-        parent_data_dir = ctx['parent_lz_path']
-        print('parent_data_dir: ', parent_data_dir)
-        data_dir = os.path.join(tmpdir, 'cwl_out')  # This stage reads input from stage 1
-        print('data_dir: ', data_dir)
-        cwltool_dir = get_cwltool_bin_path()
-
-        command = [
-            'env',
-            'PATH=%s:%s' % (cwltool_dir, os.environ['PATH']),
-            'cwltool',
-            os.fspath(PIPELINE_BASE_DIR / cwl_workflow2),
-            '--input_dir',
-            os.path.join(data_dir, 'output', 'extract', 'expressions', 'ome-tiff')
-        ]
-
-        command_str = ' '.join(shlex.quote(piece) for piece in command)
-        print('final command_str: %s' % command_str)
-        return command_str
-
-
     t_build_cmd2 = PythonOperator(
         task_id='build_cmd2',
         python_callable=build_cwltool_cmd2
         )
 
-
-    t_pipeline_exec_cwl2 = BashOperator(
-        task_id='pipeline_exec_cwl2',
+    t_pipeline_exec = BashOperator(
+        task_id='pipeline_exec',
         bash_command=""" \
         tmp_dir={{tmp_dir_path(run_id)}} ; \
-        cd ${tmp_dir}/cwl_out ; \
-        {{ti.xcom_pull(task_ids='build_cmd2')}} >> ${tmp_dir}/session.log 2>&1 ; \
+        {{ti.xcom_pull(task_ids='build_cmd1')}} > $tmp_dir/session.log 2>&1 ; \
         echo $?
         """
     )
 
+    t_make_arrow1 = BashOperator(
+        task_id='make_arrow1',
+        bash_command=""" \
+        tmp_dir={{tmp_dir_path(run_id)}} ; \
+        ds_dir="{{ti.xcom_pull(task_ids="send_create_dataset")}}" ; \
+        cd "$tmp_dir"/cwl_out/cluster-marker-genes ; \
+        {{ti.xcom_pull(task_ids='build_cmd2')}} >> $tmp_dir/session.log 2>&1 ; \
+        echo $?
+        """,
+        provide_context=True
+    )
+
+    t_maybe_keep_cwl1 = BranchPythonOperator(
+        task_id='maybe_keep_cwl1',
+        python_callable=utils.pythonop_maybe_keep,
+        provide_context=True,
+        op_kwargs = {'next_op' : 'move_files',
+                     'bail_op' : 'set_dataset_error',
+                     'test_op' : 'pipeline_exec'}
+        )
 
     t_maybe_keep_cwl2 = BranchPythonOperator(
         task_id='maybe_keep_cwl2',
         python_callable=utils.pythonop_maybe_keep,
         provide_context=True,
-        op_kwargs = {'next_op' : 'prepare_cwl3',
-                     'bail_op' : 'set_dataset_error',
-                     'test_op' : 'pipeline_exec_cwl2'}
-        )
-
-
-#     prepare_cwl3 = PythonOperator(
-#         python_callable=utils.clone_or_update_pipeline,
-#         task_id='prepare_cwl3',
-#         op_kwargs={'pipeline_name': cwl_workflow3}
-#     )
-
-    prepare_cwl3 = DummyOperator(
-        task_id='prepare_cwl3'
-        )
-    
-    def build_cwltool_cmd3(**kwargs):
-        ctx = kwargs['dag_run'].conf
-        run_id = kwargs['run_id']
-        tmpdir = utils.get_tmp_dir_path(run_id)
-        print('tmpdir: ', tmpdir)
-        parent_data_dir = ctx['parent_lz_path']
-        print('parent_data_dir: ', parent_data_dir)
-        data_dir = os.path.join(tmpdir, 'cwl_out')  # This stage reads input from stage 1
-        print('data_dir: ', data_dir)
-        cwltool_dir = get_cwltool_bin_path()
-
-        command = [
-            'env',
-            'PATH=%s:%s' % (cwltool_dir, os.environ['PATH']),
-            'cwltool',
-            os.fspath(PIPELINE_BASE_DIR / cwl_workflow3),
-            '--input_dir',
-            os.path.join(data_dir, 'sprm_outputs')
-        ]
-
-        command_str = ' '.join(shlex.quote(piece) for piece in command)
-        print('final command_str: %s' % command_str)
-        return command_str
-
-
-    t_build_cmd3 = PythonOperator(
-        task_id='build_cmd3',
-        python_callable=build_cwltool_cmd3
-        )
-
-
-    t_pipeline_exec_cwl3 = BashOperator(
-        task_id='pipeline_exec_cwl3',
-        bash_command=""" \
-        tmp_dir={{tmp_dir_path(run_id)}} ; \
-        cd ${tmp_dir}/cwl_out ; \
-        {{ti.xcom_pull(task_ids='build_cmd3')}} >> ${tmp_dir}/session.log 2>&1 ; \
-        echo $?
-        """
-    )
-
-
-    t_maybe_keep_cwl3 = BranchPythonOperator(
-        task_id='maybe_keep_cwl3',
-        python_callable=utils.pythonop_maybe_keep,
-        provide_context=True,
         op_kwargs = {'next_op' : 'move_data',
                      'bail_op' : 'set_dataset_error',
-                     'test_op' : 'pipeline_exec_cwl3'}
+                     'test_op' : 'make_arrow1'}
         )
-
 
     t_send_create_dataset = PythonOperator(
         task_id='send_create_dataset',
@@ -270,10 +220,9 @@ with DAG('codex_cytokit',
                      'http_conn_id' : 'ingest_api_connection',
                      'endpoint' : '/datasets/derived',
                      'dataset_name_callable' : build_dataset_name,
-                     "dataset_types":["codex_cytokit"]
+                     "dataset_types":["salmon_rnaseq_sciseq"]
                      }
     )
-
 
     t_set_dataset_error = PythonOperator(
         task_id='set_dataset_error',
@@ -288,24 +237,20 @@ with DAG('codex_cytokit',
                      }
     )
 
-
-    t_expand_symlinks = BashOperator(
-        task_id='expand_symlinks',
+    t_move_files = BashOperator(
+        task_id='move_files',
         bash_command="""
-        tmp_dir="{{tmp_dir_path(run_id)}}" ; \
-        ds_dir="{{ti.xcom_pull(task_ids="send_create_dataset")}}" ; \
-        groupname="{{conf.as_dict()['connections']['OUTPUT_GROUP_NAME']}}" ; \
-        cd "$ds_dir" ; \
-        tar -xf symlinks.tar ; \
+        tmp_dir={{tmp_dir_path(run_id)}} ; \
+        cd "$tmp_dir"/cwl_out ; \
+        mkdir cluster-marker-genes ; \
+        mv cluster_marker_genes.h5ad cluster-marker-genes ; \
         echo $?
         """,
         provide_context=True
         )
 
-
     def send_status_msg(**kwargs):
-        retcode_ops = ['pipeline_exec_cwl1', 'pipeline_exec_cwl2', 
-                       'pipeline_exec_cwl3', 'move_data']
+        retcode_ops = ['pipeline_exec', 'move_data', 'make_arrow1']
         retcodes = [int(kwargs['ti'].xcom_pull(task_ids=op))
                     for op in retcode_ops]
         print('retcodes: ', {k:v for k, v in zip(retcode_ops, retcodes)})
@@ -320,35 +265,37 @@ with DAG('codex_cytokit',
         headers={
             'authorization' : 'Bearer ' + decrypt_tok(crypt_auth_tok.encode()),
             'content-type' : 'application/json'}
-        #print('headers:')
-        #pprint(headers)  # reduce visibility of auth_tok
-        extra_options=[]
-         
+        # print('headers:')
+        # pprint(headers)  # reduce visibility of auth_tok
+        extra_options = []
+
         http = HttpHook(method,
                         http_conn_id=http_conn_id)
- 
+
         if success:
             md = {}
-            
-            workflows = [cwl_workflow1,
-                         cwl_workflow2,
-                         cwl_workflow3]
             if 'dag_provenance' in kwargs['dag_run'].conf:
                 md['dag_provenance'] = kwargs['dag_run'].conf['dag_provenance'].copy()
-                new_prv_dct = utils.get_git_provenance_dict([__file__]
-                                                            + [PIPELINE_BASE_DIR / cwl
-                                                               for cwl in workflows])
+                new_prv_dct = utils.get_git_provenance_dict([__file__,
+                                                             os.path.join(PIPELINE_BASE_DIR,
+                                                                          cwl_workflow1),
+                                                             os.path.join(PIPELINE_BASE_DIR,
+                                                                          cwl_workflow2)])
                 md['dag_provenance'].update(new_prv_dct)
             else:
                 dag_prv = (kwargs['dag_run'].conf['dag_provenance_list']
                            if 'dag_provenance_list' in kwargs['dag_run'].conf
                            else [])
-                dag_prv.extend(utils.get_git_provenance_list([__file__]
-                                                             + [PIPELINE_BASE_DIR / cwl
-                                                                for cwl in workflows]))
+                dag_prv.extend(utils.get_git_provenance_list([__file__,
+                                                              os.path.join(PIPELINE_BASE_DIR,
+                                                                           cwl_workflow1),
+                                                              os.path.join(PIPELINE_BASE_DIR,
+                                                                           cwl_workflow2)]))
                 md['dag_provenance_list'] = dag_prv
+
             manifest_files = find_pipeline_manifests(
-                *[PIPELINE_BASE_DIR / cwl for cwl in workflows]
+                PIPELINE_BASE_DIR / cwl_workflow1,
+                PIPELINE_BASE_DIR / cwl_workflow2,
             )
             md.update(utils.get_file_metadata_dict(ds_dir,
                                                    utils.get_tmp_dir_path(kwargs['run_id']),
@@ -390,6 +337,7 @@ with DAG('codex_cytokit',
         provide_context=True
     )
 
+
     t_log_info = LogInfoOperator(task_id='log_info')
     t_join = JoinOperator(task_id='join')
     t_create_tmpdir = CreateTmpDirOperator(task_id='create_tmpdir')
@@ -399,14 +347,11 @@ with DAG('codex_cytokit',
 
     (dag >> t_log_info >> t_create_tmpdir
      >> t_send_create_dataset >> t_set_dataset_processing
-     >> prepare_cwl1 >> t_build_cmd1 >> t_pipeline_exec_cwl1 >> t_maybe_keep_cwl1
-     >> prepare_cwl2 >> t_build_cmd2 >> t_pipeline_exec_cwl2 >> t_maybe_keep_cwl2
-     >> prepare_cwl3 >> t_build_cmd3 >> t_pipeline_exec_cwl3 >> t_maybe_keep_cwl3
-     >> t_move_data >> t_expand_symlinks >> t_send_status >> t_join)
+     >> prepare_cwl1 >> t_build_cmd1 >> t_pipeline_exec >> t_maybe_keep_cwl1
+     >> t_move_files 
+     >> prepare_cwl2 >> t_build_cmd2 >> t_make_arrow1 >> t_maybe_keep_cwl2
+     >> t_move_data >> t_send_status >> t_join)
     t_maybe_keep_cwl1 >> t_set_dataset_error
     t_maybe_keep_cwl2 >> t_set_dataset_error
-    t_maybe_keep_cwl3 >> t_set_dataset_error
     t_set_dataset_error >> t_join
     t_join >> t_cleanup_tmpdir
-
-
