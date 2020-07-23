@@ -132,7 +132,7 @@ with DAG(
             'http_conn_id': 'ingest_api_connection',
             'endpoint': '/datasets/derived',
             'dataset_name_callable': build_dataset_name,
-            "dataset_types": ["sc_atac_seq_snare"],
+            "dataset_types": ["salmon_rnaseq_bulk"],
         },
     )
 

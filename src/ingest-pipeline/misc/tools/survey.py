@@ -65,7 +65,7 @@ class Dataset(Entity):
         super().__init__(prop_dct, entity_factory)
         assert prop_dct['entity_type'] == 'Dataset', f"uuid {uuid} is a {prop_dct['entity_type']}"
         self.status = prop_dct['status']
-        if 'metadata' in prop_dct:
+        if 'metadata' in prop_dct and prop_dct['metadata']:
             if 'dag_provenance_list' in prop_dct['metadata']:
                 dag_prv = prop_dct['metadata']['dag_provenance_list']
             else:
@@ -106,6 +106,7 @@ class Dataset(Entity):
         if self.kid_dataset_uuids:
             for kid in self.kid_dataset_uuids:
                 self.kids[kid].describe(prefix=prefix+'    ', file=file)
+
 
     def build_rec(self):
         """
@@ -167,7 +168,8 @@ class Sample(Entity):
     def describe(self, prefix='', file=sys.stdout):
         print(f"{prefix}Sample {self.uuid}: "
               f"{self.display_doi} "
-              f"{self.hubmap_display_id}",
+              f"{self.hubmap_display_id} "
+              f"{self.donor_hubmap_display_id}",
               file=file)
 
 
