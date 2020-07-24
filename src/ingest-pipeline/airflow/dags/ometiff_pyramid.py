@@ -103,6 +103,9 @@ with DAG('ometiff_pyramid',
             'PATH=%s:%s' % (cwltool_dir, os.environ['PATH']),
             'TMPDIR=%s' % tmpdir,
             'cwltool',
+            # trailing slash is deliberate
+            '--tmpdir-prefix={}/'.format(tmpdir / 'cwl-tmp'),
+            '--tmp-outdir-prefix={}/'.format(tmpdir / 'cwl-out-tmp'),
             os.fspath(PIPELINE_BASE_DIR / cwl_workflow1),
             '--ometiff_directory',
             data_dir
@@ -158,6 +161,9 @@ with DAG('ometiff_pyramid',
             'PATH=%s:%s' % (cwltool_dir, os.environ['PATH']),
             'TMPDIR=%s' % tmpdir,
             'cwltool',
+            # trailing slash is deliberate
+            '--tmpdir-prefix={}/'.format(tmpdir / 'cwl-tmp'),
+            '--tmp-outdir-prefix={}/'.format(tmpdir / 'cwl-out-tmp'),
             os.fspath(PIPELINE_BASE_DIR / cwl_workflow2),
             '--input_directory',
             './ometiff-pyramids'

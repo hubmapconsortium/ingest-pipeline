@@ -85,6 +85,9 @@ with DAG(
             'PATH=%s:%s' % (cwltool_dir, os.environ['PATH']),
             'TMPDIR=%s' % tmpdir,
             'cwltool',
+            # trailing slash is deliberate
+            '--tmpdir-prefix={}/'.format(tmpdir / 'cwl-tmp'),
+            '--tmp-outdir-prefix={}/'.format(tmpdir / 'cwl-out-tmp'),
             '--outdir',
             os.path.join(tmpdir, 'cwl_out'),
             '--parallel',
