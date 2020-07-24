@@ -1,6 +1,7 @@
 import os
 import json
 import shlex
+from pathlib import Path
 from pprint import pprint
 from datetime import datetime, timedelta
 
@@ -85,7 +86,7 @@ with DAG('ometiff_pyramid',
         run_id = kwargs['run_id']
 
         #tmpdir is temp directory in /hubmap-tmp
-        tmpdir = utils.get_tmp_dir_path(run_id)
+        tmpdir = Path(utils.get_tmp_dir_path(run_id))
         print('tmpdir: ', tmpdir)
 
         #data directory is input directory in /hubmap-data
@@ -102,6 +103,9 @@ with DAG('ometiff_pyramid',
             'PATH=%s:%s' % (cwltool_dir, os.environ['PATH']),
             'TMPDIR=%s' % tmpdir,
             'cwltool',
+            # trailing slash is deliberate
+            '--tmpdir-prefix={}/'.format(tmpdir / 'cwl-tmp'),
+            '--tmp-outdir-prefix={}/'.format(tmpdir / 'cwl-out-tmp'),
             os.fspath(PIPELINE_BASE_DIR / cwl_workflow1),
             '--ometiff_directory',
             data_dir
@@ -138,7 +142,7 @@ with DAG('ometiff_pyramid',
         run_id = kwargs['run_id']
 
         #tmpdir is temp directory in /hubmap-tmp
-        tmpdir = utils.get_tmp_dir_path(run_id)
+        tmpdir = Path(utils.get_tmp_dir_path(run_id))
         print('tmpdir: ', tmpdir)
 
         #get data directory
@@ -157,6 +161,9 @@ with DAG('ometiff_pyramid',
             'PATH=%s:%s' % (cwltool_dir, os.environ['PATH']),
             'TMPDIR=%s' % tmpdir,
             'cwltool',
+            # trailing slash is deliberate
+            '--tmpdir-prefix={}/'.format(tmpdir / 'cwl-tmp'),
+            '--tmp-outdir-prefix={}/'.format(tmpdir / 'cwl-out-tmp'),
             os.fspath(PIPELINE_BASE_DIR / cwl_workflow2),
             '--input_directory',
             './ometiff-pyramids'
