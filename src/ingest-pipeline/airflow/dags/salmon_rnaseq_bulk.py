@@ -76,7 +76,7 @@ with DAG(
     def build_cwltool_cmd1(**kwargs):
         ctx = kwargs['dag_run'].conf
         run_id = kwargs['run_id']
-        tmpdir = utils.get_tmp_dir_path(run_id)
+        tmpdir = Path(utils.get_tmp_dir_path(run_id))
         data_dir = ctx['parent_lz_path']
         cwltool_dir = get_cwltool_bin_path()
 
@@ -85,6 +85,9 @@ with DAG(
             'PATH=%s:%s' % (cwltool_dir, os.environ['PATH']),
             'TMPDIR=%s' % tmpdir,
             'cwltool',
+            # trailing slash is deliberate
+            '--tmpdir-prefix={}/'.format(tmpdir / 'cwl-tmp'),
+            '--tmp-outdir-prefix={}/'.format(tmpdir / 'cwl-out-tmp'),
             '--outdir',
             os.path.join(tmpdir, 'cwl_out'),
             '--parallel',

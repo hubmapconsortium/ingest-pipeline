@@ -1,6 +1,7 @@
 import os
 import json
 import shlex
+from pathlib import Path
 from pprint import pprint
 from datetime import datetime, timedelta
 
@@ -80,7 +81,7 @@ with DAG('codex_cytokit',
     def build_cwltool_cmd1(**kwargs):
         ctx = kwargs['dag_run'].conf
         run_id = kwargs['run_id']
-        tmpdir = utils.get_tmp_dir_path(run_id)
+        tmpdir = Path(utils.get_tmp_dir_path(run_id))
         print('tmpdir: ', tmpdir)
         data_dir = ctx['parent_lz_path']
         print('data_dir: ', data_dir)
@@ -91,6 +92,9 @@ with DAG('codex_cytokit',
             'PATH=%s:%s' % (cwltool_dir, os.environ['PATH']),
             'TMPDIR=%s' % tmpdir,
             'cwltool',
+            # trailing slash is deliberate
+            '--tmpdir-prefix={}/'.format(tmpdir / 'cwl-tmp'),
+            '--tmp-outdir-prefix={}/'.format(tmpdir / 'cwl-out-tmp'),
             os.fspath(PIPELINE_BASE_DIR / cwl_workflow1),
             '--gpus=0,1',
             '--data_dir',
@@ -152,7 +156,7 @@ with DAG('codex_cytokit',
     def build_cwltool_cmd2(**kwargs):
         ctx = kwargs['dag_run'].conf
         run_id = kwargs['run_id']
-        tmpdir = utils.get_tmp_dir_path(run_id)
+        tmpdir = Path(utils.get_tmp_dir_path(run_id))
         print('tmpdir: ', tmpdir)
         parent_data_dir = ctx['parent_lz_path']
         print('parent_data_dir: ', parent_data_dir)
@@ -165,6 +169,9 @@ with DAG('codex_cytokit',
             'PATH=%s:%s' % (cwltool_dir, os.environ['PATH']),
             'TMPDIR=%s' % tmpdir,
             'cwltool',
+            # trailing slash is deliberate
+            '--tmpdir-prefix={}/'.format(tmpdir / 'cwl-tmp'),
+            '--tmp-outdir-prefix={}/'.format(tmpdir / 'cwl-out-tmp'),
             os.fspath(PIPELINE_BASE_DIR / cwl_workflow2),
             '--input_dir',
             os.path.join(data_dir, 'output', 'extract', 'expressions', 'ome-tiff')
@@ -215,7 +222,7 @@ with DAG('codex_cytokit',
     def build_cwltool_cmd3(**kwargs):
         ctx = kwargs['dag_run'].conf
         run_id = kwargs['run_id']
-        tmpdir = utils.get_tmp_dir_path(run_id)
+        tmpdir = Path(utils.get_tmp_dir_path(run_id))
         print('tmpdir: ', tmpdir)
         parent_data_dir = ctx['parent_lz_path']
         print('parent_data_dir: ', parent_data_dir)
@@ -228,6 +235,9 @@ with DAG('codex_cytokit',
             'PATH=%s:%s' % (cwltool_dir, os.environ['PATH']),
             'TMPDIR=%s' % tmpdir,
             'cwltool',
+            # trailing slash is deliberate
+            '--tmpdir-prefix={}/'.format(tmpdir / 'cwl-tmp'),
+            '--tmp-outdir-prefix={}/'.format(tmpdir / 'cwl-out-tmp'),
             os.fspath(PIPELINE_BASE_DIR / cwl_workflow3),
             '--input_dir',
             os.path.join(data_dir, 'sprm_outputs')
