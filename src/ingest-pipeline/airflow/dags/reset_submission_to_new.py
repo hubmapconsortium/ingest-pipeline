@@ -12,6 +12,7 @@ from airflow.operators.python_operator import PythonOperator
 from airflow.operators.python_operator import BranchPythonOperator
 from airflow.operators.dummy_operator import DummyOperator
 from airflow.hooks.http_hook import HttpHook
+from airflow.configuration import conf as airflow_conf
 
 import utils
 
@@ -63,7 +64,8 @@ with DAG('reset_submission_to_new',
                      'endpoint' : '/datasets/status',
                      'ds_state' : 'New',
                      'message' : 'Resetting state to NEW',
-                     'crypt_auth_tok' : utils.encrypt_tok('fill_this_in_at_run_time').decode()
+                     'crypt_auth_tok' : utils.encrypt_tok(airflow_conf.as_dict()
+                                                          ['connections']['APP_CLIENT_SECRET'])
                      }
     )
 
