@@ -456,8 +456,12 @@ def pythonop_send_create_dataset(**kwargs) -> str:
     'parent_dataset_uuid_callable' : called with **kwargs; returns uuid
                                      of the parent of the new dataset
     'dataset_name_callable' : called with **kwargs; returns the
-                              display name of the new dataset                                     
-    'dataset_types' : the types list of the new dataset
+                              display name of the new dataset        
+    either                             
+      'dataset_types' : the types list of the new dataset
+    or
+      'dataset_types_callable' : called with **kwargs; returns the
+                                 types list of the new dataset
     
     Returns the following via XCOM:
     (no key) : data_directory_path for the new dataset
@@ -467,6 +471,8 @@ def pythonop_send_create_dataset(**kwargs) -> str:
     for arg in ['parent_dataset_uuid_callable', 'http_conn_id', 'endpoint',
                 'dataset_name_callable', 'dataset_types']:
         assert arg in kwargs, "missing required argument {}".format(arg)
+    for arg_options in [['dataset_types', 'dataset_types_callable']]:
+        assert any([arg in kwargs for arg in arg_options])
     http_conn_id = kwargs['http_conn_id']
     endpoint = kwargs['endpoint']
     
@@ -480,10 +486,14 @@ def pythonop_send_create_dataset(**kwargs) -> str:
     extra_options=[]
     http = HttpHook(method,
                     http_conn_id=http_conn_id)
+    if 'dataset_types' in kwargs:
+        dataset_types = kwargs['dataset_types']
+    else:
+        dataset_types = kwargs['dataset_types_callable'](**kwargs)
     data = {
         "source_dataset_uuid": kwargs['parent_dataset_uuid_callable'](**kwargs),
         "derived_dataset_name": kwargs['dataset_name_callable'](**kwargs),
-        "derived_dataset_types": kwargs['dataset_types']
+        "derived_dataset_types": dataset_types
     }
     print('data: ')
     pprint(data)  
