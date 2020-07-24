@@ -18,17 +18,18 @@ import utils
 
 from utils import localized_assert_json_matches_schema as assert_json_matches_schema
 
-def get_dataset_uuid(**kwargs):
-    #return 'b40eb3abccf2341f274cfd4ba809c03e'
-    return '48c8dd2ad06aa23e36c095c9088a4913'
+UUIDS_TO_RESET = [
+    '2c467ffa1d01c41effb7057d7d329c8f',
+    '48c8dd2ad06aa23e36c095c9088a4913',
+    '08ee9f5575339641eb9f8fb17cc1d1bd'
+    ]
 
 
 def get_uuid_for_error(**kwargs):
     """
     Return the uuid for the derived dataset if it exists, and of the parent dataset otherwise.
     """
-    rslt = get_dataset_uuid(**kwargs)
-    return rslt
+    return None
 
 
 default_args = {
@@ -47,6 +48,10 @@ default_args = {
 }
 
 
+def uuid_fun(**kwargs):
+    return kwargs['uuid']
+
+
 with DAG('reset_submission_to_new', 
          schedule_interval=None, 
          is_paused_upon_creation=False, 
@@ -55,21 +60,26 @@ with DAG('reset_submission_to_new',
          user_defined_macros={'tmp_dir_path' : utils.get_tmp_dir_path}
          ) as dag:
 
-    t_set_dataset_new = PythonOperator(
-        task_id='set_dataset_new',
-        python_callable=utils.pythonop_set_dataset_state,
-        provide_context=True,
-        op_kwargs = {'dataset_uuid_callable' : get_dataset_uuid,
-                     'http_conn_id' : 'ingest_api_connection',
-                     'endpoint' : '/datasets/status',
-                     'ds_state' : 'New',
-                     'message' : 'Resetting state to NEW',
-                     'crypt_auth_tok' : utils.encrypt_tok(airflow_conf.as_dict()
-                                                          ['connections']['APP_CLIENT_SECRET']).decode()
-                     }
-    )
+    prev = dag
+    
+    for idx, uuid in enumerate(UUIDS_TO_RESET):
 
-
-    dag >> t_set_dataset_new
+        this_t = PythonOperator(
+            task_id=f'set_dataset_new_{idx}',
+            python_callable=utils.pythonop_set_dataset_state,
+            provide_context=True,
+            op_kwargs = {'dataset_uuid_callable' : uuid_fun,
+                         'http_conn_id' : 'ingest_api_connection',
+                         'endpoint' : '/datasets/status',
+                         'ds_state' : 'New',
+                         'message' : 'Resetting state to NEW',
+                         'crypt_auth_tok' : utils.encrypt_tok(airflow_conf.as_dict()
+                                                              ['connections']['APP_CLIENT_SECRET']).decode(),
+                         'uuid': uuid
+                         }
+        )
+        
+        prev >> this_t
+        prev = this_t
 
 
