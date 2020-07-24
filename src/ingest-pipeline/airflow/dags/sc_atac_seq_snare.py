@@ -95,7 +95,7 @@ with DAG(
         command = [
             'env',
             'PATH=%s:%s' % (cwltool_dir, os.environ['PATH']),
-            'TMPDIR=${tmpdir}',
+            'TMPDIR=%s' % tmpdir,
             'cwltool',
             '--outdir',
             os.path.join(tmpdir, 'cwl_out'),
@@ -123,7 +123,7 @@ with DAG(
         command = [
             'env',
             'PATH=%s:%s' % (cwltool_dir, os.environ['PATH']),
-            'TMPDIR=${tmpdir}',
+            'TMPDIR=%s' % tmpdir,
             'cwltool',
             os.fspath(cwl_workflows_absolute[1]),
             '--input_dir',
