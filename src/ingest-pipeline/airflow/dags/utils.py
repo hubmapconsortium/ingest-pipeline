@@ -667,6 +667,24 @@ def get_cwltool_bin_path() -> Path:
     return cwltool_dir
 
 
+def get_cwltool_base_cmd(tmpdir: Path) -> List[str]:
+    return [
+        'env',
+        'PATH={}:{}'.format(get_cwltool_bin_path(), environ['PATH']),
+        'TMPDIR={}'.format(tmpdir),
+        'cwltool',
+        # The trailing slashes in the next two lines are deliberate.
+        # cwltool treats these path prefixes as *strings*, not as
+        # directories in which new temporary dirs should be created, so
+        # a path prefix of '/tmp/cwl-tmp' will cause cwltool to use paths
+        # like '/tmp/cwl-tmpXXXXXXXX' with 'XXXXXXXX' as a random string.
+        # Adding the trailing slash is ensures that temporary directories
+        # are created as *subdirectories* of 'cwl-tmp' and 'cwl-out-tmp'.
+        '--tmpdir-prefix={}/'.format(tmpdir / 'cwl-tmp'),
+        '--tmp-outdir-prefix={}/'.format(tmpdir / 'cwl-out-tmp'),
+    ]
+
+
 def map_queue_name(raw_queue_name: str) -> str:
     """
     If the configuration contains QUEUE_NAME_TEMPLATE, use it to customize the
