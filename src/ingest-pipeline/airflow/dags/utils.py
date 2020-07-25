@@ -25,6 +25,8 @@ JSONType = Union[str, int, float, bool, None, Dict[str, Any], List[Any]]
 # Some functions accept a `str` or `List[str]` and return that same type
 StrOrListStr = TypeVar('StrOrListStr', str, List[str])
 
+PathStrOrList = Union[str, Path, Iterable[Union[str, Path]]]
+
 SCHEMA_BASE_PATH = join(dirname(dirname(dirname(realpath(__file__)))),
                         'schemata')
 SCHEMA_BASE_URI = 'http://schemata.hubmapconsortium.org/'
@@ -304,13 +306,13 @@ def get_git_root_paths(file_list: Iterable[str]) -> Union[str, List[str]]:
         return rslt
 
 
-def get_git_provenance_dict(file_list: Iterable[str]) -> Mapping[str, str]:
+def get_git_provenance_dict(file_list: PathStrOrList) -> Mapping[str, str]:
     """
     Given a list of file paths, return a list of dicts of the form:
     
       [{<file base name>:<file commit hash>}, ...]
     """
-    if isinstance(file_list, str):  # sadly, a str is an Iterable[str]
+    if isinstance(file_list, (str, Path)):  # sadly, a str is an Iterable[str]
         file_list = [file_list]
     return {basename(fname) : get_git_commits(realpath(fname))
             for fname in file_list}
