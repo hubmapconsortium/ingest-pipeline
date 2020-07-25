@@ -25,7 +25,7 @@ from utils import (
     decrypt_tok,
     find_pipeline_manifests,
     get_absolute_workflows,
-    get_cwltool_bin_path,
+    get_cwltool_base_cmd,
     get_dataset_uuid,
     get_parent_dataset_uuid,
     get_uuid_for_error,
@@ -76,16 +76,9 @@ with DAG(
         run_id = kwargs['run_id']
         tmpdir = Path(utils.get_tmp_dir_path(run_id))
         data_dir = ctx['parent_lz_path']
-        cwltool_dir = get_cwltool_bin_path()
 
         command = [
-            'env',
-            'PATH=%s:%s' % (cwltool_dir, os.environ['PATH']),
-            'TMPDIR=%s' % tmpdir,
-            'cwltool',
-            # trailing slash is deliberate
-            '--tmpdir-prefix={}/'.format(tmpdir / 'cwl-tmp'),
-            '--tmp-outdir-prefix={}/'.format(tmpdir / 'cwl-out-tmp'),
+            *get_cwltool_base_cmd(tmpdir),
             '--outdir',
             os.path.join(tmpdir, 'cwl_out'),
             '--parallel',

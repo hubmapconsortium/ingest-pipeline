@@ -24,11 +24,11 @@ import utils
 from utils import (
     PIPELINE_BASE_DIR,
     find_pipeline_manifests,
+    get_cwltool_base_cmd,
     get_dataset_uuid,
     get_parent_dataset_uuid,
     get_uuid_for_error,
     localized_assert_json_matches_schema as assert_json_matches_schema,
-    get_cwltool_bin_path,
     decrypt_tok
 )
 
@@ -85,16 +85,9 @@ with DAG('codex_cytokit',
         print('tmpdir: ', tmpdir)
         data_dir = ctx['parent_lz_path']
         print('data_dir: ', data_dir)
-        cwltool_dir = get_cwltool_bin_path()
 
         command = [
-            'env',
-            'PATH=%s:%s' % (cwltool_dir, os.environ['PATH']),
-            'TMPDIR=%s' % tmpdir,
-            'cwltool',
-            # trailing slash is deliberate
-            '--tmpdir-prefix={}/'.format(tmpdir / 'cwl-tmp'),
-            '--tmp-outdir-prefix={}/'.format(tmpdir / 'cwl-out-tmp'),
+            *get_cwltool_base_cmd(tmpdir),
             os.fspath(PIPELINE_BASE_DIR / cwl_workflow1),
             '--gpus=0,1',
             '--data_dir',
@@ -162,16 +155,9 @@ with DAG('codex_cytokit',
         print('parent_data_dir: ', parent_data_dir)
         data_dir = os.path.join(tmpdir, 'cwl_out')  # This stage reads input from stage 1
         print('data_dir: ', data_dir)
-        cwltool_dir = get_cwltool_bin_path()
 
         command = [
-            'env',
-            'PATH=%s:%s' % (cwltool_dir, os.environ['PATH']),
-            'TMPDIR=%s' % tmpdir,
-            'cwltool',
-            # trailing slash is deliberate
-            '--tmpdir-prefix={}/'.format(tmpdir / 'cwl-tmp'),
-            '--tmp-outdir-prefix={}/'.format(tmpdir / 'cwl-out-tmp'),
+            *get_cwltool_base_cmd(tmpdir),
             os.fspath(PIPELINE_BASE_DIR / cwl_workflow2),
             '--input_dir',
             os.path.join(data_dir, 'output', 'extract', 'expressions', 'ome-tiff')
@@ -228,16 +214,9 @@ with DAG('codex_cytokit',
         print('parent_data_dir: ', parent_data_dir)
         data_dir = os.path.join(tmpdir, 'cwl_out')  # This stage reads input from stage 1
         print('data_dir: ', data_dir)
-        cwltool_dir = get_cwltool_bin_path()
 
         command = [
-            'env',
-            'PATH=%s:%s' % (cwltool_dir, os.environ['PATH']),
-            'TMPDIR=%s' % tmpdir,
-            'cwltool',
-            # trailing slash is deliberate
-            '--tmpdir-prefix={}/'.format(tmpdir / 'cwl-tmp'),
-            '--tmp-outdir-prefix={}/'.format(tmpdir / 'cwl-out-tmp'),
+            *get_cwltool_base_cmd(tmpdir),
             os.fspath(PIPELINE_BASE_DIR / cwl_workflow3),
             '--input_dir',
             os.path.join(data_dir, 'sprm_outputs')
