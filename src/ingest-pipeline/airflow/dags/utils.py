@@ -1,19 +1,19 @@
 from abc import ABC, abstractmethod
+from functools import lru_cache
+import json
 from os import environ, fspath, walk
 from os.path import basename, dirname, relpath, split, join, getsize, realpath
-import sys
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Pattern, Tuple, TypeVar, Union
-from subprocess import check_call, check_output, CalledProcessError
-import re
-import json
 from pprint import pprint
+import re
+from subprocess import check_output, CalledProcessError
+from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Pattern, Tuple, TypeVar, Union
 import uuid
-import yaml
-from cryptography.fernet import Fernet
 
 from airflow.configuration import conf as airflow_conf
 from airflow.hooks.http_hook import HttpHook
+from cryptography.fernet import Fernet
+import yaml
 
 from hubmap_commons.schema_tools import assert_json_matches_schema, set_schema_base_path
 
@@ -651,7 +651,8 @@ def get_tmp_dir_path(run_id: str) -> str:
     return join(_get_scratch_base_path(), run_id)
 
 
-def get_cwltool_bin_path() -> str:
+@lru_cache(maxsize=1)
+def get_cwltool_bin_path() -> Path:
     """
     Returns the full path to the cwltool binary
     """
@@ -662,7 +663,7 @@ def get_cwltool_bin_path() -> str:
         if part2 == 'lib':
             break
     assert cwltool_dir, 'Failed to find cwltool bin directory'
-    cwltool_dir = join(cwltool_dir, 'bin')
+    cwltool_dir = Path(cwltool_dir, 'bin')
     return cwltool_dir
 
 
