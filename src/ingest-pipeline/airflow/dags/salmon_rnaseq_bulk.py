@@ -58,7 +58,7 @@ with DAG(
 ) as dag:
     pipeline_name = 'salmon-rnaseq-bulk'
     cwl_workflows = get_absolute_workflows(
-        [Path('salmon-rnaseq', 'bulk-pipeline.cwl')],
+        Path('salmon-rnaseq', 'bulk-pipeline.cwl'),
     )
 
     def build_dataset_name(**kwargs):
@@ -171,10 +171,8 @@ with DAG(
 
         if success:
             md = {}
-            files_for_provenance = [
-                __file__,
-                *cwl_workflows,
-            ]
+            files_for_provenance = [__file__, *cwl_workflows]
+
             if 'dag_provenance' in kwargs['dag_run'].conf:
                 md['dag_provenance'] = kwargs['dag_run'].conf['dag_provenance'].copy()
                 new_prv_dct = utils.get_git_provenance_dict(files_for_provenance)
@@ -186,7 +184,7 @@ with DAG(
                 dag_prv.extend(utils.get_git_provenance_list(files_for_provenance))
                 md['dag_provenance_list'] = dag_prv
 
-            manifest_files = find_pipeline_manifests(*cwl_workflows)
+            manifest_files = find_pipeline_manifests(cwl_workflows)
             md.update(
                 utils.get_file_metadata_dict(
                     ds_dir,

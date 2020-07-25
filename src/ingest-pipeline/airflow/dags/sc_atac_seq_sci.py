@@ -22,9 +22,9 @@ from hubmap_operators.common_operators import (
 
 import utils
 from utils import (
-    PIPELINE_BASE_DIR,
     decrypt_tok,
     find_pipeline_manifests,
+    get_absolute_workflows,
     get_cwltool_base_cmd,
     get_dataset_uuid,
     get_parent_dataset_uuid,
@@ -57,14 +57,10 @@ with DAG(
         user_defined_macros={'tmp_dir_path': utils.get_tmp_dir_path},
 ) as dag:
     pipeline_name = 'sci-atac-seq-pipeline'
-    cwl_workflows = [
+    cwl_workflows = get_absolute_workflows(
         Path(pipeline_name, 'create_snap_and_analyze.cwl'),
         Path('portal-containers', 'scatac-csv-to-arrow.cwl'),
-    ]
-    cwl_workflows_absolute = [
-        PIPELINE_BASE_DIR / workflow
-        for workflow in cwl_workflows
-    ]
+    )
 
     def build_dataset_name(**kwargs):
         return '{}__{}__{}'.format(dag.dag_id,
@@ -93,7 +89,7 @@ with DAG(
             '--outdir',
             os.path.join(tmpdir, 'cwl_out'),
             '--parallel',
-            os.fspath(cwl_workflows_absolute[0]),
+            os.fspath(cwl_workflows[0]),
             '--sequence_directory',
             data_dir,
             '--threads',
@@ -114,7 +110,7 @@ with DAG(
 
         command = [
             *get_cwltool_base_cmd(tmpdir),
-            os.fspath(cwl_workflows_absolute[1]),
+            os.fspath(cwl_workflows[1]),
             '--input_dir',
             '.',
         ]
@@ -229,10 +225,8 @@ with DAG(
 
         if success:
             md = {}
-            files_for_provenance = [
-                __file__,
-                *cwl_workflows_absolute,
-            ]
+            files_for_provenance = [__file__, *cwl_workflows]
+
             if 'dag_provenance' in kwargs['dag_run'].conf:
                 md['dag_provenance'] = kwargs['dag_run'].conf['dag_provenance'].copy()
                 new_prv_dct = utils.get_git_provenance_dict(files_for_provenance)
@@ -244,7 +238,7 @@ with DAG(
                 dag_prv.extend(utils.get_git_provenance_list(files_for_provenance))
                 md['dag_provenance_list'] = dag_prv
 
-            manifest_files = find_pipeline_manifests(*cwl_workflows_absolute)
+            manifest_files = find_pipeline_manifests(cwl_workflows)
             md.update(
                 utils.get_file_metadata_dict(
                     ds_dir,

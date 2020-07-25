@@ -158,7 +158,7 @@ class DummyFileMatcher(FileMatcher):
         return True, '', ''
 
 
-def find_pipeline_manifests(*cwl_files: Path) -> List[Path]:
+def find_pipeline_manifests(cwl_files: Iterable[Path]) -> List[Path]:
     """
     Constructs manifest paths from CWL files (strip '.cwl', append
     '-manifest.json'), and check whether each manifest exists. Return
@@ -172,7 +172,7 @@ def find_pipeline_manifests(*cwl_files: Path) -> List[Path]:
     return manifests
 
 
-def get_absolute_workflows(workflows: Iterable[Path]) -> List[Path]:
+def get_absolute_workflows(*workflows: Path) -> List[Path]:
     """
     :param workflows: iterable of `Path`s to CWL files, absolute
       or relative
