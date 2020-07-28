@@ -32,8 +32,6 @@ from utils import (
     localized_assert_json_matches_schema as assert_json_matches_schema,
 )
 
-import cwltool  # used to find its path
-
 THREADS = 6  # to be used by the CWL worker
 
 default_args = {
@@ -52,16 +50,16 @@ default_args = {
 }
 
 with DAG(
-        'salmon_rnaseq_bulk',
+        'bulk_atacseq',
         schedule_interval=None,
         is_paused_upon_creation=False,
         default_args=default_args,
         max_active_runs=4,
         user_defined_macros={'tmp_dir_path': utils.get_tmp_dir_path},
 ) as dag:
-    pipeline_name = 'salmon-rnaseq-bulk'
+    pipeline_name = 'bulk-atac-seq'
     cwl_workflows = get_absolute_workflows(
-        [Path('salmon-rnaseq', 'bulk-pipeline.cwl')],
+        [Path(pipeline_name, 'bulk-atac-seq-pipeline.cwl')],
     )
 
     def build_dataset_name(**kwargs):
@@ -92,7 +90,7 @@ with DAG(
             os.path.join(tmpdir, 'cwl_out'),
             '--parallel',
             os.fspath(cwl_workflows[0]),
-            '--fastq_dir',
+            '--sequence_directory',
             data_dir,
             '--threads',
             str(THREADS),
@@ -136,7 +134,7 @@ with DAG(
             'http_conn_id': 'ingest_api_connection',
             'endpoint': '/datasets/derived',
             'dataset_name_callable': build_dataset_name,
-            "dataset_types": ["salmon_rnaseq_bulk"],
+            "dataset_types": ["atacseq_bulk"],
         },
     )
 
