@@ -22,3 +22,6 @@
 [submodule "src/ingest-pipeline/airflow/dags/cwl/salmon-rnaseq-snareseq"]
 	path = src/ingest-pipeline/airflow/dags/cwl/salmon-rnaseq-snareseq
 	url = git@github.com:hubmapconsortium/salmon-rnaseq.git
+[submodule "src/ingest-pipeline/airflow/dags/cwl/sci-atac-seq-pipeline"]
+	path = src/ingest-pipeline/airflow/dags/cwl/sci-atac-seq-pipeline
+	url = git@github.com:hubmapconsortium/sc-atac-seq-pipeline
