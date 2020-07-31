@@ -35,3 +35,6 @@ workflow_map:
   - 'collection_type': 'single_metadatatsv'
     'assay_type': 'SNARE2-RNAseq'
     'workflow': 'salmon_rnaseq_snareseq'
+  - 'collection_type': 'single_metadatatsv'
+    'assay_type': 'bulkATACseq'
+    'workflow': 'bulk_atacseq'
