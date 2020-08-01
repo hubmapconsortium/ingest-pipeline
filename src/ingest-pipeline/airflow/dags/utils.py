@@ -112,7 +112,7 @@ class PipelineFileMatcher(FileMatcher):
     # (file/directory regex, description template, EDAM ontology term)
     matchers: List[Tuple[Pattern, str, str]]
 
-    def __init__(self, pipeline_file_manifest: Optional[Path] = None):
+    def __init__(self):
         self.matchers = []
 
     @classmethod
