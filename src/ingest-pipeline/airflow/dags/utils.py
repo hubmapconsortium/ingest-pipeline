@@ -750,6 +750,104 @@ def get_cwltool_base_cmd(tmpdir: Path) -> List[str]:
         '--tmp-outdir-prefix={}/'.format(tmpdir / 'cwl-out-tmp'),
     ]
 
+def make_send_status_msg_function(
+        dag_file: str,
+        retcode_ops: List[str],
+        cwl_workflows: List[Path],
+):
+    """
+    `dag_file` should always be `__file__` wherever this function is used,
+    to include the DAG file in the provenance. This could be "automated" with
+    something like `sys._getframe(1).f_code.co_filename`, but that doesn't
+    seem worth it at the moment
+    """
+    def send_status_msg(**kwargs):
+        retcodes = [
+            int(kwargs['ti'].xcom_pull(task_ids=op))
+            for op in retcode_ops
+        ]
+        print('retcodes: ', {k: v for k, v in zip(retcode_ops, retcodes)})
+        success = all(rc == 0 for rc in retcodes)
+        derived_dataset_uuid = kwargs['ti'].xcom_pull(
+            key='derived_dataset_uuid',
+            task_ids='send_create_dataset',
+        )
+        ds_dir = kwargs['ti'].xcom_pull(task_ids='send_create_dataset')
+        http_conn_id = 'ingest_api_connection'
+        endpoint = '/datasets/status'
+        method = 'PUT'
+        crypt_auth_tok = kwargs['dag_run'].conf['crypt_auth_tok']
+        headers = {
+            'authorization': 'Bearer ' + decrypt_tok(crypt_auth_tok.encode()),
+            'content-type': 'application/json',
+        }
+        extra_options = []
+
+        http = HttpHook(method, http_conn_id=http_conn_id)
+
+        if success:
+            md = {}
+            files_for_provenance = [dag_file, *cwl_workflows]
+
+            if 'dag_provenance' in kwargs['dag_run'].conf:
+                md['dag_provenance'] = kwargs['dag_run'].conf['dag_provenance'].copy()
+                new_prv_dct = get_git_provenance_dict(files_for_provenance)
+                md['dag_provenance'].update(new_prv_dct)
+            else:
+                dag_prv = (kwargs['dag_run'].conf['dag_provenance_list']
+                           if 'dag_provenance_list' in kwargs['dag_run'].conf
+                           else [])
+                dag_prv.extend(get_git_provenance_list(files_for_provenance))
+                md['dag_provenance_list'] = dag_prv
+
+            manifest_files = find_pipeline_manifests(cwl_workflows)
+            md.update(
+                get_file_metadata_dict(
+                    ds_dir,
+                    get_tmp_dir_path(kwargs['run_id']),
+                    manifest_files,
+                ),
+            )
+            try:
+                assert_json_matches_schema(md, 'dataset_metadata_schema.yml')
+                data = {
+                    'dataset_id': derived_dataset_uuid,
+                    'status': 'QA',
+                    'message': 'the process ran',
+                    'metadata': md,
+                }
+            except AssertionError as e:
+                print('invalid metadata follows:')
+                pprint(md)
+                data = {
+                    'dataset_id': derived_dataset_uuid,
+                    'status': 'Error',
+                    'message': 'internal error; schema violation: {}'.format(e),
+                    'metadata': {},
+                }
+        else:
+            log_fname = Path(get_tmp_dir_path(kwargs['run_id']), 'session.log')
+            with open(log_fname, 'r') as f:
+                err_txt = '\n'.join(f.readlines())
+            data = {
+                'dataset_id': derived_dataset_uuid,
+                'status': 'Invalid',
+                'message': err_txt,
+            }
+        print('data: ')
+        pprint(data)
+
+        response = http.run(
+            endpoint,
+            json.dumps(data),
+            headers,
+            extra_options,
+        )
+        print('response: ')
+        pprint(response.json())
+
+    return send_status_msg
+
 
 def map_queue_name(raw_queue_name: str) -> str:
     """
