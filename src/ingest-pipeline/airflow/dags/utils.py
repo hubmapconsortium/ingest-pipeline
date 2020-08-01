@@ -6,6 +6,7 @@ from os.path import basename, dirname, relpath, split, join, getsize, realpath
 from pathlib import Path
 from pprint import pprint
 import re
+import shlex
 from subprocess import check_output, CalledProcessError
 from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Pattern, Tuple, TypeVar, Union
 import uuid
@@ -793,6 +794,11 @@ def decrypt_tok(crypt_tok: bytes) -> str:
     fernet = Fernet(key.encode())
     return fernet.decrypt(crypt_tok).decode()
 
+
+def join_quote_command_str(pieces: List[Any]):
+    command_str = ' '.join(shlex.quote(str(piece)) for piece in pieces)
+    print('final command_str:', command_str)
+    return command_str
 
 def main():
     print(__file__)
