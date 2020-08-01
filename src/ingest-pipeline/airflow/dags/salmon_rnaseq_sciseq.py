@@ -209,7 +209,6 @@ with DAG('salmon_rnaseq_sciseq',
         )
 
     send_status_msg = make_send_status_msg_function(
-        dag_file=__file__,
         retcode_ops=['pipeline_exec', 'move_data', 'make_arrow1'],
         cwl_workflows=cwl_workflows,
     )

@@ -275,7 +275,6 @@ with DAG('codex_cytokit',
         )
 
     send_status_msg = make_send_status_msg_function(
-        dag_file=__file__,
         retcode_ops=[
             'pipeline_exec_cwl1',
             'pipeline_exec_cwl2',

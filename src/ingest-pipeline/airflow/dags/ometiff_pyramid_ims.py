@@ -230,7 +230,6 @@ with DAG('ometiff_pyramid_ims',
     #     )
 
     send_status_msg = make_send_status_msg_function(
-        dag_file=__file__,
         retcode_ops=['pipeline_exec_cwl1', 'pipeline_exec_cwl2', 'move_data'],
         cwl_workflows=cwl_workflows,
     )

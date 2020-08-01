@@ -8,6 +8,7 @@ from pprint import pprint
 import re
 import shlex
 from subprocess import check_output, CalledProcessError
+import sys
 from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Pattern, Tuple, TypeVar, Union
 from requests.exceptions import HTTPError
 from requests import codes
@@ -751,16 +752,10 @@ def get_cwltool_base_cmd(tmpdir: Path) -> List[str]:
     ]
 
 def make_send_status_msg_function(
-        dag_file: str,
         retcode_ops: List[str],
         cwl_workflows: List[Path],
 ):
-    """
-    `dag_file` should always be `__file__` wherever this function is used,
-    to include the DAG file in the provenance. This could be "automated" with
-    something like `sys._getframe(1).f_code.co_filename`, but that doesn't
-    seem worth it at the moment
-    """
+    dag_file = sys._getframe(1).f_code.co_filename
     def send_status_msg(**kwargs):
         retcodes = [
             int(kwargs['ti'].xcom_pull(task_ids=op))
