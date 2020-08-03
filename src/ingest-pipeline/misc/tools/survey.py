@@ -123,8 +123,11 @@ class Dataset(Entity):
         note 
         """
         rec = {'uuid': self.uuid, 'display_doi': self.display_doi, 'status': self.status}
-        assert len(self.data_types) == 1, f"More than one data_type: {self.data_types}"
-        rec['data_type'] = self.data_types[0]
+        assert self.data_types, f"No data_types found?"
+        if len(self.data_types) == 1:
+            rec['data_type'] = self.data_types[0]
+        else:
+            rec['data_types'] = f"[{','.join(self.data_types)}]"
         other_parent_uuids = [uuid for uuid in self.parent_uuids if uuid not in self.parent_dataset_uuids]
         assert len(other_parent_uuids) == 1, 'More than one parent?'
         samp = self.entity_factory.get(other_parent_uuids[0])
@@ -145,6 +148,7 @@ class Dataset(Entity):
             rec['qa_child_display_doi'] = None
             rec['qa_child_data_type'] = None
             rec['qa_child_status'] = None
+            rec['note'] = ''
     
         return rec
             
@@ -216,7 +220,7 @@ def robust_find_uuid(s):
             return words[0]
         else:
             words = words[1:]
-    return None
+    raise RuntimeError(f'No uuid found in {s}')
 
 
 def get_uuid(rec):
