@@ -148,6 +148,7 @@ class Dataset(Entity):
             rec['qa_child_display_doi'] = None
             rec['qa_child_data_type'] = None
             rec['qa_child_status'] = None
+            rec['note'] = ''
     
         return rec
             
