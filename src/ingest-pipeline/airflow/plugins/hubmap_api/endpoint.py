@@ -237,7 +237,7 @@ def check_ingest_parms(provider, submission_id, process, full_path):
     else:
         dct = {'provider' : provider, 'submission_id' : submission_id, 'process' : process}
         base_path = config('connections', 'docker_mount_path')
-        if os.path.commonprefix(full_path, base_path) != base_path:
+        if os.path.commonprefix([full_path, base_path]) != base_path:
             LOGGER.error("Ingest directory {} is not a subdirectory of DOCKER_MOUNT_PATH"
                          .format(full_path))
             raise HubmapApiInputException("Ingest directory is not a subdirectory of DOCKER_MOUNT_PATH")
