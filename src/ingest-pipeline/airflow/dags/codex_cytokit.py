@@ -65,7 +65,7 @@ with DAG('codex_cytokit',
     def build_dataset_name(**kwargs):
         return '{}__{}__{}'.format(dag.dag_id,
                                    kwargs['dag_run'].conf['parent_submission_id'],
-                                   pipeline_name),
+                                   pipeline_name)
 
 
 #     prepare_cwl1 = PythonOperator(

@@ -271,7 +271,7 @@ run_id     string  The identifier by which the ingest run is known to Airflow
 #@secured(groups="HuBMAP-read")
 def request_ingest():
     authorization = request.headers.get('authorization')
-    LOGGER.info('top of request_ingest: AUTH %s', authorization)
+    LOGGER.info('top of request_ingest.')
     assert authorization[:len('BEARER')].lower() == 'bearer', 'authorization is not BEARER'
     substr = authorization[len('BEARER'):].strip()
     if 'nexus' in substr:
@@ -286,6 +286,7 @@ def request_ingest():
     # decode input
     data = request.get_json(force=True)
     
+    LOGGER.debug('request_ingest data: {}'.format(str(data)))
     # Test and extract required parameters
     try:
         provider = _get_required_string(data, 'provider')

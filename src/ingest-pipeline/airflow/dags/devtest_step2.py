@@ -58,7 +58,7 @@ with DAG('devtest_step2',
     def build_dataset_name(**kwargs):
         return '{}__{}__{}'.format(dag.dag_id,
                                    kwargs['dag_run'].conf['parent_submission_id'],
-                                   pipeline_name),
+                                   pipeline_name)
 
 
     def build_cwltool_cmd1(**kwargs):
