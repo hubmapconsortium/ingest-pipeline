@@ -503,11 +503,7 @@ def pythonop_send_create_dataset(**kwargs) -> str:
                         extra_options)
     print('response: ')
     pprint(response.json())
-    lz_root = split(ctx['parent_lz_path'])[0]
-    lz_root = split(lz_root)[0]
-    data_dir_path = join(lz_root,
-                         response.json()['group_display_name'],
-                         response.json()['derived_dataset_uuid'])
+    data_dir_path = response.json()['full_path']
     kwargs['ti'].xcom_push(key='group_uuid',
                            value=response.json()['group_uuid'])
     kwargs['ti'].xcom_push(key='derived_dataset_uuid', 
