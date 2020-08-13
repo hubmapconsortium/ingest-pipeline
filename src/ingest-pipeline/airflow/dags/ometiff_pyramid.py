@@ -73,7 +73,7 @@ with DAG('ometiff_pyramid',
     def build_dataset_name(**kwargs):
         return '{}__{}__{}'.format(dag.dag_id,
                                    kwargs['dag_run'].conf['parent_submission_id'],
-                                   pipeline_name),
+                                   pipeline_name)
 
     # CWL1 - pipeline.cwl
     prepare_cwl1 = DummyOperator(

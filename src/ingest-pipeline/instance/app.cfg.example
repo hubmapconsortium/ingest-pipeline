@@ -15,8 +15,12 @@ timezone = US/Eastern
 APP_CLIENT_ID = '_some_string_'
 APP_CLIENT_SECRET = '_some_string_'
 
-# Path to LZ as seen by airflow
-LZ_PATH = '/hive/hubmap/lz/{provider}/{submission_id}'
+# Base path for dataset files, as seen by Airflow.  This will usually correspond to
+# GLOBUS_ENDPOINT_BASE_PATH in ingest-api .  When ingest-pipeline runs in a docker 
+# container, this is the path to which the staging area is mounted.  When the full path
+# to a dataset is passed to ingest-pipeline, this is expected to be the first part
+# of that path.
+DOCKER_MOUNT_PATH = '/usr/local/airflow/lz/'
 
 # Path to src/ingest-pipeline directory as seen by airflow
 SRC_PATH = '/usr/src/app/src'

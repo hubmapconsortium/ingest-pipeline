@@ -38,6 +38,52 @@ def _get_entity_prov(uuid, auth_tok):
               f"{thing['prov:label']} {thing['prov:type']}")
 
 
+class SplitTree(object):
+    def __init__(self):
+        self.root = {}
+    def add(self, s):
+        words = s.strip().split('-')
+        here = self.root
+        while words:
+            w0 = words.pop(0)
+            if w0 not in here:
+                here[w0] = {}
+            here = here[w0]
+    def _inner_dump(self, dct, prefix):
+        for elt in dct:
+            print(f'{prefix}{elt}:')
+            self._inner_dump(dct[elt], prefix+'    ')
+    def dump(self):
+        self._inner_dump(self.root, '')
+    def _inner_str(self, dct, prefix=''):
+        k_l = sorted(dct)
+        if k_l:
+            #print(f'{prefix}k_l: {k_l}')
+            if len(k_l) == 1:
+                #print(f'{prefix}point 2')
+                next_term = self._inner_str(dct[k_l[0]],prefix=prefix+'  ')
+                rslt = k_l[0]
+                if next_term:
+                    rslt += '-' + next_term
+                #print(f'{prefix}--> {rslt}')
+                return rslt
+            else:
+                kid_l = [self._inner_str(dct[k],prefix=prefix+'  ') for k in k_l]
+                if all([k == '' for k in kid_l]):
+                    #print(prefix+'point 3b')
+                    s = ','.join(k_l)
+                else:
+                    #print(prefix+'point 3c')
+                    s = ','.join([f'{a}-{b}' for a,b in zip(k_l,kid_l)])
+                rslt = f'[{s}]'
+                #print(f'{prefix}--> {rslt}')
+                return rslt
+        else:
+            return ''
+    def __str__(self):
+        return self._inner_str(self.root)
+
+
 class Entity(object):
     def __init__(self, prop_dct, entity_factory):
         self.uuid = prop_dct['uuid']
@@ -129,11 +175,17 @@ class Dataset(Entity):
         else:
             rec['data_types'] = f"[{','.join(self.data_types)}]"
         other_parent_uuids = [uuid for uuid in self.parent_uuids if uuid not in self.parent_dataset_uuids]
-        assert len(other_parent_uuids) == 1, 'More than one parent?'
-        samp = self.entity_factory.get(other_parent_uuids[0])
-        assert isinstance(samp, Sample), 'was expecting a sample?'
-        rec['sample_display_doi'] = samp.display_doi
-        rec['sample_hubmap_display_id'] = samp.hubmap_display_id
+        assert other_parent_uuids, 'No parents?'
+        s_t = SplitTree()
+        for p_uuid in other_parent_uuids:
+            samp = self.entity_factory.get(p_uuid)
+            assert isinstance(samp, Sample), 'was expecting a sample?'
+            s_t.add(samp.hubmap_display_id)
+        rec['sample_hubmap_display_id'] = str(s_t)
+        if len(other_parent_uuids) == 1:
+            rec['sample_display_doi'] = samp.display_doi
+        else:
+            rec['sample_display_doi'] = 'multiple'
         qa_kids = [self.kids[uuid] for uuid in self.kids if self.kids[uuid].status == 'QA']
         if any(qa_kids):
             if len(qa_kids) > 1:
