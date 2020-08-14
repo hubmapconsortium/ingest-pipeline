@@ -1,6 +1,5 @@
 import os
 import json
-import shlex
 from pathlib import Path
 from pprint import pprint
 from datetime import datetime, timedelta
@@ -30,6 +29,7 @@ from utils import (
     get_parent_dataset_uuid,
     get_uuid_for_error,
     localized_assert_json_matches_schema as assert_json_matches_schema,
+    join_quote_command_str,
 )
 
 
@@ -94,18 +94,8 @@ with DAG('codex_cytokit',
             '--data_dir',
             data_dir,
         ]
-        
-#         command = [
-#             'cp',
-#             '-R',
-#             os.path.join(os.environ['AIRFLOW_HOME'],
-#                          'data', 'temp', 'std_salmon_out', 'cwl_out'),
-#             tmpdir
-#         ]
-            
-        command_str = ' '.join(shlex.quote(piece) for piece in command)
-        print('final command_str: %s' % command_str)
-        return command_str
+
+        return join_quote_command_str(command)
 
 
     t_build_cmd1 = PythonOperator(
@@ -164,9 +154,7 @@ with DAG('codex_cytokit',
             os.path.join(data_dir, 'output', 'extract', 'expressions', 'ome-tiff')
         ]
 
-        command_str = ' '.join(shlex.quote(piece) for piece in command)
-        print('final command_str: %s' % command_str)
-        return command_str
+        return join_quote_command_str(command)
 
 
     t_build_cmd2 = PythonOperator(
@@ -223,9 +211,7 @@ with DAG('codex_cytokit',
             os.path.join(data_dir, 'sprm_outputs')
         ]
 
-        command_str = ' '.join(shlex.quote(piece) for piece in command)
-        print('final command_str: %s' % command_str)
-        return command_str
+        return join_quote_command_str(command)
 
 
     t_build_cmd3 = PythonOperator(

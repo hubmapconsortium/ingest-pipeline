@@ -1,6 +1,5 @@
 import os
 import json
-import shlex
 from pathlib import Path
 from pprint import pprint
 from datetime import datetime, timedelta
@@ -29,6 +28,7 @@ from utils import (
     get_dataset_uuid,
     get_parent_dataset_uuid,
     get_uuid_for_error,
+    join_quote_command_str,
     localized_assert_json_matches_schema as assert_json_matches_schema,
 )
 
@@ -96,9 +96,7 @@ with DAG(
             str(THREADS),
         ]
 
-        command_str = ' '.join(shlex.quote(piece) for piece in command)
-        print('final command_str: {!r}'.format(command_str))
-        return command_str
+        return join_quote_command_str(command)
 
     def build_cwltool_cmd2(**kwargs):
         ctx = kwargs['dag_run'].conf
@@ -115,9 +113,7 @@ with DAG(
             '.',
         ]
 
-        command_str = ' '.join(shlex.quote(piece) for piece in command)
-        print('final command_str: {!r}'.format(command_str))
-        return command_str
+        return join_quote_command_str(command)
 
     t_build_cmd1 = PythonOperator(
         task_id='build_cmd1',
