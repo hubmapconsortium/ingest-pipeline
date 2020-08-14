@@ -96,7 +96,7 @@ with DAG('ometiff_pyramid_ims',
         #this is the call to the CWL
         command = [
             *get_cwltool_base_cmd(tmpdir),
-            os.fspath(cwl_workflows[0]),
+            cwl_workflows[0],
             '--ometiff_directory',
             data_dir,
         ]
@@ -142,7 +142,7 @@ with DAG('ometiff_pyramid_ims',
         #this is the call to the CWL
         command = [
             *get_cwltool_base_cmd(tmpdir),
-            os.fspath(cwl_workflows[1]),
+            cwl_workflows[1],
             '--input_directory',
             './ometiff-pyramids',
         ]

@@ -102,13 +102,13 @@ with DAG('salmon_rnaseq_sciseq',
             '--relax-path-checks',
             '--debug',
             '--outdir',
-            os.path.join(tmpdir, 'cwl_out'),
+            tmpdir / 'cwl_out',
             '--parallel',
-            os.fspath(cwl_workflows[0]),
+            cwl_workflows[0],
             '--fastq_dir',
             data_dir,
             '--threads',
-            str(THREADS),
+            THREADS,
         ]
 
         return join_quote_command_str(command)
@@ -123,7 +123,7 @@ with DAG('salmon_rnaseq_sciseq',
 
         command = [
             *get_cwltool_base_cmd(tmpdir),
-            os.fspath(cwl_workflows[1]),
+            cwl_workflows[1],
             '--input_dir',
             '.',
         ]

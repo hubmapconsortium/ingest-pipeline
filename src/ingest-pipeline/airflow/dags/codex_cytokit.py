@@ -89,7 +89,7 @@ with DAG('codex_cytokit',
 
         command = [
             *get_cwltool_base_cmd(tmpdir),
-            os.fspath(cwl_workflows[0]),
+            cwl_workflows[0],
             '--gpus=0,1',
             '--data_dir',
             data_dir,
@@ -149,9 +149,9 @@ with DAG('codex_cytokit',
 
         command = [
             *get_cwltool_base_cmd(tmpdir),
-            os.fspath(cwl_workflows[1]),
+            cwl_workflows[1],
             '--input_dir',
-            os.path.join(data_dir, 'output', 'extract', 'expressions', 'ome-tiff')
+            data_dir / 'output/extract/expressions/ome-tiff',
         ]
 
         return join_quote_command_str(command)
@@ -201,14 +201,14 @@ with DAG('codex_cytokit',
         print('tmpdir: ', tmpdir)
         parent_data_dir = ctx['parent_lz_path']
         print('parent_data_dir: ', parent_data_dir)
-        data_dir = os.path.join(tmpdir, 'cwl_out')  # This stage reads input from stage 1
+        data_dir = tmpdir / 'cwl_out'  # This stage reads input from stage 1
         print('data_dir: ', data_dir)
 
         command = [
             *get_cwltool_base_cmd(tmpdir),
-            os.fspath(cwl_workflows[2]),
+            cwl_workflows[2],
             '--input_dir',
-            os.path.join(data_dir, 'sprm_outputs')
+            data_dir / 'sprm_outputs',
         ]
 
         return join_quote_command_str(command)

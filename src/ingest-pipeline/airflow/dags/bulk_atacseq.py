@@ -79,13 +79,13 @@ with DAG(
         command = [
             *get_cwltool_base_cmd(tmpdir),
             '--outdir',
-            os.path.join(tmpdir, 'cwl_out'),
+            tmpdir / 'cwl_out',
             '--parallel',
-            os.fspath(cwl_workflows[0]),
+            cwl_workflows[0],
             '--sequence_directory',
             data_dir,
             '--threads',
-            str(THREADS),
+            THREADS,
         ]
 
         return join_quote_command_str(command)
