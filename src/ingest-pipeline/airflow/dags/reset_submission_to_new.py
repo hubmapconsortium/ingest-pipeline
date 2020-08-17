@@ -41,7 +41,6 @@ default_args = {
     'email_on_retry': False,
     'retries': 1,
     'retry_delay': timedelta(minutes=1),
-    'provide_context': True,
     'xcom_push': True,
     'queue': utils.map_queue_name('general'),
     'on_failure_callback': utils.create_dataset_state_error_callback(get_uuid_for_error)

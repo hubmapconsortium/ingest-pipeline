@@ -45,7 +45,6 @@ default_args = {
     'email_on_retry': False,
     'retries': 1,
     'retry_delay': timedelta(minutes=1),
-    'provide_context': True,
     'xcom_push': True,
     'queue': utils.map_queue_name('general'),
     'on_failure_callback': utils.create_dataset_state_error_callback(get_uuid_for_error)
@@ -197,8 +196,7 @@ with DAG('salmon_rnaseq_sciseq',
         cd "$tmp_dir"/cwl_out/cluster-marker-genes ; \
         {{ti.xcom_pull(task_ids='build_cmd2')}} >> $tmp_dir/session.log 2>&1 ; \
         echo $?
-        """,
-        provide_context=True
+        """
     )
 
     t_maybe_keep_cwl1 = BranchPythonOperator(
@@ -252,8 +250,7 @@ with DAG('salmon_rnaseq_sciseq',
         mkdir cluster-marker-genes ; \
         mv cluster_marker_genes.h5ad cluster-marker-genes ; \
         echo $?
-        """,
-        provide_context=True
+        """
         )
 
     def send_status_msg(**kwargs):

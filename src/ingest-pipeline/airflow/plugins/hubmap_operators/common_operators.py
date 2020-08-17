@@ -15,14 +15,12 @@ from utils import (
 
 class LogInfoOperator(PythonOperator):
     @apply_defaults
-    def __init__(self, *args, **kwargs):
-        print('args follow')
-        pprint(args)
-        print('kwargs follow')
-        pprint(kwargs)
+    def __init__(self, **kwargs):
+        #print('kwargs follow')
+        #pprint(kwargs)
         super().__init__(python_callable=pythonop_trigger_target,
                          provide_context=True,
-                         *args, **kwargs)
+                         **kwargs)
     
 
 class JoinOperator(DummyOperator):
