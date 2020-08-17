@@ -306,7 +306,8 @@ def main():
         new_uuids = ds.all_uuids()
         rec = ds.build_rec()
         if any([uuid in known_uuids for uuid in new_uuids]):
-            rec['note'] = 'UUID COLLISION! ' + rec['note']
+            old_note = rec['note'] if 'note' in rec else ''
+            rec['note'] = 'UUID COLLISION! ' + old_note
         known_uuids = known_uuids.union(new_uuids)
         out_recs.append(rec)
     out_df = pd.DataFrame(out_recs).rename(columns={'sample_display_doi':'sample_doi',
