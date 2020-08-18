@@ -24,14 +24,13 @@ import utils
 from utils import (
     PIPELINE_BASE_DIR,
     find_pipeline_manifests,
+    get_cwltool_base_cmd,
     get_dataset_uuid,
     get_parent_dataset_uuid,
     get_uuid_for_error,
     localized_assert_json_matches_schema as assert_json_matches_schema,
     decrypt_tok
 )
-
-import cwltool  # used to find its path
 
 THREADS = 6  # to be used by the CWL worker
 
@@ -96,23 +95,9 @@ with DAG('salmon_rnaseq_sciseq',
         print('tmpdir: ', tmpdir)
         data_dir = ctx['parent_lz_path']
         print('data_dir: ', data_dir)
-        cwltool_dir = os.path.dirname(cwltool.__file__)
-        while cwltool_dir:
-            part1, part2 = os.path.split(cwltool_dir)
-            cwltool_dir = part1
-            if part2 == 'lib':
-                break
-        assert cwltool_dir, 'Failed to find cwltool bin directory'
-        cwltool_dir = os.path.join(cwltool_dir, 'bin')
 
         command = [
-            'env',
-            'PATH=%s:%s' % (cwltool_dir, os.environ['PATH']),
-            'TMPDIR=%s' % tmpdir,
-            'cwltool',
-            # trailing slash is deliberate
-            '--tmpdir-prefix={}/'.format(tmpdir / 'cwl-tmp'),
-            '--tmp-outdir-prefix={}/'.format(tmpdir / 'cwl-out-tmp'),
+            *get_cwltool_base_cmd(tmpdir),
             '--relax-path-checks',
             '--debug',
             '--outdir',
@@ -144,23 +129,9 @@ with DAG('salmon_rnaseq_sciseq',
         print('tmpdir: ', tmpdir)
         data_dir = ctx['parent_lz_path']
         print('data_dir: ', data_dir)
-        cwltool_dir = os.path.dirname(cwltool.__file__)
-        while cwltool_dir:
-            part1, part2 = os.path.split(cwltool_dir)
-            cwltool_dir = part1
-            if part2 == 'lib':
-                break
-        assert cwltool_dir, 'Failed to find cwltool bin directory'
-        cwltool_dir = os.path.join(cwltool_dir, 'bin')
 
         command = [
-            'env',
-            'PATH=%s:%s' % (cwltool_dir, os.environ['PATH']),
-            'TMPDIR=%s' % tmpdir,
-            'cwltool',
-            # trailing slash is deliberate
-            '--tmpdir-prefix={}/'.format(tmpdir / 'cwl-tmp'),
-            '--tmp-outdir-prefix={}/'.format(tmpdir / 'cwl-out-tmp'),
+            *get_cwltool_base_cmd(tmpdir),
             os.fspath(PIPELINE_BASE_DIR / cwl_workflow2),
             '--input_dir',
             '.'

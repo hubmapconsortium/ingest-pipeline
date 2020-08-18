@@ -25,14 +25,12 @@ from utils import (
     PIPELINE_BASE_DIR,
     decrypt_tok,
     find_pipeline_manifests,
-    get_cwltool_bin_path,
+    get_cwltool_base_cmd,
     get_dataset_uuid,
     get_parent_dataset_uuid,
     get_uuid_for_error,
     localized_assert_json_matches_schema as assert_json_matches_schema,
 )
-
-import cwltool  # used to find its path
 
 THREADS = 6  # to be used by the CWL worker
 
@@ -90,16 +88,9 @@ with DAG(
         print('tmpdir: ', tmpdir)
         data_dir = ctx['parent_lz_path']
         print('data_dir: ', data_dir)
-        cwltool_dir = get_cwltool_bin_path()
 
         command = [
-            'env',
-            'PATH=%s:%s' % (cwltool_dir, os.environ['PATH']),
-            'TMPDIR=%s' % tmpdir,
-            'cwltool',
-            # trailing slash is deliberate
-            '--tmpdir-prefix={}/'.format(tmpdir / 'cwl-tmp'),
-            '--tmp-outdir-prefix={}/'.format(tmpdir / 'cwl-out-tmp'),
+            *get_cwltool_base_cmd(tmpdir),
             '--outdir',
             os.path.join(tmpdir, 'cwl_out'),
             '--parallel',
@@ -121,16 +112,9 @@ with DAG(
         print('tmpdir: ', tmpdir)
         data_dir = ctx['parent_lz_path']
         print('data_dir: ', data_dir)
-        cwltool_dir = get_cwltool_bin_path()
 
         command = [
-            'env',
-            'PATH=%s:%s' % (cwltool_dir, os.environ['PATH']),
-            'TMPDIR=%s' % tmpdir,
-            'cwltool',
-            # trailing slash is deliberate
-            '--tmpdir-prefix={}/'.format(tmpdir / 'cwl-tmp'),
-            '--tmp-outdir-prefix={}/'.format(tmpdir / 'cwl-out-tmp'),
+            *get_cwltool_base_cmd(tmpdir),
             os.fspath(cwl_workflows_absolute[1]),
             '--input_dir',
             '.',

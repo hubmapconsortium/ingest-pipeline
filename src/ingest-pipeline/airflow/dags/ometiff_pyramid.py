@@ -26,11 +26,11 @@ import utils
 from utils import (
     PIPELINE_BASE_DIR,
     find_pipeline_manifests,
+    get_cwltool_base_cmd,
     get_dataset_uuid,
     get_parent_dataset_uuid,
     get_uuid_for_error,
     localized_assert_json_matches_schema as assert_json_matches_schema,
-    get_cwltool_bin_path,
     decrypt_tok
 )
 
@@ -93,19 +93,9 @@ with DAG('ometiff_pyramid',
         data_dir = ctx['parent_lz_path']
         print('data_dir: ', data_dir)
 
-        #location of CWL files
-        cwltool_dir = get_cwltool_bin_path()
-        print('cwltool_dir: ', cwltool_dir)
-
         #this is the call to the CWL
         command = [
-            'env',
-            'PATH=%s:%s' % (cwltool_dir, os.environ['PATH']),
-            'TMPDIR=%s' % tmpdir,
-            'cwltool',
-            # trailing slash is deliberate
-            '--tmpdir-prefix={}/'.format(tmpdir / 'cwl-tmp'),
-            '--tmp-outdir-prefix={}/'.format(tmpdir / 'cwl-out-tmp'),
+            *get_cwltool_base_cmd(tmpdir),
             os.fspath(PIPELINE_BASE_DIR / cwl_workflow1),
             '--ometiff_directory',
             data_dir
@@ -151,19 +141,9 @@ with DAG('ometiff_pyramid',
         data_dir = os.path.join(tmpdir, 'cwl_out', 'ometiff-pyramids')  # This stage reads input from stage 1
         print('data_dir: ', data_dir)
 
-        #location of CWL files
-        cwltool_dir = get_cwltool_bin_path()
-        print('cwltool_dir: ', cwltool_dir)
-
         #this is the call to the CWL
         command = [
-            'env',
-            'PATH=%s:%s' % (cwltool_dir, os.environ['PATH']),
-            'TMPDIR=%s' % tmpdir,
-            'cwltool',
-            # trailing slash is deliberate
-            '--tmpdir-prefix={}/'.format(tmpdir / 'cwl-tmp'),
-            '--tmp-outdir-prefix={}/'.format(tmpdir / 'cwl-out-tmp'),
+            *get_cwltool_base_cmd(tmpdir),
             os.fspath(PIPELINE_BASE_DIR / cwl_workflow2),
             '--input_directory',
             './ometiff-pyramids'
