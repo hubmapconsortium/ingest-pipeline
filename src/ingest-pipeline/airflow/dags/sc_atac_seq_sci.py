@@ -43,7 +43,6 @@ default_args = {
     'email_on_retry': False,
     'retries': 1,
     'retry_delay': timedelta(minutes=1),
-    'provide_context': True,
     'xcom_push': True,
     'queue': utils.map_queue_name('general'),
     'on_failure_callback': utils.create_dataset_state_error_callback(get_uuid_for_error),
@@ -151,8 +150,7 @@ with DAG(
         cd "$tmp_dir"/cwl_out ; \
         {{ti.xcom_pull(task_ids='build_cmd2')}} >> $tmp_dir/session.log 2>&1 ; \
         echo $?
-        """,
-        provide_context=True,
+        """
     )
 
     t_maybe_keep_cwl1 = BranchPythonOperator(

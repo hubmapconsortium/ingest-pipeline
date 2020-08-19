@@ -36,7 +36,6 @@ default_args = {
     'email_on_retry': False,
     'retries': 1,
     'retry_delay': timedelta(minutes=1),
-    'provide_context': True,
     'xcom_push': True,
     'queue': utils.map_queue_name('general'),
     'on_failure_callback': utils.create_dataset_state_error_callback(get_dataset_uuid)    
@@ -143,8 +142,7 @@ with DAG('scan_and_begin_processing',
         python $src_dir/metadata_extract.py --out ./rslt.yml --yaml "$lz_dir" \
           > ./session.log 2>&1 ; \
         echo $?
-        """,
-        provide_context = True
+        """
         )
 
     t_md_consistency_tests = PythonOperator(
@@ -162,8 +160,7 @@ with DAG('scan_and_begin_processing',
 
     t_create_tmpdir = BashOperator(
         task_id='create_temp_dir',
-        bash_command='mkdir {{tmp_dir_path(run_id)}}',
-        provide_context=True
+        bash_command='mkdir {{tmp_dir_path(run_id)}}'
         )
 
 

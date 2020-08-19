@@ -21,7 +21,6 @@ default_args = {
     'email_on_retry': False,
     'retries': 1,
     'retry_delay': timedelta(minutes=1),
-    'provide_context': True,
     'xcom_push': True,
 }
 
@@ -77,8 +76,7 @@ with DAG('ingest_vanderbilt',
 
     t_create_tmpdir = BashOperator(
         task_id='create_temp_dir',
-        bash_command='mkdir ${AIRFLOW_HOME}/data/temp/{{run_id}}',
-        provide_context=True
+        bash_command='mkdir ${AIRFLOW_HOME}/data/temp/{{run_id}}'
         )
 
 
@@ -92,8 +90,7 @@ with DAG('ingest_vanderbilt',
         python $src_dir/metadata_extract.py --out ./rslt.yml --yaml "$lz_dir" \
           > ./session.log 2>&1 ; \
         echo $?
-        """,
-        provide_context = True
+        """
         )
 
 

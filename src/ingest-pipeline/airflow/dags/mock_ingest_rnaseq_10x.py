@@ -20,7 +20,6 @@ default_args = {
     'email_on_retry': False,
     'retries': 1,
     'retry_delay': timedelta(minutes=1),
-    'provide_context': True
 }
 
 with DAG('mock_ingest_rnaseq_10x', schedule_interval=None, is_paused_upon_creation=False,

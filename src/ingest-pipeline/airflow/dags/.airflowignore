@@ -1,5 +1,6 @@
 # This file contains regular expressions identifying contents that should be ignored by Airflow
 mock_data
 cwl
+obsolete
 utils.py
 workflow_map.yml
