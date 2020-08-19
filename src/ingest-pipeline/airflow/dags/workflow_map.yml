@@ -47,3 +47,7 @@ workflow_map:
   - 'collection_type': '.*'
     'assay_type': 'seqFISH'
     'workflow': 'ometiff_pyramid'
+  - 'collection_type': 'single_metadatatsv'
+    'assay_type': 'snRNAseq'
+    'workflow': 'salmon_sn_rnaseq_10x'
+
