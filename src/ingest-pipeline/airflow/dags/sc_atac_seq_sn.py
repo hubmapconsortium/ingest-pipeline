@@ -49,14 +49,14 @@ default_args = {
 }
 
 with DAG(
-        'sc_atac_seq_sci',
+        'sc_atac_seq_sn',
         schedule_interval=None,
         is_paused_upon_creation=False,
         default_args=default_args,
         max_active_runs=4,
         user_defined_macros={'tmp_dir_path': utils.get_tmp_dir_path},
 ) as dag:
-    pipeline_name = 'sci-atac-seq-pipeline'
+    pipeline_name = 'sn-atac-seq-pipeline'
     cwl_workflows = [
         Path(pipeline_name, 'create_snap_and_analyze.cwl'),
         Path('portal-containers', 'scatac-csv-to-arrow.cwl'),
@@ -184,7 +184,7 @@ with DAG(
             'http_conn_id': 'ingest_api_connection',
             'endpoint': '/datasets/derived',
             'dataset_name_callable': build_dataset_name,
-            "dataset_types": ["sc_atac_seq_sci"],
+            "dataset_types": ["sc_atac_seq_sn"],
         },
     )
 
