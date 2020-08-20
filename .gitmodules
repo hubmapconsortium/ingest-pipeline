@@ -28,3 +28,6 @@
 [submodule "src/ingest-pipeline/airflow/dags/cwl/bulk-atac-seq"]
 	path = src/ingest-pipeline/airflow/dags/cwl/bulk-atac-seq
 	url = git@github.com:hubmapconsortium/sc-atac-seq-pipeline.git
+[submodule "src/ingest-pipeline/airflow/dags/cwl/sn-atac-seq-pipeline"]
+	path = src/ingest-pipeline/airflow/dags/cwl/sn-atac-seq-pipeline
+	url = https://github.com/hubmapconsortium/sc-atac-seq-pipeline
