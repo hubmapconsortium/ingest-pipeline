@@ -2,7 +2,7 @@
 
 # Remove newlines and leading/trailing slashes if present in that build_number file
 function export_build_num() {
-    export INGEST_PIPELINE_BUILD_NUM=$(tr -d "\n\r" < ../ingest-pipeline/build_number | xargs)
+    export INGEST_PIPELINE_BUILD_NUM=$(tr -d "\n\r" < ../build_number | xargs)
     echo "INGEST_PIPELINE_BUILD_NUM: $INGEST_PIPELINE_BUILD_NUM"
 }
 
