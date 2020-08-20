@@ -47,13 +47,14 @@ workflow_map:
   - 'collection_type': '.*'
     'assay_type': 'seqFISH'
     'workflow': 'ometiff_pyramid'
+  - 'collection_type': 'single_metadatatsv'
+    'assay_type': 'snATACseq'
+    'workflow': 'sc_atac_seq_sn'
 # disabled pending implementation of the DAGs
 #  - 'collection_type': 'single_metadatatsv'
 #    'assay_type': 'bulkATACseq'
 #    'workflow': 'bulk_atacseq'
-#  - 'collection_type': 'single_metadatatsv'
-#    'assay_type': 'snATACseq'
-#    'workflow': 'sn_atac_seq'
+
 #  - 'collection_type': 'single_metadatatsv'
 #    'assay_type': 'snRNAseq'
 #    'workflow': 'salmon_sn_rnaseq_10x'
