@@ -53,19 +53,19 @@ else
             echo 'Checks complete, all good :)'
         elif [ "$2" = "config" ]; then
             export_build_num
-            docker-compose -p ingest-pipeline -f docker-compose.yml -f docker-compose.$1.yml config
+            docker-compose -f docker-compose.yml -f docker-compose.$1.yml -p ingest-pipeline config
         elif [ "$2" = "build" ]; then
             export_build_num
-            docker-compose -p ingest-pipeline -f docker-compose.yml -f docker-compose.$1.yml build
+            docker-compose -f docker-compose.yml -f docker-compose.$1.yml -p ingest-pipeline build
         elif [ "$2" = "start" ]; then
             export_build_num
-            docker-compose -p ingest-pipeline -f docker-compose.yml -f docker-compose.$1.yml up -d
+            docker-compose -f docker-compose.yml -f docker-compose.$1.yml -p ingest-pipeline up -d
         elif [ "$2" = "stop" ]; then
             export_build_num
-            docker-compose -p ingest-pipeline -f docker-compose.yml -f docker-compose.$1.yml stop
+            docker-compose -f docker-compose.yml -f docker-compose.$1.yml -p ingest-pipeline stop
         elif [ "$2" = "down" ]; then
             export_build_num
-            docker-compose -p ingest-pipeline -f docker-compose.yml -f docker-compose.$1.yml down
+            docker-compose -f docker-compose.yml -f docker-compose.$1.yml -p ingest-pipeline down
         fi
     fi
 fi
