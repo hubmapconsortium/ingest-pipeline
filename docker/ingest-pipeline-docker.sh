@@ -1,8 +1,12 @@
 #!/bin/bash
 
+# Print a new line and the banner
+echo
+echo "==================== INGEST-PIPELINE ===================="
+
+# This function sets DIR to the directory in which this script itself is found.
+# Thank you https://stackoverflow.com/questions/59895/how-to-get-the-source-directory-of-a-bash-script-from-within-the-script-itself                                                                      
 function get_dir_of_this_script () {
-    # This function sets DIR to the directory in which this script itself is found.
-    # Thank you https://stackoverflow.com/questions/59895/how-to-get-the-source-directory-of-a-bash-script-from-within-the-script-itself
     SCRIPT_SOURCE="${BASH_SOURCE[0]}"
     while [ -h "$SCRIPT_SOURCE" ]; do # resolve $SCRIPT_SOURCE until the file is no longer a symlink
         DIR="$( cd -P "$( dirname "$SCRIPT_SOURCE" )" >/dev/null 2>&1 && pwd )"
