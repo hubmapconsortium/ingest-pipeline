@@ -14,6 +14,7 @@ function get_dir_of_this_script () {
         [[ $SCRIPT_SOURCE != /* ]] && SCRIPT_SOURCE="$DIR/$SCRIPT_SOURCE" # if $SCRIPT_SOURCE was a relative symlink, we need to resolve it relative to the path where the symlink file was located
     done
     DIR="$( cd -P "$( dirname "$SCRIPT_SOURCE" )" >/dev/null 2>&1 && pwd )"
+    echo 'DIR of script:' $DIR
 }
 
 # Remove newlines and leading/trailing slashes if present in that build_number file
@@ -25,12 +26,18 @@ function export_build_num() {
 if [[ "$1" != "localhost" ]]; then
     echo "Unknown build environment '$1', specify: localhost"
 else
-    get_dir_of_this_script
-    echo 'DIR of script:' $DIR
-
     if [[ "$2" != "check" && "$2" != "config" && "$2" != "build" && "$2" != "start" && "$2" != "stop" && "$2" != "down" ]]; then
         echo "Unknown command '$2', specify one of the following: check|config|build|start|stop|down"
     else
+        # Always show the script dir
+        get_dir_of_this_script
+
+        # Always export and show the build number
+        export_build_num
+
+        # Print empty line
+        echo
+
         if [ "$2" = "check" ]; then
             # Bash array
             config_paths=(
@@ -52,19 +59,14 @@ else
 
             echo 'Checks complete, all good :)'
         elif [ "$2" = "config" ]; then
-            export_build_num
             docker-compose -f docker-compose.yml -f docker-compose.$1.yml -p ingest-pipeline config
         elif [ "$2" = "build" ]; then
-            export_build_num
             docker-compose -f docker-compose.yml -f docker-compose.$1.yml -p ingest-pipeline build
         elif [ "$2" = "start" ]; then
-            export_build_num
             docker-compose -f docker-compose.yml -f docker-compose.$1.yml -p ingest-pipeline up -d
         elif [ "$2" = "stop" ]; then
-            export_build_num
             docker-compose -f docker-compose.yml -f docker-compose.$1.yml -p ingest-pipeline stop
         elif [ "$2" = "down" ]; then
-            export_build_num
             docker-compose -f docker-compose.yml -f docker-compose.$1.yml -p ingest-pipeline down
         fi
     fi
