@@ -34,6 +34,8 @@ PIPELINE_BASE_DIR = Path(__file__).resolve().parent / 'cwl'
 
 RE_ID_WITH_SLICES = re.compile(r'([a-zA-Z0-9\-]*)-(\d*)_(\d*)')
 
+RE_GIT_URL_PATTERN = re.compile('(^git@github.com:)(.*)(\.git)')
+
 # default maximum for number of files for which info should be returned in_line
 # rather than via an alternative scratch file
 MAX_IN_LINE_FILES = 500
@@ -231,6 +233,18 @@ def get_git_commits(file_list: StrOrListStr) -> StrOrListStr:
         return rslt
 
 
+def _convert_git_to_proper_url(raw_url: str) -> str:
+    """
+    If the provided string is of the form git@github.com:something.git, return
+    https://github.com/something .  Otherwise just return the input string.
+    """
+    m = RE_GIT_URL_PATTERN.fullmatch(raw_url)
+    if m:
+        return f'https://github.com/{m[2]}'
+    else:
+        return raw_url
+    
+
 def get_git_origins(file_list: StrOrListStr) -> StrOrListStr:
     """
     Given a list of file paths, return a list of the git origins of those files
@@ -254,6 +268,7 @@ def get_git_origins(file_list: StrOrListStr) -> StrOrListStr:
             line = 'https://unknown/unknown.git git call failed: {}'.format(e.output)
             line = line.encode('utf-8')
         url = line.split()[0].strip().decode('utf-8')
+        url = _convert_git_to_proper_url(url)
         rslt.append(url)
     if unroll:
         return rslt[0]
