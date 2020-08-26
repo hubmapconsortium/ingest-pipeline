@@ -34,6 +34,9 @@ from utils import (
     decrypt_tok
 )
 
+# Passed directly to the pipeline
+DOWNSAMPLE_TYPE = 'CUBIC'
+
 # after running this DAG you should have on disk
 # 1. 1 OME.TIFF pyramid per OME.TIFF in the original dataset
 # 2. 1 .N5 file per OME.TIFF in the original dataset
@@ -107,8 +110,10 @@ with DAG('ometiff_pyramid_ims',
             '--tmpdir-prefix={}/'.format(tmpdir / 'cwl-tmp'),
             '--tmp-outdir-prefix={}/'.format(tmpdir / 'cwl-out-tmp'),
             os.fspath(PIPELINE_BASE_DIR / cwl_workflow1),
+            '--downsample_type',
+            DOWNSAMPLE_TYPE,
             '--ometiff_directory',
-            data_dir
+            data_dir,
         ]
 
         command_str = ' '.join(shlex.quote(piece) for piece in command)
