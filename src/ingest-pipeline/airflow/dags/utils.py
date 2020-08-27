@@ -552,8 +552,8 @@ def pythonop_set_dataset_state(**kwargs) -> None:
     headers={
         'authorization' : 'Bearer ' + decrypt_tok(crypt_auth_tok.encode()),
         'content-type' : 'application/json'}
-    # print('headers:')
-    # pprint(headers)  # reduce visibility of auth_tok
+#     print('headers:')
+#     pprint(headers)  # reduce visibility of auth_tok
     extra_options=[]
      
     http = HttpHook(method,
@@ -570,6 +570,41 @@ def pythonop_set_dataset_state(**kwargs) -> None:
                         json.dumps(data),
                         headers,
                         extra_options)
+    print('response: ')
+    pprint(response.json())
+
+
+def pythonop_get_dataset_state(**kwargs) -> None:
+    """
+    Gets the status JSON structure for a dataset.
+    
+    Accepts the following via the caller's op_kwargs:
+    'dataset_uuid_callable' : called with **kwargs; returns the
+                              uuid of the dataset to be modified
+    'http_conn_id' : the http connection to be used
+    """
+    for arg in ['dataset_uuid_callable', 'http_conn_id']:
+        assert arg in kwargs, "missing required argument {}".format(arg)
+    dataset_uuid = kwargs['dataset_uuid_callable'](**kwargs)
+    http_conn_id = kwargs['http_conn_id']
+    endpoint = f'datasets/{dataset_uuid}'
+    method='GET'
+    crypt_auth_tok = (kwargs['crypt_auth_tok'] if 'crypt_auth_tok' in kwargs 
+                      else kwargs['dag_run'].conf['crypt_auth_tok'])
+    auth_tok = decrypt_tok(crypt_auth_tok.encode())
+    headers={
+        'authorization' : f'Bearer {auth_tok}',
+        'content-type' : 'application/json'}
+    print('headers:')
+    pprint(headers)  # reduce visibility of auth_tok
+    extra_options=[]
+     
+    http = HttpHook(method,
+                    http_conn_id=http_conn_id)
+
+    response = http.run(endpoint,
+                        headers=headers,
+                        extra_options=extra_options)
     print('response: ')
     pprint(response.json())
 
@@ -595,7 +630,7 @@ def _uuid_lookup(uuid, **kwargs):
 #     print('response: ')
 #     pprint(response.json())
     return response.json()
-    
+
 
 def _generate_slices(id: str) -> Iterable[str]:
     mo = RE_ID_WITH_SLICES.fullmatch(id)
