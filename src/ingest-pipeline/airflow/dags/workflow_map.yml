@@ -38,9 +38,6 @@ workflow_map:
   - 'collection_type': 'single_metadatatsv'
     'assay_type': 'SNARE2-RNAseq'
     'workflow': 'salmon_rnaseq_snareseq'
-  - 'collection_type': 'single_metadatatsv'
-    'assay_type': 'bulkATACseq'
-    'workflow': 'bulk_atacseq'
   - 'collection_type': '.*'
     'assay_type': 'Imaging Mass Cytometry'
     'workflow': 'ometiff_pyramid'
@@ -53,8 +50,7 @@ workflow_map:
   - 'collection_type': 'single_metadatatsv'
     'assay_type': 'snRNAseq'
     'workflow': 'salmon_sn_rnaseq_10x'
-# disabled pending implementation of the DAGs
-#  - 'collection_type': 'single_metadatatsv'
-#    'assay_type': 'bulkATACseq'
-#    'workflow': 'bulk_atacseq'
+  - 'collection_type': 'single_metadatatsv'
+    'assay_type': 'bulkATACseq'
+    'workflow': 'bulk_atacseq'
 

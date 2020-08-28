@@ -810,7 +810,7 @@ def _get_workflow_map() -> List[Tuple[Pattern, Pattern, str]]:
     return COMPILED_WORKFLOW_MAP
 
 
-def downstream_workflow_iter(collectiontype: str, assay_type: str) -> Iterable[str]:
+def downstream_workflow_iter(collectiontype: str, assay_type: StrOrListStr) -> Iterable[str]:
     """
     Returns an iterator over zero or more workflow names matching the given
     collectiontype and assay_type.  Each workflow name is expected to correspond to
@@ -819,7 +819,11 @@ def downstream_workflow_iter(collectiontype: str, assay_type: str) -> Iterable[s
     collectiontype = collectiontype or ''
     assay_type = assay_type or ''
     for ct_re, at_re, workflow in _get_workflow_map():
-        if ct_re.match(collectiontype) and at_re.match(assay_type):
+        if isinstance(assay_type, str):
+            at_match = at_re.match(assay_type)
+        else:
+            at_match = all(at_re.match(elt) for elt in assay_type)
+        if ct_re.match(collectiontype) and at_match:
             yield workflow
 
 
