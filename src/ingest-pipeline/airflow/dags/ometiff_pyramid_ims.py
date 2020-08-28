@@ -35,7 +35,7 @@ from utils import (
 )
 
 # Passed directly to the pipeline
-DOWNSAMPLE_TYPE = 'CUBIC'
+DOWNSAMPLE_TYPE = 'LINEAR'
 
 # after running this DAG you should have on disk
 # 1. 1 OME.TIFF pyramid per OME.TIFF in the original dataset
