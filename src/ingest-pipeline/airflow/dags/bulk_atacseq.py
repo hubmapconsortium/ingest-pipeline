@@ -74,7 +74,9 @@ with DAG(
         ctx = kwargs['dag_run'].conf
         run_id = kwargs['run_id']
         tmpdir = Path(utils.get_tmp_dir_path(run_id))
-        data_dir = ctx['parent_lz_path']
+
+        # TODO: expand this to multiple directories in whatever way is appropriate
+        data_dirs = [ctx['parent_lz_path']]
 
         command = [
             *get_cwltool_base_cmd(tmpdir),
@@ -82,11 +84,12 @@ with DAG(
             os.path.join(tmpdir, 'cwl_out'),
             '--parallel',
             os.fspath(cwl_workflows[0]),
-            '--sequence_directory',
-            data_dir,
             '--threads',
             str(THREADS),
         ]
+        for data_dir in data_dirs:
+            command.append('--sequence_directory')
+            command.append(data_dir)
 
         command_str = ' '.join(shlex.quote(piece) for piece in command)
         print('final command_str: {!r}'.format(command_str))
