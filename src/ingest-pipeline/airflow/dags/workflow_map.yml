@@ -50,7 +50,7 @@ workflow_map:
   - 'collection_type': 'single_metadatatsv'
     'assay_type': 'snRNAseq'
     'workflow': 'salmon_sn_rnaseq_10x'
-  - 'collection_type': 'single_metadatatsv'
-    'assay_type': 'bulkATACseq'
+  - 'collection_type': 'bulkatacseq_collection'
+    'assay_type': 'ATACseq-bulk'
     'workflow': 'bulk_atacseq'
 

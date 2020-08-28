@@ -25,8 +25,8 @@ class LogInfoOperator(PythonOperator):
 
 class JoinOperator(DummyOperator):
     @apply_defaults
-    def __init__(self, *args, **kwargs):
-        super().__init__(trigger_rule='one_success', *args, **kwargs)
+    def __init__(self, **kwargs):
+        super().__init__(trigger_rule='one_success', **kwargs)
 
 
 class CreateTmpDirOperator(BashOperator):
@@ -55,14 +55,15 @@ class CleanupTmpDirOperator(BashOperator):
 
 class SetDatasetProcessingOperator(PythonOperator):
     @apply_defaults
-    def __init__(self, *args, **kwargs):
+    def __init__(self, **kwargs):
         super().__init__(python_callable=pythonop_set_dataset_state, 
+                         provide_context=True,
                          op_kwargs={
                              'dataset_uuid_callable': get_dataset_uuid,
                              'http_conn_id': 'ingest_api_connection',
                              'endpoint': '/datasets/status'
                          },
-                         *args, **kwargs)
+                         **kwargs)
     
 
 class MoveDataOperator(BashOperator):

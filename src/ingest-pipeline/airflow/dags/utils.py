@@ -495,8 +495,12 @@ def pythonop_send_create_dataset(**kwargs) -> str:
     
     ctx = kwargs['dag_run'].conf
     method='POST'
+    crypt_auth_tok = (kwargs['crypt_auth_tok'] if 'crypt_auth_tok' in kwargs
+                      else kwargs['dag_run'].conf['crypt_auth_tok'])
+    auth_tok = ''.join(e for e in decrypt_tok(crypt_auth_tok.encode())
+                       if e.isalnum())  # strip out non-alnum characters
     headers={
-        'authorization' : 'Bearer ' + decrypt_tok(ctx['crypt_auth_tok'].encode()),
+        'authorization' : 'Bearer ' + auth_tok,
         'content-type' : 'application/json'}
     #print('headers:')
     #pprint(headers)  # Reduce exposure of auth_tok
@@ -513,8 +517,8 @@ def pythonop_send_create_dataset(**kwargs) -> str:
         "derived_dataset_name": dataset_name,
         "derived_dataset_types": dataset_types
     }
-    print('data: ')
-    pprint(data)  
+    print('data:')
+    pprint(data)
     response = http.run(endpoint,
                         json.dumps(data),
                         headers,
@@ -549,7 +553,7 @@ def pythonop_set_dataset_state(**kwargs) -> None:
     ds_state = kwargs['ds_state'] if 'ds_state' in kwargs else 'Processing'
     message = kwargs['message'] if 'message' in kwargs else 'update state'
     method='PUT'
-    crypt_auth_tok = (kwargs['crypt_auth_tok'] if 'crypt_auth_tok' in kwargs 
+    crypt_auth_tok = (kwargs['crypt_auth_tok'] if 'crypt_auth_tok' in kwargs
                       else kwargs['dag_run'].conf['crypt_auth_tok'])
     headers={
         'authorization' : 'Bearer ' + decrypt_tok(crypt_auth_tok.encode()),
@@ -591,7 +595,7 @@ def pythonop_get_dataset_state(**kwargs) -> JSONType:
     http_conn_id = kwargs['http_conn_id']
     endpoint = f'datasets/{dataset_uuid}'
     method='GET'
-    crypt_auth_tok = (kwargs['crypt_auth_tok'] if 'crypt_auth_tok' in kwargs 
+    crypt_auth_tok = (kwargs['crypt_auth_tok'] if 'crypt_auth_tok' in kwargs
                       else kwargs['dag_run'].conf['crypt_auth_tok'])
     auth_tok = ''.join(e for e in decrypt_tok(crypt_auth_tok.encode())
                        if e.isalnum())  # strip out non-alnum characters
@@ -621,7 +625,7 @@ def _uuid_lookup(uuid, **kwargs):
     http_conn_id = 'uuid_api_connection'
     endpoint = 'hmuuid/{}'.format(uuid)
     method='GET'
-    crypt_auth_tok = (kwargs['crypt_auth_tok'] if 'crypt_auth_tok' in kwargs 
+    crypt_auth_tok = (kwargs['crypt_auth_tok'] if 'crypt_auth_tok' in kwargs
                       else kwargs['dag_run'].conf['crypt_auth_tok'])
     headers={'authorization' : 'Bearer ' + decrypt_tok(crypt_auth_tok.encode())}
 #     print('headers:')

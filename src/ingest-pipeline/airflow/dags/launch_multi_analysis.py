@@ -12,6 +12,7 @@ from airflow.operators.bash_operator import BashOperator
 from airflow.operators.python_operator import PythonOperator
 from airflow.operators.python_operator import BranchPythonOperator
 from airflow.operators.dummy_operator import DummyOperator
+from airflow.operators.dagrun_operator import TriggerDagRunOperator, DagRunOrder
 from airflow.hooks.http_hook import HttpHook
 from airflow.exceptions import AirflowException
 from airflow.configuration import conf as airflow_conf
@@ -44,10 +45,6 @@ default_args = {
 }
 
 
-def uuid_fun(**kwargs):
-    return kwargs['uuid']
-
-
 with DAG('launch_multi_analysis', 
          schedule_interval=None, 
          is_paused_upon_creation=False, 
@@ -78,7 +75,7 @@ with DAG('launch_multi_analysis',
             assert 'dataset' in rslt, f"Status for {uuid} has no dataset entry"
             ds_rslt = rslt['dataset']
 
-            for key in ['status', 'uuid', 'data_types', 'local_directory_url_path']:
+            for key in ['status', 'reference_uuid', 'data_types', 'local_directory_url_path']:
                 assert key in ds_rslt, f"Dataset status for {uuid} has no {key}"
 
             if not ds_rslt['status'] in ['QA', 'Released']:
@@ -101,7 +98,7 @@ with DAG('launch_multi_analysis',
 
             lz_path = ds_rslt['local_directory_url_path']
             filtered_path_l.append(lz_path)
-            filtered_uuid_l.append(ds_rslt['uuid'])
+            filtered_uuid_l.append(ds_rslt['reference_uuid'])
         print(f'Finished uuid {uuid}')
         print(f'filtered data types: {filtered_data_types}')
         print(f'filtered paths: {filtered_path_l}')
