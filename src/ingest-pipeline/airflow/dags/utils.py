@@ -8,6 +8,8 @@ from pprint import pprint
 import re
 from subprocess import check_output, CalledProcessError
 from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Pattern, Tuple, TypeVar, Union
+from requests.exceptions import HTTPError
+from requests import codes
 import uuid
 
 from airflow.configuration import conf as airflow_conf
@@ -574,7 +576,7 @@ def pythonop_set_dataset_state(**kwargs) -> None:
     pprint(response.json())
 
 
-def pythonop_get_dataset_state(**kwargs) -> None:
+def pythonop_get_dataset_state(**kwargs) -> JSONType:
     """
     Gets the status JSON structure for a dataset.
     
@@ -591,22 +593,28 @@ def pythonop_get_dataset_state(**kwargs) -> None:
     method='GET'
     crypt_auth_tok = (kwargs['crypt_auth_tok'] if 'crypt_auth_tok' in kwargs 
                       else kwargs['dag_run'].conf['crypt_auth_tok'])
-    auth_tok = decrypt_tok(crypt_auth_tok.encode())
+    auth_tok = ''.join(e for e in decrypt_tok(crypt_auth_tok.encode())
+                       if e.isalnum())  # strip out non-alnum characters
     headers={
         'authorization' : f'Bearer {auth_tok}',
         'content-type' : 'application/json'}
-    print('headers:')
-    pprint(headers)  # reduce visibility of auth_tok
-    extra_options=[]
-     
-    http = HttpHook(method,
-                    http_conn_id=http_conn_id)
 
-    response = http.run(endpoint,
-                        headers=headers,
-                        extra_options=extra_options)
-    print('response: ')
-    pprint(response.json())
+    try:
+        http = HttpHook(method,
+                        http_conn_id=http_conn_id)
+
+        response = http.run(endpoint,
+                            headers=headers,
+                            extra_options={'check_response': False})
+        response.raise_for_status()
+    except HTTPError as e:
+        print(f'ERROR: {e}')
+        if e.response.status_code == codes.unauthorized:
+            raise RuntimeError('entity database authorization was rejected?')
+        else:
+            print('benign error')
+            return {}
+    return response.json()
 
 
 def _uuid_lookup(uuid, **kwargs):
