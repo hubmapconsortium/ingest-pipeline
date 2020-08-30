@@ -62,10 +62,12 @@ with DAG('salmon_rnaseq_snareseq',
     cwl_workflow1 = os.path.join(pipeline_name, 'pipeline.cwl')
     cwl_workflow2 = os.path.join('portal-containers', 'h5ad-to-arrow.cwl')
 
+
     def build_dataset_name(**kwargs):
-        return '{}__{}__{}'.format(dag.dag_id,
-                                   kwargs['dag_run'].conf['parent_submission_id'],
-                                   pipeline_name)
+        id_l = kwargs['dag_run'].conf['parent_submission_id']
+        inner_str = id_l if isinstance(id_l, str) else '_'.join(id_l)
+        return f'{dag.dag_id}__{inner_str}__{pipeline_name}'
+
 
 #     prepare_cwl1 = PythonOperator(
 #         python_callable=utils.clone_or_update_pipeline,
@@ -92,8 +94,10 @@ with DAG('salmon_rnaseq_snareseq',
         run_id = kwargs['run_id']
         tmpdir = Path(utils.get_tmp_dir_path(run_id))
         print('tmpdir: ', tmpdir)
-        data_dir = ctx['parent_lz_path']
-        print('data_dir: ', data_dir)
+
+        data_dirs = ctx['parent_lz_path']
+        data_dirs = [data_dirs] if isinstance(data_dirs, str) else data_dirs
+        print('data_dirs: ', data_dirs)
 
         command = [
             *get_cwltool_base_cmd(tmpdir),
@@ -102,11 +106,12 @@ with DAG('salmon_rnaseq_snareseq',
             os.path.join(tmpdir, 'cwl_out'),
             '--parallel',
             os.fspath(PIPELINE_BASE_DIR / cwl_workflow1),
-            '--fastq_dir',
-            data_dir,
             '--threads',
             str(THREADS),
         ]
+        for data_dir in data_dirs:
+            command.append('--fastq_dir')
+            command.append(data_dir)
         
 #         command = [
 #             'cp',

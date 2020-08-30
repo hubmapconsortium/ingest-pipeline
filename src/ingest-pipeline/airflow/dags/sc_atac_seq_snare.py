@@ -66,11 +66,12 @@ with DAG(
         for workflow in cwl_workflows
     ]
 
+
     def build_dataset_name(**kwargs):
-        return '{}__{}__{}'.format(dag.dag_id,
-            kwargs['dag_run'].conf['parent_submission_id'],
-            pipeline_name
-        )
+        id_l = kwargs['dag_run'].conf['parent_submission_id']
+        inner_str = id_l if isinstance(id_l, str) else '_'.join(id_l)
+        return f'{dag.dag_id}__{inner_str}__{pipeline_name}'
+
 
     prepare_cwl1 = DummyOperator(
         task_id='prepare_cwl1'
@@ -85,8 +86,9 @@ with DAG(
         run_id = kwargs['run_id']
         tmpdir = Path(utils.get_tmp_dir_path(run_id))
         print('tmpdir: ', tmpdir)
-        data_dir = ctx['parent_lz_path']
-        print('data_dir: ', data_dir)
+        data_dirs = ctx['parent_lz_path']
+        data_dirs = [data_dirs] if isinstance(data_dirs, str) else data_dirs
+        print('data_dirs: ', data_dirs)
 
         command = [
             *get_cwltool_base_cmd(tmpdir),
@@ -94,11 +96,12 @@ with DAG(
             os.path.join(tmpdir, 'cwl_out'),
             '--parallel',
             os.fspath(cwl_workflows_absolute[0]),
-            '--sequence_directory',
-            data_dir,
             '--threads',
             str(THREADS),
         ]
+        for data_dir in data_dirs:
+            command.append('--sequence_directory')
+            command.append(data_dir)
 
         command_str = ' '.join(shlex.quote(piece) for piece in command)
         print('final command_str: {!r}'.format(command_str))

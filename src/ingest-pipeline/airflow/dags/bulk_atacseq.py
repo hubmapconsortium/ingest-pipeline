@@ -73,7 +73,6 @@ with DAG(
         run_id = kwargs['run_id']
         tmpdir = Path(utils.get_tmp_dir_path(run_id))
 
-        # TODO: expand this to multiple directories in whatever way is appropriate
         data_dirs = ctx['parent_lz_path']
         data_dirs = [data_dirs] if isinstance(data_dirs, str) else data_dirs
 
