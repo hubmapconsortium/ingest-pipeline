@@ -34,6 +34,9 @@ from utils import (
     localized_assert_json_matches_schema as assert_json_matches_schema,
 )
 
+# Passed directly to the pipeline
+DOWNSAMPLE_TYPE = 'LINEAR'
+
 # after running this DAG you should have on disk
 # 1. 1 OME.TIFF pyramid per OME.TIFF in the original dataset
 # 2. 1 .N5 file per OME.TIFF in the original dataset
@@ -93,6 +96,9 @@ with DAG('ometiff_pyramid',
         data_dir = ctx['parent_lz_path']
         print('data_dir: ', data_dir)
 
+        # TODO: implement this check however is appropriate
+        is_ims = False
+
         #this is the call to the CWL
         command = [
             *get_cwltool_base_cmd(tmpdir),
@@ -100,6 +106,9 @@ with DAG('ometiff_pyramid',
             '--ometiff_directory',
             data_dir,
         ]
+        if is_ims:
+            command.append('--downsample_type')
+            command.append(DOWNSAMPLE_TYPE)
 
         return join_quote_command_str(command)
 

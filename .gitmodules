@@ -31,6 +31,3 @@
 [submodule "src/ingest-pipeline/airflow/dags/cwl/sn-atac-seq-pipeline"]
 	path = src/ingest-pipeline/airflow/dags/cwl/sn-atac-seq-pipeline
 	url = https://github.com/hubmapconsortium/sc-atac-seq-pipeline
-[submodule "src/ingest-pipeline/airflow/dags/cwl/ome-tiff-pyramid-ims"]
-	path = src/ingest-pipeline/airflow/dags/cwl/ome-tiff-pyramid-ims
-	url = https://github.com/hubmapconsortium/ome-tiff-pyramid
