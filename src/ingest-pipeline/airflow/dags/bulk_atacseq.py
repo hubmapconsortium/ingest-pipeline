@@ -62,11 +62,9 @@ with DAG(
     )
 
     def build_dataset_name(**kwargs):
-        return '{}__{}__{}'.format(
-            dag.dag_id,
-            kwargs['dag_run'].conf['parent_submission_id'],
-            pipeline_name
-        )
+        id_l = kwargs['dag_run'].conf['parent_submission_id']
+        inner_str = id_l if isinstance(id_l, str) else '_'.join(id_l)
+        return f'{dag.dag_id}__{inner_str}__{pipeline_name}'
 
     prepare_cwl1 = DummyOperator(task_id='prepare_cwl1')
 
@@ -74,7 +72,9 @@ with DAG(
         ctx = kwargs['dag_run'].conf
         run_id = kwargs['run_id']
         tmpdir = Path(utils.get_tmp_dir_path(run_id))
-        data_dir = ctx['parent_lz_path']
+
+        data_dirs = ctx['parent_lz_path']
+        data_dirs = [data_dirs] if isinstance(data_dirs, str) else data_dirs
 
         command = [
             *get_cwltool_base_cmd(tmpdir),
@@ -82,17 +82,19 @@ with DAG(
             tmpdir / 'cwl_out',
             '--parallel',
             cwl_workflows[0],
-            '--sequence_directory',
-            data_dir,
             '--threads',
             THREADS,
         ]
+        for data_dir in data_dirs:
+            command.append('--sequence_directory')
+            command.append(data_dir)
 
         return join_quote_command_str(command)
 
     t_build_cmd1 = PythonOperator(
         task_id='build_cmd1',
         python_callable=build_cwltool_cmd1,
+        provide_context=True,
     )
 
     t_pipeline_exec = BashOperator(

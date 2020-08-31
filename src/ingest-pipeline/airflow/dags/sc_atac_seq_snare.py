@@ -62,11 +62,12 @@ with DAG(
         Path('portal-containers', 'scatac-csv-to-arrow.cwl'),
     )
 
+
     def build_dataset_name(**kwargs):
-        return '{}__{}__{}'.format(dag.dag_id,
-            kwargs['dag_run'].conf['parent_submission_id'],
-            pipeline_name
-        )
+        id_l = kwargs['dag_run'].conf['parent_submission_id']
+        inner_str = id_l if isinstance(id_l, str) else '_'.join(id_l)
+        return f'{dag.dag_id}__{inner_str}__{pipeline_name}'
+
 
     prepare_cwl1 = DummyOperator(
         task_id='prepare_cwl1'
@@ -81,8 +82,9 @@ with DAG(
         run_id = kwargs['run_id']
         tmpdir = Path(utils.get_tmp_dir_path(run_id))
         print('tmpdir: ', tmpdir)
-        data_dir = ctx['parent_lz_path']
-        print('data_dir: ', data_dir)
+        data_dirs = ctx['parent_lz_path']
+        data_dirs = [data_dirs] if isinstance(data_dirs, str) else data_dirs
+        print('data_dirs: ', data_dirs)
 
         command = [
             *get_cwltool_base_cmd(tmpdir),
@@ -90,11 +92,12 @@ with DAG(
             tmpdir / 'cwl_out',
             '--parallel',
             cwl_workflows[0],
-            '--sequence_directory',
-            data_dir,
             '--threads',
             THREADS,
         ]
+        for data_dir in data_dirs:
+            command.append('--sequence_directory')
+            command.append(data_dir)
 
         return join_quote_command_str(command)
 

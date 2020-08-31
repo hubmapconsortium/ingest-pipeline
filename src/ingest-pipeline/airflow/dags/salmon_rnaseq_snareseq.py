@@ -64,22 +64,11 @@ with DAG('salmon_rnaseq_snareseq',
         Path('portal-containers', 'h5ad-to-arrow.cwl'),
     )
 
+
     def build_dataset_name(**kwargs):
-        return '{}__{}__{}'.format(dag.dag_id,
-                                   kwargs['dag_run'].conf['parent_submission_id'],
-                                   pipeline_name)
-
-#     prepare_cwl1 = PythonOperator(
-#         python_callable=utils.clone_or_update_pipeline,
-#         task_id='clone_or_update_cwl1',
-#         op_kwargs={'pipeline_name': cwl_workflow1}
-#     )
-
-#     prepare_cwl2 = PythonOperator(
-#         python_callable=utils.clone_or_update_pipeline,
-#         task_id='clone_or_update_cwl2',
-#         op_kwargs={'pipeline_name': cwl_workflow2}
-#     )
+        id_l = kwargs['dag_run'].conf['parent_submission_id']
+        inner_str = id_l if isinstance(id_l, str) else '_'.join(id_l)
+        return f'{dag.dag_id}__{inner_str}__{pipeline_name}'
 
     prepare_cwl1 = DummyOperator(
         task_id='prepare_cwl1'
@@ -94,8 +83,10 @@ with DAG('salmon_rnaseq_snareseq',
         run_id = kwargs['run_id']
         tmpdir = Path(utils.get_tmp_dir_path(run_id))
         print('tmpdir: ', tmpdir)
-        data_dir = ctx['parent_lz_path']
-        print('data_dir: ', data_dir)
+
+        data_dirs = ctx['parent_lz_path']
+        data_dirs = [data_dirs] if isinstance(data_dirs, str) else data_dirs
+        print('data_dirs: ', data_dirs)
 
         command = [
             *get_cwltool_base_cmd(tmpdir),
@@ -104,14 +95,16 @@ with DAG('salmon_rnaseq_snareseq',
             tmpdir / 'cwl_out',
             '--parallel',
             cwl_workflows[0],
-            '--fastq_dir',
-            data_dir,
             '--threads',
             THREADS,
         ]
+        for data_dir in data_dirs:
+            command.append('--fastq_dir')
+            command.append(data_dir)
 
         return join_quote_command_str(command)
-
+      
+      
     def build_cwltool_cmd2(**kwargs):
         ctx = kwargs['dag_run'].conf
         run_id = kwargs['run_id']
