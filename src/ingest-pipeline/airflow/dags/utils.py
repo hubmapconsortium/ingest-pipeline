@@ -6,6 +6,7 @@ from os.path import basename, dirname, relpath, split, join, getsize, realpath
 from pathlib import Path
 from pprint import pprint
 import re
+import shlex
 from subprocess import check_output, CalledProcessError
 from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Pattern, Tuple, TypeVar, Union
 from requests.exceptions import HTTPError
@@ -26,6 +27,8 @@ JSONType = Union[str, int, float, bool, None, Dict[str, Any], List[Any]]
 
 # Some functions accept a `str` or `List[str]` and return that same type
 StrOrListStr = TypeVar('StrOrListStr', str, List[str])
+
+PathStrOrList = Union[str, Path, Iterable[Union[str, Path]]]
 
 SCHEMA_BASE_PATH = join(dirname(dirname(dirname(realpath(__file__)))),
                         'schemata')
@@ -112,7 +115,7 @@ class PipelineFileMatcher(FileMatcher):
     # (file/directory regex, description template, EDAM ontology term)
     matchers: List[Tuple[Pattern, str, str]]
 
-    def __init__(self, pipeline_file_manifest: Optional[Path] = None):
+    def __init__(self):
         self.matchers = []
 
     @classmethod
@@ -158,7 +161,7 @@ class DummyFileMatcher(FileMatcher):
         return True, '', ''
 
 
-def find_pipeline_manifests(*cwl_files: Path) -> List[Path]:
+def find_pipeline_manifests(cwl_files: Iterable[Path]) -> List[Path]:
     """
     Constructs manifest paths from CWL files (strip '.cwl', append
     '-manifest.json'), and check whether each manifest exists. Return
@@ -172,7 +175,7 @@ def find_pipeline_manifests(*cwl_files: Path) -> List[Path]:
     return manifests
 
 
-def get_absolute_workflows(workflows: Iterable[Path]) -> List[Path]:
+def get_absolute_workflows(*workflows: Path) -> List[Path]:
     """
     :param workflows: iterable of `Path`s to CWL files, absolute
       or relative
@@ -306,13 +309,13 @@ def get_git_root_paths(file_list: Iterable[str]) -> Union[str, List[str]]:
         return rslt
 
 
-def get_git_provenance_dict(file_list: Iterable[str]) -> Mapping[str, str]:
+def get_git_provenance_dict(file_list: PathStrOrList) -> Mapping[str, str]:
     """
     Given a list of file paths, return a list of dicts of the form:
     
       [{<file base name>:<file commit hash>}, ...]
     """
-    if isinstance(file_list, str):  # sadly, a str is an Iterable[str]
+    if isinstance(file_list, (str, Path)):  # sadly, a str is an Iterable[str]
         file_list = [file_list]
     return {basename(fname) : get_git_commits(realpath(fname))
             for fname in file_list}
@@ -842,6 +845,11 @@ def decrypt_tok(crypt_tok: bytes) -> str:
     fernet = Fernet(key.encode())
     return fernet.decrypt(crypt_tok).decode()
 
+
+def join_quote_command_str(pieces: List[Any]):
+    command_str = ' '.join(shlex.quote(str(piece)) for piece in pieces)
+    print('final command_str:', command_str)
+    return command_str
 
 def main():
     print(__file__)

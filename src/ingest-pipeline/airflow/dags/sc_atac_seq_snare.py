@@ -1,6 +1,5 @@
 import os
 import json
-import shlex
 from pathlib import Path
 from pprint import pprint
 from datetime import datetime, timedelta
@@ -22,13 +21,14 @@ from hubmap_operators.common_operators import (
 
 import utils
 from utils import (
-    PIPELINE_BASE_DIR,
     decrypt_tok,
     find_pipeline_manifests,
+    get_absolute_workflows,
     get_cwltool_base_cmd,
     get_dataset_uuid,
     get_parent_dataset_uuid,
     get_uuid_for_error,
+    join_quote_command_str,
     localized_assert_json_matches_schema as assert_json_matches_schema,
 )
 
@@ -57,14 +57,10 @@ with DAG(
         user_defined_macros={'tmp_dir_path': utils.get_tmp_dir_path},
 ) as dag:
     pipeline_name = 'sc-atac-seq-pipeline'
-    cwl_workflows = [
+    cwl_workflows = get_absolute_workflows(
         Path(pipeline_name, 'create_snap_and_analyze.cwl'),
         Path('portal-containers', 'scatac-csv-to-arrow.cwl'),
-    ]
-    cwl_workflows_absolute = [
-        PIPELINE_BASE_DIR / workflow
-        for workflow in cwl_workflows
-    ]
+    )
 
 
     def build_dataset_name(**kwargs):
@@ -93,19 +89,17 @@ with DAG(
         command = [
             *get_cwltool_base_cmd(tmpdir),
             '--outdir',
-            os.path.join(tmpdir, 'cwl_out'),
+            tmpdir / 'cwl_out',
             '--parallel',
-            os.fspath(cwl_workflows_absolute[0]),
+            cwl_workflows[0],
             '--threads',
-            str(THREADS),
+            THREADS,
         ]
         for data_dir in data_dirs:
             command.append('--sequence_directory')
             command.append(data_dir)
 
-        command_str = ' '.join(shlex.quote(piece) for piece in command)
-        print('final command_str: {!r}'.format(command_str))
-        return command_str
+        return join_quote_command_str(command)
 
     def build_cwltool_cmd2(**kwargs):
         ctx = kwargs['dag_run'].conf
@@ -117,14 +111,12 @@ with DAG(
 
         command = [
             *get_cwltool_base_cmd(tmpdir),
-            os.fspath(cwl_workflows_absolute[1]),
+            cwl_workflows[1],
             '--input_dir',
             '.',
         ]
 
-        command_str = ' '.join(shlex.quote(piece) for piece in command)
-        print('final command_str: {!r}'.format(command_str))
-        return command_str
+        return join_quote_command_str(command)
 
     t_build_cmd1 = PythonOperator(
         task_id='build_cmd1',
@@ -232,10 +224,8 @@ with DAG(
 
         if success:
             md = {}
-            files_for_provenance = [
-                __file__,
-                *cwl_workflows_absolute,
-            ]
+            files_for_provenance = [__file__, *cwl_workflows]
+
             if 'dag_provenance' in kwargs['dag_run'].conf:
                 md['dag_provenance'] = kwargs['dag_run'].conf['dag_provenance'].copy()
                 new_prv_dct = utils.get_git_provenance_dict(files_for_provenance)
@@ -247,7 +237,7 @@ with DAG(
                 dag_prv.extend(utils.get_git_provenance_list(files_for_provenance))
                 md['dag_provenance_list'] = dag_prv
 
-            manifest_files = find_pipeline_manifests(*cwl_workflows_absolute)
+            manifest_files = find_pipeline_manifests(cwl_workflows)
             md.update(
                 utils.get_file_metadata_dict(
                     ds_dir,

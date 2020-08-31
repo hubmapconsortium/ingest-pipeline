@@ -1,6 +1,5 @@
 import os
 import json
-import shlex
 from pathlib import Path
 from pprint import pprint
 from datetime import datetime, timedelta
@@ -24,14 +23,15 @@ from hubmap_operators.common_operators import (
 
 import utils
 from utils import (
-    PIPELINE_BASE_DIR,
+    decrypt_tok,
     find_pipeline_manifests,
     get_cwltool_base_cmd,
+    get_absolute_workflows,
     get_dataset_uuid,
     get_parent_dataset_uuid,
     get_uuid_for_error,
+    join_quote_command_str,
     localized_assert_json_matches_schema as assert_json_matches_schema,
-    decrypt_tok
 )
 
 # Passed directly to the pipeline
@@ -63,14 +63,15 @@ with DAG('ometiff_pyramid_ims',
          user_defined_macros={'tmp_dir_path' : utils.get_tmp_dir_path}
          ) as dag:
 
-    #does the name need to match the filename?
+    # does the name need to match the filename?
     pipeline_name = 'ometiff_pyramid_ims'
 
-    #this workflow creates the image pyramid
-    cwl_workflow1 = os.path.join('ome-tiff-pyramid-ims', 'pipeline.cwl')
-
-    #this workflow computes the offsets
-    cwl_workflow2 = os.path.join('portal-containers', 'ome-tiff-offsets.cwl')
+    cwl_workflows = get_absolute_workflows(
+        # this workflow creates the image pyramid
+        Path('ome-tiff-pyramid', 'pipeline.cwl'),
+        # this workflow computes the offsets
+        Path('portal-containers', 'ome-tiff-offsets.cwl'),
+    )
 
     def build_dataset_name(**kwargs):
         return '{}__{}__{}'.format(dag.dag_id,
@@ -98,16 +99,14 @@ with DAG('ometiff_pyramid_ims',
         #this is the call to the CWL
         command = [
             *get_cwltool_base_cmd(tmpdir),
-            os.fspath(PIPELINE_BASE_DIR / cwl_workflow1),
+            cwl_workflows[0],
             '--downsample_type',
             DOWNSAMPLE_TYPE,
             '--ometiff_directory',
             data_dir,
         ]
 
-        command_str = ' '.join(shlex.quote(piece) for piece in command)
-        print('final command_str: %s' % command_str)
-        return command_str
+        return join_quote_command_str(command)
 
     t_build_cmd1 = PythonOperator(
         task_id='build_cmd1',
@@ -148,14 +147,12 @@ with DAG('ometiff_pyramid_ims',
         #this is the call to the CWL
         command = [
             *get_cwltool_base_cmd(tmpdir),
-            os.fspath(PIPELINE_BASE_DIR / cwl_workflow2),
+            cwl_workflows[1],
             '--input_directory',
-            './ometiff-pyramids'
+            './ometiff-pyramids',
         ]
 
-        command_str = ' '.join(shlex.quote(piece) for piece in command)
-        print('final command_str: %s' % command_str)
-        return command_str
+        return join_quote_command_str(command)
 
     t_build_cmd2 = PythonOperator(
         task_id='build_cmd2',
@@ -256,25 +253,19 @@ with DAG('ometiff_pyramid_ims',
 
         if success:
             md = {}
+            files_for_provenance = [__file__, *cwl_workflows]
 
-            workflows = [cwl_workflow1, cwl_workflow2]
             if 'dag_provenance' in kwargs['dag_run'].conf:
                 md['dag_provenance'] = kwargs['dag_run'].conf['dag_provenance'].copy()
-                new_prv_dct = utils.get_git_provenance_dict([__file__]
-                                                            + [PIPELINE_BASE_DIR / cwl
-                                                               for cwl in workflows])
+                new_prv_dct = utils.get_git_provenance_dict(files_for_provenance)
                 md['dag_provenance'].update(new_prv_dct)
             else:
                 dag_prv = (kwargs['dag_run'].conf['dag_provenance_list']
                            if 'dag_provenance_list' in kwargs['dag_run'].conf
                            else [])
-                dag_prv.extend(utils.get_git_provenance_list([__file__]
-                                                             + [PIPELINE_BASE_DIR / cwl
-                                                                for cwl in workflows]))
+                dag_prv.extend(utils.get_git_provenance_list(files_for_provenance))
                 md['dag_provenance_list'] = dag_prv
-            manifest_files = find_pipeline_manifests(
-                *[PIPELINE_BASE_DIR / cwl for cwl in workflows]
-            )
+            manifest_files = find_pipeline_manifests(cwl_workflows)
             md.update(utils.get_file_metadata_dict(ds_dir,
                                                    utils.get_tmp_dir_path(kwargs['run_id']),
                                                    manifest_files))

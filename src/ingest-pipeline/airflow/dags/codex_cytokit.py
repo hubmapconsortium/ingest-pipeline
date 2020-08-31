@@ -1,6 +1,5 @@
 import os
 import json
-import shlex
 from pathlib import Path
 from pprint import pprint
 from datetime import datetime, timedelta
@@ -22,14 +21,15 @@ from hubmap_operators.common_operators import (
 
 import utils
 from utils import (
-    PIPELINE_BASE_DIR,
+    decrypt_tok,
     find_pipeline_manifests,
+    get_absolute_workflows,
     get_cwltool_base_cmd,
     get_dataset_uuid,
     get_parent_dataset_uuid,
     get_uuid_for_error,
     localized_assert_json_matches_schema as assert_json_matches_schema,
-    decrypt_tok
+    join_quote_command_str,
 )
 
 
@@ -57,9 +57,11 @@ with DAG('codex_cytokit',
          ) as dag:
 
     pipeline_name = 'codex-pipeline'
-    cwl_workflow1 = os.path.join(pipeline_name, 'pipeline.cwl')
-    cwl_workflow2 = os.path.join('portal-containers', 'ome-tiff-offsets.cwl')
-    cwl_workflow3 = os.path.join('portal-containers', 'sprm-to-json.cwl')
+    cwl_workflows = get_absolute_workflows(
+        Path(pipeline_name, 'pipeline.cwl'),
+        Path('portal-containers', 'ome-tiff-offsets.cwl'),
+        Path('portal-containers', 'sprm-to-json.cwl'),
+    )
 
     def build_dataset_name(**kwargs):
         return '{}__{}__{}'.format(dag.dag_id,
@@ -87,23 +89,13 @@ with DAG('codex_cytokit',
 
         command = [
             *get_cwltool_base_cmd(tmpdir),
-            os.fspath(PIPELINE_BASE_DIR / cwl_workflow1),
+            cwl_workflows[0],
             '--gpus=0,1',
             '--data_dir',
             data_dir,
         ]
-        
-#         command = [
-#             'cp',
-#             '-R',
-#             os.path.join(os.environ['AIRFLOW_HOME'],
-#                          'data', 'temp', 'std_salmon_out', 'cwl_out'),
-#             tmpdir
-#         ]
-            
-        command_str = ' '.join(shlex.quote(piece) for piece in command)
-        print('final command_str: %s' % command_str)
-        return command_str
+
+        return join_quote_command_str(command)
 
 
     t_build_cmd1 = PythonOperator(
@@ -157,14 +149,12 @@ with DAG('codex_cytokit',
 
         command = [
             *get_cwltool_base_cmd(tmpdir),
-            os.fspath(PIPELINE_BASE_DIR / cwl_workflow2),
+            cwl_workflows[1],
             '--input_dir',
-            os.path.join(data_dir, 'output', 'extract', 'expressions', 'ome-tiff')
+            data_dir / 'output/extract/expressions/ome-tiff',
         ]
 
-        command_str = ' '.join(shlex.quote(piece) for piece in command)
-        print('final command_str: %s' % command_str)
-        return command_str
+        return join_quote_command_str(command)
 
 
     t_build_cmd2 = PythonOperator(
@@ -211,19 +201,17 @@ with DAG('codex_cytokit',
         print('tmpdir: ', tmpdir)
         parent_data_dir = ctx['parent_lz_path']
         print('parent_data_dir: ', parent_data_dir)
-        data_dir = os.path.join(tmpdir, 'cwl_out')  # This stage reads input from stage 1
+        data_dir = tmpdir / 'cwl_out'  # This stage reads input from stage 1
         print('data_dir: ', data_dir)
 
         command = [
             *get_cwltool_base_cmd(tmpdir),
-            os.fspath(PIPELINE_BASE_DIR / cwl_workflow3),
+            cwl_workflows[2],
             '--input_dir',
-            os.path.join(data_dir, 'sprm_outputs')
+            data_dir / 'sprm_outputs',
         ]
 
-        command_str = ' '.join(shlex.quote(piece) for piece in command)
-        print('final command_str: %s' % command_str)
-        return command_str
+        return join_quote_command_str(command)
 
 
     t_build_cmd3 = PythonOperator(
@@ -319,27 +307,19 @@ with DAG('codex_cytokit',
  
         if success:
             md = {}
-            
-            workflows = [cwl_workflow1,
-                         cwl_workflow2,
-                         cwl_workflow3]
+            files_for_provenance = [__file__, *cwl_workflows]
+
             if 'dag_provenance' in kwargs['dag_run'].conf:
                 md['dag_provenance'] = kwargs['dag_run'].conf['dag_provenance'].copy()
-                new_prv_dct = utils.get_git_provenance_dict([__file__]
-                                                            + [PIPELINE_BASE_DIR / cwl
-                                                               for cwl in workflows])
+                new_prv_dct = utils.get_git_provenance_dict(files_for_provenance)
                 md['dag_provenance'].update(new_prv_dct)
             else:
                 dag_prv = (kwargs['dag_run'].conf['dag_provenance_list']
                            if 'dag_provenance_list' in kwargs['dag_run'].conf
                            else [])
-                dag_prv.extend(utils.get_git_provenance_list([__file__]
-                                                             + [PIPELINE_BASE_DIR / cwl
-                                                                for cwl in workflows]))
+                dag_prv.extend(utils.get_git_provenance_list(files_for_provenance))
                 md['dag_provenance_list'] = dag_prv
-            manifest_files = find_pipeline_manifests(
-                *[PIPELINE_BASE_DIR / cwl for cwl in workflows]
-            )
+            manifest_files = find_pipeline_manifests(cwl_workflows)
             md.update(utils.get_file_metadata_dict(ds_dir,
                                                    utils.get_tmp_dir_path(kwargs['run_id']),
                                                    manifest_files))

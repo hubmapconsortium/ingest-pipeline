@@ -1,6 +1,5 @@
 import os
 import json
-import shlex
 from pathlib import Path
 from pprint import pprint
 from datetime import datetime, timedelta
@@ -22,14 +21,15 @@ from hubmap_operators.common_operators import (
 
 import utils
 from utils import (
-    PIPELINE_BASE_DIR,
+    decrypt_tok,
     find_pipeline_manifests,
+    get_absolute_workflows,
     get_cwltool_base_cmd,
     get_dataset_uuid,
     get_parent_dataset_uuid,
     get_uuid_for_error,
+    join_quote_command_str,
     localized_assert_json_matches_schema as assert_json_matches_schema,
-    decrypt_tok
 )
 
 THREADS = 6  # to be used by the CWL worker
@@ -59,27 +59,16 @@ with DAG('salmon_rnaseq_snareseq',
          ) as dag:
 
     pipeline_name = 'salmon-rnaseq-snareseq'
-    cwl_workflow1 = os.path.join(pipeline_name, 'pipeline.cwl')
-    cwl_workflow2 = os.path.join('portal-containers', 'h5ad-to-arrow.cwl')
+    cwl_workflows = get_absolute_workflows(
+        Path(pipeline_name, 'pipeline.cwl'),
+        Path('portal-containers', 'h5ad-to-arrow.cwl'),
+    )
 
 
     def build_dataset_name(**kwargs):
         id_l = kwargs['dag_run'].conf['parent_submission_id']
         inner_str = id_l if isinstance(id_l, str) else '_'.join(id_l)
         return f'{dag.dag_id}__{inner_str}__{pipeline_name}'
-
-
-#     prepare_cwl1 = PythonOperator(
-#         python_callable=utils.clone_or_update_pipeline,
-#         task_id='clone_or_update_cwl1',
-#         op_kwargs={'pipeline_name': cwl_workflow1}
-#     )
-
-#     prepare_cwl2 = PythonOperator(
-#         python_callable=utils.clone_or_update_pipeline,
-#         task_id='clone_or_update_cwl2',
-#         op_kwargs={'pipeline_name': cwl_workflow2}
-#     )
 
     prepare_cwl1 = DummyOperator(
         task_id='prepare_cwl1'
@@ -103,28 +92,19 @@ with DAG('salmon_rnaseq_snareseq',
             *get_cwltool_base_cmd(tmpdir),
             '--debug',
             '--outdir',
-            os.path.join(tmpdir, 'cwl_out'),
+            tmpdir / 'cwl_out',
             '--parallel',
-            os.fspath(PIPELINE_BASE_DIR / cwl_workflow1),
+            cwl_workflows[0],
             '--threads',
-            str(THREADS),
+            THREADS,
         ]
         for data_dir in data_dirs:
             command.append('--fastq_dir')
             command.append(data_dir)
-        
-#         command = [
-#             'cp',
-#             '-R',
-#             os.path.join(os.environ['AIRFLOW_HOME'],
-#                          'data', 'temp', 'std_salmon_out', 'cwl_out'),
-#             tmpdir
-#         ]
-            
-        command_str = ' '.join(shlex.quote(piece) for piece in command)
-        print('final command_str: %s' % command_str)
-        return command_str
 
+        return join_quote_command_str(command)
+      
+      
     def build_cwltool_cmd2(**kwargs):
         ctx = kwargs['dag_run'].conf
         run_id = kwargs['run_id']
@@ -135,14 +115,12 @@ with DAG('salmon_rnaseq_snareseq',
 
         command = [
             *get_cwltool_base_cmd(tmpdir),
-            os.fspath(PIPELINE_BASE_DIR / cwl_workflow2),
+            cwl_workflows[1],
             '--input_dir',
-            '.'
+            '.',
         ]
-            
-        command_str = ' '.join(shlex.quote(piece) for piece in command)
-        print('final command_str: %s' % command_str)
-        return command_str
+
+        return join_quote_command_str(command)
 
     t_build_cmd1 = PythonOperator(
         task_id='build_cmd1',
@@ -253,29 +231,20 @@ with DAG('salmon_rnaseq_snareseq',
 
         if success:
             md = {}
+            files_for_provenance = [__file__, *cwl_workflows]
+
             if 'dag_provenance' in kwargs['dag_run'].conf:
                 md['dag_provenance'] = kwargs['dag_run'].conf['dag_provenance'].copy()
-                new_prv_dct = utils.get_git_provenance_dict([__file__,
-                                                             os.path.join(PIPELINE_BASE_DIR,
-                                                                          cwl_workflow1),
-                                                             os.path.join(PIPELINE_BASE_DIR,
-                                                                          cwl_workflow2)])
+                new_prv_dct = utils.get_git_provenance_dict(files_for_provenance)
                 md['dag_provenance'].update(new_prv_dct)
             else:
                 dag_prv = (kwargs['dag_run'].conf['dag_provenance_list']
                            if 'dag_provenance_list' in kwargs['dag_run'].conf
                            else [])
-                dag_prv.extend(utils.get_git_provenance_list([__file__,
-                                                              os.path.join(PIPELINE_BASE_DIR,
-                                                                           cwl_workflow1),
-                                                              os.path.join(PIPELINE_BASE_DIR,
-                                                                           cwl_workflow2)]))
+                dag_prv.extend(utils.get_git_provenance_list(files_for_provenance))
                 md['dag_provenance_list'] = dag_prv
 
-            manifest_files = find_pipeline_manifests(
-                PIPELINE_BASE_DIR / cwl_workflow1,
-                PIPELINE_BASE_DIR / cwl_workflow2,
-            )
+            manifest_files = find_pipeline_manifests(cwl_workflows)
             md.update(utils.get_file_metadata_dict(ds_dir,
                                                    utils.get_tmp_dir_path(kwargs['run_id']),
                                                    manifest_files))
