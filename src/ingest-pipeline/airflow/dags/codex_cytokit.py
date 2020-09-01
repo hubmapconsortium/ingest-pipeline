@@ -69,12 +69,6 @@ with DAG('codex_cytokit',
                                    pipeline_name)
 
 
-#     prepare_cwl1 = PythonOperator(
-#         python_callable=utils.clone_or_update_pipeline,
-#         task_id='prepare_cwl1',
-#         op_kwargs={'pipeline_name': cwl_workflow1}
-#     )
-
     prepare_cwl1 = DummyOperator(
         task_id='prepare_cwl1'
         )
@@ -127,12 +121,6 @@ with DAG('codex_cytokit',
         )
 
 
-#     prepare_cwl2 = PythonOperator(
-#         python_callable=utils.clone_or_update_pipeline,
-#         task_id='prepare_cwl2',
-#         op_kwargs={'pipeline_name': cwl_workflow2}
-#     )
-
     prepare_cwl2 = DummyOperator(
         task_id='prepare_cwl2'
         )
@@ -183,12 +171,6 @@ with DAG('codex_cytokit',
                      'test_op' : 'pipeline_exec_cwl2'}
         )
 
-
-#     prepare_cwl3 = PythonOperator(
-#         python_callable=utils.clone_or_update_pipeline,
-#         task_id='prepare_cwl3',
-#         op_kwargs={'pipeline_name': cwl_workflow3}
-#     )
 
     prepare_cwl3 = DummyOperator(
         task_id='prepare_cwl3'

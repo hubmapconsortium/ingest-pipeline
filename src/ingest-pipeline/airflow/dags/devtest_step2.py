@@ -25,6 +25,7 @@ from utils import (
     get_parent_dataset_uuid,
     get_uuid_for_error,
     localized_assert_json_matches_schema as assert_json_matches_schema,
+    join_quote_command_str,
     decrypt_tok
 )
 
@@ -63,12 +64,12 @@ with DAG('devtest_step2',
     def build_cwltool_cmd1(**kwargs):
         ctx = kwargs['dag_run'].conf
         run_id = kwargs['run_id']
-        tmpdir = utils.get_tmp_dir_path(run_id)
-        print('tmpdir: ', tmpdir)
+        tmpdir = Path(utils.get_tmp_dir_path(run_id))
+        #print('tmpdir: ', tmpdir)
         tmp_subdir = os.path.join(tmpdir, 'cwl_out')
-        print('tmp_subdir: ', tmp_subdir)
+        #print('tmp_subdir: ', tmp_subdir)
         data_dir = ctx['parent_lz_path']
-        print('data_dir: ', data_dir)
+        #print('data_dir: ', data_dir)
 
         try:
             delay_sec = int(ctx['metadata']['delay_sec'])
@@ -76,31 +77,21 @@ with DAG('devtest_step2',
             print("Could not parse delay_sec "
                   "{} ; defaulting to 30 sec".format(ctx['metadata']['delay_sec']))
             delay_sec = 30
-        for fname in ctx['metadata']['files_to_copy']:
-            print(fname)
 
-        command = [
-            'sleep',
-            '{}'.format(delay_sec),
-            ';',
-            'cd',
-            data_dir,
-            ';',
-            'mkdir',
-            '-p',
-            '{}'.format(tmp_subdir),
-            ';'
-            ]
+        sub_cmds = []
+        sub_cmds.append([f'tmp_dir="{tmpdir}"'])
+        sub_cmds.append(['sleep', f'{delay_sec}'])
+        sub_cmds.append(['cd', data_dir])
+        sub_cmds.append(['mkdir', '-p', f'{tmp_subdir}'])
+
         
         if ctx['metadata']['files_to_copy']:
-            command.extend(['cp'])
-            command.extend(ctx['metadata']['files_to_copy'])
-            command.extend([tmp_subdir])
+            cmd = ['cp']
+            cmd.extend(ctx['metadata']['files_to_copy'])
+            cmd.append(tmp_subdir)
+            sub_cmds.append(cmd)
         
-        print('command list: ', command)
-        command_str = ' '.join(piece if piece == ';' else shlex.quote(piece)
-                               for piece in command)
-        command_str = 'tmp_dir="{}" ; '.format(tmpdir) + command_str
+        print('command list: ', sub_cmds)
         print('final command_str: %s' % command_str)
         return command_str
 
