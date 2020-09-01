@@ -93,6 +93,7 @@ with DAG('devtest_step2',
             sub_cmds.append(cmd)
         
         print('command list: ', sub_cmds)
+        command_str = ';'.join(join_quote_command_str(elt) for elt in sub_cmds)
         print('final command_str: %s' % command_str)
         return command_str
 
