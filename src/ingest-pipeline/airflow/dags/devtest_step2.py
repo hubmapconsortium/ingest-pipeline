@@ -79,8 +79,8 @@ with DAG('devtest_step2',
                   "{} ; defaulting to 30 sec".format(ctx['metadata']['delay_sec']))
             delay_sec = 30
 
-        sub_cmds = [['sleep', f'{delay_sec}']
-                    ['cd', data_dir]
+        sub_cmds = [['sleep', f'{delay_sec}'],
+                    ['cd', data_dir],
                     ['mkdir', '-p', f'{tmp_subdir}']]
 
         if ctx['metadata']['files_to_copy']:
