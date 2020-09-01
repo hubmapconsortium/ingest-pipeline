@@ -3,6 +3,7 @@ import json
 import shlex
 from pprint import pprint
 from datetime import datetime, timedelta
+from pathlib import Path
 
 from airflow import DAG
 from airflow.operators.bash_operator import BashOperator
