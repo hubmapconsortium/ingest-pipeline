@@ -79,13 +79,10 @@ with DAG('devtest_step2',
                   "{} ; defaulting to 30 sec".format(ctx['metadata']['delay_sec']))
             delay_sec = 30
 
-        sub_cmds = []
-        sub_cmds.append([f'tmp_dir="{tmpdir}"'])
-        sub_cmds.append(['sleep', f'{delay_sec}'])
-        sub_cmds.append(['cd', data_dir])
-        sub_cmds.append(['mkdir', '-p', f'{tmp_subdir}'])
+        sub_cmds = [['sleep', f'{delay_sec}']
+                    ['cd', data_dir]
+                    ['mkdir', '-p', f'{tmp_subdir}']]
 
-        
         if ctx['metadata']['files_to_copy']:
             cmd = ['cp']
             cmd.extend(ctx['metadata']['files_to_copy'])
@@ -93,7 +90,7 @@ with DAG('devtest_step2',
             sub_cmds.append(cmd)
         
         print('command list: ', sub_cmds)
-        command_str = ';'.join(join_quote_command_str(elt) for elt in sub_cmds)
+        command_str = ' ; '.join(join_quote_command_str(elt) for elt in sub_cmds)
         print('final command_str: %s' % command_str)
         return command_str
 
