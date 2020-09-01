@@ -105,6 +105,7 @@ with DAG('devtest_step2',
     t_pipeline_exec = BashOperator(
         task_id='pipeline_exec',
         bash_command=""" \
+        tmp_dir={{tmp_dir_path(run_id)}} ; \
         {{ti.xcom_pull(task_ids='build_cmd1')}} > $tmp_dir/session.log 2>&1 ; \
         echo $?
         """
