@@ -79,7 +79,7 @@ with DAG(
         ]
 
         if ctx['metadata']['files_to_copy']:
-            commands.append(['cp'] + ctx['metadata']['files_to_copy'] + [tmp_subdir])
+            commands.append(['cp', *ctx['metadata']['files_to_copy'], tmp_subdir])
 
         print('command list:')
         pprint(commands)
@@ -98,6 +98,7 @@ with DAG(
     t_pipeline_exec = BashOperator(
         task_id='pipeline_exec',
         bash_command=""" \
+        tmp_dir={{tmp_dir_path(run_id)}} ; \
         {{ti.xcom_pull(task_ids='build_cmd1')}} > $tmp_dir/session.log 2>&1 ; \
         echo $?
         """,

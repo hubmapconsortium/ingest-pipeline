@@ -31,17 +31,16 @@ class JoinOperator(DummyOperator):
 
 class CreateTmpDirOperator(BashOperator):
     @apply_defaults
-    def __init__(self, *args, **kwargs):
+    def __init__(self, **kwargs):
         super().__init__(
             bash_command='mkdir -p {{tmp_dir_path(run_id)}}',
-            provide_context=True,
             trigger_rule='all_success',
-            *args, **kwargs)
+            **kwargs)
 
 
 class CleanupTmpDirOperator(BashOperator):
     @apply_defaults
-    def __init__(self, *args, **kwargs):
+    def __init__(self, **kwargs):
         super().__init__(
             bash_command="""
             tmp_dir="{{tmp_dir_path(run_id)}}" ; \
@@ -49,7 +48,7 @@ class CleanupTmpDirOperator(BashOperator):
             mv "$tmp_dir/session.log" "$ds_dir"  && rm -r "$tmp_dir"
             """,
             trigger_rule='all_success',
-            *args, **kwargs
+            **kwargs
             )
 
 
@@ -68,7 +67,7 @@ class SetDatasetProcessingOperator(PythonOperator):
 
 class MoveDataOperator(BashOperator):
     @apply_defaults
-    def __init__(self, *args, **kwargs):
+    def __init__(self, **kwargs):
         super().__init__(
             bash_command="""
             tmp_dir="{{tmp_dir_path(run_id)}}" ; \
@@ -81,5 +80,4 @@ class MoveDataOperator(BashOperator):
             mv "$tmp_dir"/cwl_out/* "$ds_dir" >> "$tmp_dir/session.log" 2>&1 ; \
             echo $?
             """,
-            provide_context=True,
-            *args, **kwargs)
+            **kwargs)

@@ -65,7 +65,7 @@ with DAG(
     def build_cwltool_cmd1(**kwargs):
         ctx = kwargs['dag_run'].conf
         run_id = kwargs['run_id']
-        tmpdir = Path(utils.get_tmp_dir_path(run_id))
+        tmpdir = utils.get_tmp_dir_path(run_id)
 
         data_dirs = ctx['parent_lz_path']
         data_dirs = [data_dirs] if isinstance(data_dirs, str) else data_dirs

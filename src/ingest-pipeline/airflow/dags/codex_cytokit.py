@@ -63,12 +63,6 @@ with DAG('codex_cytokit',
                                    pipeline_name)
 
 
-#     prepare_cwl1 = PythonOperator(
-#         python_callable=utils.clone_or_update_pipeline,
-#         task_id='prepare_cwl1',
-#         op_kwargs={'pipeline_name': cwl_workflow1}
-#     )
-
     prepare_cwl1 = DummyOperator(
         task_id='prepare_cwl1'
         )
@@ -76,7 +70,7 @@ with DAG('codex_cytokit',
     def build_cwltool_cmd1(**kwargs):
         ctx = kwargs['dag_run'].conf
         run_id = kwargs['run_id']
-        tmpdir = Path(utils.get_tmp_dir_path(run_id))
+        tmpdir = utils.get_tmp_dir_path(run_id)
         print('tmpdir: ', tmpdir)
         data_dir = ctx['parent_lz_path']
         print('data_dir: ', data_dir)
@@ -122,12 +116,6 @@ with DAG('codex_cytokit',
         )
 
 
-#     prepare_cwl2 = PythonOperator(
-#         python_callable=utils.clone_or_update_pipeline,
-#         task_id='prepare_cwl2',
-#         op_kwargs={'pipeline_name': cwl_workflow2}
-#     )
-
     prepare_cwl2 = DummyOperator(
         task_id='prepare_cwl2'
         )
@@ -135,11 +123,11 @@ with DAG('codex_cytokit',
     def build_cwltool_cmd2(**kwargs):
         ctx = kwargs['dag_run'].conf
         run_id = kwargs['run_id']
-        tmpdir = Path(utils.get_tmp_dir_path(run_id))
+        tmpdir = utils.get_tmp_dir_path(run_id)
         print('tmpdir: ', tmpdir)
         parent_data_dir = ctx['parent_lz_path']
         print('parent_data_dir: ', parent_data_dir)
-        data_dir = tmpdir / 'cwl_out'  # This stage reads input from stage 1
+        data_dir = tmpdir / 'cwl_out'
         print('data_dir: ', data_dir)
 
         command = [
@@ -180,12 +168,6 @@ with DAG('codex_cytokit',
         )
 
 
-#     prepare_cwl3 = PythonOperator(
-#         python_callable=utils.clone_or_update_pipeline,
-#         task_id='prepare_cwl3',
-#         op_kwargs={'pipeline_name': cwl_workflow3}
-#     )
-
     prepare_cwl3 = DummyOperator(
         task_id='prepare_cwl3'
         )
@@ -193,7 +175,7 @@ with DAG('codex_cytokit',
     def build_cwltool_cmd3(**kwargs):
         ctx = kwargs['dag_run'].conf
         run_id = kwargs['run_id']
-        tmpdir = Path(utils.get_tmp_dir_path(run_id))
+        tmpdir = utils.get_tmp_dir_path(run_id)
         print('tmpdir: ', tmpdir)
         parent_data_dir = ctx['parent_lz_path']
         print('parent_data_dir: ', parent_data_dir)
