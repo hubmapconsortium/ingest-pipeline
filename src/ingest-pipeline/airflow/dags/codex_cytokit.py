@@ -132,7 +132,7 @@ with DAG('codex_cytokit',
         print('tmpdir: ', tmpdir)
         parent_data_dir = ctx['parent_lz_path']
         print('parent_data_dir: ', parent_data_dir)
-        data_dir = os.path.join(tmpdir, 'cwl_out')  # This stage reads input from stage 1
+        data_dir = tmpdir / 'cwl_out'
         print('data_dir: ', data_dir)
 
         command = [
