@@ -696,7 +696,7 @@ def pythonop_md_consistency_tests(**kwargs) -> int:
     else:
         return 0
 
-def _get_scratch_base_path() -> str:
+def _get_scratch_base_path() -> Path:
     dct = airflow_conf.as_dict(display_sensitive=True)['connections']
     if 'WORKFLOW_SCRATCH' in dct:
         scratch_path = dct['WORKFLOW_SCRATCH']
@@ -707,14 +707,14 @@ def _get_scratch_base_path() -> str:
     else:
         raise KeyError('WORKFLOW_SCRATCH')  # preserve original code behavior
     scratch_path = scratch_path.strip("'").strip('"')  # remove quotes that may be on the string
-    return scratch_path
+    return Path(scratch_path)
 
 
-def get_tmp_dir_path(run_id: str) -> str:
+def get_tmp_dir_path(run_id: str) -> Path:
     """
     Given the run_id, return the path to the dag run's scratch directory
     """
-    return join(_get_scratch_base_path(), run_id)
+    return _get_scratch_base_path() / run_id
 
 
 @lru_cache(maxsize=1)
