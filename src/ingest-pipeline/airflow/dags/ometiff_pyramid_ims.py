@@ -111,7 +111,8 @@ with DAG('ometiff_pyramid_ims',
 
     t_build_cmd1 = PythonOperator(
         task_id='build_cmd1',
-        python_callable=build_cwltool_cmd1
+        python_callable=build_cwltool_cmd1,
+        provide_context=True,
         )
 
     t_pipeline_exec_cwl1 = BashOperator(
@@ -157,7 +158,8 @@ with DAG('ometiff_pyramid_ims',
 
     t_build_cmd2 = PythonOperator(
         task_id='build_cmd2',
-        python_callable=build_cwltool_cmd2
+        python_callable=build_cwltool_cmd2,
+        provide_context=True,
         )
 
     t_pipeline_exec_cwl2 = BashOperator(

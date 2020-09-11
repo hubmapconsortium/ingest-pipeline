@@ -79,7 +79,7 @@ with DAG(
         ]
 
         if ctx['metadata']['files_to_copy']:
-            commands.append(['cp', ctx['metadata']['files_to_copy'], tmp_subdir])
+            commands.append(['cp'] + ctx['metadata']['files_to_copy'] + [tmp_subdir])
 
         print('command list:')
         pprint(commands)
@@ -92,6 +92,7 @@ with DAG(
     t_build_cmd1 = PythonOperator(
         task_id='build_cmd1',
         python_callable=build_cwltool_cmd1,
+        provide_context=True,
     )
 
     t_pipeline_exec = BashOperator(

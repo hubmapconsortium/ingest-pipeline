@@ -94,7 +94,8 @@ with DAG('codex_cytokit',
 
     t_build_cmd1 = PythonOperator(
         task_id='build_cmd1',
-        python_callable=build_cwltool_cmd1
+        python_callable=build_cwltool_cmd1,
+        provide_context=True,
         )
 
 
@@ -153,7 +154,8 @@ with DAG('codex_cytokit',
 
     t_build_cmd2 = PythonOperator(
         task_id='build_cmd2',
-        python_callable=build_cwltool_cmd2
+        python_callable=build_cwltool_cmd2,
+        provide_context=True,
         )
 
 
@@ -210,7 +212,8 @@ with DAG('codex_cytokit',
 
     t_build_cmd3 = PythonOperator(
         task_id='build_cmd3',
-        python_callable=build_cwltool_cmd3
+        python_callable=build_cwltool_cmd3,
+        provide_context=True,
         )
 
 

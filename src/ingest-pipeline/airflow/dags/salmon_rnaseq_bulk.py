@@ -87,6 +87,7 @@ with DAG(
     t_build_cmd1 = PythonOperator(
         task_id='build_cmd1',
         python_callable=build_cwltool_cmd1,
+        provide_context=True,
     )
 
     t_pipeline_exec = BashOperator(
