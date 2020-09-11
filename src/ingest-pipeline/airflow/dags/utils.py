@@ -7,16 +7,16 @@ from pathlib import Path
 from pprint import pprint
 import re
 import shlex
+import uuid
 from subprocess import check_output, CalledProcessError
 from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Pattern, Tuple, TypeVar, Union
 from requests.exceptions import HTTPError
 from requests import codes
-import uuid
 
+import yaml
 from airflow.configuration import conf as airflow_conf
 from airflow.hooks.http_hook import HttpHook
 from cryptography.fernet import Fernet
-import yaml
 
 from hubmap_commons.schema_tools import assert_json_matches_schema, set_schema_base_path
 
@@ -39,7 +39,7 @@ PIPELINE_BASE_DIR = Path(__file__).resolve().parent / 'cwl'
 
 RE_ID_WITH_SLICES = re.compile(r'([a-zA-Z0-9\-]*)-(\d*)_(\d*)')
 
-RE_GIT_URL_PATTERN = re.compile('(^git@github.com:)(.*)(\.git)')
+RE_GIT_URL_PATTERN = re.compile(r'(^git@github.com:)(.*)(\.git)')
 
 # default maximum for number of files for which info should be returned in_line
 # rather than via an alternative scratch file
@@ -230,8 +230,8 @@ def get_git_commits(file_list: StrOrListStr) -> StrOrListStr:
             # Git will fail if this is not running from a git repo
             line = 'DeadBeef git call failed: {}'.format(e.output)
             line = line.encode('utf-8')
-        hash = line.split()[0].strip().decode('utf-8')
-        rslt.append(hash)
+        hashval = line.split()[0].strip().decode('utf-8')
+        rslt.append(hashval)
     if unroll:
         return rslt[0]
     else:
@@ -248,7 +248,7 @@ def _convert_git_to_proper_url(raw_url: str) -> str:
         return f'https://github.com/{m[2]}'
     else:
         return raw_url
-    
+
 
 def get_git_origins(file_list: StrOrListStr) -> StrOrListStr:
     """
@@ -402,7 +402,7 @@ def get_file_metadata(root_dir: str, matcher: FileMatcher) -> List[Mapping[str, 
                         'size': getsize(full_path),
                         'description': description,
                         'edam_term': ontology_term,
-                         #'sha1sum': cs,
+                        #'sha1sum': cs,
                     }
                 )
     return rslt
@@ -445,7 +445,7 @@ def pythonop_trigger_target(**kwargs) -> None:
     pprint(ctx)
     print('kwargs:')
     pprint(kwargs)
- 
+
 
 def pythonop_maybe_keep(**kwargs) -> str:
     """
@@ -476,8 +476,8 @@ def pythonop_send_create_dataset(**kwargs) -> str:
     'parent_dataset_uuid_callable' : called with **kwargs; returns uuid
                                      of the parent of the new dataset
     'dataset_name_callable' : called with **kwargs; returns the
-                              display name of the new dataset        
-    either                             
+                              display name of the new dataset
+    either
       'dataset_types' : the types list of the new dataset
     or
       'dataset_types_callable' : called with **kwargs; returns the
@@ -495,19 +495,19 @@ def pythonop_send_create_dataset(**kwargs) -> str:
         assert any([arg in kwargs for arg in arg_options])
     http_conn_id = kwargs['http_conn_id']
     endpoint = kwargs['endpoint']
-    
+
     ctx = kwargs['dag_run'].conf
-    method='POST'
+    method = 'POST'
     crypt_auth_tok = (kwargs['crypt_auth_tok'] if 'crypt_auth_tok' in kwargs
                       else kwargs['dag_run'].conf['crypt_auth_tok'])
     auth_tok = ''.join(e for e in decrypt_tok(crypt_auth_tok.encode())
                        if e.isalnum())  # strip out non-alnum characters
-    headers={
+    headers = {
         'authorization' : 'Bearer ' + auth_tok,
         'content-type' : 'application/json'}
     #print('headers:')
     #pprint(headers)  # Reduce exposure of auth_tok
-    extra_options=[]
+    extra_options = []
     http = HttpHook(method,
                     http_conn_id=http_conn_id)
     if 'dataset_types' in kwargs:
@@ -555,16 +555,16 @@ def pythonop_set_dataset_state(**kwargs) -> None:
     endpoint = kwargs['endpoint']
     ds_state = kwargs['ds_state'] if 'ds_state' in kwargs else 'Processing'
     message = kwargs['message'] if 'message' in kwargs else 'update state'
-    method='PUT'
+    method = 'PUT'
     crypt_auth_tok = (kwargs['crypt_auth_tok'] if 'crypt_auth_tok' in kwargs
                       else kwargs['dag_run'].conf['crypt_auth_tok'])
-    headers={
+    headers = {
         'authorization' : 'Bearer ' + decrypt_tok(crypt_auth_tok.encode()),
         'content-type' : 'application/json'}
 #     print('headers:')
 #     pprint(headers)  # reduce visibility of auth_tok
-    extra_options=[]
-     
+    extra_options = []
+
     http = HttpHook(method,
                     http_conn_id=http_conn_id)
 
@@ -597,12 +597,12 @@ def pythonop_get_dataset_state(**kwargs) -> JSONType:
     dataset_uuid = kwargs['dataset_uuid_callable'](**kwargs)
     http_conn_id = kwargs['http_conn_id']
     endpoint = f'datasets/{dataset_uuid}'
-    method='GET'
+    method = 'GET'
     crypt_auth_tok = (kwargs['crypt_auth_tok'] if 'crypt_auth_tok' in kwargs
                       else kwargs['dag_run'].conf['crypt_auth_tok'])
     auth_tok = ''.join(e for e in decrypt_tok(crypt_auth_tok.encode())
                        if e.isalnum())  # strip out non-alnum characters
-    headers={
+    headers = {
         'authorization' : f'Bearer {auth_tok}',
         'content-type' : 'application/json'}
 
@@ -627,14 +627,14 @@ def pythonop_get_dataset_state(**kwargs) -> JSONType:
 def _uuid_lookup(uuid, **kwargs):
     http_conn_id = 'uuid_api_connection'
     endpoint = 'hmuuid/{}'.format(uuid)
-    method='GET'
+    method = 'GET'
     crypt_auth_tok = (kwargs['crypt_auth_tok'] if 'crypt_auth_tok' in kwargs
                       else kwargs['dag_run'].conf['crypt_auth_tok'])
-    headers={'authorization' : 'Bearer ' + decrypt_tok(crypt_auth_tok.encode())}
+    headers = {'authorization' : 'Bearer ' + decrypt_tok(crypt_auth_tok.encode())}
 #     print('headers:')
 #     pprint(headers)
-    extra_options=[]
-     
+    extra_options = []
+
     http = HttpHook(method,
                     http_conn_id=http_conn_id)
 
@@ -654,7 +654,7 @@ def _generate_slices(id: str) -> Iterable[str]:
         lidx = int(lidx)
         hidx = int(hidx)
         for idx in range(lidx, hidx+1):
-            yield(f'{base}-{idx}')
+            yield f'{base}-{idx}'
     else:
         yield id
 
@@ -750,6 +750,110 @@ def get_cwltool_base_cmd(tmpdir: Path) -> List[str]:
         '--tmp-outdir-prefix={}/'.format(tmpdir / 'cwl-out-tmp'),
     ]
 
+def make_send_status_msg_function(
+        dag_file: str,
+        retcode_ops: List[str],
+        cwl_workflows: List[Path],
+        http_conn_id: str = 'ingest_api_connection',
+        uuid_src_task_id: str = 'send_create_dataset',
+):
+    """
+    `dag_file` should always be `__file__` wherever this function is used,
+    to include the DAG file in the provenance. This could be "automated" with
+    something like `sys._getframe(1).f_code.co_filename`, but that doesn't
+    seem worth it at the moment
+
+    'http_conn_id' is the Airflow connection id associated with the /datasets/status service.
+    'uuid_src_task_id' is the Airflow task_id of a task providing the uuid via the XCOM
+                       key 'derived_dataset_uuid' and the dataset data directory via
+                       the None key
+    """
+    def send_status_msg(**kwargs):
+        retcodes = [
+            int(kwargs['ti'].xcom_pull(task_ids=op))
+            for op in retcode_ops
+        ]
+        print('retcodes: ', {k: v for k, v in zip(retcode_ops, retcodes)})
+        success = all(rc == 0 for rc in retcodes)
+        derived_dataset_uuid = kwargs['ti'].xcom_pull(
+            key='derived_dataset_uuid',
+            task_ids=uuid_src_task_id,
+        )
+        ds_dir = kwargs['ti'].xcom_pull(task_ids=uuid_src_task_id)
+        endpoint = '/datasets/status'
+        method = 'PUT'
+        crypt_auth_tok = kwargs['dag_run'].conf['crypt_auth_tok']
+        headers = {
+            'authorization': 'Bearer ' + decrypt_tok(crypt_auth_tok.encode()),
+            'content-type': 'application/json',
+        }
+        extra_options = []
+
+        http = HttpHook(method, http_conn_id=http_conn_id)
+
+        if success:
+            md = {}
+            files_for_provenance = [dag_file, *cwl_workflows]
+
+            if 'dag_provenance' in kwargs['dag_run'].conf:
+                md['dag_provenance'] = kwargs['dag_run'].conf['dag_provenance'].copy()
+                new_prv_dct = get_git_provenance_dict(files_for_provenance)
+                md['dag_provenance'].update(new_prv_dct)
+            else:
+                dag_prv = (kwargs['dag_run'].conf['dag_provenance_list']
+                           if 'dag_provenance_list' in kwargs['dag_run'].conf
+                           else [])
+                dag_prv.extend(get_git_provenance_list(files_for_provenance))
+                md['dag_provenance_list'] = dag_prv
+
+            manifest_files = find_pipeline_manifests(cwl_workflows)
+            md.update(
+                get_file_metadata_dict(
+                    ds_dir,
+                    get_tmp_dir_path(kwargs['run_id']),
+                    manifest_files,
+                ),
+            )
+            try:
+                assert_json_matches_schema(md, 'dataset_metadata_schema.yml')
+                data = {
+                    'dataset_id': derived_dataset_uuid,
+                    'status': 'QA',
+                    'message': 'the process ran',
+                    'metadata': md,
+                }
+            except AssertionError as e:
+                print('invalid metadata follows:')
+                pprint(md)
+                data = {
+                    'dataset_id': derived_dataset_uuid,
+                    'status': 'Error',
+                    'message': 'internal error; schema violation: {}'.format(e),
+                    'metadata': {},
+                }
+        else:
+            log_fname = Path(get_tmp_dir_path(kwargs['run_id']), 'session.log')
+            with open(log_fname, 'r') as f:
+                err_txt = '\n'.join(f.readlines())
+            data = {
+                'dataset_id': derived_dataset_uuid,
+                'status': 'Invalid',
+                'message': err_txt,
+            }
+        print('data: ')
+        pprint(data)
+
+        response = http.run(
+            endpoint,
+            json.dumps(data),
+            headers,
+            extra_options,
+        )
+        print('response: ')
+        pprint(response.json())
+
+    return send_status_msg
+
 
 def map_queue_name(raw_queue_name: str) -> str:
     """
@@ -769,25 +873,25 @@ def create_dataset_state_error_callback(dataset_uuid_callable: Callable[[Any], s
                                                                                                  None]:
     def set_dataset_state_error(contextDict: Mapping, **kwargs) -> None:
         """
-        This routine is meant to be 
+        This routine is meant to be
         """
         msg = 'An internal error occurred in the {} workflow step {}'.format(contextDict['dag'].dag_id,
                                                                              contextDict['task'].task_id)
         new_kwargs = kwargs.copy()
         new_kwargs.update(contextDict)
         new_kwargs.update({'dataset_uuid_callable' : dataset_uuid_callable,
-                         'http_conn_id' : 'ingest_api_connection',
-                         'endpoint' : '/datasets/status',
-                         'ds_state' : 'Error',
-                         'message' : msg
-                         })
+                           'http_conn_id' : 'ingest_api_connection',
+                           'endpoint' : '/datasets/status',
+                           'ds_state' : 'Error',
+                           'message' : msg
+                           })
         pythonop_set_dataset_state(**new_kwargs)
     return set_dataset_state_error
 
 
 set_schema_base_path(SCHEMA_BASE_PATH, SCHEMA_BASE_URI)
 
-def localized_assert_json_matches_schema(jsn: JSONType, schemafile:str) -> None:
+def localized_assert_json_matches_schema(jsn: JSONType, schemafile: str) -> None:
     """
     This version of assert_json_matches_schema knows where to find schemata used by this module
     """
@@ -869,22 +973,21 @@ def main():
         print('ASSERT passed')
     except AssertionError as e:
         print('ASSERT failed')
-    
+
     assay_pairs = [('devtest', 'devtest'), ('codex', 'CODEX'),
                    ('codex', 'SOMEOTHER'), ('someother', 'CODEX')]
     for collectiontype, assay_type in assay_pairs:
         print('collectiontype {}, assay_type {}:'.format(collectiontype, assay_type))
         for elt in downstream_workflow_iter(collectiontype, assay_type):
             print('  -> {}'.format(elt))
-    
+
     print(f'cwltool bin path: {get_cwltool_bin_path()}')
 
     s = 'hello world'
     crypt_s = encrypt_tok(s)
     s2 = decrypt_tok(crypt_s)
     print('crypto test: {} -> {} -> {}'.format(s, crypt_s, s2))
- 
- 
+
+
 if __name__ == "__main__":
     main()
-
