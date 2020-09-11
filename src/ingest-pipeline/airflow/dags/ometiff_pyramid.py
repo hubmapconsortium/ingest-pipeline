@@ -86,7 +86,7 @@ with DAG('ometiff_pyramid',
         run_id = kwargs['run_id']
 
         #tmpdir is temp directory in /hubmap-tmp
-        tmpdir = Path(utils.get_tmp_dir_path(run_id))
+        tmpdir = utils.get_tmp_dir_path(run_id)
         print('tmpdir: ', tmpdir)
 
         #data directory is input directory in /hubmap-data
@@ -130,7 +130,7 @@ with DAG('ometiff_pyramid',
         run_id = kwargs['run_id']
 
         #tmpdir is temp directory in /hubmap-tmp
-        tmpdir = Path(utils.get_tmp_dir_path(run_id))
+        tmpdir = utils.get_tmp_dir_path(run_id)
         print('tmpdir: ', tmpdir)
 
         #get data directory
