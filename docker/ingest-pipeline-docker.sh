@@ -4,6 +4,17 @@
 echo
 echo "==================== INGEST-PIPELINE ===================="
 
+# The `absent_or_newer` checks if the copied src at docker/some-api/src directory exists 
+# and if the source src directory is newer. 
+# If both conditions are true `absent_or_newer` writes an error message 
+# and causes script to exit with an error code.
+function absent_or_newer() {
+    if  [ \( -e $1 \) -a \( $2 -nt $1 \) ]; then
+        echo "$1 is out of date"
+        exit -1
+    fi
+}
+
 # This function sets DIR to the directory in which this script itself is found.
 # Thank you https://stackoverflow.com/questions/59895/how-to-get-the-source-directory-of-a-bash-script-from-within-the-script-itself                                                                      
 function get_dir_of_this_script () {
