@@ -34,3 +34,6 @@
 [submodule "src/ingest-pipeline/airflow/dags/cwl/ome-tiff-pyramid-ims"]
 	path = src/ingest-pipeline/airflow/dags/cwl/ome-tiff-pyramid-ims
 	url = https://github.com/hubmapconsortium/ome-tiff-pyramid
+[submodule "src/ingest-pipeline/airflow/dags/cwl/ims-mxif-pipeline"]
+	path = src/ingest-pipeline/airflow/dags/cwl/ims-mxif-pipeline
+	url = https://github.com/hubmapconsortium/ims-mxif-pipeline
