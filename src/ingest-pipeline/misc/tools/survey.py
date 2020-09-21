@@ -165,7 +165,7 @@ class Dataset(Entity):
         QA_child.uuid
         QA_child.display_doi
         QA_child.data_types[0]  (verifying there is only 1 entry)
-        QA_child.status   (which must be QA)
+        QA_child.status   (which must be QA or Published)
         note 
         """
         rec = {'uuid': self.uuid, 'display_doi': self.display_doi, 'status': self.status}
@@ -186,7 +186,7 @@ class Dataset(Entity):
             rec['sample_display_doi'] = samp.display_doi
         else:
             rec['sample_display_doi'] = 'multiple'
-        qa_kids = [self.kids[uuid] for uuid in self.kids if self.kids[uuid].status == 'QA']
+        qa_kids = [self.kids[uuid] for uuid in self.kids if self.kids[uuid].status in ['QA', 'Published']]
         if any(qa_kids):
             if len(qa_kids) > 1:
                 rec['note'] = 'Multiple QA derived datasets'
@@ -194,7 +194,7 @@ class Dataset(Entity):
             rec['qa_child_uuid'] = this_kid.uuid
             rec['qa_child_display_doi'] = this_kid.display_doi
             rec['qa_child_data_type'] = this_kid.data_types[0]
-            rec['qa_child_status'] = 'QA'
+            rec['qa_child_status'] = this_kid.status
         else:
             rec['qa_child_uuid'] = None
             rec['qa_child_display_doi'] = None
