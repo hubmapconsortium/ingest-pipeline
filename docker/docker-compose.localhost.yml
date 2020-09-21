@@ -10,7 +10,7 @@ services:
       # Logic for finding schemata from dags requires a specific route to schemata
       - "../src/ingest-pipeline/schemata:/usr/local/schemata"
       # Map the actual root of the staging area to container
-      - "/hubmap-data:/usr/local/airflow/lz"
+      - "/hubmap-data:/hubmap-data"
       # Map the actual root of the scratch area to container
       - "/hubmap-scratch:/hubmap-scratch"
     environment:
