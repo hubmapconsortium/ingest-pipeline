@@ -1,5 +1,5 @@
-from pathlib import Path
 from datetime import datetime, timedelta
+from pathlib import Path
 
 from airflow import DAG
 from airflow.operators.bash_operator import BashOperator
@@ -78,14 +78,15 @@ with DAG(
         ims_pos_path = ...
         ims_neg_path = ...
 
-        # other required pipeline params
-        # TODO: get info from Vasyl for these, and/or make them
-        #   optional or read from data
-        experiment_name = ...
-        nuclei_channel = ...
-        block_size = ...
-        overlap = ...
-        ngpus = ...
+        # Cytokit needs an "experiment name" -- this is arbitrary, so we may
+        # as well use the hexadecimal directory name of the MxIF data set.
+        # It might be worth using a "HBM..." ID instead, if that's available
+        # in the Airflow environment when this DAG runs
+        experiment_name = Path(mxif_data_path).name
+        # comma-separated integers; this is suitable for the gpu000
+        # node in the HIVE cluster, but could/should be set dynamically
+        # based on the capabilities of the compute node or queue
+        gpus = "0,1"
 
         command = [
             *get_cwltool_base_cmd(tmpdir),
@@ -98,14 +99,8 @@ with DAG(
             ims_neg_path,
             "--experiment_name",
             experiment_name,
-            "--nuclei_channel",
-            nuclei_channel,
-            "--block_size",
-            block_size,
-            "--overlap",
-            overlap,
-            "--ngpus",
-            ngpus,
+            "--gpus",
+            gpus,
         ]
 
         return join_quote_command_str(command)
