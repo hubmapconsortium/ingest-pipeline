@@ -19,7 +19,7 @@ services:
   ingest-pipeline:
     build: ./ingest-pipeline
     # Build the image with name and tag
-    image: ingest-pipeline:0.1
+    image: ingest-pipeline:0.2
     restart: always
     depends_on:
       - postgres
@@ -27,11 +27,11 @@ services:
     container_name: ingest-pipeline
     volumes:
       # Mount dags, plugins, and data
-      - "../src/ingest-pipeline/airflow/dags:/usr/local/airflow/dags:rw"
-      - "../src/ingest-pipeline/airflow/lib:/usr/local/airflow/lib:rw"
-      - "../src/ingest-pipeline/airflow/plugins:/usr/local/airflow/plugins:rw"
-      - "../src/ingest-pipeline/airflow/data:/usr/local/airflow/data:rw"
-      - "../src/ingest-pipeline/instance:/usr/local/airflow/instance"
+      - "../src/ingest-pipeline/airflow/dags:/opt/airflow/dags:rw"
+      - "../src/ingest-pipeline/airflow/lib:/opt/airflow/lib:rw"
+      - "../src/ingest-pipeline/airflow/plugins:/opt/airflow/plugins:rw"
+      - "../src/ingest-pipeline/airflow/data:/opt/airflow/data:rw"
+      - "../src/ingest-pipeline/instance:/opt/airflow/instance"
       # Mount requirements.txt
       - "../src/ingest-pipeline/requirements.txt:/requirements.txt"
     environment:
@@ -40,6 +40,8 @@ services:
       - FLASK_ENV=development
       - FLASK_DEBUG=1
       - AIRFLOW__HUBMAP_API_PLUGIN__BUILD_NUMBER=${INGEST_PIPELINE_BUILD_NUM:-0}
+      - AIRFLOW__CORE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
       - COMMONS_BRANCH=${COMMONS_BRANCH:-master}
     logging:
       options:
@@ -49,7 +51,7 @@ services:
       - gateway_hubmap
     ports:
       - "8789:8789"
-    command: webserver
+    command: scheduler
     healthcheck:
       test: ["CMD-SHELL", "[ -f /usr/local/airflow/airflow-webserver.pid ]"]
       interval: 30s

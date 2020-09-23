@@ -1,5 +1,5 @@
 # Parent image
-FROM puckel/docker-airflow
+FROM swapniel99/docker-airflow:latest
 
 LABEL description="HuBMAP Ingest Pipeline" \
 	version="0.1"
