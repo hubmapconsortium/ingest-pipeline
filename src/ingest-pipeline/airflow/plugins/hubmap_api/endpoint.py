@@ -242,7 +242,12 @@ def check_ingest_parms(provider, submission_id, process, full_path):
                          .format(full_path))
             raise HubmapApiInputException("Ingest directory is not a subdirectory of DOCKER_MOUNT_PATH")
         if os.path.exists(full_path) and os.path.isdir(full_path):
-            if not len(os.listdir(full_path)):
+            try:
+                num_files = len(os.listdir(full_path))
+            except PermissionError as e:
+                LOGGER.error("Permission error on ingest directory {}".format(full_path))
+                raise HubmapApiInputException(str(e))
+            if not num_files:
                 LOGGER.error("Ingest directory {} contains no files".format(full_path))
                 raise HubmapApiInputException("Ingest directory contains no files")
         else:

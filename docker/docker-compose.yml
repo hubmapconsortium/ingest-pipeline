@@ -40,9 +40,8 @@ services:
       - FLASK_ENV=development
       - FLASK_DEBUG=1
       - AIRFLOW__HUBMAP_API_PLUGIN__BUILD_NUMBER=${INGEST_PIPELINE_BUILD_NUM:-0}
-      - AIRFLOW__CORE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
-      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
       - COMMONS_BRANCH=${COMMONS_BRANCH:-master}
+      # - AIRFLOW__CORE__EXECUTOR=LocalExecutor
     logging:
       options:
         max-size: 10m
