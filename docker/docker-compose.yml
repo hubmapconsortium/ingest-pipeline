@@ -32,6 +32,7 @@ services:
       - "../src/ingest-pipeline/airflow/plugins:/opt/airflow/plugins:rw"
       - "../src/ingest-pipeline/airflow/data:/opt/airflow/data:rw"
       - "../src/ingest-pipeline/instance:/opt/airflow/instance"
+      - "../src/ingest-pipeline/schemata:/opt/schemata"
       # Mount requirements.txt
       - "../src/ingest-pipeline/requirements.txt:/requirements.txt"
     environment:
