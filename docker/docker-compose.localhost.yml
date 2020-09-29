@@ -20,7 +20,11 @@ services:
       - FLASK_RUN_PORT=8789
       - AIRFLOW__CORE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
       - AIRFLOW__CORE__EXECUTOR=SequentialExecutor
-
+      - AIRFLOW__CORE__LOAD_EXAMPLES=False
+    build:
+      args:
+        AIRFLOW_UID: ${HOST_UID:-1000}
+        AIRFLOW_GID: ${HOST_GID:-1000}
       
 
 
