@@ -10,7 +10,7 @@ services:
       # Logic for finding schemata from dags requires a specific route to schemata
       - "../src/ingest-pipeline/schemata:/usr/local/schemata"
       # Map the actual root of the staging area to container
-      - "/hubmap-data:/usr/local/airflow/lz"
+      - "/hubmap-data:/hubmap-data"
       # Map the actual root of the scratch area to container
       - "/hubmap-scratch:/hubmap-scratch"
     environment:
@@ -18,6 +18,14 @@ services:
       - AIRFLOW_CONN_UUID_API_CONNECTION=http://hubmap-auth:9999/
       - AIRFLOW__WEBSERVER__WEB_SERVER_PORT=8789
       - FLASK_RUN_PORT=8789
+      - AIRFLOW__CORE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      - AIRFLOW__CORE__LOAD_EXAMPLES=False
+    build:
+      args:
+        AIRFLOW_UID: ${HOST_UID:-1000}
+        AIRFLOW_GID: ${HOST_GID:-1000}
+      
 
 
 

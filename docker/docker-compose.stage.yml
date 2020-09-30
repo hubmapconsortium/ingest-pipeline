@@ -1,0 +1,19 @@
+version: "3.7"
+
+services:
+  
+  ingest-pipeline:
+    init: true
+    restart: always
+    volumes:
+      # Mount the source code to container
+      - "../src/ingest-pipeline:/usr/src/app/src"
+      # Map the actual root of the staging area to container
+      - "${LZ_PATH-/hive/hubmap/lz}:/usr/local/airflow/lz"
+    environment:
+      - AIRFLOW_CONN_INGEST_API_CONNECTION=http://hubmap-auth:7777/
+      - AIRFLOW__WEBSERVER__WEB_SERVER_PORT=8789
+      - FLASK_RUN_PORT=8789
+
+  
+    
