@@ -1,0 +1,23 @@
+'$schema': 'http://json-schema.org/schema#'
+'$id': 'http://schemata.hubmapconsortium.org/launch_multi_metadata_schema.yml'
+'title': 'launch_multi_analysis metadata schema'
+'description': 'launch_multi_analysis metadata schema'
+
+'allOf': [{'$ref': '#/definitions/launch_multi_metadata'}]
+
+'definitions':
+
+  'launch_multi_metadata':
+     'type': 'object'
+     'properties':
+        'collection_type':
+          'type': 'string'
+          'description': 'a data collection type, e.g. "rnaseq_10x"'
+        'uuid_list':
+          'type': 'array'
+          'items':
+            'type': 'string'
+            'description': 'a dataset uuid or DOI'
+          'minItems': 1
+     'required': ['uuid_list', 'collection_type']
+    
