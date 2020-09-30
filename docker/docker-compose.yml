@@ -20,7 +20,6 @@ services:
     build: ./ingest-pipeline
     # Build the image with name and tag
     image: ingest-pipeline:0.2
-    restart: always
     depends_on:
       - postgres
     hostname: ingest-pipeline
