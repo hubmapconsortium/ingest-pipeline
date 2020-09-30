@@ -19,19 +19,19 @@ services:
   ingest-pipeline:
     build: ./ingest-pipeline
     # Build the image with name and tag
-    image: ingest-pipeline:0.1
-    restart: always
+    image: ingest-pipeline:0.2
     depends_on:
       - postgres
     hostname: ingest-pipeline
     container_name: ingest-pipeline
     volumes:
       # Mount dags, plugins, and data
-      - "../src/ingest-pipeline/airflow/dags:/usr/local/airflow/dags:rw"
-      - "../src/ingest-pipeline/airflow/lib:/usr/local/airflow/lib:rw"
-      - "../src/ingest-pipeline/airflow/plugins:/usr/local/airflow/plugins:rw"
-      - "../src/ingest-pipeline/airflow/data:/usr/local/airflow/data:rw"
-      - "../src/ingest-pipeline/instance:/usr/local/airflow/instance"
+      - "../src/ingest-pipeline/airflow/dags:/opt/airflow/dags:rw"
+      - "../src/ingest-pipeline/airflow/lib:/opt/airflow/lib:rw"
+      - "../src/ingest-pipeline/airflow/plugins:/opt/airflow/plugins:rw"
+      - "../src/ingest-pipeline/airflow/data:/opt/airflow/data:rw"
+      - "../src/ingest-pipeline/instance:/opt/airflow/instance"
+      - "../src/ingest-pipeline/schemata:/opt/schemata"
       # Mount requirements.txt
       - "../src/ingest-pipeline/requirements.txt:/requirements.txt"
     environment:

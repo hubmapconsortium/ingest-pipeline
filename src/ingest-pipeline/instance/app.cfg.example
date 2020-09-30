@@ -11,9 +11,9 @@ timezone = US/Eastern
 
 [connections]
 
-# Globus App ID and secret
-APP_CLIENT_ID = '_some_string_'
-APP_CLIENT_SECRET = '_some_string_'
+# Globus App ID and secret, to be set at config time
+APP_CLIENT_ID = ''
+APP_CLIENT_SECRET = ''
 
 # Base path for dataset files, as seen by Airflow.  This will usually correspond to
 # GLOBUS_ENDPOINT_BASE_PATH in ingest-api .  When ingest-pipeline runs in a docker 
@@ -26,7 +26,7 @@ DOCKER_MOUNT_PATH = '/usr/local/airflow/lz/'
 SRC_PATH = '/usr/src/app/src'
 
 # Path to temporary storage for workflow as seen by airflow
-WORKFLOW_SCRATCH = '/hive/hubmap/scratch'
+WORKFLOW_SCRATCH = '/hive/hubmap-dev/scratch'
 
 # Group to which output directories are set, typically shared with Globus
 OUTPUT_GROUP_NAME = 'dataaccessgroup'
