@@ -54,7 +54,7 @@ with DAG('salmon_rnaseq_sciseq',
 
     pipeline_name = 'salmon-rnaseq-sciseq'
     cwl_workflows = get_absolute_workflows(
-        Path(pipeline_name, 'pipeline.cwl'),
+        Path('salmon-rnaseq', 'pipeline.cwl'),
         Path('portal-containers', 'h5ad-to-arrow.cwl'),
     )
 
@@ -99,6 +99,8 @@ with DAG('salmon_rnaseq_sciseq',
             tmpdir / 'cwl_out',
             '--parallel',
             cwl_workflows[0],
+            '--assay',
+            'sciseq',
             '--fastq_dir',
             data_dir,
             '--threads',
