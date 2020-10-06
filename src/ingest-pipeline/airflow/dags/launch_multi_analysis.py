@@ -56,7 +56,15 @@ with DAG('launch_multi_analysis',
     def check_uuids(**kwargs):
         print('dag_run conf follows:')
         pprint(kwargs['dag_run'].conf)
-        # uuid_l = ['HBM959.DHDL.956','3e337deec405743f52347a8d526931f0', 'foo'] # get from conf
+
+        try:
+            assert_json_matches_schema(kwargs['dag_run'].conf,
+                                       'launch_multi_metadata_schema.yml')
+        except AssertionError as e:
+            print('invalid metadata follows:')
+            pprint(kwargs['dag_run'].conf)
+            raise
+        
         uuid_l = kwargs['dag_run'].conf['uuid_list']
         collection_type = kwargs['dag_run'].conf['collection_type']
         filtered_uuid_l = []
