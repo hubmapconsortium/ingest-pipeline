@@ -54,7 +54,7 @@ with DAG('salmon_rnaseq_snareseq',
 
     pipeline_name = 'salmon-rnaseq-snareseq'
     cwl_workflows = get_absolute_workflows(
-        Path(pipeline_name, 'pipeline.cwl'),
+        Path('salmon-rnaseq', 'pipeline.cwl'),
         Path('portal-containers', 'h5ad-to-arrow.cwl'),
     )
 
@@ -89,6 +89,8 @@ with DAG('salmon_rnaseq_snareseq',
             tmpdir / 'cwl_out',
             '--parallel',
             cwl_workflows[0],
+            '--assay',
+            'snareseq',
             '--threads',
             THREADS,
         ]
