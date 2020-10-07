@@ -83,7 +83,7 @@ with DAG('launch_multi_analysis',
             assert 'dataset' in rslt, f"Status for {uuid} has no dataset entry"
             ds_rslt = rslt['dataset']
 
-            for key in ['status', 'reference_uuid', 'data_types', 'local_directory_url_path']:
+            for key in ['status', 'uuid', 'data_types', 'local_directory_url_path']:
                 assert key in ds_rslt, f"Dataset status for {uuid} has no {key}"
 
             if not ds_rslt['status'] in ['QA', 'Published']:
@@ -106,7 +106,7 @@ with DAG('launch_multi_analysis',
 
             lz_path = ds_rslt['local_directory_full_path']
             filtered_path_l.append(lz_path)
-            filtered_uuid_l.append(ds_rslt['dataset_uuid'])
+            filtered_uuid_l.append(ds_rslt['uuid'])
         print(f'Finished uuid {uuid}')
         print(f'filtered data types: {filtered_data_types}')
         print(f'filtered paths: {filtered_path_l}')
