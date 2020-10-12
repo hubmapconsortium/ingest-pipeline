@@ -80,9 +80,9 @@ def main(myargv=None):
         scan(target_dir=target_dir, out_fname=out_fname, schema_fname=schema_fname,
              yaml_flag=yaml_flag)
     except MetadataError as e:
-        sys.exit(f'{type(e)}: {e}')
+        sys.exit(f'{type(e).__name__}: {e}')
     except AssertionError as e:
-        sys.exit(f'{type(e)}: {e}')
+        sys.exit(f'{type(e).__name__}: {e}')
 
 if __name__ == '__main__':
     main()
