@@ -107,9 +107,12 @@ with DAG('scan_and_begin_processing',
             for op in retcode_ops:
                 if retcode_dct[op]:
                     if op == 'run_md_extract':
-                        log_fname = os.path.join(utils.get_tmp_dir_path(kwargs['run_id']),
-                                                 'session.log')
-                        with open(log_fname, 'r') as f:
+                        msg_fname = os.path.join(utils.get_tmp_dir_path(kwargs['run_id']),
+                                                 'error.log')
+                        if not os.path.exists(msg_fname):
+                            msg_fname = os.path.join(utils.get_tmp_dir_path(kwargs['run_id']),
+                                                     'session.log')
+                        with open(msg_fname, 'r') as f:
                             err_txt = '\n'.join(f.readlines())
                     else:
                         err_txt = kwargs['ti'].xcom_pull(task_ids=op, key='err_msg')
@@ -140,8 +143,12 @@ with DAG('scan_and_begin_processing',
         cd $work_dir ; \
         env PYTHONPATH=${PYTHONPATH}:$top_dir \
         python $src_dir/metadata_extract.py --out ./rslt.yml --yaml "$lz_dir" \
-          > ./session.log 2>&1 ; \
-        echo $?
+          > session.log 2> error.log ; \
+        echo $? ; \
+        if [ -s error.log ] ; \
+        then echo 'ERROR!' `cat error.log` >> session.log ; \
+        else rm error.log ; \
+        fi
         """
         )
 
