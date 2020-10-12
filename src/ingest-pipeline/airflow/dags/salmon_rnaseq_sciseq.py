@@ -59,9 +59,9 @@ with DAG('salmon_rnaseq_sciseq',
     )
 
     def build_dataset_name(**kwargs):
-        return '{}__{}__{}'.format(dag.dag_id,
-                                   kwargs['dag_run'].conf['parent_submission_id'],
-                                   pipeline_name)
+        id_l = kwargs['dag_run'].conf['parent_submission_id']
+        inner_str = id_l if isinstance(id_l, str) else '_'.join(id_l)
+        return f'{dag.dag_id}__{inner_str}__{pipeline_name}'
 
 #     prepare_cwl1 = PythonOperator(
 #         python_callable=utils.clone_or_update_pipeline,

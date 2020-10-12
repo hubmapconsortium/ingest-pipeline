@@ -83,7 +83,7 @@ with DAG('launch_multi_analysis',
             assert 'dataset' in rslt, f"Status for {uuid} has no dataset entry"
             ds_rslt = rslt['dataset']
 
-            for key in ['status', 'uuid', 'data_types', 'local_directory_url_path']:
+            for key in ['status', 'uuid', 'data_types', 'local_directory_full_path']:
                 assert key in ds_rslt, f"Dataset status for {uuid} has no {key}"
 
             if not ds_rslt['status'] in ['QA', 'Published']:
