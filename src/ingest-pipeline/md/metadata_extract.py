@@ -76,8 +76,13 @@ def main(myargv=None):
     out_fname = ns.out
     target_dir = (os.getcwd() if ns.dir is None else ns.dir)
     yaml_flag = ns.yaml
-    scan(target_dir=target_dir, out_fname=out_fname, schema_fname=schema_fname, yaml_flag=yaml_flag)
-    
+    try:
+        scan(target_dir=target_dir, out_fname=out_fname, schema_fname=schema_fname,
+             yaml_flag=yaml_flag)
+    except MetadataError as e:
+        sys.exit(str(e))
+    except AssertionError as e:
+        sys.exit(str(e))
 
 if __name__ == '__main__':
     main()
