@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from functools import lru_cache
 import json
 from os import environ, fspath, walk
-from os.path import basename, dirname, relpath, split, join, getsize, realpath
+from os.path import basename, dirname, relpath, split, join, getsize, realpath, exists
 from pathlib import Path
 from pprint import pprint
 import re
@@ -678,7 +678,7 @@ def pythonop_md_consistency_tests(**kwargs) -> int:
     This includes accessing the UUID api via its Airflow connection ID to verify uuids.
     """
     md_path = join(get_tmp_dir_path(kwargs['run_id']), kwargs['metadata_fname'])
-    if os.path.exists(md_path):
+    if exists(md_path):
         with open(md_path, 'r') as f:
             md = yaml.safe_load(f)
     #     print('metadata from {} follows:'.format(md_path))
