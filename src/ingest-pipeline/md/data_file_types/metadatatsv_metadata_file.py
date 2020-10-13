@@ -37,7 +37,7 @@ class MetadataTSVMetadataFile(MetadataFile):
 
         # Scan for the common error of bad keys/values due to missing delimiters
         for row in md:
-            if any(k in [None,''] for k in row) or any(v in [None, ''] for v in row.values()):
+            if any(k in [None, ''] for k in row) or any(v is None for v in row.values()):
                 raise MetadataError('{} has empty keys or values. Delimiter error?'
                                     .format(self.path))
                 
