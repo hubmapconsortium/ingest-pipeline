@@ -15,6 +15,7 @@
         'size': {'type': 'integer', 'minimum': 0}
         'description': {'type': 'string'}
         'edam_term': {'type': 'string'}
+        'is_qa_qc': { 'type': 'boolean' }
         #'sha1sum': {'type': 'string', 'pattern': '^[a-fA-F0-9]{40}$'}
   'file_info':
     'type': 'array'
