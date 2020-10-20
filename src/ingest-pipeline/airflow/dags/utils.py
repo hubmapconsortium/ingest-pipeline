@@ -161,8 +161,8 @@ class DummyFileMatcher(FileMatcher):
     Drop-in replacement for PipelineFileMatcher which allows everything and always
     provides empty descriptions and ontology terms.
     """
-    def get_file_metadata(self, file_path: Path) -> Tuple[bool, Optional[str], Optional[str]]:
-        return True, '', ''
+    def get_file_metadata(self, file_path: Path) -> ManifestMatch:
+        return True, '', '', False
 
 
 def find_pipeline_manifests(cwl_files: Iterable[Path]) -> List[Path]:
