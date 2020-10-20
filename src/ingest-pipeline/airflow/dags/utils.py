@@ -100,9 +100,12 @@ WORKFLOW_MAP_SCHEMA = 'workflow_map_schema.yml'
 COMPILED_WORKFLOW_MAP: Optional[List[Tuple[Pattern, Pattern, str]]] = None
 
 
+ManifestMatch = Tuple[bool, Optional[str], Optional[str], Optional[bool]]
+
+
 class FileMatcher(ABC):
     @abstractmethod
-    def get_file_metadata(self, file_path: Path) -> Tuple[bool, Optional[str], Optional[str]]:
+    def get_file_metadata(self, file_path: Path) -> ManifestMatch:
         """
         :return: A 3-tuple:
          [0] bool, whether to add `file_path` to a downstream index
@@ -113,20 +116,21 @@ class FileMatcher(ABC):
 
 class PipelineFileMatcher(FileMatcher):
     # (file/directory regex, description template, EDAM ontology term)
-    matchers: List[Tuple[Pattern, str, str]]
+    matchers: List[Tuple[Pattern, str, str, bool]]
 
     def __init__(self):
         self.matchers = []
 
     @classmethod
-    def read_manifest(cls, pipeline_file_manifest: Path) -> Iterable[Tuple[Pattern, str, str]]:
+    def read_manifest(cls, pipeline_file_manifest: Path) -> Iterable[Tuple[Pattern, str, str, bool]]:
         with open(pipeline_file_manifest) as f:
             manifest = json.load(f)
             localized_assert_json_matches_schema(manifest, 'pipeline_file_manifest.yml')
 
         for annotation in manifest:
             pattern = re.compile(annotation['pattern'])
-            yield pattern, annotation['description'], annotation['edam_ontology_term']
+            is_qa_qc = annotation.get('is_qa_qc', False)
+            yield pattern, annotation['description'], annotation['edam_ontology_term'], is_qa_qc
 
     @classmethod
     def create_from_files(cls, pipeline_file_manifests: Iterable[Path]):
@@ -135,7 +139,7 @@ class PipelineFileMatcher(FileMatcher):
             obj.matchers.extend(cls.read_manifest(manifest))
         return obj
 
-    def get_file_metadata(self, file_path: Path) -> Tuple[bool, Optional[str], Optional[str]]:
+    def get_file_metadata(self, file_path: Path) -> ManifestMatch:
         """
         Checks `file_path` against the list of patterns stored in this object.
         At the first match, return the associated description and ontology term.
@@ -143,13 +147,13 @@ class PipelineFileMatcher(FileMatcher):
         the "first-match" behavior is deliberate.
         """
         path_str = fspath(file_path)
-        for pattern, description_template, ontology_term in self.matchers:
+        for pattern, description_template, ontology_term, is_qa_qc in self.matchers:
             # TODO: walrus operator
             m = pattern.search(path_str)
             if m:
                 formatted_description = description_template.format_map(m.groupdict())
-                return True, formatted_description, ontology_term
-        return False, None, None
+                return True, formatted_description, ontology_term, is_qa_qc
+        return False, None, None, None
 
 
 class DummyFileMatcher(FileMatcher):
@@ -376,6 +380,7 @@ def get_file_metadata(root_dir: str, matcher: FileMatcher) -> List[Mapping[str, 
           'size': <file size>,
           'description': <human-readable file description>,
           'edam_term': <EDAM ontology term>,
+          'is_qa_qc': <Boolean of whether this is a QA/QC file>,
         },
         ...
       ]
@@ -389,7 +394,7 @@ def get_file_metadata(root_dir: str, matcher: FileMatcher) -> List[Mapping[str, 
         for fn in fnames:
             full_path = dp / fn
             relative_path = full_path.relative_to(root_path)
-            add_to_index, description, ontology_term = matcher.get_file_metadata(relative_path)
+            add_to_index, description, ontology_term, is_qa_qc = matcher.get_file_metadata(relative_path)
             if add_to_index:
                 # sha1sum disabled because of run time issues on large data collections
                 #line = check_output([word.format(fname=full_path)
@@ -402,6 +407,7 @@ def get_file_metadata(root_dir: str, matcher: FileMatcher) -> List[Mapping[str, 
                         'size': getsize(full_path),
                         'description': description,
                         'edam_term': ontology_term,
+                        'is_qa_qc': is_qa_qc,
                         #'sha1sum': cs,
                     }
                 )
