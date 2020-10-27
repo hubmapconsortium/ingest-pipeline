@@ -2,7 +2,7 @@
 
 import xmltodict
 from metadata_file import MetadataFile
-from thirdparty import tifffile
+import tifffile
 
 class ScnTiffMetadataFile(MetadataFile):
     """A metadata file type for Scn-Tiff files"""
