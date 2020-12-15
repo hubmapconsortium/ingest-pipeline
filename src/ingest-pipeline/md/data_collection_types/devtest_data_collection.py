@@ -19,7 +19,7 @@ class DEVTESTDataCollection(DataCollection):
     expected_files = [('test.yml', "YAML"),
                       ]
     
-    optional_files = []
+    optional_files = [('*.ome.tiff', 'OME_TIFF')]
     
     @classmethod
     def test_match(cls, path):
