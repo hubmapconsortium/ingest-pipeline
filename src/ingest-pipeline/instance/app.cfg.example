@@ -11,6 +11,10 @@ timezone = US/Eastern
 
 [connections]
 
+# AWS IAM keys
+AWS_ACCESS_KEY_ID = ''
+AWS_ACCESS_SECRET = ''
+
 # Globus App ID and secret, to be set at config time
 APP_CLIENT_ID = ''
 APP_CLIENT_SECRET = ''
