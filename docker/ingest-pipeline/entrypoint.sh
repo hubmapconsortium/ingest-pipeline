@@ -9,13 +9,15 @@ export PATH=/home/airflow/.local/bin:$PATH
 
 # Install custom python package if requirements.txt is present
 pip install --upgrade pip
-pip install --user 'apache-airflow[celery,crypto,postgres,redis,ssh]'
+pip install --user flask-admin
+pip install --user 'apache-airflow[celery,crypto,postgres,redis,ssh]<2.0.0'
 if [[ -e "/requirements.txt" ]]; then
     $(command -v pip) install --user -r /requirements.txt
 fi
 
 # Global defaults and back-compat
 export AIRFLOW__CORE__FERNET_KEY=`python -c 'from cryptography.fernet import Fernet; FERNET_KEY = Fernet.generate_key().decode(); print(FERNET_KEY)'`
+export AIRFLOW__WEBSERVER__SECRET_KEY=`openssl rand -hex 30`
 
 # Load DAGs examples (default: Yes)
 if [[ -z "$AIRFLOW__CORE__LOAD_EXAMPLES" && "${LOAD_EX:=n}" == n ]]; then
