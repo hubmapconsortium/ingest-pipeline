@@ -78,53 +78,23 @@ class GlobusAuthBackend(object):
 
         self.login_manager.user_loader(self.load_user)
 
-        self.flask_app.add_url_rule(get_config_param('oauth_callback_route'),
-                                    'globus_oauth_callback',
-                                    self.oauth_callback)
+        self.flask_app.add_url_rule('/login',
+                                    'login',
+                                    self.login)
 
-    def login(self, request):
+    @provide_session
+    def login(self, request=None, session=None):
         log.debug('Redirecting user to Globus login')
-        return self.globus_oauth.oauth2_start_flow(url_for(
-            'globus_oauth_callback',
-            _external=True))
 
-    def get_globus_user_profile_info(self, globus_token):
-        resp = self.globus_oauth.oauth2_userinfo()
+        redirect_url = url_for('login', _external=True)
 
-        if not resp or resp.status != 200:
-            raise AuthenticationError(
-                'Failed to fetch user profile, status ({0})'.format(
-                    resp.status if resp else 'None'))
-
-        return resp['name'], resp['email']
-
-    @provide_session
-    def load_user(self, userid, session=None):
-        if not userid or userid == 'None':
-            return None
-
-        user = session.query(models.User).filter(
-            models.User.id == int(userid)).first()
-        return GlobusUser(user)
-
-    @provide_session
-    def oauth_callback(self, session=None):
-        log.debug('Globus OAuth callback called')
-
-        next_url = request.args.get('state') or url_for('admin.index')
-
-        resp = self.globus_oauth.authorized_response()
+        self.globus_oauth.oauth2_start_flow(redirect_url)
 
         try:
-            # If there's no "code" query string parameter, we're in this route
-            # starting a Globus Auth login flow.
-            # Redirect out to Globus Auth
             if 'code' not in request.args:
                 auth_uri = self.globus_oauth.oauth2_get_authorize_url(additional_params={
                     "scope": "openid profile email urn:globus:auth:scope:transfer.api.globus.org:all urn:globus:auth:scope:auth.globus.org:view_identities urn:globus:auth:scope:nexus.api.globus.org:groups"})
                 return redirect(auth_uri)
-            # If we do have a "code" param, we're coming back from Globus Auth
-            # and can start the process of exchanging an auth code for a token.
             else:
                 code = request.args.get('code')
                 tokens = self.globus_oauth.oauth2_exchange_code_for_tokens(code)
@@ -152,12 +122,30 @@ class GlobusAuthBackend(object):
                 login_user(GlobusUser(user))
                 session.commit()
 
+                next_url = request.args.get('state') or url_for('admin.index')
                 return redirect(next_url)
         except AuthenticationError:
             return redirect(url_for('airflow.noaccess'))
 
 
+    def get_globus_user_profile_info(self, globus_token):
+        resp = self.globus_oauth.oauth2_userinfo()
 
+        if not resp or resp.status != 200:
+            raise AuthenticationError(
+                'Failed to fetch user profile, status ({0})'.format(
+                    resp.status if resp else 'None'))
+
+        return resp['name'], resp['email']
+
+    @provide_session
+    def load_user(self, userid, session=None):
+        if not userid or userid == 'None':
+            return None
+
+        user = session.query(models.User).filter(
+            models.User.id == int(userid)).first()
+        return GlobusUser(user)
 
 login_manager = GlobusAuthBackend()
 
