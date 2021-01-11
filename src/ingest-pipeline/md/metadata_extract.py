@@ -35,7 +35,7 @@ def scan(target_dir, out_fname, schema_fname, yaml_flag=False):
 
     for collection_type in _KNOWN_DATA_COLLECTION_TYPES:
         if collection_type.test_match(target_dir):
-            #print('collector match: ', collection_type.category_name)
+            print('collector match: ', collection_type.category_name)
             collector = collection_type(target_dir)
             metadata = collector.filter_metadata(collector.collect_metadata())
             #print('collector: ', repr(collector))

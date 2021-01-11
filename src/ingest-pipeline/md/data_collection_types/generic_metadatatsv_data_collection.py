@@ -16,7 +16,7 @@ from data_collection import DataCollection
 
 class GenericMetadataTSVDataCollection(DataCollection):
     category_name = 'GENERICMETADATATSV';
-    match_priority = 0.1 # >= 0.0; higher is better
+    match_priority = 2.0 # >= 0.0; higher is better
     top_target = None
     dir_regex = None
 
@@ -80,11 +80,26 @@ class GenericMetadataTSVDataCollection(DataCollection):
                     rslt[os.path.relpath(fpath, self.topdir)] = this_md
                     fname = os.path.basename(fpath)
                     if 'metadata' in fname and fname.endswith('.tsv'):
-                        assert isinstance(this_md, list), 'metadata...tsv did not produce a list'
-                        cl.extend(this_md)
+                        assert isinstance(this_md, list), 'metadata.tsv did not produce a list'
+                        rec_list = this_md
+                        for rec in rec_list:
+                            for key in ['assay_type', 'data_path', 'contributors_path']:
+                                assert key in rec, ('metadata.tsv does not have a'
+                                                         '"{}" column'.format(key))
+                            this_dict = {'metadata': rec}
+                            for sub_key, dict_key in [('contributors_path', 'contributors'),
+                                                      ('antibodies_path', 'antibodies')]:
+                                if sub_key in rec:
+                                    assert rec[sub_key].endswith('.tsv')
+                                    sub_path = os.path.join(os.path.dirname(fpath),
+                                                            rec[sub_key])
+                                    sub_parser = md_type_tbl['METADATATSV'](sub_path)
+                                    sub_md = sub_parser.collect_metadata()
+                                    this_dict[dict_key] = sub_md
+                            cl.append(this_dict)
 
         rslt['components'] = cl
-        rslt['collectiontype'] = 'single_metadatatsv'
+        rslt['collectiontype'] = 'generic_metadatatsv'
         return rslt
     
     def basic_filter_metadata(self, raw_metadata):
