@@ -14,6 +14,8 @@ from airflow import models, configuration
 from airflow.utils.db import provide_session
 from airflow.utils.log.logging_mixin import LoggingMixin
 
+from hubmap_commons.hm_auth import AuthHelper
+
 log = LoggingMixin().log
 
 
@@ -67,8 +69,12 @@ class GlobusAuthBackend(object):
         self.flask_app = None
         self.globus_oauth = None
         self.api_rev = None
+        self.authHelper = None
 
     def init_app(self, flask_app):
+        client_id = get_config_param('APP_CLIENT_ID')
+        client_secret = get_config_param('APP_CLIENT_SECRET')
+
         self.flask_app = flask_app
 
         self.login_manager.init_app(self.flask_app)
@@ -82,8 +88,13 @@ class GlobusAuthBackend(object):
                                     'login',
                                     self.login)
 
+        if not AuthHelper.isInitialized():
+            self.authHelper = AuthHelper.create(clientId=client_id, clientSecret=client_secret)
+        else:
+            self.authHelper = AuthHelper.instance()
+
     @provide_session
-    def login(self, request=None, session=None):
+    def login(self, session=None):
         log.debug('Redirecting user to Globus login')
 
         redirect_url = url_for('login', _external=True)
@@ -99,15 +110,8 @@ class GlobusAuthBackend(object):
                 code = request.args.get('code')
                 tokens = self.globus_oauth.oauth2_exchange_code_for_tokens(code)
 
-                globus_token = tokens.by_resource_server['auth.globus.org']['access_token']
+                username, email = self.get_globus_user_profile_info(tokens.by_resource_server['auth.globus.org']['access_token'])
 
-                username, email = self.get_globus_user_profile_info(globus_token)
-
-                # store the resulting tokens in the session
-                session.update(
-                    tokens=tokens.by_resource_server,
-                    is_authenticated=True
-                )
                 user = session.query(models.User).filter(
                     models.User.username == username).first()
 
@@ -124,19 +128,14 @@ class GlobusAuthBackend(object):
 
                 next_url = request.args.get('state') or url_for('admin.index')
                 return redirect(next_url)
-        except AuthenticationError:
+        except Exception as e:
+            log.error(e)
             return redirect(url_for('airflow.noaccess'))
 
 
-    def get_globus_user_profile_info(self, globus_token):
-        resp = self.globus_oauth.oauth2_userinfo()
-
-        if not resp or resp.status != 200:
-            raise AuthenticationError(
-                'Failed to fetch user profile, status ({0})'.format(
-                    resp.status if resp else 'None'))
-
-        return resp['name'], resp['email']
+    def get_globus_user_profile_info(self, token):
+        userInfo = self.authHelper.getUserInfo(token)
+        return userInfo['name'], userInfo['email']
 
     @provide_session
     def load_user(self, userid, session=None):
