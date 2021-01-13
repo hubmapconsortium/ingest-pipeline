@@ -6,8 +6,12 @@ from .devtest_data_collection import DEVTESTDataCollection
 from .metadatatsv_data_collection import MetadataTSVDataCollection
 from .generic_metadatatsv_data_collection import GenericMetadataTSVDataCollection
 
-__all__ = [MetadataTSVDataCollection,
-           IMSDataCollection, RNASEQ10XDataCollection, 
-           StanfordCODEXDataCollection,
-           AkoyaCODEXDataCollection, DEVTESTDataCollection,
-           GenericMetadataTSVDataCollection]
+__all__ = [
+    MetadataTSVDataCollection,
+    IMSDataCollection, 
+    RNASEQ10XDataCollection, 
+    StanfordCODEXDataCollection,
+    AkoyaCODEXDataCollection,
+    DEVTESTDataCollection,
+    GenericMetadataTSVDataCollection
+]

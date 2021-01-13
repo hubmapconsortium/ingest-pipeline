@@ -93,7 +93,7 @@ class GenericMetadataTSVDataCollection(DataCollection):
                                     assert rec[sub_key].endswith('.tsv')
                                     sub_path = os.path.join(os.path.dirname(fpath),
                                                             rec[sub_key])
-                                    sub_parser = md_type_tbl['METADATATSV'](sub_path)
+                                    sub_parser = md_type_tbl['TSV'](sub_path)
                                     sub_md = sub_parser.collect_metadata()
                                     this_dict[dict_key] = sub_md
                             cl.append(this_dict)
