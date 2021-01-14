@@ -27,6 +27,6 @@ class MetadataTSVMetadataFile(TSVMetadataFile):
                 f.write(report.as_text())
             raise MetadataError('{} failed ingest validation test'.format(self.path))
         print('parsing metadatatsv from {}'.format(self.path))
-        md = super(self, MetadataTSVMetadataFile).collect_metadata()
+        md = super().collect_metadata()
 
         return md
