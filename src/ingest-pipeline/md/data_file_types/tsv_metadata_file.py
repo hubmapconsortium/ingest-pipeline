@@ -12,7 +12,7 @@ class TSVMetadataFile(MetadataFile):
     category_name = 'TSV';
 
     def collect_metadata(self):
-        print('parsing csv from %s' % self.path)
+        print('parsing tsv from %s' % self.path)
         md = []
         try:
             with open(self.path, 'rU', newline='', encoding='ascii') as f:
@@ -21,4 +21,11 @@ class TSVMetadataFile(MetadataFile):
                     md.append({k : v for k, v in row.items()})
         except UnicodeDecodeError as e:
             raise MetadataError(str(e) + f'in {self.path}')
+
+        # Scan for the common error of bad keys/values due to missing delimiters
+        for row in md:
+            if any(k in [None, ''] for k in row) or any(v is None for v in row.values()):
+                raise MetadataError('{} has empty keys or values. Delimiter error?'
+                                    .format(self.path))
+                
         return md

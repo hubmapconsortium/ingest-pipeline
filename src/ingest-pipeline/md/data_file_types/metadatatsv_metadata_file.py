@@ -3,11 +3,11 @@
 import csv
 import os
 from pathlib import Path
-from metadata_file import MetadataFile
+from .tsv_metadata_file import TSVMetadataFile
 from type_base import MetadataError
 from submodules import ingest_validation_tools_submission, ingest_validation_tools_error_report
 
-class MetadataTSVMetadataFile(MetadataFile):
+class MetadataTSVMetadataFile(TSVMetadataFile):
     """
     A metadata file type for the specialized metadata.tsv files used to store submission info
     """
@@ -27,20 +27,6 @@ class MetadataTSVMetadataFile(MetadataFile):
                 f.write(report.as_text())
             raise MetadataError('{} failed ingest validation test'.format(self.path))
         print('parsing metadatatsv from {}'.format(self.path))
-        md = []
-        with open(self.path, 'rU', newline='') as f:
-            dialect = csv.Sniffer().sniff(f.read(256))
-            f.seek(0)
-            reader = csv.DictReader(f, dialect=dialect)
-            for row in reader:
-                dct = {k : v for k, v in row.items()}
-                dct['_from_metadatatsv'] = True
-                md.append(dct)
+        md = super(self, MetadataTSVMetadataFile).collect_metadata()
 
-        # Scan for the common error of bad keys/values due to missing delimiters
-        for row in md:
-            if any(k in [None, ''] for k in row) or any(v is None for v in row.values()):
-                raise MetadataError('{} has empty keys or values. Delimiter error?'
-                                    .format(self.path))
-                
         return md
