@@ -1,6 +1,7 @@
 #! /usr/bin/env python
 
 from metadata_file import MetadataFile
+from type_base import MetadataError
 import csv
 from pprint import pprint
 
@@ -13,8 +14,11 @@ class TSVMetadataFile(MetadataFile):
     def collect_metadata(self):
         print('parsing csv from %s' % self.path)
         md = []
-        with open(self.path, 'rU', newline='') as f:
-            reader = csv.DictReader(f, delimiter='\t')
-            for row in reader:
-                md.append({k : v for k, v in row.items()})
+        try:
+            with open(self.path, 'rU', newline='', encoding='ascii') as f:
+                reader = csv.DictReader(f, delimiter='\t')
+                for row in reader:
+                    md.append({k : v for k, v in row.items()})
+        except UnicodeDecodeError as e:
+            raise MetadataError(str(e) + f'in {self.path}')
         return md
