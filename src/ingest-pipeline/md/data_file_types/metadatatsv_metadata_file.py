@@ -17,9 +17,14 @@ class MetadataTSVMetadataFile(TSVMetadataFile):
         print('validating {} as metadata.tsv'.format(self.path))
         dirpath = Path(os.path.dirname(self.path))
         ignore_globs = [os.path.basename(self.path), 'extras']
+        #
+        # Uncomment offline=True below to avoid validating orcid_id URLs &etc
+        #
         submission = ingest_validation_tools_submission.Submission(directory_path=dirpath,
                                                                    dataset_ignore_globs=ignore_globs,
-                                                                   submission_ignore_globs='*')
+                                                                   submission_ignore_globs='*',
+                                                                   #offline=True
+                                                                   )
         report = ingest_validation_tools_error_report.ErrorReport(submission.get_errors())
         if report.errors:
             # Scan reports an error result
