@@ -23,11 +23,12 @@ class MetadataTSVMetadataFile(TSVMetadataFile):
         submission = ingest_validation_tools_submission.Submission(directory_path=dirpath,
                                                                    dataset_ignore_globs=ignore_globs,
                                                                    submission_ignore_globs='*',
-                                                                   #offline=True
+                                                                   #offline=True,
+                                                                   add_notes=False
                                                                    )
-        report = ingest_validation_tools_error_report.ErrorReport(submission.get_errors())
-        if report.errors:
+        if submission.get_errors():
             # Scan reports an error result
+            report = ingest_validation_tools_error_report.ErrorReport(submission.get_errors())
             with open('ingest_validation_tools_report.txt', 'w') as f:
                 f.write(report.as_text())
             raise MetadataError('{} failed ingest validation test'.format(self.path))
