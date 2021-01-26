@@ -79,8 +79,10 @@ def generate_salmon_rnaseq_dag(
             run_id = kwargs["run_id"]
             tmpdir = utils.get_tmp_dir_path(run_id)
             print("tmpdir: ", tmpdir)
-            data_dir = ctx["parent_lz_path"]
-            print("data_dir: ", data_dir)
+
+            data_dirs = ctx["parent_lz_path"]
+            data_dirs = [data_dirs] if isinstance(data_dirs, str) else data_dirs
+            print("data_dirs: ", data_dirs)
 
             command = [
                 *get_cwltool_base_cmd(tmpdir),
@@ -92,11 +94,12 @@ def generate_salmon_rnaseq_dag(
                 cwl_workflows[0],
                 "--assay",
                 assay,
-                "--fastq_dir",
-                data_dir,
                 "--threads",
                 THREADS,
             ]
+            for data_dir in data_dirs:
+                command.append("--fastq_dir")
+                command.append(data_dir)
 
             return join_quote_command_str(command)
 
