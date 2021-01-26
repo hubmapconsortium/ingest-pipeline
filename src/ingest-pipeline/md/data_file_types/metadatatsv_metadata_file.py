@@ -5,7 +5,9 @@ import os
 from pathlib import Path
 from .tsv_metadata_file import TSVMetadataFile
 from type_base import MetadataError
-from submodules import ingest_validation_tools_submission, ingest_validation_tools_error_report
+from submodules import (ingest_validation_tools_submission,
+                        ingest_validation_tools_error_report,
+                        ingest_validation_tests)
 
 class MetadataTSVMetadataFile(TSVMetadataFile):
     """
@@ -17,12 +19,14 @@ class MetadataTSVMetadataFile(TSVMetadataFile):
         print('validating {} as metadata.tsv'.format(self.path))
         dirpath = Path(os.path.dirname(self.path))
         ignore_globs = [os.path.basename(self.path), 'extras']
+        plugin_path = [path for path in ingest_validation_tests.__path__][0]
         #
         # Uncomment offline=True below to avoid validating orcid_id URLs &etc
         #
         submission = ingest_validation_tools_submission.Submission(directory_path=dirpath,
                                                                    dataset_ignore_globs=ignore_globs,
                                                                    submission_ignore_globs='*',
+                                                                   plugin_directory=plugin_path,
                                                                    #offline=True,
                                                                    add_notes=False
                                                                    )
