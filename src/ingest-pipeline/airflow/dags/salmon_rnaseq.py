@@ -1,19 +1,18 @@
-from pathlib import Path
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import List, Tuple
 
 from airflow import DAG
 from airflow.operators.bash_operator import BashOperator
-from airflow.operators.python_operator import PythonOperator
-from airflow.operators.python_operator import BranchPythonOperator
 from airflow.operators.dummy_operator import DummyOperator
+from airflow.operators.python_operator import BranchPythonOperator, PythonOperator
 from hubmap_operators.common_operators import (
-    LogInfoOperator,
-    JoinOperator,
-    CreateTmpDirOperator,
     CleanupTmpDirOperator,
-    SetDatasetProcessingOperator,
+    CreateTmpDirOperator,
+    JoinOperator,
+    LogInfoOperator,
     MoveDataOperator,
+    SetDatasetProcessingOperator,
 )
 
 import utils
@@ -249,32 +248,29 @@ def generate_salmon_rnaseq_dag(
     return dag
 
 
+def get_salmon_dag_params(assay: str) -> Tuple[str, str, str, str]:
+    # TODO: restructure assay names, pipeline names, etc.; this repetition
+    #   is for backward compatibility
+    return (
+        f"salmon_rnaseq_{assay}",
+        f"salmon-rnaseq-{assay}",
+        assay,
+        f"salmon_rnaseq_{assay}",
+    )
+
+
 # dag_id, pipeline name, assay given to pipeline via --assay, dataset type
 salmon_dag_data: List[Tuple[str, str, str, str]] = [
+    # 10X is special because it was first; no "10x" label in the pipeline name
     (
         "salmon_rnaseq_10x",
         "salmon-rnaseq",
         "10x",
         "salmon_rnaseq_10x",
     ),
-    (
-        "salmon_rnaseq_sciseq",
-        "salmon-rnaseq-sciseq",
-        "sciseq",
-        "salmon_rnaseq_sciseq",
-    ),
-    (
-        "salmon_rnaseq_slideseq",
-        "salmon-rnaseq-slideseq",
-        "slideseq",
-        "salmon_rnaseq_slideseq",
-    ),
-    (
-        "salmon_rnaseq_snareseq",
-        "salmon-rnaseq-snareseq",
-        "snareseq",
-        "salmon_rnaseq_snareseq",
-    ),
+    get_salmon_dag_params("sciseq"),
+    get_salmon_dag_params("slideseq"),
+    get_salmon_dag_params("snareseq"),
 ]
 
 for dag_id, pipeline_name, assay, dataset_type in salmon_dag_data:
