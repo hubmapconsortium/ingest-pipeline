@@ -115,7 +115,9 @@ def generate_salmon_rnaseq_dag(
                 *get_cwltool_base_cmd(tmpdir),
                 cwl_workflows[1],
                 "--input_dir",
-                ".",
+                # This pipeline invocation runs in a 'hubmap_ui' subdirectory,
+                # so use the parent directory as input
+                "..",
             ]
 
             return join_quote_command_str(command)
@@ -141,12 +143,14 @@ def generate_salmon_rnaseq_dag(
             """,
         )
 
-        t_make_arrow1 = BashOperator(
-            task_id="make_arrow1",
+        t_convert_for_ui = BashOperator(
+            task_id="convert_for_ui",
             bash_command=""" \
             tmp_dir={{tmp_dir_path(run_id)}} ; \
             ds_dir="{{ti.xcom_pull(task_ids="send_create_dataset")}}" ; \
-            cd "$tmp_dir"/cwl_out/cluster-marker-genes ; \
+            cd "$tmp_dir"/cwl_out ; \
+            mkdir hubmap_ui ; \
+            cd hubmap_ui ; \
             {{ti.xcom_pull(task_ids='build_cmd2')}} >> $tmp_dir/session.log 2>&1 ; \
             echo $?
             """,
@@ -157,7 +161,7 @@ def generate_salmon_rnaseq_dag(
             python_callable=utils.pythonop_maybe_keep,
             provide_context=True,
             op_kwargs={
-                "next_op": "move_files",
+                "next_op": "prepare_cwl2",
                 "bail_op": "set_dataset_error",
                 "test_op": "pipeline_exec",
             },
@@ -170,7 +174,7 @@ def generate_salmon_rnaseq_dag(
             op_kwargs={
                 "next_op": "move_data",
                 "bail_op": "set_dataset_error",
-                "test_op": "make_arrow1",
+                "test_op": "t_convert_for_ui",
             },
         )
 
@@ -201,17 +205,6 @@ def generate_salmon_rnaseq_dag(
             },
         )
 
-        t_move_files = BashOperator(
-            task_id="move_files",
-            bash_command="""
-            tmp_dir={{tmp_dir_path(run_id)}} ; \
-            cd "$tmp_dir"/cwl_out ; \
-            mkdir cluster-marker-genes ; \
-            mv cluster_marker_genes.h5ad cluster-marker-genes ; \
-            echo $?
-            """,
-        )
-
         send_status_msg = make_send_status_msg_function(
             dag_file=__file__,
             retcode_ops=["pipeline_exec", "move_data", "make_arrow1"],
@@ -240,10 +233,9 @@ def generate_salmon_rnaseq_dag(
             >> t_build_cmd1
             >> t_pipeline_exec
             >> t_maybe_keep_cwl1
-            >> t_move_files
             >> prepare_cwl2
             >> t_build_cmd2
-            >> t_make_arrow1
+            >> t_convert_for_ui
             >> t_maybe_keep_cwl2
             >> t_move_data
             >> t_send_status
