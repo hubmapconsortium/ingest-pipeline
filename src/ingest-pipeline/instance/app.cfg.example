@@ -34,3 +34,8 @@ OUTPUT_GROUP_NAME = 'dataaccessgroup'
 # Optional template for use in customizing queue names, for better Celery sharing
 #QUEUE_NAME_TEMPLATE = '{}-test'
 
+[globus]
+app_client_id =
+app_client_secret =
+oauth_callback_route = /oauth2callback
+
