@@ -54,7 +54,7 @@ with DAG('codex_cytokit',
     cwl_workflows = get_absolute_workflows(
         Path(pipeline_name, 'pipeline.cwl'),
         Path('portal-containers', 'ome-tiff-offsets.cwl'),
-        Path('portal-containers', 'sprm-to-json.cwl'),
+        Path('portal-containers', 'sprm-to-anndata.cwl'),
     )
 
     def build_dataset_name(**kwargs):
