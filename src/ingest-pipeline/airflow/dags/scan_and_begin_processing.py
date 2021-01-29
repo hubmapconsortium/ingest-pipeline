@@ -99,10 +99,13 @@ with DAG('scan_and_begin_processing',
                                    value=(scanned_md['collectiontype']
                                           if 'collectiontype' in scanned_md
                                           else None))
-            kwargs['ti'].xcom_push(key='assay_type',
-                                   value=(scanned_md['assay_type']
-                                          if 'assay_type' in scanned_md
-                                          else None))
+            if 'assay_type' in scanned_md:
+                assay_type = scanned_md['assay_type']
+            elif 'metadata' in scanned_md and 'assay_type' in scanned_md['metadata']:
+                assay_type = scanned_md['metadata']['assay_type']
+            else:
+                assay_type = None
+            kwargs['ti'].xcom_push(key='assay_type', value=assay_type)
         else:
             for op in retcode_ops:
                 if retcode_dct[op]:
