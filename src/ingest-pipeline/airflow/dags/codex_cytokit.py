@@ -55,6 +55,7 @@ with DAG('codex_cytokit',
         Path(pipeline_name, 'pipeline.cwl'),
         Path('portal-containers', 'ome-tiff-offsets.cwl'),
         Path('portal-containers', 'sprm-to-anndata.cwl'),
+        Path('portal-containers', 'sprm-to-json.cwl'),
     )
 
     def build_dataset_name(**kwargs):
