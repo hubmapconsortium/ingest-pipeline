@@ -37,5 +37,5 @@ OUTPUT_GROUP_NAME = 'dataaccessgroup'
 [globus]
 app_client_id =
 app_client_secret =
-oauth_callback_route = /oauth2callback
+oauth_callback_route = /login
 
