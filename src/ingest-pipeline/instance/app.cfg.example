@@ -38,4 +38,6 @@ OUTPUT_GROUP_NAME = 'dataaccessgroup'
 app_client_id =
 app_client_secret =
 oauth_callback_route = /login
+# If you are running localhost, set this to http. Otherwise, set this to https.
+scheme = https
 

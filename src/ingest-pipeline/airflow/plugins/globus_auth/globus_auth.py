@@ -97,7 +97,7 @@ class GlobusAuthBackend(object):
     def login(self, session=None):
         log.debug('Redirecting user to Globus login')
 
-        redirect_url = url_for('login', _external=True)
+        redirect_url = url_for('login', _external=True, _scheme=get_config_param('scheme'))
 
         self.globus_oauth.oauth2_start_flow(redirect_url)
 
@@ -126,7 +126,7 @@ class GlobusAuthBackend(object):
                 login_user(GlobusUser(user))
                 session.commit()
 
-                next_url = request.args.get('state') or url_for('admin.index')
+                next_url = url_for('admin.index')
                 return redirect(next_url)
         except Exception as e:
             log.error(e)
