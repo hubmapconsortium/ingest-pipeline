@@ -246,7 +246,7 @@ with DAG('codex_cytokit',
 
     t_build_cmd4 = PythonOperator(
         task_id='build_cmd4',
-        python_callable=build_cwltool_cmd3,
+        python_callable=build_cwltool_cmd4,
         provide_context=True,
         )
 
