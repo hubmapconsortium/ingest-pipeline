@@ -41,3 +41,6 @@ oauth_callback_route = /login
 # If you are running localhost, set this to http. Otherwise, set this to https.
 scheme = https
 
+[webserver]
+authenticate = True
+auth_backend = globus_auth.globus_auth
