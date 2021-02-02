@@ -10,6 +10,14 @@
 [submodule "src/ingest-pipeline/airflow/dags/cwl/salmon-rnaseq"]
 	path = src/ingest-pipeline/airflow/dags/cwl/salmon-rnaseq
 	url = git@github.com:hubmapconsortium/salmon-rnaseq.git
+
+[submodule "src/ingest-pipeline/airflow/dags/cwl/salmon-rnaseq-sciseq"]
+	path = src/ingest-pipeline/airflow/dags/cwl/salmon-rnaseq-sciseq
+	url = git@github.com:hubmapconsortium/salmon-rnaseq.git
+
+[submodule "src/ingest-pipeline/airflow/dags/cwl/salmon-rnaseq-snareseq"]
+	path = src/ingest-pipeline/airflow/dags/cwl/salmon-rnaseq-snareseq
+	url = git@github.com:hubmapconsortium/salmon-rnaseq.git
 [submodule "src/ingest-pipeline/airflow/dags/cwl/sc-atac-seq-pipeline"]
 	path = src/ingest-pipeline/airflow/dags/cwl/sc-atac-seq-pipeline
 	url = git@github.com:hubmapconsortium/sc-atac-seq-pipeline.git
