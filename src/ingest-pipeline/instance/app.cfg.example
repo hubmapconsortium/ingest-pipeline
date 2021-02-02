@@ -42,5 +42,4 @@ oauth_callback_route = /login
 scheme = https
 
 [webserver]
-authenticate = True
 auth_backend = globus_auth.globus_auth
