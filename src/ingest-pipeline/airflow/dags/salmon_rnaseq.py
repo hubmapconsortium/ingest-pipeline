@@ -17,6 +17,7 @@ from hubmap_operators.common_operators import (
 
 import utils
 from utils import (
+    SequencingDagParameters,
     get_absolute_workflows,
     get_cwltool_base_cmd,
     get_dataset_uuid,
@@ -30,12 +31,7 @@ from utils import (
 THREADS = 6
 
 
-def generate_salmon_rnaseq_dag(
-    dag_id: str,
-    pipeline_name: str,
-    assay: str,
-    dataset_type: str,
-) -> DAG:
+def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
     default_args = {
         "owner": "hubmap",
         "depends_on_past": False,
@@ -51,7 +47,7 @@ def generate_salmon_rnaseq_dag(
     }
 
     with DAG(
-        dag_id,
+        params.dag_id,
         schedule_interval=None,
         is_paused_upon_creation=False,
         default_args=default_args,
@@ -67,7 +63,7 @@ def generate_salmon_rnaseq_dag(
         def build_dataset_name(**kwargs):
             id_l = kwargs["dag_run"].conf["parent_submission_id"]
             inner_str = id_l if isinstance(id_l, str) else "_".join(id_l)
-            return f"{dag.dag_id}__{inner_str}__{pipeline_name}"
+            return f"{dag.dag_id}__{inner_str}__{params.pipeline_name}"
 
         prepare_cwl1 = DummyOperator(task_id="prepare_cwl1")
 
@@ -92,7 +88,7 @@ def generate_salmon_rnaseq_dag(
                 "--parallel",
                 cwl_workflows[0],
                 "--assay",
-                assay,
+                params.assay,
                 "--threads",
                 THREADS,
             ]
@@ -186,7 +182,7 @@ def generate_salmon_rnaseq_dag(
                 "http_conn_id": "ingest_api_connection",
                 "endpoint": "/datasets/derived",
                 "dataset_name_callable": build_dataset_name,
-                "dataset_types": [dataset_type],
+                "dataset_types": [params.dataset_type],
             },
         )
 
@@ -200,7 +196,7 @@ def generate_salmon_rnaseq_dag(
                 "http_conn_id": "ingest_api_connection",
                 "endpoint": "/datasets/status",
                 "ds_state": "Error",
-                "message": "An error occurred in {}".format(pipeline_name),
+                "message": f"An error occurred in {params.pipeline_name}",
             },
         )
 
@@ -248,35 +244,29 @@ def generate_salmon_rnaseq_dag(
     return dag
 
 
-def get_salmon_dag_params(assay: str) -> Tuple[str, str, str, str]:
+def get_salmon_dag_params(assay: str) -> SequencingDagParameters:
     # TODO: restructure assay names, pipeline names, etc.; this repetition
     #   is for backward compatibility
-    return (
-        f"salmon_rnaseq_{assay}",
-        f"salmon-rnaseq-{assay}",
-        assay,
-        f"salmon_rnaseq_{assay}",
+    return SequencingDagParameters(
+        dag_id=f"salmon_rnaseq_{assay}",
+        pipeline_name=f"salmon-rnaseq-{assay}",
+        assay=assay,
+        dataset_type=f"salmon_rnaseq_{assay}",
     )
 
 
-# dag_id, pipeline name, assay given to pipeline via --assay, dataset type
-salmon_dag_data: List[Tuple[str, str, str, str]] = [
+salmon_dag_params: List[SequencingDagParameters] = [
     # 10X is special because it was first; no "10x" label in the pipeline name
-    (
-        "salmon_rnaseq_10x",
-        "salmon-rnaseq",
-        "10x",
-        "salmon_rnaseq_10x",
+    SequencingDagParameters(
+        dag_id="salmon_rnaseq_10x",
+        pipeline_name="salmon-rnaseq",
+        assay="10x",
+        dataset_type="salmon_rnaseq_10x",
     ),
     get_salmon_dag_params("sciseq"),
     get_salmon_dag_params("slideseq"),
     get_salmon_dag_params("snareseq"),
 ]
 
-for dag_id, pipeline_name, assay, dataset_type in salmon_dag_data:
-    globals()[dag_id] = generate_salmon_rnaseq_dag(
-        dag_id=dag_id,
-        pipeline_name=pipeline_name,
-        assay=assay,
-        dataset_type=dataset_type,
-    )
+for params in salmon_dag_params:
+    globals()[params.dag_id] = generate_salmon_rnaseq_dag(params)
