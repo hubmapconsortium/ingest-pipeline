@@ -5,6 +5,7 @@ pylibczi>=1.1.1
 tifffile
 xmltodict>=0.12.0
 pyimzml>=1.2.6
+apache-airflow[celery,crypto,postgres,redis,ssh]<2.0.0
 airflow-multi-dagrun>=1.2
 jsonschema==3.2.0
 fastjsonschema==2.14.2
@@ -13,6 +14,8 @@ jsonref-ap==0.3.dev0
 PyYAML>=5.3.1
 rdflib==4.2.2
 rdflib-jsonld==0.4.0
+Flask-OAuthlib==0.9.6
+globus-sdk==1.10.0
 git+git://github.com/hubmapconsortium/cwltool.git@docker-gpu#egg=cwltool
 # We need the dependencies of ingest-validation tools, but relative paths don't work
 # -r ${CWD}/submodules/ingest-validation-tools/requirements.txt

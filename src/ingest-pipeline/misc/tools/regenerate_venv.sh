@@ -38,7 +38,6 @@ scl enable rh-python36 bash <<EOF
   virtualenv --prompt=\(${label}\) venv
   . venv/bin/activate
   pip install --upgrade pip
-  pip install 'apache-airflow[celery,crypto,postgres,redis,ssh]'
   pip install -r ingest-pipeline/src/ingest-pipeline/requirements.txt
 
 EOF
