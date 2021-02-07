@@ -16,17 +16,18 @@ from airflow.operators.dummy_operator import DummyOperator
 from airflow.operators.dagrun_operator import TriggerDagRunOperator, DagRunOrder
 from airflow.operators.multi_dagrun import TriggerMultiDagRunOperator
 from airflow.hooks.http_hook import HttpHook
+from airflow.exceptions import AirflowException
 
 from hubmap_operators.flex_multi_dag_run import FlexMultiDagRunOperator
-import utils
 
+import utils
 from utils import localized_assert_json_matches_schema as assert_json_matches_schema
 
-
-def get_src_path(**kwargs):
-    rslt = airflow_conf.as_dict()['connections']['SRC_PATH']
-    return rslt.strip("'").strip('"')
-    
+sys.path.append(airflow_conf.as_dict()['connections']['SRC_PATH'].strip("'").strip('"'))
+from submodules import (ingest_validation_tools_submission,
+                        ingest_validation_tools_error_report,
+                        ingest_validation_tests)
+sys.path.pop()
 
 # Following are defaults which can be overridden later on
 default_args = {
@@ -47,7 +48,6 @@ with DAG('validation_test',
          schedule_interval=None, 
          is_paused_upon_creation=False, 
          default_args=default_args,
-         user_defined_macros={'get_src_path' : get_src_path}         
          ) as dag:
 
     def find_uuid(**kwargs):
@@ -111,24 +111,38 @@ with DAG('validation_test',
             }
         )
 
-        
-    t_run_md_extract = BashOperator(
+
+    def run_md_extract(**kwargs):
+        assay_type = kwargs['ti'].xcom_pull(key='assay_type')
+        lz_path = kwargs['ti'].xcom_pull(key='lz_path')
+        uuid = kwargs['ti'].xcom_pull(key='uuid')
+        plugin_path = [path for path in ingest_validation_tests.__path__][0]
+
+        ignore_globs = [uuid, 'extras', '*metadata.tsv', 'validation_report.txt']
+        #
+        # Uncomment offline=True below to avoid validating orcid_id URLs &etc
+        #
+        submission = ingest_validation_tools_submission.Submission(directory_path=Path(lz_path),
+                                                                   dataset_ignore_globs=ignore_globs,
+                                                                   submission_ignore_globs='*',
+                                                                   plugin_directory=plugin_path,
+                                                                   #offline=True,
+                                                                   add_notes=False
+                                                                   )
+        # Scan reports an error result
+        report = ingest_validation_tools_error_report.ErrorReport(submission.get_errors())
+        with open(os.path.join(lz_path, 'validation_report.txt'), 'w') as f:
+            f.write(report.as_text())
+
+
+    t_run_md_extract = PythonOperator(
         task_id='run_md_extract',
-        bash_command=""" \
-        lz_dir="{{ti.xcom_pull(task_ids='find_uuid', key='lz_path')}}" \
-        src_dir="{{get_src_path()}}/md" ; \
-        top_dir="{{get_src_path()}}" ; \
-        cd "$lz_dir" ; \
-        env PYTHONPATH=${PYTHONPATH}:$top_dir \
-        python $src_dir/metadata_extract.py --out /dev/null "$lz_dir" \
-          > session.log 2> error.log ; \
-        echo $? ; \
-        if [ -s error.log ] ; \
-        then echo 'ERROR!' `cat error.log` >> session.log ; \
-        else rm error.log ; \
-        fi
-        """
-        )
+        python_callable=run_md_extract,
+        provide_context=True,
+        op_kwargs={'crypt_auth_tok' : utils.encrypt_tok(airflow_conf.as_dict()
+                                                        ['connections']['APP_CLIENT_SECRET']).decode(),
+               }
+    )
 
 
     (dag >> t_find_uuid >> t_run_md_extract)
