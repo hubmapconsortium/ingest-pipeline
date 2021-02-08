@@ -31,7 +31,7 @@ from utils import (
 THREADS = 6
 
 
-def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
+def generate_atac_seq_dag(params: SequencingDagParameters) -> DAG:
     default_args = {
         "owner": "hubmap",
         "depends_on_past": False,
@@ -54,10 +54,9 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
         max_active_runs=4,
         user_defined_macros={"tmp_dir_path": utils.get_tmp_dir_path},
     ) as dag:
-
         cwl_workflows = get_absolute_workflows(
-            Path("salmon-rnaseq", "pipeline.cwl"),
-            Path("portal-containers", "h5ad-to-arrow.cwl"),
+            Path("sc-atac-seq-pipeline", "create_snap_and_analyze.cwl"),
+            Path("portal-containers", "scatac-csv-to-arrow.cwl"),
         )
 
         def build_dataset_name(**kwargs):
@@ -74,26 +73,23 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
             run_id = kwargs["run_id"]
             tmpdir = utils.get_tmp_dir_path(run_id)
             print("tmpdir: ", tmpdir)
-
             data_dirs = ctx["parent_lz_path"]
             data_dirs = [data_dirs] if isinstance(data_dirs, str) else data_dirs
             print("data_dirs: ", data_dirs)
 
             command = [
                 *get_cwltool_base_cmd(tmpdir),
-                "--relax-path-checks",
-                "--debug",
+                "--assay",
+                params.assay,
                 "--outdir",
                 tmpdir / "cwl_out",
                 "--parallel",
                 cwl_workflows[0],
-                "--assay",
-                params.assay,
                 "--threads",
                 THREADS,
             ]
             for data_dir in data_dirs:
-                command.append("--fastq_dir")
+                command.append("--sequence_directory")
                 command.append(data_dir)
 
             return join_quote_command_str(command)
@@ -110,9 +106,7 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
                 *get_cwltool_base_cmd(tmpdir),
                 cwl_workflows[1],
                 "--input_dir",
-                # This pipeline invocation runs in a 'hubmap_ui' subdirectory,
-                # so use the parent directory as input
-                "..",
+                ".",
             ]
 
             return join_quote_command_str(command)
@@ -138,14 +132,12 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
             """,
         )
 
-        t_convert_for_ui = BashOperator(
-            task_id="convert_for_ui",
+        t_make_arrow1 = BashOperator(
+            task_id="make_arrow1",
             bash_command=""" \
             tmp_dir={{tmp_dir_path(run_id)}} ; \
             ds_dir="{{ti.xcom_pull(task_ids="send_create_dataset")}}" ; \
             cd "$tmp_dir"/cwl_out ; \
-            mkdir hubmap_ui ; \
-            cd hubmap_ui ; \
             {{ti.xcom_pull(task_ids='build_cmd2')}} >> $tmp_dir/session.log 2>&1 ; \
             echo $?
             """,
@@ -169,7 +161,7 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
             op_kwargs={
                 "next_op": "move_data",
                 "bail_op": "set_dataset_error",
-                "test_op": "t_convert_for_ui",
+                "test_op": "make_arrow1",
             },
         )
 
@@ -230,7 +222,7 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
             >> t_maybe_keep_cwl1
             >> prepare_cwl2
             >> t_build_cmd2
-            >> t_convert_for_ui
+            >> t_make_arrow1
             >> t_maybe_keep_cwl2
             >> t_move_data
             >> t_send_status
@@ -244,29 +236,26 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
     return dag
 
 
-def get_salmon_dag_params(assay: str) -> SequencingDagParameters:
-    # TODO: restructure assay names, pipeline names, etc.; this repetition
-    #   is for backward compatibility
-    return SequencingDagParameters(
-        dag_id=f"salmon_rnaseq_{assay}",
-        pipeline_name=f"salmon-rnaseq-{assay}",
-        assay=assay,
-        dataset_type=f"salmon_rnaseq_{assay}",
-    )
-
-
-salmon_dag_params: List[SequencingDagParameters] = [
-    # 10X is special because it was first; no "10x" label in the pipeline name
+atacseq_dag_data: List[SequencingDagParameters] = [
     SequencingDagParameters(
-        dag_id="salmon_rnaseq_10x",
-        pipeline_name="salmon-rnaseq",
-        assay="10x",
-        dataset_type="salmon_rnaseq_10x",
+        dag_id="sc_atac_seq_sci",
+        pipeline_name="sci-atac-seq-pipeline",
+        assay="sciseq",
+        dataset_type="sc_atac_seq_sci",
     ),
-    get_salmon_dag_params("sciseq"),
-    get_salmon_dag_params("slideseq"),
-    get_salmon_dag_params("snareseq"),
+    SequencingDagParameters(
+        dag_id="sc_atac_seq_snare",
+        pipeline_name="sc-atac-seq-pipeline",
+        assay="snareseq",
+        dataset_type="sc_atac_seq_snare",
+    ),
+    SequencingDagParameters(
+        dag_id="sc_atac_seq_sn",
+        pipeline_name="sn-atac-seq-pipeline",
+        assay="snseq",
+        dataset_type="sn_atac_seq",
+    ),
 ]
 
-for params in salmon_dag_params:
-    globals()[params.dag_id] = generate_salmon_rnaseq_dag(params)
+for params in atacseq_dag_data:
+    globals()[params.dag_id] = generate_atac_seq_dag(params)

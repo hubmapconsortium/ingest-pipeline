@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from collections import namedtuple
 from functools import lru_cache
 import json
 from os import environ, fspath, walk
@@ -99,6 +100,17 @@ WORKFLOW_MAP_FILENAME = 'workflow_map.yml'  # Expected to be found in the same d
 WORKFLOW_MAP_SCHEMA = 'workflow_map_schema.yml'
 COMPILED_WORKFLOW_MAP: Optional[List[Tuple[Pattern, Pattern, str]]] = None
 
+# Parameters used to generate scRNA and scATAC analysis DAGs; these
+# are the only fields which differ between assays and DAGs
+SequencingDagParameters = namedtuple(
+    'SequencingDagParameters',
+    [
+        'dag_id',
+        'pipeline_name',
+        'assay',
+        'dataset_type',
+    ],
+)
 
 ManifestMatch = Tuple[bool, Optional[str], Optional[str], Optional[bool]]
 

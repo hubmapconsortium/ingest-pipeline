@@ -52,7 +52,7 @@ with DAG(
 ) as dag:
     pipeline_name = 'bulk-atac-seq'
     cwl_workflows = get_absolute_workflows(
-        Path(pipeline_name, 'bulk-atac-seq-pipeline.cwl'),
+        Path('sc-atac-seq-pipeline', 'bulk-atac-seq-pipeline.cwl'),
     )
 
     def build_dataset_name(**kwargs):
