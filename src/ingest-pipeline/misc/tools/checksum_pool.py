@@ -78,6 +78,8 @@ def scan_dir_tree(dir_path: Path, nprocs: int = DEFAULT_NWORKERS,
             for rec in pool.imap_unordered(build_rec,
                                            path_generator(dir_path)):
                 if rec:
+                    if '\t' in rec['path']:
+                        rec['path'] = '"' + rec['path'] + '"'
                     ofile.write('\t'.join([rec[fld] for fld in FIELDS_TO_KEEP])
                                 + '\n')
 
