@@ -2,51 +2,20 @@
 # coding: utf-8
 
 import hashlib
-import time
 import os
-import datetime
-import subprocess
-import uuid
-import socket
-from datetime import date
+import logging
+from datetime import date, datetime
 from argparse import ArgumentParser
 from pathlib import Path
 from multiprocessing import Pool, log_to_stderr
 from typing import Iterable
-import logging
 
 
 LOGGER = log_to_stderr()
 
 DEFAULT_NWORKERS = 10
 DEFAULT_OFILE = 'checksum_out.tsv'
-FIELDS_TO_KEEP = ['path', 'created', 'scantime', 'uuid', 'sha256']
-
-
-def compute_xxh64sum(filename: Path) -> str:
-    if Path(filename).is_file():
-        results = subprocess.check_output('xxh64sum '
-                                          + str(filename)
-                                          + ' | cut -d" " -f1 | xargs',
-                                          shell=True)
-        return results.decode("utf-8").strip()
-
-
-def compute_sha256sum(file: Path) -> str:
-    # BUF_SIZE is totally arbitrary, change for your app!
-    BUF_SIZE = 65536  # lets read stuff in 64kb chunks!
-
-    sha256 = hashlib.sha256()
-
-    if Path(file).is_file():
-        with open(file.absolute(), 'rb') as f:
-            while True:
-                data = f.read(BUF_SIZE)
-                if not data:
-                    break
-                sha256.update(data)
-
-    return sha256.hexdigest()
+FIELDS_TO_KEEP = ['path', 'created', 'scantime', 'created', 'size', 'md5']
 
 
 def compute_md5sum(file: Path) -> str:
@@ -66,39 +35,9 @@ def compute_md5sum(file: Path) -> str:
     return md5.hexdigest()
 
 
-def compute_sha1sum(filename: Path) -> str:
-    # BUF_SIZE is totally arbitrary, change for your app!
-    BUF_SIZE = 65536  # lets read stuff in 64kb chunks!
-
-    sha1 = hashlib.sha1()
-
-    if Path(filename).is_file():
-        with open(filename.absolute(), 'rb') as f:
-            while True:
-                data = f.read(BUF_SIZE)
-                if not data:
-                    break
-                sha1.update(data)
-
-    return sha1.hexdigest()
-
-
-#
-# def compute_xxh128sum(filename: Path) -> str:
-#     if Path(filename).is_file():
-#         command = 'xxh128sum "' + str(filename) + '" | cut -d" " -f1 | xargs'
-#         results = subprocess.check_output(command, shell=True)
-#         return results.decode("utf-8").strip()
-#
-
-
-def generate_uuid() -> str:
-    return str(uuid.uuid5(uuid.NAMESPACE_DNS, socket.getfqdn()))
-
-
 def get_file_creation_date(filename: Path) -> str:
     t = os.path.getmtime(str(filename))
-    return str(datetime.datetime.fromtimestamp(t))
+    return str(datetime.fromtimestamp(t))
 
 
 def get_file_size(filename: Path) -> int:
@@ -113,32 +52,11 @@ def build_rec(file: Path) -> dict:
     if file.is_file():
         LOGGER.debug('Reading ' + str(file) + '.')
 
-        # compute md5sum
-        start_time = time.time()
-        md5sum = compute_md5sum(file)
-        md5sum_running_time = time.time() - start_time
-
-        # compute sha256sum
-        start_time = time.time()
-        sha256sum = compute_sha256sum(file)
-        sha256sum_running_time = time.time() - start_time
-
-        # #compute xxh128sum
-        # start_time = time.time()
-        # xxh128sum = compute_xxh128sum(file)
-        # xxh128sum_running_time = time.time() - start_time
-
         record = {'path': str(file),
-                  'uuid': generate_uuid(),
                   'scantime': date.today().strftime("%d-%m-%Y"),
                   'size': get_file_size(file),
                   'created': get_file_creation_date(file),
-                  'md5': md5sum,
-                  'md5sum_time': md5sum_running_time,
-                  'sha256': sha256sum,
-                  'sha256_time': sha256sum_running_time,
-                  # 'xxh128': xxh128sum,
-                  # 'xxh128_time': xxh128sum_running_time
+                  'md5': compute_md5sum(file)
                   }
     else:
         record = None
