@@ -80,7 +80,7 @@ def scan_dir_tree(dir_path: Path, nprocs: int = DEFAULT_NWORKERS,
                 if rec:
                     if '\t' in rec['path']:
                         rec['path'] = '"' + rec['path'] + '"'
-                    ofile.write('\t'.join([rec[fld] for fld in FIELDS_TO_KEEP])
+                    ofile.write('\t'.join([str(rec[fld]) for fld in FIELDS_TO_KEEP])
                                 + '\n')
 
     LOGGER.info('done')
