@@ -1,0 +1,17 @@
+'$schema': 'http://json-schema.org/schema#'
+'$id': 'http://schemata.hubmapconsortium.org/validation_test_schema.yml'
+'title': 'validation_test metadata schema'
+'description': 'validation_test metadata schema'
+
+'allOf': [{'$ref': '#/definitions/validation_test_metadata'}]
+
+'definitions':
+
+  'validation_test_metadata':
+    'type': 'object'
+    'properties':
+      'uuid':
+        'type': 'string'
+        'description': 'a dataset uuid or DOI'
+    'required': ['uuid']
+    
