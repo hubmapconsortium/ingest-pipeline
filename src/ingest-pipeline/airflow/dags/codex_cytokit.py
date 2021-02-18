@@ -17,9 +17,9 @@ from hubmap_operators.common_operators import (
 
 import utils
 from utils import (
-    get_absolute_workflows,
     get_cwltool_base_cmd,
     get_dataset_uuid,
+    get_named_absolute_workflows,
     get_parent_dataset_uuid,
     get_uuid_for_error,
     join_quote_command_str,
@@ -51,11 +51,13 @@ with DAG('codex_cytokit',
          ) as dag:
 
     pipeline_name = 'codex-pipeline'
-    cwl_workflows = get_absolute_workflows(
-        Path(pipeline_name, 'pipeline.cwl'),
-        Path('portal-containers', 'ome-tiff-offsets.cwl'),
-        Path('portal-containers', 'sprm-to-json.cwl'),
-        Path('portal-containers', 'sprm-to-anndata.cwl'),
+    cwl_workflows = get_named_absolute_workflows(
+        cytokit=Path(pipeline_name, 'pipeline.cwl'),
+        sprm=Path('sprm', 'pipeline.cwl'),
+        create_vis_symlink_archive=Path('create-vis-symlink-archive', 'pipeline.cwl'),
+        ome_tiff_offsets=Path('portal-containers', 'ome-tiff-offsets.cwl'),
+        sprm_to_json=Path('portal-containers', 'sprm-to-json.cwl'),
+        sprm_to_anndata=Path('portal-containers', 'sprm-to-anndata.cwl'),
     )
 
     def build_dataset_name(**kwargs):
@@ -78,7 +80,7 @@ with DAG('codex_cytokit',
 
         command = [
             *get_cwltool_base_cmd(tmpdir),
-            cwl_workflows[0],
+            cwl_workflows['cytokit'],
             '--gpus=0,1',
             '--data_dir',
             data_dir,
@@ -133,7 +135,7 @@ with DAG('codex_cytokit',
 
         command = [
             *get_cwltool_base_cmd(tmpdir),
-            cwl_workflows[1],
+            cwl_workflows['ome_tiff_offsets'],
             '--input_dir',
             data_dir / 'output/extract/expressions/ome-tiff',
         ]
@@ -185,7 +187,7 @@ with DAG('codex_cytokit',
 
         command = [
             *get_cwltool_base_cmd(tmpdir),
-            cwl_workflows[2],
+            cwl_workflows['sprm_to_json'],
             '--input_dir',
             data_dir / 'sprm_outputs',
         ]
@@ -236,7 +238,7 @@ with DAG('codex_cytokit',
 
         command = [
             *get_cwltool_base_cmd(tmpdir),
-            cwl_workflows[3],
+            cwl_workflows['sprm_to_anndata'],
             '--input_dir',
             data_dir / 'sprm_outputs',
         ]
