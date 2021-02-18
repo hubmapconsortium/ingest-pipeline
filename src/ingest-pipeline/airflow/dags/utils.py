@@ -205,6 +205,23 @@ def get_absolute_workflows(*workflows: Path) -> List[Path]:
     ]
 
 
+def get_named_absolute_workflows(**workflow_kwargs: Path) -> Dict[str, Path]:
+    # The type hint for **workflow_kwargs looks a little odd, but
+    # apparently this is how you specify that all values are of that
+    # type -- the keys of that dict are necessarily strings
+    """
+    :param workflows: Mapping from string names to workflow Paths,
+      absolute or relative
+    :return: Mapping of the same strings to absolute paths to workflows:
+      if the input paths were already absolute, they are returned unchanged;
+      if relative, they are anchored to `PIPELINE_BASE_DIR`
+    """
+    return {
+        name: PIPELINE_BASE_DIR / workflow
+        for name, workflow in workflow_kwargs.items()
+    }
+
+
 def get_parent_dataset_uuid(**kwargs):
     return kwargs['dag_run'].conf['parent_submission_id']
 
