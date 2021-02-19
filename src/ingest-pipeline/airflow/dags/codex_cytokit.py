@@ -55,6 +55,7 @@ with DAG('codex_cytokit',
         Path(pipeline_name, 'pipeline.cwl'),
         Path('portal-containers', 'ome-tiff-offsets.cwl'),
         Path('portal-containers', 'sprm-to-json.cwl'),
+        Path('portal-containers', 'sprm-to-anndata.cwl'),
     )
 
     def build_dataset_name(**kwargs):
@@ -214,9 +215,59 @@ with DAG('codex_cytokit',
         task_id='maybe_keep_cwl3',
         python_callable=utils.pythonop_maybe_keep,
         provide_context=True,
-        op_kwargs = {'next_op' : 'move_data',
+        op_kwargs = {'next_op' : 'prepare_cwl4',
                      'bail_op' : 'set_dataset_error',
                      'test_op' : 'pipeline_exec_cwl3'}
+        )
+    
+    prepare_cwl4 = DummyOperator(
+        task_id='prepare_cwl4'
+        )
+    
+    def build_cwltool_cmd4(**kwargs):
+        ctx = kwargs['dag_run'].conf
+        run_id = kwargs['run_id']
+        tmpdir = utils.get_tmp_dir_path(run_id)
+        print('tmpdir: ', tmpdir)
+        parent_data_dir = ctx['parent_lz_path']
+        print('parent_data_dir: ', parent_data_dir)
+        data_dir = tmpdir / 'cwl_out'  # This stage reads input from stage 1
+        print('data_dir: ', data_dir)
+
+        command = [
+            *get_cwltool_base_cmd(tmpdir),
+            cwl_workflows[3],
+            '--input_dir',
+            data_dir / 'sprm_outputs',
+        ]
+
+        return join_quote_command_str(command)
+
+
+    t_build_cmd4 = PythonOperator(
+        task_id='build_cmd4',
+        python_callable=build_cwltool_cmd4,
+        provide_context=True,
+        )
+
+
+    t_pipeline_exec_cwl4 = BashOperator(
+        task_id='pipeline_exec_cwl4',
+        bash_command=""" \
+        tmp_dir={{tmp_dir_path(run_id)}} ; \
+        cd ${tmp_dir}/cwl_out ; \
+        {{ti.xcom_pull(task_ids='build_cmd4')}} >> ${tmp_dir}/session.log 2>&1 ; \
+        echo $?
+        """
+    )
+
+    t_maybe_keep_cwl4 = BranchPythonOperator(
+        task_id='maybe_keep_cwl4',
+        python_callable=utils.pythonop_maybe_keep,
+        provide_context=True,
+        op_kwargs = {'next_op' : 'move_data',
+                     'bail_op' : 'set_dataset_error',
+                     'test_op' : 'pipeline_exec_cwl4'}
         )
 
 
@@ -265,6 +316,7 @@ with DAG('codex_cytokit',
             'pipeline_exec_cwl1',
             'pipeline_exec_cwl2',
             'pipeline_exec_cwl3',
+            'pipeline_exec_cwl4',
             'move_data',
         ],
         cwl_workflows=cwl_workflows,
@@ -287,10 +339,12 @@ with DAG('codex_cytokit',
      >> prepare_cwl1 >> t_build_cmd1 >> t_pipeline_exec_cwl1 >> t_maybe_keep_cwl1
      >> prepare_cwl2 >> t_build_cmd2 >> t_pipeline_exec_cwl2 >> t_maybe_keep_cwl2
      >> prepare_cwl3 >> t_build_cmd3 >> t_pipeline_exec_cwl3 >> t_maybe_keep_cwl3
+     >> prepare_cwl4 >> t_build_cmd4 >> t_pipeline_exec_cwl4 >> t_maybe_keep_cwl4
      >> t_move_data >> t_expand_symlinks >> t_send_status >> t_join)
     t_maybe_keep_cwl1 >> t_set_dataset_error
     t_maybe_keep_cwl2 >> t_set_dataset_error
     t_maybe_keep_cwl3 >> t_set_dataset_error
+    t_maybe_keep_cwl4 >> t_set_dataset_error
     t_set_dataset_error >> t_join
     t_join >> t_cleanup_tmpdir
 

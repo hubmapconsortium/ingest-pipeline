@@ -2,7 +2,7 @@
 
 import xmltodict
 from metadata_file import MetadataFile
-from thirdparty import tifffile
+import tifffile
 
 class OMETiffMetadataFile(MetadataFile):
     """A metadata file type for OME-Tiff files"""

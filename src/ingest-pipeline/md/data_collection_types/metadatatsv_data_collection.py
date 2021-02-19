@@ -72,7 +72,7 @@ class MetadataTSVDataCollection(DataCollection):
                     rslt[os.path.relpath(fpath, self.topdir)] = this_md
                     fname = os.path.basename(fpath)
                     if 'metadata' in fname and fname.endswith('.tsv'):
-                        assert isinstance(this_md, list), 'metadata...tsv did not produce a list'
+                        assert isinstance(this_md, list), 'metadata.tsv did not produce a list'
                         cl.extend(this_md)
 
         rslt['components'] = cl

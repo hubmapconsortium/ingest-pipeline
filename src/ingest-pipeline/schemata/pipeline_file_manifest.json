@@ -18,6 +18,10 @@
       "edam_ontology_term": {
         "type": "string",
         "description": "Term in the EDAM ontology describing this pipeline output file"
+      },
+      "is_qa_qc": {
+        "type": "boolean",
+        "description": "Whether this file is a QA/QC report"
       }
     },
     "required": ["pattern", "description", "edam_ontology_term"]

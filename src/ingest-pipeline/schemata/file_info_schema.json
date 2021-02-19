@@ -24,6 +24,9 @@
         },
         "edam_term": {
           "type": "string"
+        },
+        "is_qa_qc": {
+          "type": "boolean"
         }
       }
     },
