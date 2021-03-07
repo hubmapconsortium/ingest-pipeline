@@ -57,17 +57,15 @@ with DAG('validation_test',
         def my_callable(**kwargs):
             return uuid
 
-        rslt = utils.pythonop_get_dataset_state(
+        ds_rslt = utils.pythonop_get_dataset_state(
             dataset_uuid_callable=my_callable,
             http_conn_id='ingest_api_connection',
             **kwargs
         )
-        if not rslt:
+        if not ds_rslt:
             raise AirflowException(f'Invalid uuid/doi for group: {uuid}')
-        print('rslt:')
-        pprint(rslt)
-        assert 'dataset' in rslt, f"Status for {uuid} has no dataset entry"
-        ds_rslt = rslt['dataset']
+        print('ds_rslt:')
+        pprint(ds_rslt)
 
         for key in ['status', 'uuid', 'data_types',
                     'local_directory_full_path']:
