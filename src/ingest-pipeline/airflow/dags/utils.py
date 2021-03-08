@@ -35,6 +35,9 @@ SCHEMA_BASE_PATH = join(dirname(dirname(dirname(realpath(__file__)))),
                         'schemata')
 SCHEMA_BASE_URI = 'http://schemata.hubmapconsortium.org/'
 
+# one of 'INGEST_LEGACY_API' or 'INGEST_REFACTOR_API'
+INGEST_API_MODE = 'INGEST_REFACTOR_API'
+
 # Some constants
 PIPELINE_BASE_DIR = Path(__file__).resolve().parent / 'cwl'
 
@@ -484,6 +487,18 @@ def pythonop_maybe_keep(**kwargs) -> str:
         return bail_op
 
 
+def _get_auth_tok(**kwargs) -> str:
+    """
+    Recover the authorization token from the environment, and
+    decrpyt it.
+    """
+    crypt_auth_tok = (kwargs['crypt_auth_tok'] if 'crypt_auth_tok' in kwargs
+                      else kwargs['dag_run'].conf['crypt_auth_tok'])
+    auth_tok = ''.join(e for e in decrypt_tok(crypt_auth_tok.encode())
+                       if e.isalnum())  # strip out non-alnum characters
+    return auth_tok
+
+
 def pythonop_send_create_dataset(**kwargs) -> str:
     """
     Requests creation of a new dataset.  Returns dataset info via XCOM
@@ -516,18 +531,13 @@ def pythonop_send_create_dataset(**kwargs) -> str:
 
     ctx = kwargs['dag_run'].conf
     method = 'POST'
-    crypt_auth_tok = (kwargs['crypt_auth_tok'] if 'crypt_auth_tok' in kwargs
-                      else kwargs['dag_run'].conf['crypt_auth_tok'])
-    auth_tok = ''.join(e for e in decrypt_tok(crypt_auth_tok.encode())
-                       if e.isalnum())  # strip out non-alnum characters
     headers = {
-        'authorization' : 'Bearer ' + auth_tok,
+        'authorization' : 'Bearer ' + _get_auth_tok(**kwargs),
         'content-type' : 'application/json'}
     #print('headers:')
     #pprint(headers)  # Reduce exposure of auth_tok
     extra_options = []
-    http = HttpHook(method,
-                    http_conn_id=http_conn_id)
+    http_hook = HttpHook(method, http_conn_id=http_conn_id)
     if 'dataset_types' in kwargs:
         dataset_types = kwargs['dataset_types']
     else:
@@ -540,10 +550,10 @@ def pythonop_send_create_dataset(**kwargs) -> str:
     }
     print('data:')
     pprint(data)
-    response = http.run(endpoint,
-                        json.dumps(data),
-                        headers,
-                        extra_options)
+    response = http_hook.run(endpoint,
+                             json.dumps(data),
+                             headers,
+                             extra_options)
     print('response: ')
     pprint(response.json())
     data_dir_path = response.json()['full_path']
@@ -574,17 +584,15 @@ def pythonop_set_dataset_state(**kwargs) -> None:
     ds_state = kwargs['ds_state'] if 'ds_state' in kwargs else 'Processing'
     message = kwargs['message'] if 'message' in kwargs else 'update state'
     method = 'PUT'
-    crypt_auth_tok = (kwargs['crypt_auth_tok'] if 'crypt_auth_tok' in kwargs
-                      else kwargs['dag_run'].conf['crypt_auth_tok'])
     headers = {
-        'authorization' : 'Bearer ' + decrypt_tok(crypt_auth_tok.encode()),
+        'authorization' : 'Bearer ' + _get_auth_tok(**kwargs),
         'content-type' : 'application/json'}
 #     print('headers:')
 #     pprint(headers)  # reduce visibility of auth_tok
     extra_options = []
 
-    http = HttpHook(method,
-                    http_conn_id=http_conn_id)
+    http_hook = HttpHook(method,
+                         http_conn_id=http_conn_id)
 
     data = {'dataset_id' : dataset_uuid,
             'status' : ds_state,
@@ -593,9 +601,9 @@ def pythonop_set_dataset_state(**kwargs) -> None:
     print('data: ')
     pprint(data)
 
-    response = http.run(endpoint,
-                        json.dumps(data),
-                        headers,
+    response = http_hook.run(endpoint,
+                             json.dumps(data),
+                             headers,
                         extra_options)
     print('response: ')
     pprint(response.json())
@@ -612,26 +620,31 @@ def pythonop_get_dataset_state(**kwargs) -> JSONType:
     """
     for arg in ['dataset_uuid_callable', 'http_conn_id']:
         assert arg in kwargs, "missing required argument {}".format(arg)
-    dataset_uuid = kwargs['dataset_uuid_callable'](**kwargs)
+    uuid = kwargs['dataset_uuid_callable'](**kwargs)
     http_conn_id = kwargs['http_conn_id']
-    endpoint = f'datasets/{dataset_uuid}'
     method = 'GET'
-    crypt_auth_tok = (kwargs['crypt_auth_tok'] if 'crypt_auth_tok' in kwargs
-                      else kwargs['dag_run'].conf['crypt_auth_tok'])
-    auth_tok = ''.join(e for e in decrypt_tok(crypt_auth_tok.encode())
-                       if e.isalnum())  # strip out non-alnum characters
+    auth_tok = _get_auth_tok(**kwargs)
     headers = {
         'authorization' : f'Bearer {auth_tok}',
-        'content-type' : 'application/json'}
+        'content-type' : 'application/json'
+        }
+    http_hook = HttpHook(method, http_conn_id=http_conn_id)
+
+    if INGEST_API_MODE == 'INGEST_LEGACY_API':
+        endpoint = f'datasets/{uuid}'
+    elif INGEST_API_MODE == 'INGEST_REFACTOR_API':
+        endpoint = f'entities/{uuid}'
+    else:
+        raise RuntimeError(f'Unknown INGEST_API_MODE {INGEST_API_MODE}')
 
     try:
-        http = HttpHook(method,
-                        http_conn_id=http_conn_id)
-
-        response = http.run(endpoint,
-                            headers=headers,
-                            extra_options={'check_response': False})
+        response = http_hook.run(endpoint,
+                                 headers=headers,
+                                 extra_options={'check_response': False})
         response.raise_for_status()
+        query_rslt = response.json()
+        print('query rslt:')
+        pprint(query_rslt)
     except HTTPError as e:
         print(f'ERROR: {e}')
         if e.response.status_code == codes.unauthorized:
@@ -639,27 +652,63 @@ def pythonop_get_dataset_state(**kwargs) -> JSONType:
         else:
             print('benign error')
             return {}
-    return response.json()
+
+    if INGEST_API_MODE == 'INGEST_LEGACY_API':
+        assert 'dataset' in query_rslt, f"Status for {uuid} has no dataset entry"
+        ds_rslt = rslt['dataset']
+        key = 'local_directory_full_path'
+        assert key in ds_rslt, f"Dataset status for {uuid} has no {key}"
+        full_path = ds_rslt[key]
+    elif INGEST_API_MODE == 'INGEST_REFACTOR_API':
+        ds_rslt = query_rslt
+        endpoint = f'datasets/{uuid}/file-system-abs-path'
+        try:
+            response = http_hook.run(endpoint,
+                                     headers=headers,
+                                     extra_options={'check_response': False})
+            response.raise_for_status()
+            path_query_rslt = response.json()
+            print('path_query rslt:')
+            pprint(path_query_rslt)
+        except HTTPError as e:
+            print(f'ERROR: {e}')
+            if e.response.status_code == codes.unauthorized:
+                raise RuntimeError('entity database authorization was rejected?')
+            else:
+                print('benign error')
+                return {}
+        assert 'path' in path_query_rslt, f"Dataset path for {uuid} produced no path"
+        full_path = path_query_rslt['path']
+    else:
+        raise RuntimeError(f'Unknown INGEST_API_MODE {INGEST_API_MODE}')
+
+    for key in ['status', 'uuid', 'data_types']:
+        assert key in ds_rslt, f"Dataset status for {uuid} has no {key}"
+    rslt = {
+        'status': ds_rslt['status'],
+        'uuid': ds_rslt['uuid'],
+        'data_types': ds_rslt['data_types'],
+        'local_directory_full_path': full_path
+        }
+    return rslt
 
 
 def _uuid_lookup(uuid, **kwargs):
     http_conn_id = 'uuid_api_connection'
     endpoint = 'hmuuid/{}'.format(uuid)
     method = 'GET'
-    crypt_auth_tok = (kwargs['crypt_auth_tok'] if 'crypt_auth_tok' in kwargs
-                      else kwargs['dag_run'].conf['crypt_auth_tok'])
-    headers = {'authorization' : 'Bearer ' + decrypt_tok(crypt_auth_tok.encode())}
+    headers = {'authorization' : 'Bearer ' + _get_auth_tok(**kwargs)}
 #     print('headers:')
 #     pprint(headers)
     extra_options = []
 
-    http = HttpHook(method,
-                    http_conn_id=http_conn_id)
+    http_hook = HttpHook(method,
+                         http_conn_id=http_conn_id)
 
-    response = http.run(endpoint,
-                        None,
-                        headers,
-                        extra_options)
+    response = http_hook.run(endpoint,
+                             None,
+                             headers,
+                             extra_options)
 #     print('response: ')
 #     pprint(response.json())
     return response.json()
@@ -780,40 +829,69 @@ def make_send_status_msg_function(
         cwl_workflows: List[Path],
         http_conn_id: str = 'ingest_api_connection',
         uuid_src_task_id: str = 'send_create_dataset',
-):
+        dataset_uuid_fun: Optional[Callable[..., str]] = None,
+        dataset_lz_path_fun: Optional[Callable[..., str]] = None,
+        metadata_fun: Optional[Callable[..., dict]] = None
+) -> Callable[..., None]:
     """
+    The function which is generated by this function will return a boolean,
+    True if the message which was ultimately sent was for a success and
+    False otherwise.  This return value is not necessary in most circumstances
+    but is useful when the generated function is being wrapped.
+
+    The user can specify dataset_uuid_fun and dataset_lz_path_fun, or leave
+    both to their empty default values and specify 'uuid_src_task_id'.
+
     `dag_file` should always be `__file__` wherever this function is used,
     to include the DAG file in the provenance. This could be "automated" with
     something like `sys._getframe(1).f_code.co_filename`, but that doesn't
     seem worth it at the moment
 
     'http_conn_id' is the Airflow connection id associated with the /datasets/status service.
-    'uuid_src_task_id' is the Airflow task_id of a task providing the uuid via the XCOM
-                       key 'derived_dataset_uuid' and the dataset data directory via
-                       the None key
+
+    'dataset_uuid_fun' is a function which returns the uuid of the dataset to be
+    updated, or None.  If given, it will be called with **kwargs arguments.
+
+    'dataset_lz_path_fun' is a function which returns the full path of the dataset 
+    data directory, or None.  If given, it will be called with **kwargs arguments.
+
+    'uuid_src_task_id' is the Airflow task_id of a task providing the uuid via 
+    the XCOM key 'derived_dataset_uuid' and the dataset data directory
+    via the None key.  This is used only if dataset_uuid is None or dataset_lz_path 
+    is None.
+
+    'metadata_fun' is a function which returns additional metadata in JSON form,
+    or None.  If given, it will be called with **kwargs arguments.  This function
+    will only be evaluated if retcode_ops have all returned 0.
     """
-    def send_status_msg(**kwargs):
+    def send_status_msg(**kwargs) -> bool:
         retcodes = [
             int(kwargs['ti'].xcom_pull(task_ids=op))
             for op in retcode_ops
         ]
         print('retcodes: ', {k: v for k, v in zip(retcode_ops, retcodes)})
         success = all(rc == 0 for rc in retcodes)
-        derived_dataset_uuid = kwargs['ti'].xcom_pull(
-            key='derived_dataset_uuid',
-            task_ids=uuid_src_task_id,
-        )
-        ds_dir = kwargs['ti'].xcom_pull(task_ids=uuid_src_task_id)
+        if dataset_uuid_fun is None:
+            dataset_uuid = kwargs['ti'].xcom_pull(
+                key='derived_dataset_uuid',
+                task_ids=uuid_src_task_id,
+            )
+        else:
+            dataset_uuid = dataset_uuid_fun(**kwargs)
+        if dataset_lz_path_fun is None:
+            ds_dir = kwargs['ti'].xcom_pull(task_ids=uuid_src_task_id)
+        else:
+            ds_dir = dataset_lz_path_fun(**kwargs)
         endpoint = '/datasets/status'
         method = 'PUT'
-        crypt_auth_tok = kwargs['dag_run'].conf['crypt_auth_tok']
         headers = {
-            'authorization': 'Bearer ' + decrypt_tok(crypt_auth_tok.encode()),
+            'authorization': 'Bearer ' + _get_auth_tok(**kwargs),
             'content-type': 'application/json',
         }
         extra_options = []
+        return_status = True  # mark false on failure
 
-        http = HttpHook(method, http_conn_id=http_conn_id)
+        http_hook = HttpHook(method, http_conn_id=http_conn_id)
 
         if success:
             md = {}
@@ -830,6 +908,9 @@ def make_send_status_msg_function(
                 dag_prv.extend(get_git_provenance_list(files_for_provenance))
                 md['dag_provenance_list'] = dag_prv
 
+            if metadata_fun:
+                md['metadata'] = metadata_fun(**kwargs)
+
             manifest_files = find_pipeline_manifests(cwl_workflows)
             md.update(
                 get_file_metadata_dict(
@@ -841,7 +922,7 @@ def make_send_status_msg_function(
             try:
                 assert_json_matches_schema(md, 'dataset_metadata_schema.yml')
                 data = {
-                    'dataset_id': derived_dataset_uuid,
+                    'dataset_id': dataset_uuid,
                     'status': 'QA',
                     'message': 'the process ran',
                     'metadata': md,
@@ -850,24 +931,26 @@ def make_send_status_msg_function(
                 print('invalid metadata follows:')
                 pprint(md)
                 data = {
-                    'dataset_id': derived_dataset_uuid,
+                    'dataset_id': dataset_uuid,
                     'status': 'Error',
                     'message': 'internal error; schema violation: {}'.format(e),
                     'metadata': {},
                 }
+                return_status = False
         else:
             log_fname = Path(get_tmp_dir_path(kwargs['run_id']), 'session.log')
             with open(log_fname, 'r') as f:
                 err_txt = '\n'.join(f.readlines())
             data = {
-                'dataset_id': derived_dataset_uuid,
+                'dataset_id': dataset_uuid,
                 'status': 'Invalid',
                 'message': err_txt,
             }
+            return_status = False
         print('data: ')
         pprint(data)
 
-        response = http.run(
+        response = http_hook.run(
             endpoint,
             json.dumps(data),
             headers,
@@ -875,6 +958,8 @@ def make_send_status_msg_function(
         )
         print('response: ')
         pprint(response.json())
+
+        return return_status
 
     return send_status_msg
 
@@ -904,7 +989,7 @@ def create_dataset_state_error_callback(dataset_uuid_callable: Callable[[Any], s
         new_kwargs = kwargs.copy()
         new_kwargs.update(contextDict)
         new_kwargs.update({'dataset_uuid_callable' : dataset_uuid_callable,
-                           'http_conn_id' : 'ingest_api_connection',
+                           'http _conn_id' : 'ingest_api_connection',
                            'endpoint' : '/datasets/status',
                            'ds_state' : 'Error',
                            'message' : msg

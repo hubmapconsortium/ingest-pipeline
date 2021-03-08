@@ -4,6 +4,7 @@ import sys
 import argparse
 import requests
 import json
+from pathlib import Path
 from pprint import pprint
 import pandas as pd
 
@@ -125,9 +126,11 @@ class Dataset(Entity):
         self.kid_uuids = [elt['uuid'] for elt in prop_dct['immediate_descendants']]
         self.kid_dataset_uuids = [elt['uuid'] for elt in prop_dct['immediate_descendants']
                                   if elt['entity_type'] == 'Dataset']
-        self.data_types = prop_dct['data_types']
+        self.data_types = prop_dct['data_types'] if 'data_types' in prop_dct else []
         self.donor_uuid = prop_dct['donor']['uuid']
-
+        self.group_name = prop_dct['group_name']
+        self.contains_human_genetic_sequences = (prop_dct['contains_human_genetic_sequences'].lower() in
+                                                 ['yes', 'true'])
         self._kid_dct = None
         self._parent_dct = None
     
@@ -142,6 +145,14 @@ class Dataset(Entity):
         if self._parent_dct is None:
             self._parent_dct = {uuid: self.entity_factory.get(uuid) for uuid in self.parent_uuids}
         return self._parent_dct
+
+    @property
+    def full_path(self):
+        assert self.status == 'New', f'full_path is not yet implemented for {self.status} files'
+        if self.contains_human_genetic_sequences:
+            return Path('/hive/hubmap/data/protected') / self.group_name / self.uuid
+        else:
+            return Path('/hive/hubmap/data/consortium') / self.group_name / self.uuid
 
     def describe(self, prefix='', file=sys.stdout):
         print(f"{prefix}Dataset {self.uuid}: "
@@ -168,10 +179,12 @@ class Dataset(Entity):
         QA_child.status   (which must be QA or Published)
         note 
         """
-        rec = {'uuid': self.uuid, 'display_doi': self.display_doi, 'status': self.status}
-        assert self.data_types, f"No data_types found?"
-        if len(self.data_types) == 1:
-            rec['data_type'] = self.data_types[0]
+        rec = {'uuid': self.uuid, 'display_doi': self.display_doi, 'status': self.status,
+               'group_name': self.group_name}
+        if not self.data_types:
+            rec['data_types'] = "[]"
+        elif len(self.data_types) == 1:
+            rec['data_types'] = self.data_types[0]
         else:
             rec['data_types'] = f"[{','.join(self.data_types)}]"
         other_parent_uuids = [uuid for uuid in self.parent_uuids if uuid not in self.parent_dataset_uuids]

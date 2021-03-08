@@ -21,7 +21,7 @@ class GenericMetadataTSVDataCollection(DataCollection):
     dir_regex = None
 
     # expected_file pairs are (globable name, filetype key)
-    expected_files = [('*-metadata.tsv', 'METADATATSV')]
+    expected_files = [('*metadata.tsv', 'METADATATSV')]
     
     optional_files = []
 

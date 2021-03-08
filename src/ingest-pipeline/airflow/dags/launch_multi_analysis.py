@@ -73,15 +73,13 @@ with DAG('launch_multi_analysis',
         for uuid in uuid_l:
             print(f'Starting uuid {uuid}')
             my_callable = lambda **kwargs: uuid
-            rslt=utils.pythonop_get_dataset_state(dataset_uuid_callable=my_callable,
-                                                  http_conn_id='ingest_api_connection',
-                                                  **kwargs)
-            if not rslt:
+            ds_rslt=utils.pythonop_get_dataset_state(dataset_uuid_callable=my_callable,
+                                                     http_conn_id='ingest_api_connection',
+                                                     **kwargs)
+            if not ds_rslt:
                 raise AirflowException(f'Invalid uuid/doi for group: {uuid}')
-            print('rslt:')
-            pprint(rslt)
-            assert 'dataset' in rslt, f"Status for {uuid} has no dataset entry"
-            ds_rslt = rslt['dataset']
+            print('ds_rslt:')
+            pprint(ds_rslt)
 
             for key in ['status', 'uuid', 'data_types', 'local_directory_full_path']:
                 assert key in ds_rslt, f"Dataset status for {uuid} has no {key}"
