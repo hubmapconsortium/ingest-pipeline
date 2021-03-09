@@ -85,6 +85,7 @@ def generate_atac_seq_dag(params: SequencingDagParameters) -> DAG:
                 tmpdir / "cwl_out",
                 "--parallel",
                 cwl_workflows[0],
+                "--exclude_bam",
                 "--threads",
                 THREADS,
             ]
