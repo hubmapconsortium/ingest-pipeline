@@ -208,7 +208,7 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
             python_callable=utils.pythonop_maybe_keep,
             provide_context=True,
             op_kwargs={
-                "next_op": "move_data",
+                "next_op": "prepare_cwl3",
                 "bail_op": "set_dataset_error",
                 "test_op": "t_convert_for_ui",
             },
