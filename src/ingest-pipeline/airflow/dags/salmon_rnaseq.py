@@ -152,7 +152,7 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
         )
 
         t_build_cmd3 = PythonOperator(
-            task_id="build_cmd2",
+            task_id="build_cmd3",
             python_callable=build_cwltool_cmd3,
             provide_context=True,
         )
@@ -180,7 +180,7 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
         )
 
         t_convert_for_ui_2 = BashOperator(
-            task_id="convert_for_ui",
+            task_id="convert_for_ui_2",
             bash_command=""" \
             tmp_dir={{tmp_dir_path(run_id)}} ; \
             ds_dir="{{ti.xcom_pull(task_ids="send_create_dataset")}}" ; \
