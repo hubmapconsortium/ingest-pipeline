@@ -210,7 +210,7 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
             op_kwargs={
                 "next_op": "prepare_cwl3",
                 "bail_op": "set_dataset_error",
-                "test_op": "t_convert_for_ui",
+                "test_op": "convert_for_ui",
             },
         )
 
@@ -221,7 +221,7 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
             op_kwargs={
                 "next_op": "move_data",
                 "bail_op": "set_dataset_error",
-                "test_op": "t_convert_for_ui_2",
+                "test_op": "convert_for_ui_2",
             },
         )
 
