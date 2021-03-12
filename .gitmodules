@@ -22,3 +22,9 @@
 [submodule "src/ingest-pipeline/submodules/ingest-validation-tests"]
 	path = src/ingest-pipeline/submodules/ingest-validation-tests
 	url = git@github.com:hubmapconsortium/ingest-validation-tests.git
+[submodule "src/ingest-pipeline/airflow/dags/cwl/sprm"]
+	path = src/ingest-pipeline/airflow/dags/cwl/sprm
+	url = https://github.com/hubmapconsortium/sprm
+[submodule "src/ingest-pipeline/airflow/dags/cwl/create-vis-symlink-archive"]
+	path = src/ingest-pipeline/airflow/dags/cwl/create-vis-symlink-archive
+	url = https://github.com/hubmapconsortium/create-vis-symlink-archive
