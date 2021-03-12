@@ -16,15 +16,6 @@
 [submodule "src/ingest-pipeline/airflow/dags/cwl/ome-tiff-pyramid"]
 	path = src/ingest-pipeline/airflow/dags/cwl/ome-tiff-pyramid
 	url = git@github.com:hubmapconsortium/ome-tiff-pyramid.git
-[submodule "src/ingest-pipeline/airflow/dags/cwl/sci-atac-seq-pipeline"]
-	path = src/ingest-pipeline/airflow/dags/cwl/sci-atac-seq-pipeline
-	url = git@github.com:hubmapconsortium/sc-atac-seq-pipeline
-[submodule "src/ingest-pipeline/airflow/dags/cwl/bulk-atac-seq"]
-	path = src/ingest-pipeline/airflow/dags/cwl/bulk-atac-seq
-	url = git@github.com:hubmapconsortium/sc-atac-seq-pipeline.git
-[submodule "src/ingest-pipeline/airflow/dags/cwl/sn-atac-seq-pipeline"]
-	path = src/ingest-pipeline/airflow/dags/cwl/sn-atac-seq-pipeline
-	url = https://github.com/hubmapconsortium/sc-atac-seq-pipeline
 [submodule "src/ingest-pipeline/airflow/dags/cwl/ome-tiff-pyramid-ims"]
 	path = src/ingest-pipeline/airflow/dags/cwl/ome-tiff-pyramid-ims
 	url = https://github.com/hubmapconsortium/ome-tiff-pyramid
