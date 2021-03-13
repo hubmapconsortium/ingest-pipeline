@@ -208,6 +208,23 @@ def get_absolute_workflows(*workflows: Path) -> List[Path]:
     ]
 
 
+def get_named_absolute_workflows(**workflow_kwargs: Path) -> Dict[str, Path]:
+    # The type hint for **workflow_kwargs looks a little odd, but
+    # apparently this is how you specify that all values are of that
+    # type -- the keys of that dict are necessarily strings
+    """
+    :param workflows: Mapping from string names to workflow Paths,
+      absolute or relative
+    :return: Mapping of the same strings to absolute paths to workflows:
+      if the input paths were already absolute, they are returned unchanged;
+      if relative, they are anchored to `PIPELINE_BASE_DIR`
+    """
+    return {
+        name: PIPELINE_BASE_DIR / workflow
+        for name, workflow in workflow_kwargs.items()
+    }
+
+
 def get_parent_dataset_uuid(**kwargs):
     return kwargs['dag_run'].conf['parent_submission_id']
 
@@ -854,6 +871,8 @@ def make_send_status_msg_function(
 
     'dataset_lz_path_fun' is a function which returns the full path of the dataset 
     data directory, or None.  If given, it will be called with **kwargs arguments.
+    If the return value of this callable is None or the empty string, no file metadata
+    will be ultimately be included in the status message.
 
     'uuid_src_task_id' is the Airflow task_id of a task providing the uuid via 
     the XCOM key 'derived_dataset_uuid' and the dataset data directory
@@ -912,13 +931,14 @@ def make_send_status_msg_function(
                 md['metadata'] = metadata_fun(**kwargs)
 
             manifest_files = find_pipeline_manifests(cwl_workflows)
-            md.update(
-                get_file_metadata_dict(
-                    ds_dir,
-                    get_tmp_dir_path(kwargs['run_id']),
-                    manifest_files,
-                ),
-            )
+            if ds_dir is not None and not ds_dir == '':
+                md.update(
+                    get_file_metadata_dict(
+                        ds_dir,
+                        get_tmp_dir_path(kwargs['run_id']),
+                        manifest_files,
+                    ),
+                )
             try:
                 assert_json_matches_schema(md, 'dataset_metadata_schema.yml')
                 data = {

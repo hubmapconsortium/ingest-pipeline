@@ -17,9 +17,9 @@ from hubmap_operators.common_operators import (
 
 import utils
 from utils import (
-    get_absolute_workflows,
     get_cwltool_base_cmd,
     get_dataset_uuid,
+    get_named_absolute_workflows,
     get_parent_dataset_uuid,
     get_uuid_for_error,
     join_quote_command_str,
@@ -51,11 +51,13 @@ with DAG('codex_cytokit',
          ) as dag:
 
     pipeline_name = 'codex-pipeline'
-    cwl_workflows = get_absolute_workflows(
-        Path(pipeline_name, 'pipeline.cwl'),
-        Path('portal-containers', 'ome-tiff-offsets.cwl'),
-        Path('portal-containers', 'sprm-to-json.cwl'),
-        Path('portal-containers', 'sprm-to-anndata.cwl'),
+    cwl_workflows = get_named_absolute_workflows(
+        cytokit=Path(pipeline_name, 'pipeline.cwl'),
+        sprm=Path('sprm', 'pipeline.cwl'),
+        create_vis_symlink_archive=Path('create-vis-symlink-archive', 'pipeline.cwl'),
+        ome_tiff_offsets=Path('portal-containers', 'ome-tiff-offsets.cwl'),
+        sprm_to_json=Path('portal-containers', 'sprm-to-json.cwl'),
+        sprm_to_anndata=Path('portal-containers', 'sprm-to-anndata.cwl'),
     )
 
     def build_dataset_name(**kwargs):
@@ -64,11 +66,9 @@ with DAG('codex_cytokit',
                                    pipeline_name)
 
 
-    prepare_cwl1 = DummyOperator(
-        task_id='prepare_cwl1'
-        )
+    prepare_cwl_cytokit = DummyOperator(task_id='prepare_cwl_cytokit')
     
-    def build_cwltool_cmd1(**kwargs):
+    def build_cwltool_cwl_cytokit(**kwargs):
         ctx = kwargs['dag_run'].conf
         run_id = kwargs['run_id']
         tmpdir = utils.get_tmp_dir_path(run_id)
@@ -78,7 +78,7 @@ with DAG('codex_cytokit',
 
         command = [
             *get_cwltool_base_cmd(tmpdir),
-            cwl_workflows[0],
+            cwl_workflows['cytokit'],
             '--gpus=0,1',
             '--data_dir',
             data_dir,
@@ -87,41 +87,37 @@ with DAG('codex_cytokit',
         return join_quote_command_str(command)
 
 
-    t_build_cmd1 = PythonOperator(
-        task_id='build_cmd1',
-        python_callable=build_cwltool_cmd1,
+    t_build_cwl_cytokit = PythonOperator(
+        task_id='build_cwl_cytokit',
+        python_callable=build_cwltool_cwl_cytokit,
         provide_context=True,
         )
 
 
-    t_pipeline_exec_cwl1 = BashOperator(
-        task_id='pipeline_exec_cwl1',
+    t_pipeline_exec_cwl_cytokit = BashOperator(
+        task_id='pipeline_exec_cwl_cytokit',
         queue=utils.map_queue_name('gpu000_q1'),
         bash_command=""" \
         tmp_dir={{tmp_dir_path(run_id)}} ; \
         mkdir -p ${tmp_dir}/cwl_out ; \
         cd ${tmp_dir}/cwl_out ; \
-        {{ti.xcom_pull(task_ids='build_cmd1')}} > $tmp_dir/session.log 2>&1 ; \
+        {{ti.xcom_pull(task_ids='build_cwl_cytokit')}} > $tmp_dir/session.log 2>&1 ; \
         echo $?
         """
     )
 
-
-    t_maybe_keep_cwl1 = BranchPythonOperator(
-        task_id='maybe_keep_cwl1',
+    t_maybe_keep_cwl_cytokit = BranchPythonOperator(
+        task_id='maybe_keep_cwl_cytokit',
         python_callable=utils.pythonop_maybe_keep,
         provide_context=True,
-        op_kwargs = {'next_op' : 'prepare_cwl2',
+        op_kwargs = {'next_op' : 'prepare_cwl_sprm',
                      'bail_op' : 'set_dataset_error',
-                     'test_op' : 'pipeline_exec_cwl1'}
+                     'test_op' : 'pipeline_exec_cwl_cytokit'}
         )
 
+    prepare_cwl_sprm = DummyOperator(task_id='prepare_cwl_sprm')
 
-    prepare_cwl2 = DummyOperator(
-        task_id='prepare_cwl2'
-        )
-    
-    def build_cwltool_cmd2(**kwargs):
+    def build_cwltool_cmd_sprm(**kwargs):
         ctx = kwargs['dag_run'].conf
         run_id = kwargs['run_id']
         tmpdir = utils.get_tmp_dir_path(run_id)
@@ -133,7 +129,110 @@ with DAG('codex_cytokit',
 
         command = [
             *get_cwltool_base_cmd(tmpdir),
-            cwl_workflows[1],
+            cwl_workflows['sprm'],
+            '--image_dir',
+            data_dir / 'stitched/expressions',
+            '--mask_dir',
+            data_dir / 'stitched/mask',
+        ]
+
+        return join_quote_command_str(command)
+
+
+    t_build_cmd_sprm = PythonOperator(
+        task_id='build_cmd_sprm',
+        python_callable=build_cwltool_cmd_sprm,
+        provide_context=True,
+        )
+
+
+    t_pipeline_exec_cwl_sprm = BashOperator(
+        task_id='pipeline_exec_cwl_sprm',
+        bash_command=""" \
+        tmp_dir={{tmp_dir_path(run_id)}} ; \
+        cd ${tmp_dir}/cwl_out ; \
+        {{ti.xcom_pull(task_ids='build_cmd_sprm')}} >> ${tmp_dir}/session.log 2>&1 ; \
+        echo $?
+        """
+    )
+
+    t_maybe_keep_cwl_sprm = BranchPythonOperator(
+        task_id='maybe_keep_cwl_sprm',
+        python_callable=utils.pythonop_maybe_keep,
+        provide_context=True,
+        op_kwargs = {'next_op' : 'prepare_cwl_create_vis_symlink_archive',
+                     'bail_op' : 'set_dataset_error',
+                     'test_op' : 'pipeline_exec_cwl_sprm'}
+        )
+
+    prepare_cwl_create_vis_symlink_archive = DummyOperator(
+        task_id='prepare_cwl_create_vis_symlink_archive',
+    )
+
+    def build_cwltool_cmd_create_vis_symlink_archive(**kwargs):
+        ctx = kwargs['dag_run'].conf
+        run_id = kwargs['run_id']
+        tmpdir = utils.get_tmp_dir_path(run_id)
+        print('tmpdir: ', tmpdir)
+        parent_data_dir = ctx['parent_lz_path']
+        print('parent_data_dir: ', parent_data_dir)
+        data_dir = tmpdir / 'cwl_out'
+        print('data_dir: ', data_dir)
+
+        command = [
+            *get_cwltool_base_cmd(tmpdir),
+            cwl_workflows['create_vis_symlink_archive'],
+            '--ometiff_dir',
+            data_dir / 'stitched',
+            '--sprm_output',
+            data_dir / 'sprm_outputs',
+        ]
+
+        return join_quote_command_str(command)
+
+
+    t_build_cmd_create_vis_symlink_archive = PythonOperator(
+        task_id='build_cmd_create_vis_symlink_archive',
+        python_callable=build_cwltool_cmd_create_vis_symlink_archive,
+        provide_context=True,
+        )
+
+
+    t_pipeline_exec_cwl_create_vis_symlink_archive = BashOperator(
+        task_id='pipeline_exec_cwl_create_vis_symlink_archive',
+        bash_command=""" \
+        tmp_dir={{tmp_dir_path(run_id)}} ; \
+        cd ${tmp_dir}/cwl_out ; \
+        {{ti.xcom_pull(task_ids='build_cmd_create_vis_symlink_archive')}} >> ${tmp_dir}/session.log 2>&1 ; \
+        echo $?
+        """
+    )
+
+
+    t_maybe_keep_cwl_create_vis_symlink_archive = BranchPythonOperator(
+        task_id='maybe_keep_cwl_create_vis_symlink_archive',
+        python_callable=utils.pythonop_maybe_keep,
+        provide_context=True,
+        op_kwargs = {'next_op' : 'prepare_cwl_ome_tiff_offsets',
+                     'bail_op' : 'set_dataset_error',
+                     'test_op' : 'pipeline_exec_cwl_create_vis_symlink_archive'}
+        )
+
+    prepare_cwl_ome_tiff_offsets = DummyOperator(task_id='prepare_cwl_ome_tiff_offsets')
+
+    def build_cwltool_cmd_ome_tiff_offsets(**kwargs):
+        ctx = kwargs['dag_run'].conf
+        run_id = kwargs['run_id']
+        tmpdir = utils.get_tmp_dir_path(run_id)
+        print('tmpdir: ', tmpdir)
+        parent_data_dir = ctx['parent_lz_path']
+        print('parent_data_dir: ', parent_data_dir)
+        data_dir = tmpdir / 'cwl_out'
+        print('data_dir: ', data_dir)
+
+        command = [
+            *get_cwltool_base_cmd(tmpdir),
+            cwl_workflows['ome_tiff_offsets'],
             '--input_dir',
             data_dir / 'output/extract/expressions/ome-tiff',
         ]
@@ -141,39 +240,39 @@ with DAG('codex_cytokit',
         return join_quote_command_str(command)
 
 
-    t_build_cmd2 = PythonOperator(
-        task_id='build_cmd2',
-        python_callable=build_cwltool_cmd2,
+    t_build_cmd_ome_tiff_offsets = PythonOperator(
+        task_id='build_cmd_ome_tiff_offsets',
+        python_callable=build_cwltool_cmd_ome_tiff_offsets,
         provide_context=True,
         )
 
 
-    t_pipeline_exec_cwl2 = BashOperator(
-        task_id='pipeline_exec_cwl2',
+    t_pipeline_exec_cwl_ome_tiff_offsets = BashOperator(
+        task_id='pipeline_exec_cwl_ome_tiff_offsets',
         bash_command=""" \
         tmp_dir={{tmp_dir_path(run_id)}} ; \
         cd ${tmp_dir}/cwl_out ; \
-        {{ti.xcom_pull(task_ids='build_cmd2')}} >> ${tmp_dir}/session.log 2>&1 ; \
+        {{ti.xcom_pull(task_ids='build_cmd_ome_tiff_offsets')}} >> ${tmp_dir}/session.log 2>&1 ; \
         echo $?
         """
     )
 
 
-    t_maybe_keep_cwl2 = BranchPythonOperator(
-        task_id='maybe_keep_cwl2',
+    t_maybe_keep_cwl_ome_tiff_offsets = BranchPythonOperator(
+        task_id='maybe_keep_cwl_ome_tiff_offsets',
         python_callable=utils.pythonop_maybe_keep,
         provide_context=True,
-        op_kwargs = {'next_op' : 'prepare_cwl3',
+        op_kwargs = {'next_op' : 'prepare_cwl_sprm_to_json',
                      'bail_op' : 'set_dataset_error',
-                     'test_op' : 'pipeline_exec_cwl2'}
+                     'test_op' : 'pipeline_exec_cwl_ome_tiff_offsets'}
         )
 
 
-    prepare_cwl3 = DummyOperator(
-        task_id='prepare_cwl3'
+    prepare_cwl_sprm_to_json = DummyOperator(
+        task_id='prepare_cwl_sprm_to_json'
         )
     
-    def build_cwltool_cmd3(**kwargs):
+    def build_cwltool_cmd_sprm_to_json(**kwargs):
         ctx = kwargs['dag_run'].conf
         run_id = kwargs['run_id']
         tmpdir = utils.get_tmp_dir_path(run_id)
@@ -185,7 +284,7 @@ with DAG('codex_cytokit',
 
         command = [
             *get_cwltool_base_cmd(tmpdir),
-            cwl_workflows[2],
+            cwl_workflows['sprm_to_json'],
             '--input_dir',
             data_dir / 'sprm_outputs',
         ]
@@ -193,38 +292,38 @@ with DAG('codex_cytokit',
         return join_quote_command_str(command)
 
 
-    t_build_cmd3 = PythonOperator(
-        task_id='build_cmd3',
-        python_callable=build_cwltool_cmd3,
+    t_build_cmd_sprm_to_json = PythonOperator(
+        task_id='build_cmd_sprm_to_json',
+        python_callable=build_cwltool_cmd_sprm_to_json,
         provide_context=True,
         )
 
 
-    t_pipeline_exec_cwl3 = BashOperator(
-        task_id='pipeline_exec_cwl3',
+    t_pipeline_exec_cwl_sprm_to_json = BashOperator(
+        task_id='pipeline_exec_cwl_sprm_to_json',
         bash_command=""" \
         tmp_dir={{tmp_dir_path(run_id)}} ; \
         cd ${tmp_dir}/cwl_out ; \
-        {{ti.xcom_pull(task_ids='build_cmd3')}} >> ${tmp_dir}/session.log 2>&1 ; \
+        {{ti.xcom_pull(task_ids='build_cmd_sprm_to_json')}} >> ${tmp_dir}/session.log 2>&1 ; \
         echo $?
         """
     )
 
 
-    t_maybe_keep_cwl3 = BranchPythonOperator(
-        task_id='maybe_keep_cwl3',
+    t_maybe_keep_cwl_sprm_to_json = BranchPythonOperator(
+        task_id='maybe_keep_cwl_sprm_to_json',
         python_callable=utils.pythonop_maybe_keep,
         provide_context=True,
-        op_kwargs = {'next_op' : 'prepare_cwl4',
+        op_kwargs = {'next_op' : 'prepare_cwl_sprm_to_anndata',
                      'bail_op' : 'set_dataset_error',
-                     'test_op' : 'pipeline_exec_cwl3'}
+                     'test_op' : 'pipeline_exec_cwl_sprm_to_json'}
         )
     
-    prepare_cwl4 = DummyOperator(
-        task_id='prepare_cwl4'
+    prepare_cwl_sprm_to_anndata = DummyOperator(
+        task_id='prepare_cwl_sprm_to_anndata'
         )
     
-    def build_cwltool_cmd4(**kwargs):
+    def build_cwltool_cmd_sprm_to_anndata(**kwargs):
         ctx = kwargs['dag_run'].conf
         run_id = kwargs['run_id']
         tmpdir = utils.get_tmp_dir_path(run_id)
@@ -236,7 +335,7 @@ with DAG('codex_cytokit',
 
         command = [
             *get_cwltool_base_cmd(tmpdir),
-            cwl_workflows[3],
+            cwl_workflows['sprm_to_anndata'],
             '--input_dir',
             data_dir / 'sprm_outputs',
         ]
@@ -244,30 +343,30 @@ with DAG('codex_cytokit',
         return join_quote_command_str(command)
 
 
-    t_build_cmd4 = PythonOperator(
-        task_id='build_cmd4',
-        python_callable=build_cwltool_cmd4,
+    t_build_cmd_sprm_to_anndata = PythonOperator(
+        task_id='build_cmd_sprm_to_anndata',
+        python_callable=build_cwltool_cmd_sprm_to_anndata,
         provide_context=True,
         )
 
 
-    t_pipeline_exec_cwl4 = BashOperator(
-        task_id='pipeline_exec_cwl4',
+    t_pipeline_exec_cwl_sprm_to_anndata = BashOperator(
+        task_id='pipeline_exec_cwl_sprm_to_anndata',
         bash_command=""" \
         tmp_dir={{tmp_dir_path(run_id)}} ; \
         cd ${tmp_dir}/cwl_out ; \
-        {{ti.xcom_pull(task_ids='build_cmd4')}} >> ${tmp_dir}/session.log 2>&1 ; \
+        {{ti.xcom_pull(task_ids='build_cmd_sprm_to_anndata')}} >> ${tmp_dir}/session.log 2>&1 ; \
         echo $?
         """
     )
 
-    t_maybe_keep_cwl4 = BranchPythonOperator(
-        task_id='maybe_keep_cwl4',
+    t_maybe_keep_cwl_sprm_to_anndata = BranchPythonOperator(
+        task_id='maybe_keep_cwl_sprm_to_anndata',
         python_callable=utils.pythonop_maybe_keep,
         provide_context=True,
         op_kwargs = {'next_op' : 'move_data',
                      'bail_op' : 'set_dataset_error',
-                     'test_op' : 'pipeline_exec_cwl4'}
+                     'test_op' : 'pipeline_exec_cwl_sprm_to_anndata'}
         )
 
 
@@ -313,13 +412,15 @@ with DAG('codex_cytokit',
     send_status_msg = make_send_status_msg_function(
         dag_file=__file__,
         retcode_ops=[
-            'pipeline_exec_cwl1',
-            'pipeline_exec_cwl2',
-            'pipeline_exec_cwl3',
-            'pipeline_exec_cwl4',
+            'pipeline_exec_cwl_cytokit',
+            'pipeline_exec_cwl_sprm',
+            'pipeline_exec_cwl_create_vis_symlink_archive',
+            'pipeline_exec_cwl_ome_tiff_offsets',
+            'pipeline_exec_cwl_sprm_to_json',
+            'pipeline_exec_cwl_sprm_to_anndata',
             'move_data',
         ],
-        cwl_workflows=cwl_workflows,
+        cwl_workflows=list(cwl_workflows.values()),
     )
     t_send_status = PythonOperator(
         task_id='send_status_msg',
@@ -336,15 +437,19 @@ with DAG('codex_cytokit',
 
     (dag >> t_log_info >> t_create_tmpdir
      >> t_send_create_dataset >> t_set_dataset_processing
-     >> prepare_cwl1 >> t_build_cmd1 >> t_pipeline_exec_cwl1 >> t_maybe_keep_cwl1
-     >> prepare_cwl2 >> t_build_cmd2 >> t_pipeline_exec_cwl2 >> t_maybe_keep_cwl2
-     >> prepare_cwl3 >> t_build_cmd3 >> t_pipeline_exec_cwl3 >> t_maybe_keep_cwl3
-     >> prepare_cwl4 >> t_build_cmd4 >> t_pipeline_exec_cwl4 >> t_maybe_keep_cwl4
+     >> prepare_cwl_cytokit >> t_build_cwl_cytokit >> t_pipeline_exec_cwl_cytokit >> t_maybe_keep_cwl_cytokit
+     >> prepare_cwl_sprm >> t_build_cmd_sprm >> t_pipeline_exec_cwl_sprm >> t_maybe_keep_cwl_sprm
+     >> prepare_cwl_create_vis_symlink_archive >> t_build_cmd_create_vis_symlink_archive >> t_pipeline_exec_cwl_create_vis_symlink_archive >> t_maybe_keep_cwl_create_vis_symlink_archive
+     >> prepare_cwl_ome_tiff_offsets >> t_build_cmd_ome_tiff_offsets >> t_pipeline_exec_cwl_ome_tiff_offsets >> t_maybe_keep_cwl_ome_tiff_offsets
+     >> prepare_cwl_sprm_to_json >> t_build_cmd_sprm_to_json >> t_pipeline_exec_cwl_sprm_to_json >> t_maybe_keep_cwl_sprm_to_json
+     >> prepare_cwl_sprm_to_anndata >> t_build_cmd_sprm_to_anndata >> t_pipeline_exec_cwl_sprm_to_anndata >> t_maybe_keep_cwl_sprm_to_anndata
      >> t_move_data >> t_expand_symlinks >> t_send_status >> t_join)
-    t_maybe_keep_cwl1 >> t_set_dataset_error
-    t_maybe_keep_cwl2 >> t_set_dataset_error
-    t_maybe_keep_cwl3 >> t_set_dataset_error
-    t_maybe_keep_cwl4 >> t_set_dataset_error
+    t_maybe_keep_cwl_cytokit >> t_set_dataset_error
+    t_maybe_keep_cwl_sprm >> t_set_dataset_error
+    t_maybe_keep_cwl_create_vis_symlink_archive >> t_set_dataset_error
+    t_maybe_keep_cwl_ome_tiff_offsets >> t_set_dataset_error
+    t_maybe_keep_cwl_sprm_to_json >> t_set_dataset_error
+    t_maybe_keep_cwl_sprm_to_anndata >> t_set_dataset_error
     t_set_dataset_error >> t_join
     t_join >> t_cleanup_tmpdir
 
