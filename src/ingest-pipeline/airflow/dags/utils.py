@@ -871,6 +871,8 @@ def make_send_status_msg_function(
 
     'dataset_lz_path_fun' is a function which returns the full path of the dataset 
     data directory, or None.  If given, it will be called with **kwargs arguments.
+    If the return value of this callable is None or the empty string, no file metadata
+    will be ultimately be included in the status message.
 
     'uuid_src_task_id' is the Airflow task_id of a task providing the uuid via 
     the XCOM key 'derived_dataset_uuid' and the dataset data directory
@@ -929,13 +931,14 @@ def make_send_status_msg_function(
                 md['metadata'] = metadata_fun(**kwargs)
 
             manifest_files = find_pipeline_manifests(cwl_workflows)
-            md.update(
-                get_file_metadata_dict(
-                    ds_dir,
-                    get_tmp_dir_path(kwargs['run_id']),
-                    manifest_files,
-                ),
-            )
+            if ds_dir is not None and not ds_dir == '':
+                md.update(
+                    get_file_metadata_dict(
+                        ds_dir,
+                        get_tmp_dir_path(kwargs['run_id']),
+                        manifest_files,
+                    ),
+                )
             try:
                 assert_json_matches_schema(md, 'dataset_metadata_schema.yml')
                 data = {

@@ -59,15 +59,15 @@ with DAG('scan_and_begin_processing',
             scanned_md = yaml.safe_load(f)
         return scanned_md
 
-    def get_dataset_lz_path(**kwargs):
-        return kwargs['dag_run'].conf['lz_path']
+    def get_blank_dataset_lz_path(**kwargs):
+        return ''  # used to suppress sending of file metadata
 
     send_status_msg = make_send_status_msg_function(
         dag_file=__file__,
         retcode_ops=['run_md_extract', 'md_consistency_tests'],
         cwl_workflows=[],
         dataset_uuid_fun=get_dataset_uuid,
-        dataset_lz_path_fun=get_dataset_lz_path,
+        dataset_lz_path_fun=get_blank_dataset_lz_path,
         metadata_fun=read_metadata_file
     )
 
