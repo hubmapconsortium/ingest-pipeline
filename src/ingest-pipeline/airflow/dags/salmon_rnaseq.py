@@ -58,6 +58,7 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
         cwl_workflows = get_absolute_workflows(
             Path("salmon-rnaseq", "pipeline.cwl"),
             Path("portal-containers", "h5ad-to-arrow.cwl"),
+            Path("portal-containers", "anndata-to-ui.cwl"),
         )
 
         def build_dataset_name(**kwargs):
@@ -68,6 +69,8 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
         prepare_cwl1 = DummyOperator(task_id="prepare_cwl1")
 
         prepare_cwl2 = DummyOperator(task_id="prepare_cwl2")
+
+        prepare_cwl3 = DummyOperator(task_id="prepare_cwl3")
 
         def build_cwltool_cmd1(**kwargs):
             ctx = kwargs["dag_run"].conf
@@ -116,6 +119,25 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
             ]
 
             return join_quote_command_str(command)
+        
+        def build_cwltool_cmd3(**kwargs):
+            ctx = kwargs["dag_run"].conf
+            run_id = kwargs["run_id"]
+            tmpdir = utils.get_tmp_dir_path(run_id)
+            print("tmpdir: ", tmpdir)
+            data_dir = ctx["parent_lz_path"]
+            print("data_dir: ", data_dir)
+
+            command = [
+                *get_cwltool_base_cmd(tmpdir),
+                cwl_workflows[2],
+                "--input_dir",
+                # This pipeline invocation runs in a 'hubmap_ui' subdirectory,
+                # so use the parent directory as input
+                "..",
+            ]
+
+            return join_quote_command_str(command)
 
         t_build_cmd1 = PythonOperator(
             task_id="build_cmd1",
@@ -126,6 +148,12 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
         t_build_cmd2 = PythonOperator(
             task_id="build_cmd2",
             python_callable=build_cwltool_cmd2,
+            provide_context=True,
+        )
+
+        t_build_cmd3 = PythonOperator(
+            task_id="build_cmd3",
+            python_callable=build_cwltool_cmd3,
             provide_context=True,
         )
 
@@ -144,9 +172,22 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
             tmp_dir={{tmp_dir_path(run_id)}} ; \
             ds_dir="{{ti.xcom_pull(task_ids="send_create_dataset")}}" ; \
             cd "$tmp_dir"/cwl_out ; \
-            mkdir hubmap_ui ; \
+            mkdir -p hubmap_ui ; \
             cd hubmap_ui ; \
             {{ti.xcom_pull(task_ids='build_cmd2')}} >> $tmp_dir/session.log 2>&1 ; \
+            echo $?
+            """,
+        )
+
+        t_convert_for_ui_2 = BashOperator(
+            task_id="convert_for_ui_2",
+            bash_command=""" \
+            tmp_dir={{tmp_dir_path(run_id)}} ; \
+            ds_dir="{{ti.xcom_pull(task_ids="send_create_dataset")}}" ; \
+            cd "$tmp_dir"/cwl_out ; \
+            mkdir -p hubmap_ui ; \
+            cd hubmap_ui ; \
+            {{ti.xcom_pull(task_ids='build_cmd3')}} >> $tmp_dir/session.log 2>&1 ; \
             echo $?
             """,
         )
@@ -167,9 +208,20 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
             python_callable=utils.pythonop_maybe_keep,
             provide_context=True,
             op_kwargs={
+                "next_op": "prepare_cwl3",
+                "bail_op": "set_dataset_error",
+                "test_op": "convert_for_ui",
+            },
+        )
+
+        t_maybe_keep_cwl3 = BranchPythonOperator(
+            task_id="maybe_keep_cwl3",
+            python_callable=utils.pythonop_maybe_keep,
+            provide_context=True,
+            op_kwargs={
                 "next_op": "move_data",
                 "bail_op": "set_dataset_error",
-                "test_op": "convert_for_ui"
+                "test_op": "convert_for_ui_2",
             },
         )
 
@@ -232,12 +284,17 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
             >> t_build_cmd2
             >> t_convert_for_ui
             >> t_maybe_keep_cwl2
+            >> prepare_cwl3
+            >> t_build_cmd3
+            >> t_convert_for_ui_2
+            >> t_maybe_keep_cwl3
             >> t_move_data
             >> t_send_status
             >> t_join
         )
         t_maybe_keep_cwl1 >> t_set_dataset_error
         t_maybe_keep_cwl2 >> t_set_dataset_error
+        t_maybe_keep_cwl3 >> t_set_dataset_error
         t_set_dataset_error >> t_join
         t_join >> t_cleanup_tmpdir
 
