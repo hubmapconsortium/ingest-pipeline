@@ -28,3 +28,12 @@
 [submodule "src/ingest-pipeline/airflow/dags/cwl/create-vis-symlink-archive"]
 	path = src/ingest-pipeline/airflow/dags/cwl/create-vis-symlink-archive
 	url = https://github.com/hubmapconsortium/create-vis-symlink-archive
+[submodule "src/ingest-pipeline/airflow/dags/cwl/cross-dataset-codex"]
+	path = src/ingest-pipeline/airflow/dags/cwl/cross-dataset-codex
+	url = git@github.com:hubmapconsortium/cross-dataset-codex.git
+[submodule "src/ingest-pipeline/airflow/dags/cwl/cross-dataset-atac"]
+	path = src/ingest-pipeline/airflow/dags/cwl/cross-dataset-atac
+	url = git@github.com:hubmapconsortium/cross-dataset-atac.git
+[submodule "src/ingest-pipeline/airflow/dags/cwl/cross-dataset-diffexpr"]
+	path = src/ingest-pipeline/airflow/dags/cwl/cross-dataset-diffexpr
+	url = git@github.com:hubmapconsortium/cross-dataset-diffexpr.git
