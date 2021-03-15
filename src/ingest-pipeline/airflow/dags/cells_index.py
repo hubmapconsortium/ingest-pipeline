@@ -86,7 +86,7 @@ def get_dataset_uuids(modality: str) -> List[str]:
     return uuids
 
 def get_all_indexed_datasets()->List[str]:
-    cells_url = 'https://cells.dev.hubmapconsortium.org/api/'
+    cells_url = 'https://cells.api.hubmapconsortium.org/api/'
     query_handle = requests.post(cells_url + 'dataset/', {}).json()['results'][0]['query_handle']
     num_datasets = requests.post(cells_url + 'count/', {'key':query_handle, 'set_type':'dataset'})
     evaluation_args_dict = {'key':query_handle, 'set_type':'dataset', 'limit':num_datasets}
