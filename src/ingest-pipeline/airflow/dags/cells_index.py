@@ -298,26 +298,32 @@ with DAG(
     t_cleanup_tmpdir = CleanupTmpDirOperator(task_id="cleanup_tmpdir")
     t_move_data = MoveDataOperator(task_id="move_data")
 
+    dag >> t_log_info >> t_create_tmpdir
     (
-        dag
-        >> t_log_info
-        >> t_create_tmpdir
+        t_create_tmpdir
         >> prepare_cwl1
         >> t_build_cmd1
         >> t_pipeline_exec1
         >> t_maybe_keep_cwl1
+        >> t_move_data
+    )
+    (
+        t_create_tmpdir
         >> prepare_cwl2
         >> t_build_cmd2
         >> t_pipeline_exec2
         >> t_maybe_keep_cwl2
+        >> t_move_data
+    )
+    (
+        t_create_tmpdir
         >> prepare_cwl3
         >> t_build_cmd3
         >> t_pipeline_exec3
         >> t_maybe_keep_cwl3
         >> t_move_data
-        >> t_join
     )
     t_maybe_keep_cwl1 >> t_join
     t_maybe_keep_cwl2 >> t_join
     t_maybe_keep_cwl3 >> t_join
-    t_join >> t_cleanup_tmpdir
+    t_move_data >> t_join >> t_cleanup_tmpdir
