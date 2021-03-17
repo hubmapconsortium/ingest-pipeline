@@ -144,7 +144,8 @@ with DAG(
         print("tmpdir: ", tmpdir)
 
         data_dirs = get_data_directories("atac")
-        data_dirs = [data_dirs] if isinstance(data_dirs, str) else data_dirs
+        if len(data_dirs) == 0:
+            raise ValueError("No new data directories found")
         print("data_dirs: ", data_dirs)
 
         command = [
@@ -161,7 +162,7 @@ with DAG(
             command.append("--data_directories")
             command.append(data_dir)
 
-        return join_quote_command_str(command) if len(data_dirs) > 0 else ""
+        return join_quote_command_str(command)
 
     def build_cwltool_cmd2(**kwargs):
         run_id = kwargs["run_id"]
@@ -169,7 +170,8 @@ with DAG(
         print("tmpdir: ", tmpdir)
 
         data_dirs = get_data_directories("rna")
-        data_dirs = [data_dirs] if isinstance(data_dirs, str) else data_dirs
+        if len(data_dirs) == 0:
+            raise ValueError("No new data directories found")
         print("data_dirs: ", data_dirs)
 
         command = [
@@ -194,7 +196,8 @@ with DAG(
         print("tmpdir: ", tmpdir)
 
         data_dirs = get_data_directories("codex")
-        data_dirs = [data_dirs] if isinstance(data_dirs, str) else data_dirs
+        if len(data_dirs) == 0:
+            raise ValueError("No new data directories found")
         print("data_dirs: ", data_dirs)
 
         command = [
@@ -230,6 +233,40 @@ with DAG(
         python_callable=build_cwltool_cmd3,
         provide_context=True,
     )
+
+    t_maybe_run_pipeline1 = BranchPythonOperator(
+        task_id="maybe_run_pipeline",
+        python_callable=utils.pythonop_maybe_keep,
+        provide_context=True,
+        op_kwargs={
+            "next_op": "pipeline_exec",
+            "bail_op": "join",
+            "test_op": "build_cmd1",
+        },
+    )
+
+    t_maybe_run_pipeline2 = BranchPythonOperator(
+        task_id="maybe_run_pipeline",
+        python_callable=utils.pythonop_maybe_keep,
+        provide_context=True,
+        op_kwargs={
+            "next_op": "pipeline_exec",
+            "bail_op": "join",
+            "test_op": "build_cmd2",
+        },
+    )
+
+    t_maybe_run_pipeline3 = BranchPythonOperator(
+        task_id="maybe_run_pipeline",
+        python_callable=utils.pythonop_maybe_keep,
+        provide_context=True,
+        op_kwargs={
+            "next_op": "pipeline_exec",
+            "bail_op": "join",
+            "test_op": "build_cmd3",
+        },
+    )
+
 
     t_pipeline_exec1 = BashOperator(
         task_id="pipeline_exec",
@@ -303,6 +340,7 @@ with DAG(
         t_create_tmpdir
         >> prepare_cwl1
         >> t_build_cmd1
+        >> t_maybe_run_pipeline1
         >> t_pipeline_exec1
         >> t_maybe_keep_cwl1
         >> t_move_data
@@ -311,6 +349,7 @@ with DAG(
         t_create_tmpdir
         >> prepare_cwl2
         >> t_build_cmd2
+        >> t_maybe_run_pipeline2
         >> t_pipeline_exec2
         >> t_maybe_keep_cwl2
         >> t_move_data
@@ -319,6 +358,7 @@ with DAG(
         t_create_tmpdir
         >> prepare_cwl3
         >> t_build_cmd3
+        >> t_maybe_run_pipeline3
         >> t_pipeline_exec3
         >> t_maybe_keep_cwl3
         >> t_move_data
@@ -326,4 +366,7 @@ with DAG(
     t_maybe_keep_cwl1 >> t_join
     t_maybe_keep_cwl2 >> t_join
     t_maybe_keep_cwl3 >> t_join
+    t_maybe_run_pipeline1 >> t_join
+    t_maybe_run_pipeline2 >> t_join
+    t_maybe_run_pipeline3 >> t_join
     t_move_data >> t_join >> t_cleanup_tmpdir
