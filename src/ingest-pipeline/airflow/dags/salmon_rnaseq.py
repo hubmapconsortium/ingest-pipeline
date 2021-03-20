@@ -254,7 +254,10 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
 
         send_status_msg = make_send_status_msg_function(
             dag_file=__file__,
-            retcode_ops=["pipeline_exec", "move_data", "convert_for_ui"],
+            retcode_ops=["pipeline_exec",
+                         "move_data",
+                         "convert_for_ui",
+                         "convert_for_ui_2"],
             cwl_workflows=cwl_workflows,
         )
         t_send_status = PythonOperator(
