@@ -35,23 +35,35 @@ def main():
     entity_factory = EntityFactory(auth_tok)
 
     uuid_l = []
-    with open(args.uuid_txt) as f:
-        for line in f:
-            uuid = None
-            if is_uuid(line.strip()):
-                uuid = line.strip()
-            else:
-                words = line.strip().split()
-                for word in words:
-                    a, b = word.split(':')
-                    if a.lower() == 'uuid':
-                        uuid = b
-                        break
-            if uuid:
-                uuid_l.append(uuid)
-                print(f'{uuid}')
-            else:
-                print(f'cannot find uuid in {line.strip()}')
+    if args.uuid_txt.endswith((".csv", ".tsv")):
+        in_df = pd.read_csv(args.uuid_txt)
+        if 'uuid' in in_df.columns:
+            uuid_key = 'uuid'
+        elif 'e.uuid' in in_df.columns:
+            uuid_key = 'e.uuid'
+        else:
+            raise RuntimeError(f'Cannot find uuid column in {args.uuid_txt}')
+        for elt in in_df[uuid_key]:
+            uuid_l.append(str(elt))
+    else:
+        in_df = None
+        with open(args.uuid_txt) as f:
+            for line in f:
+                uuid = None
+                if is_uuid(line.strip()):
+                    uuid = line.strip()
+                else:
+                    words = line.strip().split()
+                    for word in words:
+                        a, b = word.split(':')
+                        if a.lower() == 'uuid':
+                            uuid = b
+                            break
+                if uuid:
+                    uuid_l.append(uuid)
+                    print(f'{uuid}')
+                else:
+                    print(f'cannot find uuid in {line.strip()}')
 
     out_recs = []
     
@@ -72,9 +84,12 @@ def main():
                                                     'qa_child_display_doi':'derived_doi',
                                                     'qa_child_data_type':'derived_data_type',
                                                     'qa_child_status':'derived_status'})
-    out_df.to_csv(args.out, sep='\t', index=False,
-                  columns=['uuid', 'group_name', 'display_doi', 'status', 'data_types',
-                           'has_metadata', 'n_md_recs'])
+    if in_df is not None:
+        out_df = out_df.merge(in_df, left_on='uuid', right_on=uuid_key)
+    # out_df.to_csv(args.out, sep='\t', index=False,
+    #               columns=['uuid', 'group_name', 'display_doi', 'status', 'data_types',
+    #                        'has_metadata', 'n_md_recs'])
+    out_df.to_csv(args.out, sep='\t', index=False)
     
 
 if __name__ == '__main__':
