@@ -2,8 +2,6 @@
 
 import sys
 import argparse
-import requests
-import json
 from pprint import pprint
 import pandas as pd
 
