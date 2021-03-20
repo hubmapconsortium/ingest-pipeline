@@ -129,8 +129,10 @@ class Dataset(Entity):
         self.data_types = prop_dct['data_types'] if 'data_types' in prop_dct else []
         self.donor_uuid = prop_dct['donor']['uuid']
         self.group_name = prop_dct['group_name']
-        self.contains_human_genetic_sequences = (prop_dct['contains_human_genetic_sequences'].lower() in
-                                                 ['yes', 'true'])
+        c_h_g = prop_dct['contains_human_genetic_sequences']
+        if isinstance(c_h_g, str):
+            c_h_g = (c_h_g.lower() in ['yes', 'true'])
+        self.contains_human_genetic_sequences = c_h_g
         self._kid_dct = None
         self._parent_dct = None
     
