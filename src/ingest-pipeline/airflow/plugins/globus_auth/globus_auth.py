@@ -110,7 +110,7 @@ class GlobusAuthBackend(object):
             else:
                 code = request.args.get('code')
                 tokens = self.globus_oauth.oauth2_exchange_code_for_tokens(code)
-                f_session['tokens'] = tokens
+                f_session['tokens'] = tokens.by_resource_server
 
                 username, email = self.get_globus_user_profile_info(tokens.by_resource_server['auth.globus.org']['access_token'])
 
