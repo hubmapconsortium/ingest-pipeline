@@ -7,9 +7,20 @@ if [[ `basename "$PWD"` != $uuid ]]; then
    echo "run this from the $uuid directory"
    exit -1
 else
+    if [ -e validation_report.txt ] ; then
+	if [[ `cat validation_report.txt` == 'No errors!' ]] ; then
+	    rm validation_report.txt
+	else
+	    echo "Validation report is not clean"
+	    exit -1
+	fi
+    else
+	echo "No validation report found"
+	exit -1
+    fi
     pushd extras
     for fname in *metadata.tsv.orig *contributors.tsv.orig ; do
-	echo rm $fname
+	rm $fname
     done
     for fname in *.fastq ; do
 	if [ ! -e ${fname} ] ; then
@@ -17,7 +28,7 @@ else
 	    break
 	fi
 	if [ -e ../${fname}.gz ] ; then
-	    echo rm $fname
+	    rm $fname
         fi
     done
     popd
