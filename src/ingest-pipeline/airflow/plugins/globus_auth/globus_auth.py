@@ -7,6 +7,7 @@ import globus_sdk
 from flask_login import current_user, logout_user, login_required, login_user
 
 from flask import url_for, redirect, request
+from flask import session as f_session
 
 from flask_oauthlib.client import OAuth
 
@@ -109,6 +110,7 @@ class GlobusAuthBackend(object):
             else:
                 code = request.args.get('code')
                 tokens = self.globus_oauth.oauth2_exchange_code_for_tokens(code)
+                f_session['tokens'] = tokens
 
                 username, email = self.get_globus_user_profile_info(tokens.by_resource_server['auth.globus.org']['access_token'])
 
