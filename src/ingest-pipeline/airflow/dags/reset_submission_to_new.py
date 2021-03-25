@@ -19,9 +19,8 @@ import utils
 from utils import localized_assert_json_matches_schema as assert_json_matches_schema
 
 UUIDS_TO_RESET = [
-    '2c467ffa1d01c41effb7057d7d329c8f',
-    '48c8dd2ad06aa23e36c095c9088a4913',
-    '08ee9f5575339641eb9f8fb17cc1d1bd'
+    #'d926c41ac08f3c2ba5e61eec83e90b0c',
+    "fd0c0fcde5a331c9dfff52b520c7d792"
     ]
 
 
