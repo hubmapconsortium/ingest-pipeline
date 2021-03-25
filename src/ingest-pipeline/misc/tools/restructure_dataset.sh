@@ -2,8 +2,8 @@
 
 uuid=$1
 echo $uuid
-echo `basename $PWD`
-if [[ `basename $PWD` != $uuid ]]; then
+echo `basename "$PWD"`
+if [[ `basename "$PWD"` != $uuid ]]; then
    echo "run this from the $uuid directory"
    exit -1
 else
@@ -12,6 +12,10 @@ else
 	mv $fname extras/${fname}.orig
     done
     for fname in *.fastq ; do
+	if [ ! -e ${fname} ] ; then
+	    echo 'no fastq files found'
+	    break
+	fi
 	if [ -e ${fname}.gz ] ; then
 	    mv $fname extras
 	else
