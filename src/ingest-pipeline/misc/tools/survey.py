@@ -167,7 +167,7 @@ class Dataset(Entity):
                 self.kids[kid].describe(prefix=prefix+'    ', file=file)
 
 
-    def build_rec(self):
+    def build_rec(self, include_all_children=False):
         """
         Returns a dict containing:
         
@@ -180,6 +180,9 @@ class Dataset(Entity):
         QA_child.data_types[0]  (verifying there is only 1 entry)
         QA_child.status   (which must be QA or Published)
         note 
+
+        If include_all_children=True, all child datasets are included rather
+        than just those that are QA or Published.
         """
         rec = {'uuid': self.uuid, 'display_doi': self.display_doi, 'status': self.status,
                'group_name': self.group_name}
@@ -201,20 +204,26 @@ class Dataset(Entity):
             rec['sample_display_doi'] = samp.display_doi
         else:
             rec['sample_display_doi'] = 'multiple'
-        qa_kids = [self.kids[uuid] for uuid in self.kids if self.kids[uuid].status in ['QA', 'Published']]
-        if any(qa_kids):
-            if len(qa_kids) > 1:
-                rec['note'] = 'Multiple QA derived datasets'
-            this_kid = qa_kids[0]
-            rec['qa_child_uuid'] = this_kid.uuid
-            rec['qa_child_display_doi'] = this_kid.display_doi
-            rec['qa_child_data_type'] = this_kid.data_types[0]
-            rec['qa_child_status'] = this_kid.status
+        if include_all_children:
+            filtered_kids = [self.kids[uuid] for uuid in self.kids]
+            uuid_hdr, doi_hdr, data_type_hdr, status_hdr, note_note = ('child_uuid', 'child_display_doi',
+                                                                       'child_data_type', 'child_status',
+                                                                       'Multiple derived datasets')
         else:
-            rec['qa_child_uuid'] = None
-            rec['qa_child_display_doi'] = None
-            rec['qa_child_data_type'] = None
-            rec['qa_child_status'] = None
+            filtered_kids = [self.kids[uuid] for uuid in self.kids if self.kids[uuid].status in ['QA', 'Published']]
+            uuid_hdr, doi_hdr, data_type_hdr, status_hdr, note_note = ('qa_child_uuid', 'qa_child_display_doi',
+                                                                       'qa_child_data_type', 'qa_child_status',
+                                                                       'Multiple QA derived datasets')
+        if any(filtered_kids):
+            rec['note'] = note_note if len(filtered_kids) > 1 else ''
+            this_kid = filtered_kids[0]
+            rec[uuid_hdr] = this_kid.uuid
+            rec[doi_hdr] = this_kid.display_doi
+            rec[data_type_hdr] = this_kid.data_types[0]
+            rec[status_hdr] = this_kid.status
+        else:
+            for key in [uuid_hdr, doi_hdr, data_type_hdr, status_hdr]:
+                rec[key] = None
             rec['note'] = ''
     
         return rec
@@ -299,8 +308,10 @@ def main():
     main
     """
     parser = argparse.ArgumentParser()
-    parser.add_argument("metadatatsv", help="input .tsv or .xlsx file")
+    parser.add_argument("metadatatsv", help="input .tsv or .xlsx file, or a list of uuids in a .txt file")
     parser.add_argument("--out", help="name of the output .tsv file", required=True)
+    parser.add_argument("--include_all_children", action="store_true",
+                        help="include all children, not just those in the QA or Published states")
     args = parser.parse_args()
     auth_tok = input('auth_tok: ')
     entity_factory = EntityFactory(auth_tok)
@@ -308,6 +319,13 @@ def main():
         in_df = pd.read_csv(args.metadatatsv, sep='\t')
     elif args.metadatatsv.endswith('.xlsx'):
         in_df = pd.read_excel(args.metadatatsv)
+    elif args.metadatatsv.endswith('.txt'):
+        # a list of bare uuids
+        recs = []
+        for line in open(args.metadatatsv):
+            assert is_uuid(line.strip()), f'text file {args.metadatatsv} contains non-uuid {line.strip}'
+            recs.append({'data_path': line.strip()})
+        in_df = pd.DataFrame(recs)
     else:
         raise RuntimeError('Unrecognized input file format')
     in_df['uuid'] = in_df.apply(get_uuid, axis=1)
@@ -319,7 +337,7 @@ def main():
         ds = entity_factory.get(uuid)
         ds.describe()
         new_uuids = ds.all_uuids()
-        rec = ds.build_rec()
+        rec = ds.build_rec(include_all_children=args.include_all_children)
         if any([uuid in known_uuids for uuid in new_uuids]):
             old_note = rec['note'] if 'note' in rec else ''
             rec['note'] = 'UUID COLLISION! ' + old_note
@@ -328,9 +346,13 @@ def main():
     out_df = pd.DataFrame(out_recs).rename(columns={'sample_display_doi':'sample_doi',
                                                     'sample_hubmap_display_id':'sample_display_id',
                                                     'qa_child_uuid':'derived_uuid',
+                                                    'child_uuid':'derived_uuid',
                                                     'qa_child_display_doi':'derived_doi',
+                                                    'child_display_doi':'derived_doi',
                                                     'qa_child_data_type':'derived_data_type',
-                                                    'qa_child_status':'derived_status'})
+                                                    'child_data_type':'derived_data_type',
+                                                    'qa_child_status':'derived_status',
+                                                    'child_status':'derived_status'})
     out_df.to_csv(args.out, sep='\t', index=False)
     
 

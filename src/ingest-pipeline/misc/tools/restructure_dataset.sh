@@ -9,7 +9,11 @@ if [[ `basename "$PWD"` != $uuid ]]; then
 else
     mkdir -p extras
     for fname in *metadata.tsv *contributors.tsv ; do
-	mv $fname extras/${fname}.orig
+	if [ -e ${fname} ] ; then
+	    mv $fname extras/${fname}.orig
+	else
+	    echo "nothing to move for ${fname}"
+	fi
     done
     for fname in *.fastq ; do
 	if [ ! -e ${fname} ] ; then

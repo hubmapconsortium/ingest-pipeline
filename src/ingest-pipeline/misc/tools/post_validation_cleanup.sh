@@ -20,7 +20,11 @@ else
     fi
     pushd extras
     for fname in *metadata.tsv.orig *contributors.tsv.orig ; do
-	rm $fname
+	if [ -e ${fname} ] ; then
+	    rm $fname
+	else
+	    echo "nothing to remove for ${fname}"
+	fi
     done
     for fname in *.fastq ; do
 	if [ ! -e ${fname} ] ; then
