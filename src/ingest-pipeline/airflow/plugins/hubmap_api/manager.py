@@ -1,5 +1,6 @@
 import os
 import logging
+import json
 
 from werkzeug.exceptions import NotFound
 
@@ -68,7 +69,7 @@ aav4 = APIAdminView4(category='HuBMAP API', name="Environment Variables")
 
 
 class APIAdminView5(BaseView):
-    @expose('/')
+    @expose('/', methods=['GET','POST'])
     def api_admin_view5(self):
         LOGGER.info('Triggering Globus Transfer DAG')
 
@@ -85,7 +86,9 @@ class APIAdminView5(BaseView):
                 'trigger.html', dag_id=dag_id, origin='/admin', conf=''
             )
 
-        run_conf = {'tokens': f_session['tokens']}
+        request_conf = request.values.get('conf')
+
+        run_conf = {'tokens': f_session['tokens'], 'conf': json.loads(request_conf)}
 
         dag.create_dagrun(
             run_id=run_id,
