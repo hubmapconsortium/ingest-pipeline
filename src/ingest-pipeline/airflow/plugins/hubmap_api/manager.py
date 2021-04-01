@@ -3,7 +3,7 @@ import logging
 
 from werkzeug.exceptions import NotFound
 
-from flask import Blueprint, current_app, send_from_directory, abort, escape, render_template
+from flask import Blueprint, current_app, send_from_directory, abort, escape, render_template, request
 from flask_admin import BaseView, expose
 from flask import session as f_session
 
@@ -12,7 +12,7 @@ from airflow import models, settings
 from airflow.settings import STORE_SERIALIZED_DAGS
 from airflow.utils.state import State
 from airflow.utils import timezone
-from airflow.utils.timezone import datetime
+from airflow.www import utils as wwwutils
 
 from jinja2 import TemplateNotFound
 
@@ -70,9 +70,18 @@ aav4 = APIAdminView4(category='HuBMAP API', name="Environment Variables")
 class APIAdminView5(BaseView):
     @expose('/')
     def api_admin_view5(self):
+        dag_id = 'globus_transfer'
+        if request.method == 'GET':
+            dag = current_app.dag_bag.get_dag(dag_id)
+            doc_md = wwwutils.wrapped_markdown(getattr(dag, 'doc_md', None))
+
+            return self.render_template(
+                'airflow/trigger.html', dag_id=dag_id, origin='/admin', conf='', doc_md=doc_md
+            )
+
+
         LOGGER.info('Triggering Globus Transfer DAG')
         dagbag = models.DagBag(settings.DAGS_FOLDER, store_serialized_dags=STORE_SERIALIZED_DAGS)
-        dag_id = 'globus_transfer'
 
         execution_date = timezone.utcnow()
         run_id = "manual__{0}".format(execution_date.isoformat())
