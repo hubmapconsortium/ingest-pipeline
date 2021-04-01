@@ -70,25 +70,24 @@ aav4 = APIAdminView4(category='HuBMAP API', name="Environment Variables")
 class APIAdminView5(BaseView):
     @expose('/')
     def api_admin_view5(self):
-        dag_id = 'globus_transfer'
-        if request.method == 'GET':
-            dag = current_app.dag_bag.get_dag(dag_id)
-            doc_md = wwwutils.wrapped_markdown(getattr(dag, 'doc_md', None))
-
-            return self.render_template(
-                'airflow/trigger.html', dag_id=dag_id, origin='/admin', conf='', doc_md=doc_md
-            )
-
-
         LOGGER.info('Triggering Globus Transfer DAG')
+
+        dag_id = 'globus_transfer'
+
         dagbag = models.DagBag(settings.DAGS_FOLDER, store_serialized_dags=STORE_SERIALIZED_DAGS)
 
         execution_date = timezone.utcnow()
         run_id = "manual__{0}".format(execution_date.isoformat())
 
+        dag = dagbag.get_dag(dag_id)
+        if request.method == 'GET':
+            doc_md = wwwutils.wrapped_markdown(getattr(dag, 'doc_md', None))
+            return self.render_template(
+                'airflow/trigger.html', dag_id=dag_id, origin='/admin', conf='', doc_md=doc_md
+            )
+
         run_conf = {'tokens': f_session['tokens']}
 
-        dag = dagbag.get_dag(dag_id)
         dag.create_dagrun(
             run_id=run_id,
             execution_date=execution_date,
