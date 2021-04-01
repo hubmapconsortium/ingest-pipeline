@@ -82,7 +82,7 @@ class APIAdminView5(BaseView):
         dag = dagbag.get_dag(dag_id)
         if request.method == 'GET':
             doc_md = wwwutils.wrapped_markdown(getattr(dag, 'doc_md', None))
-            return self.render_template(
+            return show_template(
                 'airflow/trigger.html', dag_id=dag_id, origin='/admin', conf='', doc_md=doc_md
             )
 
