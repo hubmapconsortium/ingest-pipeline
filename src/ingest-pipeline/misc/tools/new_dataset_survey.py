@@ -75,7 +75,8 @@ def main():
     main
     """
     parser = argparse.ArgumentParser()
-    parser.add_argument("uuid_txt", help="input files containing uuids")
+    parser.add_argument("uuid_txt",
+                        help="input .txt file containing uuids or .csv or .tsv file with uuid column")
     parser.add_argument("--out", help="name of the output .tsv file", required=True)
     args = parser.parse_args()
     auth_tok = input('auth_tok: ')
