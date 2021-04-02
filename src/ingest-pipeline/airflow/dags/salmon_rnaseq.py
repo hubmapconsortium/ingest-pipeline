@@ -320,8 +320,14 @@ salmon_dag_params: List[SequencingDagParameters] = [
     SequencingDagParameters(
         dag_id="salmon_rnaseq_10x",
         pipeline_name="salmon-rnaseq",
-        assay="10x",
+        assay="10x_v3",
         dataset_type="salmon_rnaseq_10x",
+    ),
+    SequencingDagParameters(
+        dag_id="salmon_rnaseq_10x_sn",
+        pipeline_name="salmon-rnaseq",
+        assay="10x_v3_sn",
+        dataset_type="salmon_rnaseq_10x_sn",
     ),
     get_salmon_dag_params("sciseq"),
     get_salmon_dag_params("slideseq"),
