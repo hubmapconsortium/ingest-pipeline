@@ -58,7 +58,7 @@ workflow_map:
     'workflow': 'sc_atac_seq_sn'
   - 'collection_type': 'generic_metadatatsv'
     'assay_type': 'snRNAseq'
-    'workflow': 'salmon_rnaseq_10x'
+    'workflow': 'salmon_rnaseq_10x_sn'
   - 'collection_type': 'bulkatacseq_collection'
     'assay_type': 'ATACseq-bulk'
     'workflow': 'bulk_atacseq'
