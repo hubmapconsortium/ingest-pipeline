@@ -13,7 +13,6 @@ from airflow import models, settings
 from airflow.settings import STORE_SERIALIZED_DAGS
 from airflow.utils.state import State
 from airflow.utils import timezone
-from airflow.www import utils as wwwutils
 
 from jinja2 import TemplateNotFound
 

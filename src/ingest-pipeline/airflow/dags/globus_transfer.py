@@ -18,8 +18,6 @@ with DAG('globus_transfer', schedule_interval=None, is_paused_upon_creation=Fals
     def perform_transfer(*argv, **kwargs):
         dag_run_conf = kwargs['dag_run'].conf
         globus_transfer_token = dag_run_conf['tokens']['transfer.api.globus.org']['access_token']
-#        src_dir_to_transfer = dag_run_conf['src_dsr_to_transfer']
-#        dest_dir_to_transfer = dag_run_conf['dest_dir_to_transfer']
         hive_epid = 'ff1bd56e-2e65-4ec9-86fa-f79422884e96'
         aws_epid = '1c652c81-3833-4af2-a0b1-01c70805a87d'
         authorizer = globus_sdk.AccessTokenAuthorizer(globus_transfer_token)
@@ -36,7 +34,6 @@ with DAG('globus_transfer', schedule_interval=None, is_paused_upon_creation=Fals
                 print(e)
                 continue
 
-#        td.add_item(src_dir_to_transfer, dest_dir_to_transfer, recursive=True)
         tc.submit_transfer(td)
 
     t0 = PythonOperator(
