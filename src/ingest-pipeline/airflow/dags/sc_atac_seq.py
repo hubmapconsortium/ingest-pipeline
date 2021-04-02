@@ -79,6 +79,7 @@ def generate_atac_seq_dag(params: SequencingDagParameters) -> DAG:
 
             command = [
                 *get_cwltool_base_cmd(tmpdir),
+                cwl_workflows[0],
                 "--assay",
                 params.assay,
                 "--outdir",
