@@ -120,13 +120,16 @@ def main():
         ds = entity_factory.get(uuid)
         ds.describe()
         new_uuids = ds.all_uuids()
-        rec = ds.build_rec()
-        rec['has_metadata'], rec['n_md_recs'] = detect_metadatatsv(ds)
-        rec['has_data'] = detect_otherdata(ds)
-        if any([uuid in known_uuids for uuid in new_uuids]):
-            rec['note'] = 'UUID COLLISION! '
-        known_uuids = known_uuids.union(new_uuids)
-        out_recs.append(rec)
+        try:
+            rec = ds.build_rec()
+            rec['has_metadata'], rec['n_md_recs'] = detect_metadatatsv(ds)
+            rec['has_data'] = detect_otherdata(ds)
+            if any([uuid in known_uuids for uuid in new_uuids]):
+                rec['note'] = 'UUID COLLISION! '
+            known_uuids = known_uuids.union(new_uuids)
+            out_recs.append(rec)
+        except AssertionError as e:
+            print(f"ERROR: DROPPING BAD UUID {uuid}: {e}")
     out_df = pd.DataFrame(out_recs).rename(columns={'sample_display_doi':'sample_doi',
                                                     'sample_hubmap_display_id':'sample_display_id',
                                                     'qa_child_uuid':'derived_uuid',

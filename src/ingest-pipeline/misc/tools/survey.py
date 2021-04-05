@@ -193,6 +193,10 @@ class Dataset(Entity):
         else:
             rec['data_types'] = f"[{','.join(self.data_types)}]"
         other_parent_uuids = [uuid for uuid in self.parent_uuids if uuid not in self.parent_dataset_uuids]
+        if not other_parent_uuids:
+            pprint(rec)
+            pprint(self.parent_uuids)
+            pprint(self.parent_dataset_uuids)
         assert other_parent_uuids, 'No parents?'
         s_t = SplitTree()
         for p_uuid in other_parent_uuids:
@@ -337,12 +341,15 @@ def main():
         ds = entity_factory.get(uuid)
         ds.describe()
         new_uuids = ds.all_uuids()
-        rec = ds.build_rec(include_all_children=args.include_all_children)
-        if any([uuid in known_uuids for uuid in new_uuids]):
-            old_note = rec['note'] if 'note' in rec else ''
-            rec['note'] = 'UUID COLLISION! ' + old_note
-        known_uuids = known_uuids.union(new_uuids)
-        out_recs.append(rec)
+        try:
+            rec = ds.build_rec(include_all_children=args.include_all_children)
+            if any([uuid in known_uuids for uuid in new_uuids]):
+                old_note = rec['note'] if 'note' in rec else ''
+                rec['note'] = 'UUID COLLISION! ' + old_note
+            known_uuids = known_uuids.union(new_uuids)
+            out_recs.append(rec)
+        except AssertionError as e:
+            print(f"ERROR: DROPPING BAD UUID {uuid}: {e}")
     out_df = pd.DataFrame(out_recs).rename(columns={'sample_display_doi':'sample_doi',
                                                     'sample_hubmap_display_id':'sample_display_id',
                                                     'qa_child_uuid':'derived_uuid',
