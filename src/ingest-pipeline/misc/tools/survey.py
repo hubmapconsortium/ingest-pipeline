@@ -11,6 +11,33 @@ import pandas as pd
 ENTITY_URL = 'https://entity.api.hubmapconsortium.org'  # no trailing slash
 SEARCH_URL = 'https://search.api.hubmapconsortium.org'
 
+#
+# Large negative numbers move columns left, large positive numbers move them right.
+# Columns for which no weight is given end up with weight 0, so they sort to the
+# middle alphabetically.
+#
+COLUMN_SORT_WEIGHTS = {
+    'note':10,
+    'n_md_recs': 9,
+    'has_metadata': 8,
+    'has_data': 7,
+    'group_name': -10,
+    'data_types': -9,
+    'uuid': -8,
+    'hubmap_id': -7,
+}
+
+
+#
+# Column labels to be used as keys in sorting rows
+#
+ROW_SORT_KEYS = ['group_name', 'data_types', 'uuid']
+
+
+def column_sorter(col_l):
+    sort_me = [((COLUMN_SORT_WEIGHTS[key] if key in COLUMN_SORT_WEIGHTS else 0), key) for key in col_l]
+    return [key for wt, key in sorted(sort_me)]
+
 
 def _get_entity_prov(uuid, auth_tok):
     """
@@ -193,10 +220,6 @@ class Dataset(Entity):
         else:
             rec['data_types'] = f"[{','.join(self.data_types)}]"
         other_parent_uuids = [uuid for uuid in self.parent_uuids if uuid not in self.parent_dataset_uuids]
-        if not other_parent_uuids:
-            pprint(rec)
-            pprint(self.parent_uuids)
-            pprint(self.parent_dataset_uuids)
         assert other_parent_uuids, 'No parents?'
         s_t = SplitTree()
         for p_uuid in other_parent_uuids:
@@ -360,7 +383,10 @@ def main():
                                                     'child_data_type':'derived_data_type',
                                                     'qa_child_status':'derived_status',
                                                     'child_status':'derived_status'})
-    out_df.to_csv(args.out, sep='\t', index=False)
+    out_df = out_df.sort_values(ROW_SORT_KEYS, axis=0)
+    out_df.to_csv(args.out, sep='\t', index=False,
+                  columns=column_sorter([elt for elt in out_df.columns])
+                  )
     
 
 if __name__ == '__main__':

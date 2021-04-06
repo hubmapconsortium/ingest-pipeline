@@ -5,35 +5,8 @@ import argparse
 from pprint import pprint
 import pandas as pd
 
-from survey import Entity, Dataset, Sample, EntityFactory, is_uuid
-
-
-#
-# Large negative numbers move columns left, large positive numbers move them right.
-# Columns for which no weight is given end up with weight 0, so they sort to the
-# middle alphabetically.
-#
-COLUMN_SORT_WEIGHTS = {
-    'note':10,
-    'n_md_recs': 9,
-    'has_metadata': 8,
-    'has_data': 7,
-    'group_name': -10,
-    'data_types': -9,
-    'uuid': -8,
-    'hubmap_id': -7,
-}
-
-
-#
-# Column labels to be used as keys in sorting rows
-#
-ROW_SORT_KEYS = ['group_name', 'data_types', 'uuid']
-
-
-def column_sorter(col_l):
-    sort_me = [((COLUMN_SORT_WEIGHTS[key] if key in COLUMN_SORT_WEIGHTS else 0), key) for key in col_l]
-    return [key for wt, key in sorted(sort_me)]
+from survey import (Entity, Dataset, Sample, EntityFactory,
+                    ROW_SORT_KEYS, column_sorter, is_uuid)
 
 
 def detect_otherdata(ds):
