@@ -1,13 +1,18 @@
 import os
 import logging
-from io import StringIO
+import json
 
-from werkzeug.exceptions import HTTPException, NotFound 
+from werkzeug.exceptions import NotFound
 
-from flask import Blueprint, current_app, send_from_directory, abort, escape, render_template
+from flask import Blueprint, current_app, send_from_directory, abort, escape, render_template, request
 from flask_admin import BaseView, expose
+from flask import session as f_session
 
 from airflow.configuration import conf as airflow_conf
+from airflow import models, settings
+from airflow.settings import STORE_SERIALIZED_DAGS
+from airflow.utils.state import State
+from airflow.utils import timezone
 
 from jinja2 import TemplateNotFound
 
@@ -60,6 +65,38 @@ class APIAdminView4(BaseView):
                              title='Environment Variables', 
                              content_lst=eltL)
 aav4 = APIAdminView4(category='HuBMAP API', name="Environment Variables")
+
+
+class APIAdminView5(BaseView):
+    @expose('/', methods=['GET','POST'])
+    def api_admin_view5(self):
+        LOGGER.info('Triggering Globus Transfer DAG')
+
+        dag_id = 'globus_transfer'
+
+        dagbag = models.DagBag(settings.DAGS_FOLDER, store_serialized_dags=STORE_SERIALIZED_DAGS)
+
+        execution_date = timezone.utcnow()
+        run_id = "manual__{0}".format(execution_date.isoformat())
+
+        dag = dagbag.get_dag(dag_id)
+        if request.method == 'GET':
+            return show_template(
+                'trigger.html', dag_id=dag_id, origin='/admin', conf=''
+            )
+
+        request_conf = request.values.get('conf')
+
+        run_conf = {'tokens': f_session['tokens'], 'conf': json.loads(request_conf)}
+
+        dag.create_dagrun(
+            run_id=run_id,
+            execution_date=execution_date,
+            state=State.RUNNING,
+            conf=run_conf,
+            external_trigger=True
+        )
+aav5 = APIAdminView5(category='HuBMAP API', name="Trigger Test Globus Transfer")
 
 
 # Create a Flask blueprint to hold the HuBMAP API
