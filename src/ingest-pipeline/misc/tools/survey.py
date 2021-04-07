@@ -10,6 +10,8 @@ import pandas as pd
 
 ENTITY_URL = 'https://entity.api.hubmapconsortium.org'  # no trailing slash
 SEARCH_URL = 'https://search.api.hubmapconsortium.org'
+#INGEST_URL = 'https://ingest.api.hubmapconsortium.org'
+INGEST_URL = 'http://hivevm193.psc.edu:7777'
 
 #
 # Large negative numbers move columns left, large positive numbers move them right.
@@ -177,12 +179,8 @@ class Dataset(Entity):
 
     @property
     def full_path(self):
-        assert self.status == 'New', f'full_path is not yet implemented for {self.status} files'
-        if self.contains_human_genetic_sequences:
-            return Path('/hive/hubmap/data/protected') / self.group_name / self.uuid
-        else:
-            return Path('/hive/hubmap/data/consortium') / self.group_name / self.uuid
-
+        return self.entity_factory.get_full_path(self.uuid)
+        
     def describe(self, prefix='', file=sys.stdout):
         print(f"{prefix}Dataset {self.uuid}: "
               f"{self.display_doi} "
@@ -310,6 +308,19 @@ class EntityFactory(object):
             return Sample(prop_dct, self)
         else:
             return Entity(prop_dct, self)
+
+    def get_full_path(self, ds_uuid):
+        """ ds_uuid must be the uuid of a dataset.  Other entity types will fail. """
+        
+        r = requests.get(f'{INGEST_URL}/datasets/{ds_uuid}/file-system-abs-path',
+                          headers={'Authorization': f'Bearer {self.auth_tok}',
+                                   'Content-Type': 'application/json'})
+        #print(f'query was {r.request.body}')
+        if r.status_code >= 300:
+            r.raise_for_status()
+        jsn = r.json()
+        assert 'path' in jsn, f'could not get file-system-abs-path for {ds_uuid}'
+        return Path(jsn['path'])
 
 
 def is_uuid(s):
