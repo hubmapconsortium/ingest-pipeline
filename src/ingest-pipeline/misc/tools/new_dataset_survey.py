@@ -4,6 +4,7 @@ import sys
 import argparse
 from pprint import pprint
 import pandas as pd
+import numpy as np
 
 from survey import (Entity, Dataset, Sample, EntityFactory,
                     ROW_SORT_KEYS, column_sorter, is_uuid)
@@ -43,9 +44,22 @@ def data_type_resolver(row):
     return "????"
 
 
+def _merge_note_pair(row):
+    note_x, note_y = row['note_x'], row['note_y']
+    if note_x == 'nan':  # pandas made me do it!  It's not my fault!
+        note_x = ''
+    if note_y == 'nan':
+        note_y = ''
+    words_x = [word for word in note_x.split(';') if word]
+    words_y = [word for word in note_y.split(';') if word]
+    return ';'.join(words_x + words_y)
+
+
 def join_notes(df, notes_df):
-    print('Joining!')
     df = pd.merge(df, notes_df[['uuid', 'note']], on='uuid', how='left')
+    assert 'note_x' in df.columns and 'note_y' in df.columns, "cannot find the notes to merge"
+    note_df = df[['note_x', 'note_y']].astype(str)
+    df['note'] = note_df.apply(_merge_note_pair, axis=1)
     return df
 
 
@@ -64,7 +78,9 @@ def main():
 
     uuid_l = []
     if args.uuid_txt.endswith((".csv", ".tsv")):
-        in_df = pd.read_csv(args.uuid_txt)
+        in_df = pd.read_csv(args.uuid_txt, engine="python",sep=None, 
+                               dtype={'note':np.str},
+                               na_values={'note':''})
         if 'uuid' in in_df.columns:
             uuid_key = 'uuid'
         elif 'e.uuid' in in_df.columns:
@@ -136,7 +152,9 @@ def main():
     out_df = out_df.drop(drop_list, axis=1)
     
     if args.notes:
-        notes_df = pd.read_csv(args.notes, sep=None)
+        notes_df = pd.read_csv(args.notes, engine='python', sep=None, 
+                               dtype={'note':np.str},
+                               na_values={'note':''})
         for elt in ['uuid', 'note']:
             if not elt in notes_df.columns:
                 print(f'ERROR: notes file does not contain {elt}, so notes were not merged')
