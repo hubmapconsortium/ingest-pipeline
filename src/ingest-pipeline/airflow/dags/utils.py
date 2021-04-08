@@ -673,12 +673,14 @@ def pythonop_get_dataset_state(**kwargs) -> JSONType:
     if INGEST_API_MODE == 'INGEST_LEGACY_API':
         assert 'dataset' in query_rslt, f"Status for {uuid} has no dataset entry"
         ds_rslt = rslt['dataset']
-        key = 'local_directory_full_path'
-        assert key in ds_rslt, f"Dataset status for {uuid} has no {key}"
-        full_path = ds_rslt[key]
+        for key in ['status', 'uuid', 'data_types', 'local_directory_full_path']:
+            assert key in ds_rslt, f"Dataset status for {uuid} has no {key}"
+        full_path = ds_rslt['local_directory_full_path']
     elif INGEST_API_MODE == 'INGEST_REFACTOR_API':
         ds_rslt = query_rslt
-        endpoint = f'datasets/{uuid}/file-system-abs-path'
+        for key in ['status', 'uuid', 'data_types']:
+            assert key in ds_rslt, f"Dataset status for {uuid} has no {key}"
+        endpoint = f"datasets/{ds_rslt['uuid']}/file-system-abs-path"
         try:
             response = http_hook.run(endpoint,
                                      headers=headers,
@@ -699,8 +701,6 @@ def pythonop_get_dataset_state(**kwargs) -> JSONType:
     else:
         raise RuntimeError(f'Unknown INGEST_API_MODE {INGEST_API_MODE}')
 
-    for key in ['status', 'uuid', 'data_types']:
-        assert key in ds_rslt, f"Dataset status for {uuid} has no {key}"
     rslt = {
         'status': ds_rslt['status'],
         'uuid': ds_rslt['uuid'],
