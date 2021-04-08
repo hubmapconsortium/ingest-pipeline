@@ -43,6 +43,12 @@ def data_type_resolver(row):
     return "????"
 
 
+def join_notes(df, notes_df):
+    print('Joining!')
+    df = pd.merge(df, notes_df[['uuid', 'note']], on='uuid', how='left')
+    return df
+
+
 def main():
     """
     main
@@ -51,6 +57,7 @@ def main():
     parser.add_argument("uuid_txt",
                         help="input .txt file containing uuids or .csv or .tsv file with uuid column")
     parser.add_argument("--out", help="name of the output .tsv file", required=True)
+    parser.add_argument("--notes", help="merge dataset notes from this csv/tsv file")
     args = parser.parse_args()
     auth_tok = input('auth_tok: ')
     entity_factory = EntityFactory(auth_tok)
@@ -127,6 +134,15 @@ def main():
         out_df['data_types'] = out_df[['data_types_x', 'data_types_y']].apply(data_type_resolver, axis=1)
         drop_list.extend(['data_types_x', 'data_types_y'])
     out_df = out_df.drop(drop_list, axis=1)
+    
+    if args.notes:
+        notes_df = pd.read_csv(args.notes, sep=None)
+        for elt in ['uuid', 'note']:
+            if not elt in notes_df.columns:
+                print(f'ERROR: notes file does not contain {elt}, so notes were not merged')
+                break
+        else:
+            out_df = join_notes(out_df, notes_df)
 
     out_df = out_df.sort_values(ROW_SORT_KEYS, axis=0)
 
