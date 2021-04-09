@@ -33,7 +33,7 @@ COLUMN_SORT_WEIGHTS = {
 #
 # Column labels to be used as keys in sorting rows
 #
-ROW_SORT_KEYS = ['group_name', 'data_types', 'uuid']
+ROW_SORT_KEYS = ['status', 'group_name', 'data_types', 'uuid']
 
 
 def column_sorter(col_l):

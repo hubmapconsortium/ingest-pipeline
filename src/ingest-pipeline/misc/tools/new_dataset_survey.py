@@ -50,9 +50,13 @@ def _merge_note_pair(row):
         note_x = ''
     if note_y == 'nan':
         note_y = ''
-    words_x = [word for word in note_x.split(';') if word]
-    words_y = [word for word in note_y.split(';') if word]
-    return ';'.join(words_x + words_y)
+    words = ([word for word in note_x.split(';') if word]
+             + [word for word in note_y.split(';') if word])
+    dedup_words = []
+    for word in words:
+        if word not in dedup_words:
+            dedup_words.append(word)
+    return ';'.join(dedup_words)
 
 
 def join_notes(df, notes_df):
@@ -60,7 +64,7 @@ def join_notes(df, notes_df):
     assert 'note_x' in df.columns and 'note_y' in df.columns, "cannot find the notes to merge"
     note_df = df[['note_x', 'note_y']].astype(str)
     df['note'] = note_df.apply(_merge_note_pair, axis=1)
-    return df
+    return df.drop(columns=['note_x', 'note_y'])
 
 
 def main():
@@ -71,16 +75,17 @@ def main():
     parser.add_argument("uuid_txt",
                         help="input .txt file containing uuids or .csv or .tsv file with uuid column")
     parser.add_argument("--out", help="name of the output .tsv file", required=True)
-    parser.add_argument("--notes", help="merge dataset notes from this csv/tsv file")
+    parser.add_argument("--notes", action="append",
+                        help=("merge dataset notes from this csv/tsv file"
+                              " (may be repeated)."))
     args = parser.parse_args()
     auth_tok = input('auth_tok: ')
     entity_factory = EntityFactory(auth_tok)
 
     uuid_l = []
     if args.uuid_txt.endswith((".csv", ".tsv")):
-        in_df = pd.read_csv(args.uuid_txt, engine="python",sep=None, 
-                               dtype={'note':np.str},
-                               na_values={'note':''})
+        in_df = pd.read_csv(args.uuid_txt, engine="python", sep=None, 
+                               dtype={'note': np.str})
         if 'uuid' in in_df.columns:
             uuid_key = 'uuid'
         elif 'e.uuid' in in_df.columns:
@@ -151,10 +156,9 @@ def main():
         drop_list.extend(['data_types_x', 'data_types_y'])
     out_df = out_df.drop(drop_list, axis=1)
     
-    if args.notes:
-        notes_df = pd.read_csv(args.notes, engine='python', sep=None, 
-                               dtype={'note':np.str},
-                               na_values={'note':''})
+    for notes_file in args.notes:
+        notes_df = pd.read_csv(notes_file, engine='python', sep=None, 
+                               dtype={'note': np.str})
         for elt in ['uuid', 'note']:
             if not elt in notes_df.columns:
                 print(f'ERROR: notes file does not contain {elt}, so notes were not merged')
