@@ -4,6 +4,7 @@ import sys
 import argparse
 from pprint import pprint
 import pandas as pd
+import numpy as np
 
 from survey import (Entity, Dataset, Sample, EntityFactory,
                     ROW_SORT_KEYS, column_sorter, is_uuid)
@@ -43,6 +44,29 @@ def data_type_resolver(row):
     return "????"
 
 
+def _merge_note_pair(row):
+    note_x, note_y = row['note_x'], row['note_y']
+    if note_x == 'nan':  # pandas made me do it!  It's not my fault!
+        note_x = ''
+    if note_y == 'nan':
+        note_y = ''
+    words = ([word for word in note_x.split(';') if word]
+             + [word for word in note_y.split(';') if word])
+    dedup_words = []
+    for word in words:
+        if word not in dedup_words:
+            dedup_words.append(word)
+    return ';'.join(dedup_words)
+
+
+def join_notes(df, notes_df):
+    df = pd.merge(df, notes_df[['uuid', 'note']], on='uuid', how='left')
+    assert 'note_x' in df.columns and 'note_y' in df.columns, "cannot find the notes to merge"
+    note_df = df[['note_x', 'note_y']].astype(str)
+    df['note'] = note_df.apply(_merge_note_pair, axis=1)
+    return df.drop(columns=['note_x', 'note_y'])
+
+
 def main():
     """
     main
@@ -51,13 +75,17 @@ def main():
     parser.add_argument("uuid_txt",
                         help="input .txt file containing uuids or .csv or .tsv file with uuid column")
     parser.add_argument("--out", help="name of the output .tsv file", required=True)
+    parser.add_argument("--notes", action="append",
+                        help=("merge dataset notes from this csv/tsv file"
+                              " (may be repeated)."))
     args = parser.parse_args()
     auth_tok = input('auth_tok: ')
     entity_factory = EntityFactory(auth_tok)
 
     uuid_l = []
     if args.uuid_txt.endswith((".csv", ".tsv")):
-        in_df = pd.read_csv(args.uuid_txt)
+        in_df = pd.read_csv(args.uuid_txt, engine="python", sep=None, 
+                               dtype={'note': np.str})
         if 'uuid' in in_df.columns:
             uuid_key = 'uuid'
         elif 'e.uuid' in in_df.columns:
@@ -127,6 +155,16 @@ def main():
         out_df['data_types'] = out_df[['data_types_x', 'data_types_y']].apply(data_type_resolver, axis=1)
         drop_list.extend(['data_types_x', 'data_types_y'])
     out_df = out_df.drop(drop_list, axis=1)
+    
+    for notes_file in args.notes:
+        notes_df = pd.read_csv(notes_file, engine='python', sep=None, 
+                               dtype={'note': np.str})
+        for elt in ['uuid', 'note']:
+            if not elt in notes_df.columns:
+                print(f'ERROR: notes file does not contain {elt}, so notes were not merged')
+                break
+        else:
+            out_df = join_notes(out_df, notes_df)
 
     out_df = out_df.sort_values(ROW_SORT_KEYS, axis=0)
 
