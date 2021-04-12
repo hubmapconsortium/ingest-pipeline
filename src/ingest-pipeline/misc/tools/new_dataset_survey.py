@@ -85,7 +85,7 @@ def main():
     uuid_l = []
     if args.uuid_txt.endswith((".csv", ".tsv")):
         in_df = pd.read_csv(args.uuid_txt, engine="python", sep=None, 
-                               dtype={'note': np.str})
+                               dtype={'note': np.str}, encoding='utf-8-sig')
         if 'uuid' in in_df.columns:
             uuid_key = 'uuid'
         elif 'e.uuid' in in_df.columns:
@@ -158,7 +158,7 @@ def main():
     
     for notes_file in args.notes:
         notes_df = pd.read_csv(notes_file, engine='python', sep=None, 
-                               dtype={'note': np.str})
+                               dtype={'note': np.str}, encoding='utf-8-sig')
         for elt in ['uuid', 'note']:
             if not elt in notes_df.columns:
                 print(f'ERROR: notes file does not contain {elt}, so notes were not merged')
