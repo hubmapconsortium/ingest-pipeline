@@ -15,6 +15,7 @@ from hubmap_operators.common_operators import (
     LogInfoOperator,
     MoveDataOperator,
 )
+from airflow.hooks.http_hook import HttpHook
 
 import utils
 from utils import (
@@ -28,345 +29,198 @@ from utils import (
 # to be used by the CWL worker
 THREADS = 6
 
-def get_dataset_uuids(modality: str) -> List[str]:
-    hits = []
-    for i in range(50):
-        dataset_query_dict = {
-            "from": 10 * i,
-            "size": 10,
-            "query": {
-                "bool": {
-                    "must": [],
-                    "filter": [
-                        {
-                            "match_all": {}
-                        },
-                        {
-                            "exists": {
-                                "field": "files.rel_path"
-                            }
-                        },
-                        {
-                            "match_phrase": {
-                                "immediate_ancestors.entity_type": {
-                                    "query": "Dataset"
+def generate_cells_index_dag(modality:str):
+
+    def get_dataset_uuids(modality: str) -> List[str]:
+        hits = []
+        for i in range(50):
+            dataset_query_dict = {
+                "from": 10 * i,
+                "size": 10,
+                "query": {
+                    "bool": {
+                        "must": [
+                            {
+                                "match_phrase": {
+                                    "status": {
+                                        "query": "Published"
+                                    }
                                 }
                             }
-                        },
-                    ],
-                    "should": [],
-                    "must_not": [
-                        {
-                            "match_phrase": {
-                                "status": {
-                                    "query": "Error"
+                        ],
+                        "filter": [
+                            {
+                                "match_all": {}
+                            },
+                            {
+                                "exists": {
+                                    "field": "files.rel_path"
                                 }
-                            }
-                        }
-                    ]
+                            },
+                            {
+                                "match_phrase": {
+                                    "immediate_ancestors.entity_type": {
+                                        "query": "Dataset"
+                                    }
+                                }
+                            },
+                        ],
+                        "should": [],
+                        "must_not": [],
+                    }
                 }
             }
-        }
 
-        dataset_response = requests.post(
-            'https://search.api.hubmapconsortium.org/search',
-            json=dataset_query_dict)
-        hits.extend(dataset_response.json()['hits']['hits'])
+            http_hook = HttpHook(method="POST")
 
-    print(len(hits))
+            dataset_response = requests.post(
+                'https://search.api.hubmapconsortium.org/search',
+                json=dataset_query_dict)
+            hits.extend(dataset_response.json()['hits']['hits'])
 
-    uuids = []
-    for hit in hits:
-        for ancestor in hit['_source']['ancestors']:
-            if 'data_types' in ancestor.keys():
-                print('data_types_found')
-                if modality in ancestor['data_types'][0] and 'bulk' not in ancestor['data_types'][0]:
-                    uuids.append(hit['_source']['uuid'])
+        print(len(hits))
 
-    return uuids
+        uuids = []
+        for hit in hits:
+            for ancestor in hit['_source']['ancestors']:
+                if 'data_types' in ancestor.keys():
+                    print('data_types_found')
+                    if modality in ancestor['data_types'][0] and 'bulk' not in ancestor['data_types'][0]:
+                        uuids.append(hit['_source']['uuid'])
 
-def get_all_indexed_datasets()->List[str]:
-    cells_url = 'https://cells.api.hubmapconsortium.org/api/'
-    query_handle = requests.post(cells_url + 'dataset/', {}).json()['results'][0]['query_handle']
-    num_datasets = requests.post(cells_url + 'count/', {'key':query_handle, 'set_type':'dataset'})
-    evaluation_args_dict = {'key':query_handle, 'set_type':'dataset', 'limit':num_datasets}
-    datasets_response = requests.post(cells_url + 'datasetevaluation/', evaluation_args_dict)
-    datasets_results = datasets_response.json()['results']
-    uuids = [result['uuid'] for result in datasets_results]
-    return uuids
+        return set(uuids)
 
-def get_data_directories(modality):
-    all_indexed_datasets = get_all_indexed_datasets()
-    modality_datasets = get_dataset_uuids(modality)
-    if any([uuid not in all_indexed_datasets for uuid in modality_datasets]):
-        return [f"/hive/hubmap/data/public/{dataset}" for dataset in modality_datasets]
-    else:
-        return []
+    def get_all_indexed_datasets()->List[str]:
+        cells_url = 'https://cells.api.hubmapconsortium.org/api/'
+        http_hook = HttpHook(method="POST")
+        query_handle = requests.post(cells_url + 'dataset/', {}).json()['results'][0]['query_handle']
+        num_datasets = requests.post(cells_url + 'count/', {'key':query_handle, 'set_type':'dataset'})
+        evaluation_args_dict = {'key':query_handle, 'set_type':'dataset', 'limit':num_datasets}
+        datasets_response = requests.post(cells_url + 'datasetevaluation/', evaluation_args_dict)
+        datasets_results = datasets_response.json()['results']
+        uuids = [result['uuid'] for result in datasets_results]
+        return set(uuids)
 
-default_args = {
-    "owner": "hubmap",
-    "depends_on_past": False,
-    "start_date": datetime(2019, 1, 1),
-    "email": ["joel.welling@gmail.com"],
-    "email_on_failure": False,
-    "email_on_retry": False,
-    "retries": 1,
-    "retry_delay": timedelta(minutes=1),
-    "xcom_push": True,
-    "queue": utils.map_queue_name("general"),
-    "on_failure_callback": utils.create_dataset_state_error_callback(get_uuid_for_error),
-}
+    def get_data_directories(modality):
+        all_indexed_datasets = get_all_indexed_datasets()
+        modality_datasets = get_dataset_uuids(modality)
+        unindexed_datasets = modality_datasets - all_indexed_datasets
+        if len(unindexed_datasets) > 0:
+            return [f"/hive/hubmap/data/public/{dataset}" for dataset in modality_datasets]
+        else:
+            return []
 
-with DAG(
-    "cells_index",
-    schedule_interval=None,
-    is_paused_upon_creation=False,
-    default_args=default_args,
-    max_active_runs=4,
-    user_defined_macros={"tmp_dir_path": utils.get_tmp_dir_path},
-) as dag:
+    default_args = {
+        "owner": "hubmap",
+        "depends_on_past": False,
+        "start_date": datetime(2019, 1, 1),
+        "email": ["joel.welling@gmail.com"],
+        "email_on_failure": False,
+        "email_on_retry": False,
+        "retries": 1,
+        "retry_delay": timedelta(minutes=1),
+        "xcom_push": True,
+        "queue": utils.map_queue_name("general"),
+        "on_failure_callback": utils.create_dataset_state_error_callback(get_uuid_for_error),
+    }
 
-    cwl_workflows = get_absolute_workflows(
-        Path("cross-dataset-atac", "cross-dataset-atac.cwl"),
-        Path("cross-dataset-diffexpr", "cross-dataset-rna.cwl"),
-        Path("cross-dataset-codex", "cross-dataset-codex.cwl"),
-    )
+    with DAG(
+        f"cells_index_{modality}",
+        schedule_interval=None,
+        is_paused_upon_creation=False,
+        default_args=default_args,
+        max_active_runs=4,
+        user_defined_macros={"tmp_dir_path": utils.get_tmp_dir_path},
+    ) as dag:
+            repo_name = "cross-dataset-diffexpr" if modality == "rna" else f"cross-dataset-{modality}"
+            workflow_name = f"cross-dataset-{modality}.cwl"
+            cwl_workflows = get_absolute_workflows(repo_name, workflow_name)
 
-    prepare_cwl1 = DummyOperator(task_id="prepare_cwl1")
+            prepare_cwl = DummyOperator(task_id=f"prepare_cwl-{modality}")
 
-    prepare_cwl2 = DummyOperator(task_id="prepare_cwl2")
+            def build_cwltool_cmd(**kwargs):
+                run_id = kwargs["run_id"]
+                tmpdir = utils.get_tmp_dir_path(run_id)
+                print("tmpdir: ", tmpdir)
 
-    prepare_cwl3 = DummyOperator(task_id="prepare_cwl3")
+                data_dirs = get_data_directories(modality)
+                if len(data_dirs) == 0:
+                    raise ValueError("No new data directories found")
+                print("data_dirs: ", data_dirs)
 
-    def build_cwltool_cmd1(**kwargs):
-        run_id = kwargs["run_id"]
-        tmpdir = utils.get_tmp_dir_path(run_id)
-        print("tmpdir: ", tmpdir)
+                command = [
+                    *get_cwltool_base_cmd(tmpdir),
+                    "--relax-path-checks",
+                    "--debug",
+                    "--outdir",
+                    tmpdir / "cwl_out",
+                    "--parallel",
+                    cwl_workflows[0],
+                ]
 
-        data_dirs = get_data_directories("atac")
-        if len(data_dirs) == 0:
-            raise ValueError("No new data directories found")
-        print("data_dirs: ", data_dirs)
+                for data_dir in data_dirs:
+                    command.append("--data_directories")
+                    command.append(data_dir)
 
-        command = [
-            *get_cwltool_base_cmd(tmpdir),
-            "--relax-path-checks",
-            "--debug",
-            "--outdir",
-            tmpdir / "cwl_out",
-            "--parallel",
-            cwl_workflows[0],
-        ]
+                return join_quote_command_str(command)
 
-        for data_dir in data_dirs:
-            command.append("--data_directories")
-            command.append(data_dir)
+            t_build_cmd = PythonOperator(
+                task_id=f"build_cmd_{modality}",
+                python_callable=build_cwltool_cmd,
+                provide_context=True,
+            )
 
-        return join_quote_command_str(command)
+            t_maybe_run_pipeline = BranchPythonOperator(
+                task_id=f"maybe_run_pipeline_{modality}",
+                python_callable=utils.pythonop_maybe_keep,
+                provide_context=True,
+                op_kwargs={
+                    "next_op": f"pipeline_exec_{modality}",
+                    "bail_op": f"join_{modality}",
+                    "test_op": f"build_cmd_{modality}",
+                },
+            )
 
-    def build_cwltool_cmd2(**kwargs):
-        run_id = kwargs["run_id"]
-        tmpdir = utils.get_tmp_dir_path(run_id)
-        print("tmpdir: ", tmpdir)
+            t_pipeline_exec = BashOperator(
+                task_id=f"pipeline_exec_{modality}",
+                bash_command=""" \
+                tmp_dir={{tmp_dir_path(run_id)}} ; \
+                {{ti.xcom_pull(task_ids='build_cmd1')}} > $tmp_dir/session.log 2>&1 ; \
+                echo $?
+                """,
+            )
 
-        data_dirs = get_data_directories("rna")
-        if len(data_dirs) == 0:
-            raise ValueError("No new data directories found")
-        print("data_dirs: ", data_dirs)
+            t_maybe_keep_cwl = BranchPythonOperator(
+                task_id=f"maybe_keep_cwl_{modality}",
+                python_callable=utils.pythonop_maybe_keep,
+                provide_context=True,
+                op_kwargs={
+                    "next_op": f"prepare_cwl_{modality}",
+                    "bail_op": f"set_dataset_error_{modality}",
+                    "test_op": f"pipeline_exec_{modality}",
+                },
+            )
+            t_log_info = LogInfoOperator(task_id=f"log_info_{modality}")
+            t_join = JoinOperator(task_id=f"join_{modality}")
+            t_create_tmpdir = CreateTmpDirOperator(task_id=f"create_tmpdir_{modality}")
+            t_cleanup_tmpdir = CleanupTmpDirOperator(task_id=f"cleanup_tmpdir_{modality}")
+            t_move_data = MoveDataOperator(task_id=f"move_data_{modality}")
 
-        command = [
-            *get_cwltool_base_cmd(tmpdir),
-            "--relax-path-checks",
-            "--debug",
-            "--outdir",
-            tmpdir / "cwl_out",
-            "--parallel",
-            cwl_workflows[1],
-        ]
+            dag >> t_log_info >> t_create_tmpdir
+            (
+                t_create_tmpdir
+                >> prepare_cwl
+                >> t_build_cmd
+                >> t_maybe_run_pipeline
+                >> t_pipeline_exec
+                >> t_maybe_keep_cwl
+                >> t_move_data
+            )
+            t_maybe_keep_cwl >> t_join
+            t_maybe_run_pipeline >> t_join
+            t_move_data >> t_join >> t_cleanup_tmpdir
 
-        for data_dir in data_dirs:
-            command.append("--data_directories")
-            command.append(data_dir)
+modalities = ["rna", "atac", "codex"]
 
-        return join_quote_command_str(command) if len(data_dirs) > 0 else ""
-
-    def build_cwltool_cmd3(**kwargs):
-        run_id = kwargs["run_id"]
-        tmpdir = utils.get_tmp_dir_path(run_id)
-        print("tmpdir: ", tmpdir)
-
-        data_dirs = get_data_directories("codex")
-        if len(data_dirs) == 0:
-            raise ValueError("No new data directories found")
-        print("data_dirs: ", data_dirs)
-
-        command = [
-            *get_cwltool_base_cmd(tmpdir),
-            "--relax-path-checks",
-            "--debug",
-            "--outdir",
-            tmpdir / "cwl_out",
-            "--parallel",
-            cwl_workflows[2],
-        ]
-
-        for data_dir in data_dirs:
-            command.append("--data_directories")
-            command.append(data_dir)
-
-        return join_quote_command_str(command) if len(data_dirs) > 0 else ""
-
-    t_build_cmd1 = PythonOperator(
-        task_id="build_cmd1",
-        python_callable=build_cwltool_cmd1,
-        provide_context=True,
-    )
-
-    t_build_cmd2 = PythonOperator(
-        task_id="build_cmd2",
-        python_callable=build_cwltool_cmd2,
-        provide_context=True,
-    )
-
-    t_build_cmd3 = PythonOperator(
-        task_id="build_cmd3",
-        python_callable=build_cwltool_cmd3,
-        provide_context=True,
-    )
-
-    t_maybe_run_pipeline1 = BranchPythonOperator(
-        task_id="maybe_run_pipeline",
-        python_callable=utils.pythonop_maybe_keep,
-        provide_context=True,
-        op_kwargs={
-            "next_op": "pipeline_exec",
-            "bail_op": "join",
-            "test_op": "build_cmd1",
-        },
-    )
-
-    t_maybe_run_pipeline2 = BranchPythonOperator(
-        task_id="maybe_run_pipeline",
-        python_callable=utils.pythonop_maybe_keep,
-        provide_context=True,
-        op_kwargs={
-            "next_op": "pipeline_exec",
-            "bail_op": "join",
-            "test_op": "build_cmd2",
-        },
-    )
-
-    t_maybe_run_pipeline3 = BranchPythonOperator(
-        task_id="maybe_run_pipeline",
-        python_callable=utils.pythonop_maybe_keep,
-        provide_context=True,
-        op_kwargs={
-            "next_op": "pipeline_exec",
-            "bail_op": "join",
-            "test_op": "build_cmd3",
-        },
-    )
-
-
-    t_pipeline_exec1 = BashOperator(
-        task_id="pipeline_exec",
-        bash_command=""" \
-        tmp_dir={{tmp_dir_path(run_id)}} ; \
-        {{ti.xcom_pull(task_ids='build_cmd1')}} > $tmp_dir/session.log 2>&1 ; \
-        echo $?
-        """,
-    )
-
-    t_pipeline_exec2 = BashOperator(
-        task_id="pipeline_exec",
-        bash_command=""" \
-        tmp_dir={{tmp_dir_path(run_id)}} ; \
-        {{ti.xcom_pull(task_ids='build_cmd1')}} > $tmp_dir/session.log 2>&1 ; \
-        echo $?
-        """,
-    )
-
-    t_pipeline_exec3 = BashOperator(
-        task_id="pipeline_exec",
-        bash_command=""" \
-        tmp_dir={{tmp_dir_path(run_id)}} ; \
-        {{ti.xcom_pull(task_ids='build_cmd1')}} > $tmp_dir/session.log 2>&1 ; \
-        echo $?
-        """,
-    )
-
-    t_maybe_keep_cwl1 = BranchPythonOperator(
-        task_id="maybe_keep_cwl1",
-        python_callable=utils.pythonop_maybe_keep,
-        provide_context=True,
-        op_kwargs={
-            "next_op": "prepare_cwl2",
-            "bail_op": "set_dataset_error",
-            "test_op": "pipeline_exec",
-        },
-    )
-
-    t_maybe_keep_cwl2 = BranchPythonOperator(
-        task_id="maybe_keep_cwl2",
-        python_callable=utils.pythonop_maybe_keep,
-        provide_context=True,
-        op_kwargs={
-            "next_op": "prepare_cwl3",
-            "bail_op": "set_dataset_error",
-            "test_op": "convert_for_ui",
-        },
-    )
-
-    t_maybe_keep_cwl3 = BranchPythonOperator(
-        task_id="maybe_keep_cwl3",
-        python_callable=utils.pythonop_maybe_keep,
-        provide_context=True,
-        op_kwargs={
-            "next_op": "move_data",
-            "bail_op": "set_dataset_error",
-            "test_op": "convert_for_ui_2",
-        },
-    )
-
-
-    t_log_info = LogInfoOperator(task_id="log_info")
-    t_join = JoinOperator(task_id="join")
-    t_create_tmpdir = CreateTmpDirOperator(task_id="create_tmpdir")
-    t_cleanup_tmpdir = CleanupTmpDirOperator(task_id="cleanup_tmpdir")
-    t_move_data = MoveDataOperator(task_id="move_data")
-
-    dag >> t_log_info >> t_create_tmpdir
-    (
-        t_create_tmpdir
-        >> prepare_cwl1
-        >> t_build_cmd1
-        >> t_maybe_run_pipeline1
-        >> t_pipeline_exec1
-        >> t_maybe_keep_cwl1
-        >> t_move_data
-    )
-    (
-        t_create_tmpdir
-        >> prepare_cwl2
-        >> t_build_cmd2
-        >> t_maybe_run_pipeline2
-        >> t_pipeline_exec2
-        >> t_maybe_keep_cwl2
-        >> t_move_data
-    )
-    (
-        t_create_tmpdir
-        >> prepare_cwl3
-        >> t_build_cmd3
-        >> t_maybe_run_pipeline3
-        >> t_pipeline_exec3
-        >> t_maybe_keep_cwl3
-        >> t_move_data
-    )
-    t_maybe_keep_cwl1 >> t_join
-    t_maybe_keep_cwl2 >> t_join
-    t_maybe_keep_cwl3 >> t_join
-    t_maybe_run_pipeline1 >> t_join
-    t_maybe_run_pipeline2 >> t_join
-    t_maybe_run_pipeline3 >> t_join
-    t_move_data >> t_join >> t_cleanup_tmpdir
+for modality in modalities:
+    generate_cells_index_dag(modality)
