@@ -1,8 +1,5 @@
 from datetime import datetime, timedelta
-from pathlib import Path
-from typing import List, Tuple
-import requests
-
+from typing import List
 
 from airflow import DAG
 from airflow.operators.bash_operator import BashOperator
@@ -71,11 +68,10 @@ def generate_cells_index_dag(modality:str):
                 }
             }
 
-            http_hook = HttpHook(method="POST")
+            http_conn_id = "search_api_connection"
+            http_hook = HttpHook(method="POST", http_conn_id=http_conn_id)
 
-            dataset_response = requests.post(
-                'https://search.api.hubmapconsortium.org/search',
-                json=dataset_query_dict)
+            dataset_response = http_hook.run('/search/', json=dataset_query_dict)
             hits.extend(dataset_response.json()['hits']['hits'])
 
         print(len(hits))
@@ -91,22 +87,28 @@ def generate_cells_index_dag(modality:str):
         return set(uuids)
 
     def get_all_indexed_datasets()->List[str]:
-        cells_url = 'https://cells.api.hubmapconsortium.org/api/'
-        http_hook = HttpHook(method="POST")
-        query_handle = requests.post(cells_url + 'dataset/', {}).json()['results'][0]['query_handle']
-        num_datasets = requests.post(cells_url + 'count/', {'key':query_handle, 'set_type':'dataset'})
+        http_conn_id = "cells_api_connection"
+        http_hook = HttpHook(method="POST", http_conn_id=http_conn_id)
+        query_handle = http_hook.run('/dataset/', {}).json()['results'][0]['query_handle']
+        num_datasets = http_hook.run('/count/', {'key':query_handle, 'set_type':'dataset'})
         evaluation_args_dict = {'key':query_handle, 'set_type':'dataset', 'limit':num_datasets}
-        datasets_response = requests.post(cells_url + 'datasetevaluation/', evaluation_args_dict)
+        datasets_response = http_hook.run('/datasetevaluation/', evaluation_args_dict)
         datasets_results = datasets_response.json()['results']
         uuids = [result['uuid'] for result in datasets_results]
         return set(uuids)
 
-    def get_data_directories(modality):
+    def uuid_to_abs_path(uuid:str)->str:
+        http_conn_id = "ingest_api_connection"
+        http_hook = HttpHook(method="GET", http_conn_id=http_conn_id)
+        endpoint = f"datasets/{uuid}/file-system-abs-path"
+        return http_hook.run(endpoint).json()['path']
+
+    def get_data_directories(modality:str)->List[str]:
         all_indexed_datasets = get_all_indexed_datasets()
         modality_datasets = get_dataset_uuids(modality)
         unindexed_datasets = modality_datasets - all_indexed_datasets
         if len(unindexed_datasets) > 0:
-            return [f"/hive/hubmap/data/public/{dataset}" for dataset in modality_datasets]
+            return [uuid_to_abs_path(dataset) for dataset in modality_datasets]
         else:
             return []
 
