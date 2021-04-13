@@ -130,6 +130,7 @@ with DAG('codex_cytokit',
         command = [
             *get_cwltool_base_cmd(tmpdir),
             cwl_workflows['sprm'],
+            '--enable_manhole',
             '--image_dir',
             data_dir / 'stitched/expressions',
             '--mask_dir',
