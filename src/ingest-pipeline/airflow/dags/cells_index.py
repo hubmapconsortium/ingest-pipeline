@@ -87,12 +87,13 @@ def generate_cells_index_dag(modality:str):
         return set(uuids)
 
     def get_all_indexed_datasets()->List[str]:
-        http_conn_id = "cells_api_connection"
+        #http_conn_id = "cells_api_connection"
+        http_conn_id = "uuid_api_connection"
         http_hook = HttpHook(method="POST", http_conn_id=http_conn_id)
-        query_handle = http_hook.run('/dataset/', {}).json()['results'][0]['query_handle']
-        num_datasets = http_hook.run('/count/', {'key':query_handle, 'set_type':'dataset'})
+        query_handle = http_hook.run('/api/dataset/', {}).json()['results'][0]['query_handle']
+        num_datasets = http_hook.run('/api/count/', {'key':query_handle, 'set_type':'dataset'})
         evaluation_args_dict = {'key':query_handle, 'set_type':'dataset', 'limit':num_datasets}
-        datasets_response = http_hook.run('/datasetevaluation/', evaluation_args_dict)
+        datasets_response = http_hook.run('/api/datasetevaluation/', evaluation_args_dict)
         datasets_results = datasets_response.json()['results']
         uuids = [result['uuid'] for result in datasets_results]
         return set(uuids)
@@ -222,7 +223,9 @@ def generate_cells_index_dag(modality:str):
             t_maybe_run_pipeline >> t_join
             t_move_data >> t_join >> t_cleanup_tmpdir
 
-modalities = ["rna", "atac", "codex"]
+    return dag
 
+modalities = ["rna", "atac", "codex"]
 for modality in modalities:
-    generate_cells_index_dag(modality)
+    globals()['cells_index_' + modality] = generate_cells_index_dag(modality)
+
