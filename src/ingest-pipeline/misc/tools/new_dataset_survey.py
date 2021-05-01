@@ -2,12 +2,18 @@
 
 import sys
 import argparse
+import re
 from pprint import pprint
+from datetime import date
 import pandas as pd
 import numpy as np
 
 from survey import (Entity, Dataset, Sample, EntityFactory,
                     ROW_SORT_KEYS, column_sorter, is_uuid)
+
+
+TEXT_IN_BRACKETS_RE = re.compile(r'\["([^,]+)"\]')
+TEXT_IN_BRACKETS_RE2 = re.compile(r"\['([^,]+)'\]")
 
 
 def detect_otherdata(ds):
@@ -23,8 +29,8 @@ def detect_otherdata(ds):
 
 def detect_metadatatsv(ds):
     """
-    Returns True if there are non-tsv files in or below the dataset top level
-    directory, or False otherwise.
+    Returns True if there are *metadata.tsv files in or below the dataset top level
+    directory which contain an 'assay_type' column, or False otherwise.
     """
     for path in ds.full_path.glob('*metadata.tsv'):
         md_df = pd.read_csv(path, sep='\t')
@@ -33,15 +39,62 @@ def detect_metadatatsv(ds):
     return (False, 0)
 
 
+def detect_clean_validation_report(ds):
+    """
+    Returns True if there is a validation_report.txt file in the top level
+    or extras directory and that file starts with the string 'No errors!',
+    or False otherwise.
+    """
+    rpt_path = ds.full_path / 'validation_report.txt'
+    if not rpt_path.is_file():
+        rpt_path = ds.full_path / 'extras' / 'validation_report.txt'
+    if rpt_path.is_file():
+        return rpt_path.read_text().strip() == 'No errors!'
+    else:
+        return False
+
+
+def get_most_recent_touch(ds):
+    """
+    Given a dataset, descend through directories finding the one with the most recent
+    ctime and return it as a date string.
+    """
+    ctime = ds.full_path.stat().st_ctime
+    for subdir in ds.full_path.glob('**/'):
+        ctime = max(ctime, subdir.stat().st_ctime)
+    return str(date.fromtimestamp(ctime))
+
+
+def _breakdown_bracketed_text(elt):
+    orig_elt = elt
+    if isinstance(elt, list) and len(elt) == 1:
+        elt = elt[0]
+    if isinstance(elt, str):
+        m = TEXT_IN_BRACKETS_RE.match(elt)
+        if m:
+            elt = m.group(1)
+        else:
+            m = TEXT_IN_BRACKETS_RE2.match(elt)
+            if m:
+                elt = m.group(1)
+    return elt
+
+
 def data_type_resolver(row):
-    if isinstance(row["data_types_x"], str) and isinstance(row["data_types_y"], str):
-        text_rep = row["data_types_y"]
-        if text_rep[0] == '[' and text_rep[-1] == ']':
-            text_rep = text_rep[1:-1]
-        text_rep = text_rep.strip("'")
-        if text_rep == row["data_types_x"]:
-            return row["data_types_x"]
-    return "????"
+    dt_x = _breakdown_bracketed_text(row["data_types_x"])
+    dt_y = _breakdown_bracketed_text(row["data_types_y"])
+    if ((isinstance(dt_x, str) and dt_x.lower() == 'nan')
+        or (isinstance(dt_x, float) and dt_x == np.nan)):
+        if ((isinstance(dt_y, str) and dt_y.lower() == 'nan')
+            or (isinstance(dt_y, float) and dt_y == np.nan)):
+            return '????'
+        else:
+            return dt_y
+    else:
+        if dt_x == dt_y:
+            return dt_x
+        else:
+            return f'{dt_x}:{dt_y}'
 
 
 def _merge_note_pair(row):
@@ -120,17 +173,27 @@ def main():
     for uuid in uuid_l:
         ds = entity_factory.get(uuid)
         ds.describe()
-        new_uuids = ds.all_uuids()
+        new_uuids = ds.all_dataset_uuids()
+        rec = {}
         try:
             rec = ds.build_rec()
             rec['has_metadata'], rec['n_md_recs'] = detect_metadatatsv(ds)
             rec['has_data'] = detect_otherdata(ds)
+            rec['validated'] = detect_clean_validation_report(ds)
+            try:
+                rec['last_touch'] = get_most_recent_touch(ds)
+            except OSError as e:
+                rec['last_touch'] = f'OSError: {e}'
             if any([uuid in known_uuids for uuid in new_uuids]):
                 rec['note'] = 'UUID COLLISION! '
+                print(f'collision on {[uuid for uuid in new_uuids if uuid in known_uuids]}')
             known_uuids = known_uuids.union(new_uuids)
-            out_recs.append(rec)
         except AssertionError as e:
-            print(f"ERROR: DROPPING BAD UUID {uuid}: {e}")
+            old_note = rec['note'] if 'note' in rec else ''
+            rec['note'] = f'BAD UUID: {e} ' + old_note
+            rec['uuid'] = uuid  # just to make sure it is present
+        if rec:
+            out_recs.append(rec)
     out_df = pd.DataFrame(out_recs).rename(columns={'sample_display_doi':'sample_doi',
                                                     'sample_hubmap_display_id':'sample_display_id',
                                                     'qa_child_uuid':'derived_uuid',
@@ -149,14 +212,16 @@ def main():
     if 'group_name' in out_df.columns and 'organization' in out_df.columns:
         drop_list.append('organization')
     if 'display_doi' in out_df.columns and 'hubmap_id' in out_df.columns:
-        assert (out_df['display_doi'] == out_df['hubmap_id']).all(), 'display_doi and hubmap_id do not match?'
-        drop_list.append('display_doi')
+        if (out_df['display_doi'].isnull() | (out_df['display_doi'] == out_df['hubmap_id'])).all():
+            drop_list.append('display_doi')
+        else:
+            raise AssertionError('display_doi and hubmap_id do not match?')
     if 'data_types_x' in out_df.columns and 'data_types_y' in out_df.columns:
         out_df['data_types'] = out_df[['data_types_x', 'data_types_y']].apply(data_type_resolver, axis=1)
         drop_list.extend(['data_types_x', 'data_types_y'])
     out_df = out_df.drop(drop_list, axis=1)
     
-    for notes_file in args.notes:
+    for notes_file in args.notes or []:
         notes_df = pd.read_csv(notes_file, engine='python', sep=None, 
                                dtype={'note': np.str}, encoding='utf-8-sig')
         for elt in ['uuid', 'note']:
@@ -166,7 +231,8 @@ def main():
         else:
             out_df = join_notes(out_df, notes_df)
 
-    out_df = out_df.sort_values(ROW_SORT_KEYS, axis=0)
+    out_df = out_df.sort_values([key for key in ROW_SORT_KEYS if key in out_df.columns],
+                                axis=0)
 
     out_df.to_csv(args.out, sep='\t', index=False,
                   columns=column_sorter([elt for elt in out_df.columns])
