@@ -10,6 +10,35 @@ import pandas as pd
 
 ENTITY_URL = 'https://entity.api.hubmapconsortium.org'  # no trailing slash
 SEARCH_URL = 'https://search.api.hubmapconsortium.org'
+#INGEST_URL = 'https://ingest.api.hubmapconsortium.org'
+INGEST_URL = 'http://hivevm193.psc.edu:7777'
+
+#
+# Large negative numbers move columns left, large positive numbers move them right.
+# Columns for which no weight is given end up with weight 0, so they sort to the
+# middle alphabetically.
+#
+COLUMN_SORT_WEIGHTS = {
+    'note':10,
+    'n_md_recs': 9,
+    'has_metadata': 8,
+    'has_data': 7,
+    'group_name': -10,
+    'data_types': -9,
+    'uuid': -8,
+    'hubmap_id': -7,
+}
+
+
+#
+# Column labels to be used as keys in sorting rows
+#
+ROW_SORT_KEYS = ['status', 'group_name', 'data_types', 'uuid']
+
+
+def column_sorter(col_l):
+    sort_me = [((COLUMN_SORT_WEIGHTS[key] if key in COLUMN_SORT_WEIGHTS else 0), key) for key in col_l]
+    return [key for wt, key in sorted(sort_me)]
 
 
 def _get_entity_prov(uuid, auth_tok):
@@ -150,12 +179,8 @@ class Dataset(Entity):
 
     @property
     def full_path(self):
-        assert self.status == 'New', f'full_path is not yet implemented for {self.status} files'
-        if self.contains_human_genetic_sequences:
-            return Path('/hive/hubmap/data/protected') / self.group_name / self.uuid
-        else:
-            return Path('/hive/hubmap/data/consortium') / self.group_name / self.uuid
-
+        return self.entity_factory.get_full_path(self.uuid)
+        
     def describe(self, prefix='', file=sys.stdout):
         print(f"{prefix}Dataset {self.uuid}: "
               f"{self.display_doi} "
@@ -284,6 +309,19 @@ class EntityFactory(object):
         else:
             return Entity(prop_dct, self)
 
+    def get_full_path(self, ds_uuid):
+        """ ds_uuid must be the uuid of a dataset.  Other entity types will fail. """
+        
+        r = requests.get(f'{INGEST_URL}/datasets/{ds_uuid}/file-system-abs-path',
+                          headers={'Authorization': f'Bearer {self.auth_tok}',
+                                   'Content-Type': 'application/json'})
+        #print(f'query was {r.request.body}')
+        if r.status_code >= 300:
+            r.raise_for_status()
+        jsn = r.json()
+        assert 'path' in jsn, f'could not get file-system-abs-path for {ds_uuid}'
+        return Path(jsn['path'])
+
 
 def is_uuid(s):
     return s and len(s) == 32 and all([c in '0123456789abcdef' for c in list(s)])
@@ -337,12 +375,15 @@ def main():
         ds = entity_factory.get(uuid)
         ds.describe()
         new_uuids = ds.all_uuids()
-        rec = ds.build_rec(include_all_children=args.include_all_children)
-        if any([uuid in known_uuids for uuid in new_uuids]):
-            old_note = rec['note'] if 'note' in rec else ''
-            rec['note'] = 'UUID COLLISION! ' + old_note
-        known_uuids = known_uuids.union(new_uuids)
-        out_recs.append(rec)
+        try:
+            rec = ds.build_rec(include_all_children=args.include_all_children)
+            if any([uuid in known_uuids for uuid in new_uuids]):
+                old_note = rec['note'] if 'note' in rec else ''
+                rec['note'] = 'UUID COLLISION! ' + old_note
+            known_uuids = known_uuids.union(new_uuids)
+            out_recs.append(rec)
+        except AssertionError as e:
+            print(f"ERROR: DROPPING BAD UUID {uuid}: {e}")
     out_df = pd.DataFrame(out_recs).rename(columns={'sample_display_doi':'sample_doi',
                                                     'sample_hubmap_display_id':'sample_display_id',
                                                     'qa_child_uuid':'derived_uuid',
@@ -353,7 +394,10 @@ def main():
                                                     'child_data_type':'derived_data_type',
                                                     'qa_child_status':'derived_status',
                                                     'child_status':'derived_status'})
-    out_df.to_csv(args.out, sep='\t', index=False)
+    out_df = out_df.sort_values(ROW_SORT_KEYS, axis=0)
+    out_df.to_csv(args.out, sep='\t', index=False,
+                  columns=column_sorter([elt for elt in out_df.columns])
+                  )
     
 
 if __name__ == '__main__':
