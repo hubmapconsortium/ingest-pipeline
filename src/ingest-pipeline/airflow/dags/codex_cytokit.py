@@ -55,6 +55,7 @@ with DAG('codex_cytokit',
         cytokit=Path(pipeline_name, 'pipeline.cwl'),
         sprm=Path('sprm', 'pipeline.cwl'),
         create_vis_symlink_archive=Path('create-vis-symlink-archive', 'pipeline.cwl'),
+        ome_tiff_pyramid=Path('ome-tiff-pyramid', 'pipeline.cwl'),
         ome_tiff_offsets=Path('portal-containers', 'ome-tiff-offsets.cwl'),
         sprm_to_json=Path('portal-containers', 'sprm-to-json.cwl'),
         sprm_to_anndata=Path('portal-containers', 'sprm-to-anndata.cwl'),
@@ -64,7 +65,6 @@ with DAG('codex_cytokit',
         return '{}__{}__{}'.format(dag.dag_id,
                                    kwargs['dag_run'].conf['parent_submission_id'],
                                    pipeline_name)
-
 
     prepare_cwl_cytokit = DummyOperator(task_id='prepare_cwl_cytokit')
     
@@ -91,6 +91,7 @@ with DAG('codex_cytokit',
         task_id='build_cwl_cytokit',
         python_callable=build_cwltool_cwl_cytokit,
         provide_context=True,
+        queue=utils.map_queue_name('gpu000_q1'),
         )
 
 
@@ -214,10 +215,61 @@ with DAG('codex_cytokit',
         task_id='maybe_keep_cwl_create_vis_symlink_archive',
         python_callable=utils.pythonop_maybe_keep,
         provide_context=True,
-        op_kwargs = {'next_op' : 'prepare_cwl_ome_tiff_offsets',
+        op_kwargs = {'next_op' : 'prepare_cwl_ome_tiff_pyramid',
                      'bail_op' : 'set_dataset_error',
                      'test_op' : 'pipeline_exec_cwl_create_vis_symlink_archive'}
         )
+
+    prepare_cwl_ome_tiff_pyramid = DummyOperator(task_id='prepare_cwl_ome_tiff_pyramid')
+
+    def build_cwltool_cwl_ome_tiff_pyramid(**kwargs):
+        ctx = kwargs['dag_run'].conf
+        run_id = kwargs['run_id']
+
+        #tmpdir is temp directory in /hubmap-tmp
+        tmpdir = utils.get_tmp_dir_path(run_id)
+        print('tmpdir: ', tmpdir)
+
+        #data directory is the stitched images, which are found in tmpdir
+        data_dir = ctx['parent_lz_path']
+        print('data_dir: ', data_dir)
+
+        #this is the call to the CWL
+        command = [
+            *get_cwltool_base_cmd(tmpdir),
+            "--relax-path-checks",
+            cwl_workflows['ome_tiff_pyramid'],
+            '--ometiff_directory',
+            '.',
+        ]
+        return join_quote_command_str(command)
+
+    t_build_cmd_ome_tiff_pyramid = PythonOperator(
+        task_id='build_cwl_ome_tiff_pyramid',
+        python_callable=build_cwltool_cwl_ome_tiff_pyramid,
+        provide_context=True,
+        )
+
+    t_pipeline_exec_cwl_ome_tiff_pyramid = BashOperator(
+        task_id='pipeline_exec_cwl_ome_tiff_pyramid',
+        bash_command=""" \
+        tmp_dir={{tmp_dir_path(run_id)}} ; \
+        mkdir -p ${tmp_dir}/cwl_out ; \
+        cd ${tmp_dir}/cwl_out ; \
+        {{ti.xcom_pull(task_ids='build_cwl_ome_tiff_pyramid')}} >> $tmp_dir/session.log 2>&1 ; \
+        echo $?
+        """
+        )
+
+    t_maybe_keep_cwl_ome_tiff_pyramid = BranchPythonOperator(
+        task_id='maybe_keep_cwl_ome_tiff_pyramid',
+        python_callable=utils.pythonop_maybe_keep,
+        provide_context=True,
+        op_kwargs = {'next_op' : 'prepare_cwl_ome_tiff_offsets',
+                     'bail_op' : 'set_dataset_error',
+                     'test_op' : 'pipeline_exec_cwl_ome_tiff_pyramid'}
+        )
+
 
     prepare_cwl_ome_tiff_offsets = DummyOperator(task_id='prepare_cwl_ome_tiff_offsets')
 
@@ -441,6 +493,7 @@ with DAG('codex_cytokit',
      >> prepare_cwl_cytokit >> t_build_cwl_cytokit >> t_pipeline_exec_cwl_cytokit >> t_maybe_keep_cwl_cytokit
      >> prepare_cwl_sprm >> t_build_cmd_sprm >> t_pipeline_exec_cwl_sprm >> t_maybe_keep_cwl_sprm
      >> prepare_cwl_create_vis_symlink_archive >> t_build_cmd_create_vis_symlink_archive >> t_pipeline_exec_cwl_create_vis_symlink_archive >> t_maybe_keep_cwl_create_vis_symlink_archive
+     >> prepare_cwl_ome_tiff_pyramid >> t_build_cmd_ome_tiff_pyramid >> t_pipeline_exec_cwl_ome_tiff_pyramid >> t_maybe_keep_cwl_ome_tiff_pyramid
      >> prepare_cwl_ome_tiff_offsets >> t_build_cmd_ome_tiff_offsets >> t_pipeline_exec_cwl_ome_tiff_offsets >> t_maybe_keep_cwl_ome_tiff_offsets
      >> prepare_cwl_sprm_to_json >> t_build_cmd_sprm_to_json >> t_pipeline_exec_cwl_sprm_to_json >> t_maybe_keep_cwl_sprm_to_json
      >> prepare_cwl_sprm_to_anndata >> t_build_cmd_sprm_to_anndata >> t_pipeline_exec_cwl_sprm_to_anndata >> t_maybe_keep_cwl_sprm_to_anndata
@@ -448,6 +501,7 @@ with DAG('codex_cytokit',
     t_maybe_keep_cwl_cytokit >> t_set_dataset_error
     t_maybe_keep_cwl_sprm >> t_set_dataset_error
     t_maybe_keep_cwl_create_vis_symlink_archive >> t_set_dataset_error
+    t_maybe_keep_cwl_ome_tiff_pyramid >> t_set_dataset_error
     t_maybe_keep_cwl_ome_tiff_offsets >> t_set_dataset_error
     t_maybe_keep_cwl_sprm_to_json >> t_set_dataset_error
     t_maybe_keep_cwl_sprm_to_anndata >> t_set_dataset_error
