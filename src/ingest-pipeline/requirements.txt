@@ -26,3 +26,4 @@ globus-cli==1.12.0
 yattag==1.14.0
 frictionless==4.0.0
 sqlalchemy==1.3
+xmlschema>=1.6
