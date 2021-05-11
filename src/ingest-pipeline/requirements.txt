@@ -1,6 +1,6 @@
 git+git://github.com/hubmapconsortium/commons.git@${COMMONS_BRANCH}#egg=hubmap-commons
 prov==1.5.1
-pylibczi>=1.1.1
+#pylibczi>=1.1.1
 #tifffile==2020.12.8
 tifffile
 xmltodict>=0.12.0
