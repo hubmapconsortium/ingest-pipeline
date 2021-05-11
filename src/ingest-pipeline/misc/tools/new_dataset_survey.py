@@ -2,24 +2,31 @@
 
 import sys
 import argparse
-import re
 from pprint import pprint
 from datetime import date
 import pandas as pd
 import numpy as np
 
 from survey import (Entity, Dataset, Sample, EntityFactory,
-                    ROW_SORT_KEYS, column_sorter, is_uuid)
+                    ROW_SORT_KEYS, column_sorter, is_uuid,
+                    parse_text_list)
 
 
-TEXT_IN_BRACKETS_RE = re.compile(r'\["([^,]+)"\]')
-TEXT_IN_BRACKETS_RE2 = re.compile(r"\['([^,]+)'\]")
+"""
+The survey generates and adds the following notes, so we do not want to propagate
+them when they appear in --notes inputs
+"""
+VOLATILE_NOTES = set(['BAD TYPE NAME',
+                      'UUID COLLISION!',
+                      'Multiple QA derived datasets',
+                      'BAD UUID: No parents?',
+                  ])
 
 
 def detect_otherdata(ds):
     """
-    Returns (True, nrecs) if there is a useable metadata.tsv file in the dataset
-    top level directory, or (False, 0) otherwise
+    Returns True if there is at least one file in the dataset directory tree that does not end in '.tsv',
+    false otherwise
     """
     for path in ds.full_path.glob('**/*'):
         if path.is_file() and path.suffix != '.tsv':
@@ -29,8 +36,8 @@ def detect_otherdata(ds):
 
 def detect_metadatatsv(ds):
     """
-    Returns True if there are *metadata.tsv files in or below the dataset top level
-    directory which contain an 'assay_type' column, or False otherwise.
+    Returns (True, nrecs) if there is a useable metadata.tsv file in the dataset
+    top level directory, or (False, 0) otherwise
     """
     for path in ds.full_path.glob('*metadata.tsv'):
         md_df = pd.read_csv(path, sep='\t')
@@ -65,35 +72,21 @@ def get_most_recent_touch(ds):
     return str(date.fromtimestamp(ctime))
 
 
-def _breakdown_bracketed_text(elt):
-    orig_elt = elt
-    if isinstance(elt, list) and len(elt) == 1:
-        elt = elt[0]
-    if isinstance(elt, str):
-        m = TEXT_IN_BRACKETS_RE.match(elt)
-        if m:
-            elt = m.group(1)
-        else:
-            m = TEXT_IN_BRACKETS_RE2.match(elt)
-            if m:
-                elt = m.group(1)
-    return elt
-
-
 def data_type_resolver(row):
-    dt_x = _breakdown_bracketed_text(row["data_types_x"])
-    dt_y = _breakdown_bracketed_text(row["data_types_y"])
+    dt_x = parse_text_list(row["data_types_x"])
+    dt_y = parse_text_list(row["data_types_y"])
     if ((isinstance(dt_x, str) and dt_x.lower() == 'nan')
         or (isinstance(dt_x, float) and dt_x == np.nan)):
         if ((isinstance(dt_y, str) and dt_y.lower() == 'nan')
             or (isinstance(dt_y, float) and dt_y == np.nan)):
             return '????'
         else:
-            return dt_y
+            return f'{dt_y}'
     else:
         if dt_x == dt_y:
-            return dt_x
+            return f'{dt_x}'
         else:
+            print(f'unreconcilable datatypes: {dt_x} {type(dt_x)} {dt_y} {type(dt_y)}')
             return f'{dt_x}:{dt_y}'
 
 
@@ -103,10 +96,12 @@ def _merge_note_pair(row):
         note_x = ''
     if note_y == 'nan':
         note_y = ''
-    words = ([word for word in note_x.split(';') if word]
-             + [word for word in note_y.split(';') if word])
+    words_x = [word.strip() for word in note_x.split(';')]
+    words_x = [word for word in words_x if word]
+    words_y = [word.strip() for word in note_y.split(';')]
+    words_y = [word for word in words_y if word and word not in VOLATILE_NOTES]
     dedup_words = []
-    for word in words:
+    for word in words_x + words_y:
         if word not in dedup_words:
             dedup_words.append(word)
     return ';'.join(dedup_words)

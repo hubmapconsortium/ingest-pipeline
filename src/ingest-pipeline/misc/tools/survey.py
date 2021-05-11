@@ -2,6 +2,7 @@
 
 import sys
 import argparse
+import re
 import requests
 import json
 from pathlib import Path
@@ -12,10 +13,18 @@ from hubmap_commons.type_client import TypeClient
 
 ENTITY_URL = 'https://entity.api.hubmapconsortium.org'  # no trailing slash
 SEARCH_URL = 'https://search.api.hubmapconsortium.org'
+#SEARCH_URL = 'https://search-api.test.hubmapconsortium.org'
+ASSAY_INFO_URL = 'https://search.api.hubmapconsortium.org'
 #INGEST_URL = 'https://ingest.api.hubmapconsortium.org'
 INGEST_URL = 'http://hivevm193.psc.edu:7777'
 
-TC = TypeClient(SEARCH_URL)
+
+TC = TypeClient(ASSAY_INFO_URL)
+
+
+STRIP_DOUBLEQUOTES_RE = re.compile(r'"(.*)"')
+STRIP_QUOTES_RE = re.compile(r"'(.*)'")
+STRIP_BRACKETS_RE = re.compile(r"\[(.*)\]")
 
 
 #
@@ -40,7 +49,25 @@ COLUMN_SORT_WEIGHTS = {
 #
 # Column labels to be used as keys in sorting rows
 #
-ROW_SORT_KEYS = ['status', 'group_name', 'data_types', 'uuid']
+ROW_SORT_KEYS = ['is_derived', 'group_name', 'data_types', 'status', 'uuid']
+
+
+def parse_text_list(s):
+    this_s = s
+    while True:
+        if isinstance(s, list):
+            s = [parse_text_list(elt) for elt in s]
+        else:
+            for regex in [STRIP_QUOTES_RE, STRIP_DOUBLEQUOTES_RE, STRIP_BRACKETS_RE]:
+                m = regex.match(s)
+                if m:
+                    s = m.group(1)
+            if ',' in s:
+                s = [parse_text_list(word.strip()) for word in s.split(',')]
+        if s == this_s:
+            return s
+        else:
+            this_s = s
 
 
 def column_sorter(col_l):
@@ -124,6 +151,7 @@ class Entity(object):
         self.prop_dct = prop_dct
         self.entity_factory = entity_factory
         self.display_doi = prop_dct['display_doi']
+        self.notes = []
 
     def describe(self, prefix='', file=sys.stdout):
         print(f"{prefix}{self.uuid}: "
@@ -149,7 +177,8 @@ class Entity(object):
 class Dataset(Entity):
     def __init__(self, prop_dct, entity_factory):
         super().__init__(prop_dct, entity_factory)
-        assert prop_dct['entity_type'] == 'Dataset', f"uuid {uuid} is a {prop_dct['entity_type']}"
+        assert prop_dct['entity_type'] in ['Dataset', 'Support'], (f"uuid {uuid} is a"
+                                                                   f"{prop_dct['entity_type']}")
         self.status = prop_dct['status']
         if 'metadata' in prop_dct and prop_dct['metadata']:
             if 'dag_provenance_list' in prop_dct['metadata']:
@@ -166,13 +195,16 @@ class Dataset(Entity):
         self.kid_dataset_uuids = [elt['uuid'] for elt in prop_dct['immediate_descendants']
                                   if elt['entity_type'] == 'Dataset']
         self.data_types = prop_dct['data_types'] if 'data_types' in prop_dct else []
-        assay_type = self.data_types[0] if len(self.data_types) == 1 else self.data_types
+        assay_type = parse_text_list(self.data_types)
+        if isinstance(assay_type, list) and len(assay_type) == 1:
+            assay_type = assay_type[0]
         try:
             type_info = TC.getAssayType(assay_type)
             self.data_types = type_info.name
             self.is_derived = not type_info.primary
         except Exception as e:
-            self.data_types = f'BAD_TYPE_NAME<{self.data_types}>'
+            self.data_types = f'{self.data_types}'
+            self.notes.append('BAD TYPE NAME')
             self.is_derived = None
         self.donor_uuid = prop_dct['donor']['uuid']
         self.group_name = prop_dct['group_name']
@@ -203,11 +235,34 @@ class Dataset(Entity):
         print(f"{prefix}Dataset {self.uuid}: "
               f"{self.display_doi} "
               f"{self.data_types} "
-              f"{self.status}",
+              f"{self.status} "
+              f"{self.notes if self.notes else ''}",
               file=file)
         if self.kid_dataset_uuids:
             for kid in self.kid_dataset_uuids:
                 self.kids[kid].describe(prefix=prefix+'    ', file=file)
+
+    def _parse_sample_parents(self):
+        other_parent_uuids = [uuid for uuid in self.parent_uuids
+                              if uuid not in self.parent_dataset_uuids]
+        assert not (self.parent_dataset_uuids
+                    and other_parent_uuids), ('All parents should be datasets, or'
+                                              ' no parent should be a dataset')
+        if other_parent_uuids:
+            s_t = SplitTree()
+            for p_uuid in other_parent_uuids:
+                samp = self.entity_factory.get(p_uuid)
+                assert isinstance(samp, Sample), 'was expecting a sample?'
+                s_t.add(samp.hubmap_display_id)
+            sample_display_id = str(s_t)
+            sample_display_doi = (samp.display_doi if len(other_parent_uuids) == 1
+                                  else 'multiple')
+            parent_dataset = None
+        else:
+            sample_display_id = sample_display_doi = None
+            parent_dataset = (self.parent_dataset_uuids[0] if len(self.parent_dataset_uuids) == 1
+                              else 'multiple')
+        return parent_dataset, sample_display_id, sample_display_doi
 
 
     def build_rec(self, include_all_children=False):
@@ -237,23 +292,9 @@ class Dataset(Entity):
             rec['data_types'] = self.data_types
         else:
             rec['data_types'] = f"[{','.join(self.data_types)}]"
-        print(f"rec['data_types'] is {rec['data_types']}")
-        other_parent_uuids = [uuid for uuid in self.parent_uuids if uuid not in self.parent_dataset_uuids]
-        if not other_parent_uuids:
-            if self.parent_uuids:
-                rec['derived_from'] = ','.join(self.parent_uuids)
-            else:
-                raise AssertionError('No parents?')
-        s_t = SplitTree()
-        for p_uuid in other_parent_uuids:
-            samp = self.entity_factory.get(p_uuid)
-            assert isinstance(samp, Sample), 'was expecting a sample?'
-            s_t.add(samp.hubmap_display_id)
-        rec['sample_hubmap_display_id'] = str(s_t)
-        if len(other_parent_uuids) == 1:
-            rec['sample_display_doi'] = samp.display_doi
-        else:
-            rec['sample_display_doi'] = 'multiple'
+        (rec['parent_dataset'],
+         rec['sample_hubmap_display_id'],
+         rec['sample_display_doi']) = self._parse_sample_parents()
         if include_all_children:
             filtered_kids = [self.kids[uuid] for uuid in self.kids]
             uuid_hdr, doi_hdr, data_type_hdr, status_hdr, note_note = ('child_uuid', 'child_display_doi',
@@ -275,6 +316,7 @@ class Dataset(Entity):
             for key in [uuid_hdr, doi_hdr, data_type_hdr, status_hdr]:
                 rec[key] = None
             rec['note'] = ''
+        rec['note'] = '; '.join([rec['note']] + self.notes)
     
         return rec
             
@@ -309,70 +351,17 @@ class Sample(Entity):
               file=file)
 
 
-class Support(Entity):
+class Support(Dataset):
     def __init__(self, prop_dct, entity_factory):
         super().__init__(prop_dct, entity_factory)
         assert prop_dct['entity_type'] == 'Support', f"uuid {uuid} is a {prop_dct['entity_type']}"
-        self.display_doi = prop_dct['display_doi']
-        self.donor_display_doi = prop_dct['donor']['display_doi']
-        #self.hubmap_display_id = prop_dct['hubmap_display_id']
         self.donor_hubmap_display_id = prop_dct['donor']['hubmap_display_id']
-        self.donor_uuid = prop_dct['donor']['uuid']
 
-        self.status = prop_dct['status']
-        if 'metadata' in prop_dct and prop_dct['metadata']:
-            if 'dag_provenance_list' in prop_dct['metadata']:
-                dag_prv = prop_dct['metadata']['dag_provenance_list']
-            else:
-                dag_prv = None
-        else:
-            dag_prv = None
-        self.dag_provenance = dag_prv
-        self.parent_uuids = [elt['uuid'] for elt in prop_dct['immediate_ancestors']]
-        self.parent_dataset_uuids = [elt['uuid'] for elt in prop_dct['immediate_ancestors']
-                                     if elt['entity_type'] == 'Dataset']
-        self.kid_uuids = [elt['uuid'] for elt in prop_dct['immediate_descendants']]
-        self.kid_dataset_uuids = [elt['uuid'] for elt in prop_dct['immediate_descendants']
-                                  if elt['entity_type'] == 'Dataset']
-        self.data_types = prop_dct['data_types'] if 'data_types' in prop_dct else []
-        assay_type = self.data_types[0] if len(self.data_types) == 1 else self.data_types
-        try:
-            type_info = TC.getAssayType(assay_type)
-            self.data_types = type_info.name
-            self.is_derived = not type_info.primary
-        except Exception as e:
-            print(f'exception: {e}')
-            self.data_types = f'BAD_TYPE_NAME<{self.data_types}>'
-            self.is_derived = None
-        self.donor_uuid = prop_dct['donor']['uuid']
-        self.group_name = prop_dct['group_name']
-        c_h_g = prop_dct['contains_human_genetic_sequences']
-        if isinstance(c_h_g, str):
-            c_h_g = (c_h_g.lower() in ['yes', 'true'])
-        self.contains_human_genetic_sequences = c_h_g
-        self._kid_dct = None
-        self._parent_dct = None
-
-    @property
-    def kids(self):
-        if self._kid_dct is None:
-            self._kid_dct = {uuid: self.entity_factory.get(uuid) for uuid in self.kid_uuids}
-        return self._kid_dct
-    
-    @property
-    def parents(self):
-        if self._parent_dct is None:
-            self._parent_dct = {uuid: self.entity_factory.get(uuid) for uuid in self.parent_uuids}
-        return self._parent_dct
-
-    @property
-    def full_path(self):
-        return self.entity_factory.get_full_path(self.uuid)
-        
     def describe(self, prefix='', file=sys.stdout):
         print(f"{prefix}Support {self.uuid}: "
               f"{self.display_doi} "
-              f"{self.data_types}",
+              f"{self.data_types} "
+              f"{self.notes if self.notes else ''}",
               file=file)
         if self.kid_dataset_uuids:
             for kid in self.kid_dataset_uuids:
@@ -380,83 +369,8 @@ class Support(Entity):
 
 
     def build_rec(self, include_all_children=False):
-        """
-        Returns a dict containing:
-        
-        uuid
-        display_doi
-        data_types[0]  (verifying there is only 1 entry)
-        status
-        QA_child.uuid
-        QA_child.display_doi
-        QA_child.data_types[0]  (verifying there is only 1 entry)
-        QA_child.status   (which must be QA or Published)
-        note 
-
-        If include_all_children=True, all child datasets are included rather
-        than just those that are QA or Published.
-        """
-        rec = {'uuid': self.uuid, 'display_doi': self.display_doi, 'status': self.status,
-               'group_name': self.group_name, 'is_derived': self.is_derived}
-        if not self.data_types:
-            rec['data_types'] = "[]"
-        elif isinstance(self.data_types, list) and len(self.data_types) == 1:
-            rec['data_types'] = self.data_types[0]
-        elif isinstance(self.data_types, str):
-            rec['data_types'] = self.data_types
-        else:
-            rec['data_types'] = f"[{','.join(self.data_types)}]"
-        other_parent_uuids = [uuid for uuid in self.parent_uuids if uuid not in self.parent_dataset_uuids]
-        assert not other_parent_uuids, 'This Support is derived from a sample?'
-        if self.parent_uuids:
-            rec['derived_from'] = ','.join(self.parent_uuids)
-        else:
-            raise AssertionError('No parents?')
-        s_t = SplitTree()
-        for p_uuid in other_parent_uuids:
-            samp = self.entity_factory.get(p_uuid)
-            assert isinstance(samp, Sample), 'was expecting a sample?'
-            s_t.add(samp.hubmap_display_id)
-        rec['sample_hubmap_display_id'] = str(s_t)
-        if len(other_parent_uuids) == 1:
-            rec['sample_display_doi'] = samp.display_doi
-        else:
-            rec['sample_display_doi'] = 'multiple'
-        if include_all_children:
-            filtered_kids = [self.kids[uuid] for uuid in self.kids]
-            uuid_hdr, doi_hdr, data_type_hdr, status_hdr, note_note = ('child_uuid', 'child_display_doi',
-                                                                       'child_data_type', 'child_status',
-                                                                       'Multiple derived datasets')
-        else:
-            filtered_kids = [self.kids[uuid] for uuid in self.kids if self.kids[uuid].status in ['QA', 'Published']]
-            uuid_hdr, doi_hdr, data_type_hdr, status_hdr, note_note = ('qa_child_uuid', 'qa_child_display_doi',
-                                                                       'qa_child_data_type', 'qa_child_status',
-                                                                       'Multiple QA derived datasets')
-        if any(filtered_kids):
-            rec['note'] = note_note if len(filtered_kids) > 1 else ''
-            this_kid = filtered_kids[0]
-            rec[uuid_hdr] = this_kid.uuid
-            rec[doi_hdr] = this_kid.display_doi
-            rec[data_type_hdr] = this_kid.data_types[0]
-            rec[status_hdr] = this_kid.status
-        else:
-            for key in [uuid_hdr, doi_hdr, data_type_hdr, status_hdr]:
-                rec[key] = None
-            rec['note'] = ''
-    
+        rec = super().build_rec(include_all_children)
         return rec
-
-    def all_uuids(self):
-        """
-        Returns a list of unique UUIDs associated with this entity
-        """
-        return super().all_uuids() + self.kid_uuids + self.parent_uuids
-
-    def all_dataset_uuids(self):
-        """
-        Returns a list of unique dataset or support UUIDs associated with this entity
-        """
-        return super().all_dataset_uuids() + self.kid_dataset_uuids + self.parent_dataset_uuids
 
 
 class EntityFactory(object):
@@ -473,7 +387,6 @@ class EntityFactory(object):
                           data=json.dumps(data),
                           headers={'Authorization': f'Bearer {self.auth_tok}',
                                    'Content-Type': 'application/json'})
-        #print(f'query was {r.request.body}')
         if r.status_code >= 300:
             r.raise_for_status()
         jsn = r.json()
