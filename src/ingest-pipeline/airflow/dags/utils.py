@@ -1063,7 +1063,7 @@ def _get_type_client() -> TypeClient:
         if conn.port is None:
             url = f'{conn.conn_type}://{conn.host}'
         else:
-            url = f'{conn.type}://{conn.host}:{conn.port}'
+            url = f'{conn.conn_type}://{conn.host}:{conn.port}'
         TYPE_CLIENT = TypeClient(url)
     return TYPE_CLIENT
 
