@@ -20,6 +20,8 @@ from airflow.hooks.http_hook import HttpHook
 from cryptography.fernet import Fernet
 
 from hubmap_commons.schema_tools import assert_json_matches_schema, set_schema_base_path
+from hubmap_commons.type_client import TypeClient
+
 
 import cwltool  # used to find its path
 
@@ -102,6 +104,7 @@ Lazy construction; a list of tuples (collection_type_regex, assay_type_regex, wo
 WORKFLOW_MAP_FILENAME = 'workflow_map.yml'  # Expected to be found in the same dir as this file
 WORKFLOW_MAP_SCHEMA = 'workflow_map_schema.yml'
 COMPILED_WORKFLOW_MAP: Optional[List[Tuple[Pattern, Pattern, str]]] = None
+TYPE_CLIENT: Optional[TypeClient] = None
 
 # Parameters used to generate scRNA and scATAC analysis DAGs; these
 # are the only fields which differ between assays and DAGs
@@ -1050,6 +1053,21 @@ def _get_workflow_map() -> List[Tuple[Pattern, Pattern, str]]:
     return COMPILED_WORKFLOW_MAP
 
 
+def _get_type_client() -> TypeClient:
+    """
+    Lazy initialization of the global TypeClient instance
+    """
+    global TYPE_CLIENT
+    if TYPE_CLIENT is None:
+        conn = HttpHook.get_connection('search_api_connection')
+        if conn.port is None:
+            url = f'{conn.conn_type}://{conn.host}'
+        else:
+            url = f'{conn.type}://{conn.host}:{conn.port}'
+        TYPE_CLIENT = TypeClient(url)
+    return TYPE_CLIENT
+
+
 def downstream_workflow_iter(collectiontype: str, assay_type: StrOrListStr) -> Iterable[str]:
     """
     Returns an iterator over zero or more workflow names matching the given
@@ -1057,6 +1075,12 @@ def downstream_workflow_iter(collectiontype: str, assay_type: StrOrListStr) -> I
     a known workflow, e.g. an Airflow DAG implemented by workflow_name.py .
     """
     collectiontype = collectiontype or ''
+    # Canonicalize the assay type if possible
+    try:
+        type_info = _get_type_client().getAssayType(assay_type)
+        assay_type = type_info.name
+    except Exception:
+        pass
     assay_type = assay_type or ''
     for ct_re, at_re, workflow in _get_workflow_map():
         if isinstance(assay_type, str):
@@ -1085,6 +1109,15 @@ def join_quote_command_str(pieces: List[Any]):
     return command_str
 
 def main():
+    """
+    This provides some unit tests.  To run it, you will need to define the
+    'search_api_connection' connection ID and the Fernet key.  The easiest way
+    to do that is with something like:
+    
+      export AIRFLOW_CONN_SEARCH_API_CONNECTION='https://search.api.hubmapconsortium.org/
+      fernet_key=`python -c 'from cryptography.fernet import Fernet ; print(Fernet.generate_key().decode())'`
+      export AIRFLOW__CORE__FERNET_KEY=${fernet_key}
+    """
     print(__file__)
     print(get_git_commits([__file__]))
     print(get_git_provenance_dict(__file__))
@@ -1104,7 +1137,8 @@ def main():
         print('ASSERT failed')
 
     assay_pairs = [('devtest', 'devtest'), ('codex', 'CODEX'),
-                   ('codex', 'SOMEOTHER'), ('someother', 'CODEX')]
+                   ('codex', 'SOMEOTHER'), ('someother', 'CODEX'),
+                   ('someother', 'salmon_sn_rnaseq_10x'), ('someother', 'salmon_rnaseq_10x_sn')]
     for collectiontype, assay_type in assay_pairs:
         print('collectiontype {}, assay_type {}:'.format(collectiontype, assay_type))
         for elt in downstream_workflow_iter(collectiontype, assay_type):

@@ -43,6 +43,7 @@ airflow_conf.read(os.path.join(os.environ['AIRFLOW_HOME'], 'instance', 'app.cfg'
 NEEDED_ENV_VARS = [
     'AIRFLOW_CONN_INGEST_API_CONNECTION',
     'AIRFLOW_CONN_UUID_API_CONNECTION',
+    'AIRFLOW_CONN_SEARCH_API_CONNECTION',
     ]
 NEEDED_CONFIG_SECTIONS = [
     'ingest_map',
