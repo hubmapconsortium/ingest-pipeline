@@ -71,6 +71,7 @@ class GlobusAuthBackend(object):
         self.globus_oauth = None
         self.api_rev = None
         self.authHelper = None
+        self.group_uuids = []
 
     def init_app(self, flask_app):
         client_id = get_config_param('APP_CLIENT_ID')
@@ -94,6 +95,15 @@ class GlobusAuthBackend(object):
         else:
             self.authHelper = AuthHelper.instance()
 
+        groups_with_permission_by_name = get_config_param('hubmap_groups').split(',')
+        groups_by_name = AuthHelper.getHuBMAPGroupInfo()
+
+        for group_with_permission in groups_with_permission_by_name:
+            if group_with_permission in groups_by_name and groups_by_name[group_with_permission]['uuid'] not in self.group_uuids:
+                self.group_uuids.append(groups_by_name[group_with_permission]['uuid'])
+            else:
+                log.error('Invalid group name provided in configuration: ' + group_with_permission)
+
     @provide_session
     def login(self, session=None):
         log.debug('Redirecting user to Globus login')
@@ -112,7 +122,14 @@ class GlobusAuthBackend(object):
                 tokens = self.globus_oauth.oauth2_exchange_code_for_tokens(code)
                 f_session['tokens'] = tokens.by_resource_server
 
-                username, email = self.get_globus_user_profile_info(tokens.by_resource_server['auth.globus.org']['access_token'])
+                user_info = self.get_globus_user_profile_info(
+                    tokens.by_resource_server['nexus.api.globus.org']['access_token'])
+                username = user_info['name']
+                email = user_info['email']
+                group_ids = user_info['hmgroupids']
+
+                if group_ids is None or list(set(group_ids) & set(self.group_uuids)) is None:
+                    raise Exception('User does not have correct group assignments')
 
                 user = session.query(models.User).filter(
                     models.User.username == username).first()
@@ -134,10 +151,8 @@ class GlobusAuthBackend(object):
             log.error(e)
             return redirect(url_for('airflow.noaccess'))
 
-
     def get_globus_user_profile_info(self, token):
-        userInfo = self.authHelper.getUserInfo(token)
-        return userInfo['name'], userInfo['email']
+        return self.authHelper.getUserInfo(token, True)
 
     @provide_session
     def load_user(self, userid, session=None):
@@ -149,7 +164,6 @@ class GlobusAuthBackend(object):
         return GlobusUser(user)
 
 login_manager = GlobusAuthBackend()
-
 
 def login(self, request):
     return login_manager.login(request)
