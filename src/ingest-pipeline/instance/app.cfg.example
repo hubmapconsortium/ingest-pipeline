@@ -40,7 +40,7 @@ app_client_secret =
 oauth_callback_route = /login
 # If you are running localhost, set this to http. Otherwise, set this to https.
 scheme = https
-# Should be a CSV of group names (lowercase, not quote wrapped) that you would like to give access to
+# Should be a CSV of group names (not quote wrapped) that you would like to give access to
 # EX: group_1, group_2
 hubmap_groups = hubmap-data-admin, hubmap-data-curator
 
