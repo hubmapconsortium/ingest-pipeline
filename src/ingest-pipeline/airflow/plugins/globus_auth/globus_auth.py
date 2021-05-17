@@ -95,7 +95,8 @@ class GlobusAuthBackend(object):
         else:
             self.authHelper = AuthHelper.instance()
 
-        groups_with_permission_by_name = get_config_param('hubmap_groups').split(',')
+        groups_with_permission_by_name = [group.strip().lower() for group in get_config_param('hubmap_groups').split(',')]
+
         groups_by_name = AuthHelper.getHuBMAPGroupInfo()
 
         for group_with_permission in groups_with_permission_by_name:
