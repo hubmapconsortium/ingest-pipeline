@@ -128,7 +128,7 @@ class GlobusAuthBackend(object):
                 email = user_info['email']
                 group_ids = user_info['hmgroupids']
 
-                if group_ids is None or list(set(group_ids) & set(self.group_uuids)) is None:
+                if not (group_ids and list(set(group_ids) & set(self.group_uuids))):
                     raise Exception('User does not have correct group assignments')
 
                 user = session.query(models.User).filter(
