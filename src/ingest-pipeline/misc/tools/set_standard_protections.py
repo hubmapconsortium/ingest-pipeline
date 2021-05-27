@@ -45,7 +45,7 @@ def main():
     LOGGER.setLevel('INFO' if args.verbose else 'WARNING')
 
     auth_tok = input('auth_tok: ')
-    entity_factory = EntityFactory(auth_tok)
+    entity_factory = EntityFactory(auth_tok, instance=args.instance)
     uuid = args.uuid or get_uuid_from_cwd()
 
     LOGGER.info('uuid is %s', uuid)
@@ -74,9 +74,16 @@ def main():
     acl_path = Path(__file__).absolute().parent.parent.parent / 'submodules'
     acl_path = acl_path / 'manual-data-ingest' / 'acl-settings' / acl_fname
     LOGGER.info('will apply %s', acl_path)
-    command = subprocess.run(['setacl', '-b', '-t', ds.full_path])
+    cmd1 = ['setfacl', '-b', str(ds.full_path)]
+    cmd2 = ['setfacl', '-R', '-M', str(acl_path), str(ds.full_path)]
+    if args.dry_run:
+        cmd1.insert(1, '--test')
+        cmd2.insert(1, '--test')
+    LOGGER.info('running %s', ' '.join(cmd1))
+    command = subprocess.run(cmd1)
     LOGGER.info('first command returned %s', command.returncode)
-    command = subprocess.run(['setacl', '-R', '-M', '-t', str(acl_path), ds.full_path])
+    LOGGER.info('running %s', ' '.join(cmd2))
+    command = subprocess.run(cmd2)
     LOGGER.info('second command returned %s', command.returncode)
     
 
