@@ -8,6 +8,7 @@ import logging
 from pprint import pprint
 from pathlib import Path
 from io import StringIO
+from typing import List
 
 from survey import (Entity, Dataset, Sample, EntityFactory,
                     ROW_SORT_KEYS, column_sorter, is_uuid,
@@ -16,14 +17,22 @@ from survey import (Entity, Dataset, Sample, EntityFactory,
 logging.basicConfig()
 LOGGER = logging.getLogger(__name__)
 
-def get_uuid_from_cwd():
-    LOGGER.info('extracting uuid from current working directory %s',
-                os.getcwd())
+
+def get_uuid_from_cwd() -> str:
+    LOGGER.debug('extracting uuid from current working directory %s',
+                 os.getcwd())
     for elt in reversed(os.getcwd().split(os.sep)):
         if is_uuid(elt):
             return elt
     raise RuntimeError('no uuid was found in the path to the current'
                        ' working directory')
+
+
+def run_cmd(cmd: List[str]) -> int : 
+    LOGGER.info('running %s', cmd)
+    command = subprocess.run(cmd)
+    LOGGER.debug('command returned %s', command.returncode)
+    return command.returncode
 
 
 def main():
@@ -38,11 +47,17 @@ def main():
                         default="PROD")
     parser.add_argument("--dry_run", action='store_true',
                         help="Show acls but do not actually set anything")
-    parser.add_argument("-v", "--verbose", action='store_true',
-                        help="verbose output")
+    parser.add_argument("-v", "--verbose", action='count', default=0,
+                        help="verbose output (may be repeated for more verbosity)")
     
     args = parser.parse_args()
-    LOGGER.setLevel('INFO' if args.verbose else 'WARNING')
+    if args.verbose > 1:
+        log_level = 'DEBUG'
+    elif args.verbose == 1:
+        log_level = 'INFO'
+    else:
+        log_level = 'WARN'
+    LOGGER.setLevel(log_level)
 
     auth_tok = input('auth_tok: ')
     entity_factory = EntityFactory(auth_tok, instance=args.instance)
@@ -56,9 +71,9 @@ def main():
     buf = StringIO()
     ds.describe(file=buf)
     LOGGER.info('description: %s', buf.getvalue())
-    LOGGER.info('full path: %s', ds.full_path)
-    LOGGER.info('contains_human_genetic_sequences = %s',
-                ds.contains_human_genetic_sequences)
+    LOGGER.debug('full path: %s', ds.full_path)
+    LOGGER.debug('contains_human_genetic_sequences = %s',
+                 ds.contains_human_genetic_sequences)
 
     acl_fname = 'protected_dataset.acl'  # the most restrictive
     if ds.contains_human_genetic_sequences:
@@ -79,13 +94,8 @@ def main():
     if args.dry_run:
         cmd1.insert(1, '--test')
         cmd2.insert(1, '--test')
-    LOGGER.info('running %s', ' '.join(cmd1))
-    command = subprocess.run(cmd1)
-    LOGGER.info('first command returned %s', command.returncode)
-    LOGGER.info('running %s', ' '.join(cmd2))
-    command = subprocess.run(cmd2)
-    LOGGER.info('second command returned %s', command.returncode)
-    
+    if run_cmd(cmd1) or run_cmd(cmd2):
+        LOGGER.error('Unable to set protections for %s', ds.uuid)
 
 
 if __name__ == '__main__':
