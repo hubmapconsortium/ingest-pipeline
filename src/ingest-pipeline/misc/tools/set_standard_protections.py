@@ -5,14 +5,12 @@ import os
 import argparse
 import subprocess
 import logging
-from pprint import pprint
 from pathlib import Path
 from io import StringIO
 from typing import List
 
-from survey import (Entity, Dataset, Sample, EntityFactory,
-                    ROW_SORT_KEYS, column_sorter, is_uuid,
-                    parse_text_list)
+from survey import Dataset, EntityFactory, is_uuid
+
 
 logging.basicConfig()
 LOGGER = logging.getLogger(__name__)
@@ -35,39 +33,16 @@ def run_cmd(cmd: List[str]) -> int :
     return command.returncode
 
 
-def main():
-    """
-    main
-    """
-    parser = argparse.ArgumentParser()
-    parser.add_argument("uuid", nargs='?', default=None,
-                        help="uuid to set.  If not present, it is calculated from the CWD")
-    parser.add_argument("--instance", required=False,
-                        help="Infrastructure instance; one of PROD, STAGE, TEST, or DEV.",
-                        default="PROD")
-    parser.add_argument("--dry_run", action='store_true',
-                        help="Show acls but do not actually set anything")
-    parser.add_argument("-v", "--verbose", action='count', default=0,
-                        help="verbose output (may be repeated for more verbosity)")
-    
-    args = parser.parse_args()
-    if args.verbose > 1:
-        log_level = 'DEBUG'
-    elif args.verbose == 1:
-        log_level = 'INFO'
-    else:
-        log_level = 'WARN'
-    LOGGER.setLevel(log_level)
-
-    auth_tok = input('auth_tok: ')
-    entity_factory = EntityFactory(auth_tok, instance=args.instance)
-    uuid = args.uuid or get_uuid_from_cwd()
-
-    LOGGER.info('uuid is %s', uuid)
-    ds = entity_factory.get(uuid)
+def process_one_uuid(uuid: str, entity_factory: EntityFactory, **kwargs) -> bool :
+    LOGGER.info('handling uuid %s', uuid)
+    try:
+        ds = entity_factory.get(uuid)
+    except AssertionError as e:
+        LOGGER.error('Trying to use uuid %s produced the error "%s"', uuid, e)
+        return False
     if not isinstance(ds, Dataset):
-        LOGGER.fatal('%s is not a dataset', uuid)
-        sys.exit(f'{uuid} is not a dataset')
+        LOGGER.error('%s is not a dataset', uuid)
+        return False
     buf = StringIO()
     ds.describe(file=buf)
     LOGGER.info('description: %s', buf.getvalue())
@@ -91,12 +66,46 @@ def main():
     LOGGER.info('will apply %s', acl_path)
     cmd1 = ['setfacl', '-b', str(ds.full_path)]
     cmd2 = ['setfacl', '-R', '-M', str(acl_path), str(ds.full_path)]
-    if args.dry_run:
+    if kwargs.get('dry_run', False):
         cmd1.insert(1, '--test')
         cmd2.insert(1, '--test')
     if run_cmd(cmd1) or run_cmd(cmd2):
         LOGGER.error('Unable to set protections for %s', ds.uuid)
+        return False
+    return True
 
+
+def main():
+    """
+    main
+    """
+    parser = argparse.ArgumentParser()
+    parser.add_argument("uuid", nargs='*',
+                        help=("uuid to set.  May be repeated."
+                              "If not present, it is calculated from the CWD"))
+    parser.add_argument("--instance", required=False,
+                        help="Infrastructure instance; one of PROD, STAGE, TEST, or DEV.",
+                        default="PROD")
+    parser.add_argument("--dry_run", action='store_true',
+                        help="Show acls but do not actually set anything")
+    parser.add_argument("-v", "--verbose", action='count', default=0,
+                        help="verbose output (may be repeated for more verbosity)")
+    
+    args = parser.parse_args()
+    if args.verbose > 1:
+        log_level = 'DEBUG'
+    elif args.verbose == 1:
+        log_level = 'INFO'
+    else:
+        log_level = 'WARN'
+    LOGGER.setLevel(log_level)
+
+    auth_tok = input('auth_tok: ')
+    entity_factory = EntityFactory(auth_tok, instance=args.instance)
+    uuid_list = args.uuid or [get_uuid_from_cwd()]
+
+    for uuid in uuid_list:
+        process_one_uuid(uuid, entity_factory, dry_run=args.dry_run)
 
 if __name__ == '__main__':
     main()
