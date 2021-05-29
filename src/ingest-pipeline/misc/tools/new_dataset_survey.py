@@ -108,7 +108,7 @@ def _merge_note_pair(row):
 
 
 def join_notes(df, notes_df):
-    df = pd.merge(df, notes_df[['uuid', 'note']], on='uuid', how='left')
+    df = pd.merge(df, notes_df[['uuid', 'note']].drop_duplicates(), on='uuid', how='left')
     assert 'note_x' in df.columns and 'note_y' in df.columns, "cannot find the notes to merge"
     note_df = df[['note_x', 'note_y']].astype(str)
     df['note'] = note_df.apply(_merge_note_pair, axis=1)
@@ -196,7 +196,7 @@ def main():
                                                     'qa_child_data_type':'derived_data_type',
                                                     'qa_child_status':'derived_status'})
     if in_df is not None:
-        out_df = out_df.merge(in_df, left_on='uuid', right_on=uuid_key)
+        out_df = out_df.drop_duplicates().merge(in_df.drop_duplicates(), left_on='uuid', right_on=uuid_key)
 
     # Some cleanup on out_df before we save it
     drop_list = []
