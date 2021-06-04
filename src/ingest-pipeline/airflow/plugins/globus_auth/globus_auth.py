@@ -152,6 +152,32 @@ class GlobusAuthBackend(object):
             log.error(e)
             return redirect(url_for('airflow.noaccess'))
 
+    def logout(self, session=None):
+        # Revoke the tokens with Globus Auth
+        if 'tokens' in session:
+            for token in (token_info['access_token']
+                          for token_info in session['tokens'].values()):
+                self.globus_oauth.oauth2_revoke_token(token)
+
+        # Destroy the session state
+        session.clear()
+
+        # the return redirection location to give to Globus Auth
+        redirect_uri = url_for('admin.index', _external=True)
+
+        # build the logout URI with query params
+        # there is no tool to help build this (yet!)
+        globus_logout_url = (
+                'https://auth.globus.org/v2/web/logout' +
+                '?client={}'.format(
+                    get_config_param(['APP_CLIENT_ID'])) +
+                '&redirect_uri={}'.format(redirect_uri) +
+                '&redirect_name=Globus Example App')
+
+        # Redirect the user to the Globus Auth logout page
+        logout_user()
+        return redirect(globus_logout_url)
+
     def get_globus_user_profile_info(self, token):
         return self.authHelper.getUserInfo(token, True)
 
@@ -168,3 +194,6 @@ login_manager = GlobusAuthBackend()
 
 def login(self, request):
     return login_manager.login(request)
+
+def logout(self, request):
+    return login_manager.logout(request)
