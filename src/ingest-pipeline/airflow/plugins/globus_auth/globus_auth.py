@@ -153,9 +153,10 @@ class GlobusAuthBackend(object):
             log.error(e)
             return redirect(url_for('airflow.noaccess'))
 
+    @provide_session
     def logout(self, session=None):
         # Revoke the tokens with Globus Auth
-        log.debug('In the logout routine')
+        log.error('In the logout routine')
         if 'tokens' in f_session:
             for token in (token_info['access_token']
                           for token_info in f_session['tokens'].values()):
