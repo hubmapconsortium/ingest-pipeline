@@ -87,9 +87,6 @@ class GlobusAuthBackend(object):
         self.flask_app.add_url_rule('/login',
                                     'login',
                                     self.login)
-        self.flask_app.add_url_rule('/logout',
-                                    'logout',
-                                    self.logout)
 
         if not AuthHelper.isInitialized():
             self.authHelper = AuthHelper.create(clientId=client_id, clientSecret=client_secret)
@@ -163,7 +160,7 @@ class GlobusAuthBackend(object):
                 self.globus_oauth.oauth2_revoke_token(token)
 
         # Destroy the session state
-        session.clear()
+        f_session.clear()
 
         # the return redirection location to give to Globus Auth
         redirect_uri = url_for('admin.index', _external=True, _scheme=get_config_param('scheme'))
@@ -173,7 +170,7 @@ class GlobusAuthBackend(object):
         globus_logout_url = (
                 'https://auth.globus.org/v2/web/logout' +
                 '?client={}'.format(
-                    get_config_param(['APP_CLIENT_ID'])) +
+                    get_config_param('APP_CLIENT_ID')) +
                 '&redirect_uri={}'.format(redirect_uri) +
                 '&redirect_name=Airflow Home')
 
