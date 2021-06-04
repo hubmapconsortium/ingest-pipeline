@@ -4,7 +4,7 @@ import json
 
 from werkzeug.exceptions import NotFound
 
-from flask import Blueprint, current_app, send_from_directory, abort, escape, render_template, request
+from flask import Blueprint, current_app, send_from_directory, abort, escape, render_template, request, redirect, url_for
 from flask_admin import BaseView, expose
 from flask import session as f_session
 
@@ -96,6 +96,7 @@ class APIAdminView5(BaseView):
             conf=run_conf,
             external_trigger=True
         )
+        return redirect(url_for('admin.index'))
 aav5 = APIAdminView5(category='HuBMAP API', name="Trigger Test Globus Transfer")
 
 
