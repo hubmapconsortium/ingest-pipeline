@@ -25,7 +25,6 @@ def get_config_param(param):
 
 
 class GlobusUser(models.User):
-
     def __init__(self, user):
         self.user = user
 
@@ -64,7 +63,6 @@ class AuthenticationError(Exception):
 class GlobusAuthBackend(object):
 
     def __init__(self):
-        # self.globus_host = get_config_param('host')
         self.login_manager = flask_login.LoginManager()
         self.login_manager.login_view = 'airflow.login'
         self.flask_app = None
@@ -89,6 +87,9 @@ class GlobusAuthBackend(object):
         self.flask_app.add_url_rule('/login',
                                     'login',
                                     self.login)
+        self.flask_app.add_url_rule('/logout',
+                                    'logout',
+                                    self.logout)
 
         if not AuthHelper.isInitialized():
             self.authHelper = AuthHelper.create(clientId=client_id, clientSecret=client_secret)
@@ -163,7 +164,7 @@ class GlobusAuthBackend(object):
         session.clear()
 
         # the return redirection location to give to Globus Auth
-        redirect_uri = url_for('admin.index', _external=True)
+        redirect_uri = url_for('admin.index', _external=True, _scheme=get_config_param('scheme'))
 
         # build the logout URI with query params
         # there is no tool to help build this (yet!)
@@ -172,7 +173,7 @@ class GlobusAuthBackend(object):
                 '?client={}'.format(
                     get_config_param(['APP_CLIENT_ID'])) +
                 '&redirect_uri={}'.format(redirect_uri) +
-                '&redirect_name=Globus Example App')
+                '&redirect_name=Airflow Home')
 
         # Redirect the user to the Globus Auth logout page
         logout_user()
