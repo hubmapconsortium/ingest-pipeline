@@ -198,5 +198,5 @@ login_manager = GlobusAuthBackend()
 def login(self, request):
     return login_manager.login(request)
 
-def logout_user(self, request):
-    return login_manager.logout(request)
+def logout_user():
+    return login_manager.logout()
