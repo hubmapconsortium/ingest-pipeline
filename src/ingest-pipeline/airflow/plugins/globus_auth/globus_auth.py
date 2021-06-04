@@ -155,9 +155,10 @@ class GlobusAuthBackend(object):
 
     def logout(self, session=None):
         # Revoke the tokens with Globus Auth
-        if 'tokens' in session:
+        print('in the logout routine')
+        if 'tokens' in f_session:
             for token in (token_info['access_token']
-                          for token_info in session['tokens'].values()):
+                          for token_info in f_session['tokens'].values()):
                 self.globus_oauth.oauth2_revoke_token(token)
 
         # Destroy the session state
