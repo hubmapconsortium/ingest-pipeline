@@ -4,7 +4,7 @@ import globus_sdk
 
 # Need to expose these downstream
 # flake8: noqa: F401
-from flask_login import current_user, login_required, login_user
+from flask_login import current_user, login_required, login_user, logout_user
 
 from flask import url_for, redirect, request
 from flask import session as f_session
@@ -175,7 +175,7 @@ class GlobusAuthBackend(object):
                 '&redirect_name=Airflow Home')
 
         # Redirect the user to the Globus Auth logout page
-        flask_login.logout_user()
+        logout_user()
         return redirect(globus_logout_url)
 
     def get_globus_user_profile_info(self, token):
@@ -195,5 +195,5 @@ login_manager = GlobusAuthBackend()
 def login(self, request):
     return login_manager.login(request)
 
-def logout_user():
+def logout():
     return login_manager.logout()

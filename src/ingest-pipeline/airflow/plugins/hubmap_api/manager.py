@@ -1,6 +1,7 @@
 import os
 import logging
 import json
+import airflow
 
 from werkzeug.exceptions import NotFound
 
@@ -98,6 +99,14 @@ class APIAdminView5(BaseView):
         )
         return redirect(url_for('admin.index'))
 aav5 = APIAdminView5(category='HuBMAP API', name="Trigger Test Globus Transfer")
+
+
+class APIAdminView6(BaseView):
+    @expose('/', methods=['GET'])
+    def api_admin_view5(self):
+        LOGGER.info('Triggering Globus Logout routine')
+        return airflow.login.logout()
+aav6 = APIAdminView6(category='HuBMAP API', name="Globus Logout")
 
 
 # Create a Flask blueprint to hold the HuBMAP API
