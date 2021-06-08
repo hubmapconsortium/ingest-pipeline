@@ -5,6 +5,7 @@ from hubmap_api.manager import aav2 as hubmap_api_admin_v2
 from hubmap_api.manager import aav3 as hubmap_api_admin_v3
 from hubmap_api.manager import aav4 as hubmap_api_admin_v4
 from hubmap_api.manager import aav5 as hubmap_api_admin_v5
+from hubmap_api.manager import aav6 as hubmap_api_admin_v6
 from hubmap_api.manager import blueprint as hubmap_api_blueprint
 
 class AirflowHuBMAPPlugin(AirflowPlugin):
@@ -15,7 +16,7 @@ class AirflowHuBMAPPlugin(AirflowPlugin):
     executors = []
     macros = []
     admin_views = [hubmap_api_admin_v1, hubmap_api_admin_v2, hubmap_api_admin_v3,
-                   hubmap_api_admin_v4, hubmap_api_admin_v5]
+                   hubmap_api_admin_v4, hubmap_api_admin_v5, hubmap_api_admin_v6]
     flask_blueprints = [hubmap_api_blueprint]
     menu_links = []
     appbuilder_views = []

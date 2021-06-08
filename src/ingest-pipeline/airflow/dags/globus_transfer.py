@@ -18,14 +18,14 @@ with DAG('globus_transfer', schedule_interval=None, is_paused_upon_creation=Fals
     def perform_transfer(*argv, **kwargs):
         dag_run_conf = kwargs['dag_run'].conf
         globus_transfer_token = dag_run_conf['tokens']['transfer.api.globus.org']['access_token']
-        hive_epid = 'ff1bd56e-2e65-4ec9-86fa-f79422884e96'
-        aws_epid = '1c652c81-3833-4af2-a0b1-01c70805a87d'
+        src_epid = 'ff1bd56e-2e65-4ec9-86fa-f79422884e96'
+        dest_epid = 'bcc55f9a-63d3-4c05-8da4-7eaa4d215f33'
         authorizer = globus_sdk.AccessTokenAuthorizer(globus_transfer_token)
         tc = globus_sdk.TransferClient(authorizer=authorizer)
-        tc.endpoint_autoactivate(hive_epid)
-        tc.endpoint_autoactivate(aws_epid)
+        tc.endpoint_autoactivate(src_epid)
+        tc.endpoint_autoactivate(dest_epid)
 
-        td = globus_sdk.TransferData(tc, hive_epid, aws_epid, label='Transfer')
+        td = globus_sdk.TransferData(tc, src_epid, dest_epid, label='Transfer')
 
         for transfer_item in dag_run_conf['conf']['transfer_items']:
             try:
