@@ -38,7 +38,7 @@ docker==4.3.1
 docutils==0.15.2
 enlighten==1.10.1
 idna==2.10
-jmespath==0.10.0
+jmespath==0.9.4
 prefixed==0.3.2
 psutil==5.8.0
 pyasn1==0.4.8
