@@ -17,7 +17,7 @@ from utils import (
 
 sys.path.append(airflow_conf.as_dict()['connections']['SRC_PATH']
                 .strip("'").strip('"'))
-from submodules import (ingest_validation_tools_submission,  # noqa E402
+from submodules import (ingest_validation_tools_upload,  # noqa E402
                         ingest_validation_tools_error_report,
                         ingest_validation_tests)
 sys.path.pop()
@@ -122,17 +122,17 @@ with DAG('validation_test',
         #
         # Uncomment offline=True below to avoid validating orcid_id URLs &etc
         #
-        submission = ingest_validation_tools_submission.Submission(
+        upload = ingest_validation_tools_upload.Upload(
             directory_path=Path(lz_path),
             dataset_ignore_globs=ignore_globs,
-            submission_ignore_globs='*',
+            upload_ignore_globs='*',
             plugin_directory=plugin_path,
             #offline=True,  # noqa E265
             add_notes=False
         )
         # Scan reports an error result
         report = ingest_validation_tools_error_report.ErrorReport(
-            submission.get_errors()
+            upload.get_errors()
         )
         with open(os.path.join(lz_path, 'validation_report.txt'), 'w') as f:
             f.write(report.as_text())
