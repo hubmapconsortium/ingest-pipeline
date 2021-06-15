@@ -4,7 +4,7 @@ import globus_sdk
 
 # Need to expose these downstream
 # flake8: noqa: F401
-from flask_login import current_user, logout_user, login_required, login_user
+from flask_login import current_user, login_required, login_user, logout_user
 
 from flask import url_for, redirect, request
 from flask import session as f_session
@@ -25,7 +25,6 @@ def get_config_param(param):
 
 
 class GlobusUser(models.User):
-
     def __init__(self, user):
         self.user = user
 
@@ -64,7 +63,6 @@ class AuthenticationError(Exception):
 class GlobusAuthBackend(object):
 
     def __init__(self):
-        # self.globus_host = get_config_param('host')
         self.login_manager = flask_login.LoginManager()
         self.login_manager.login_view = 'airflow.login'
         self.flask_app = None
@@ -152,6 +150,34 @@ class GlobusAuthBackend(object):
             log.error(e)
             return redirect(url_for('airflow.noaccess'))
 
+    @provide_session
+    def logout(self, session=None):
+        # Revoke the tokens with Globus Auth
+        log.error('In the logout routine')
+        if 'tokens' in f_session:
+            for token in (token_info['access_token']
+                          for token_info in f_session['tokens'].values()):
+                self.globus_oauth.oauth2_revoke_token(token)
+
+        # Destroy the session state
+        f_session.clear()
+
+        # the return redirection location to give to Globus Auth
+        redirect_uri = url_for('admin.index', _external=True, _scheme=get_config_param('scheme'))
+
+        # build the logout URI with query params
+        # there is no tool to help build this (yet!)
+        globus_logout_url = (
+                'https://auth.globus.org/v2/web/logout' +
+                '?client={}'.format(
+                    get_config_param('APP_CLIENT_ID')) +
+                '&redirect_uri={}'.format(redirect_uri) +
+                '&redirect_name=Airflow Home')
+
+        # Redirect the user to the Globus Auth logout page
+        logout_user()
+        return redirect(globus_logout_url)
+
     def get_globus_user_profile_info(self, token):
         return self.authHelper.getUserInfo(token, True)
 
@@ -168,3 +194,6 @@ login_manager = GlobusAuthBackend()
 
 def login(self, request):
     return login_manager.login(request)
+
+def logout():
+    return login_manager.logout()
