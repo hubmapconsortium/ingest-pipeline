@@ -17,7 +17,8 @@ default_args = {
 with DAG('globus_transfer', schedule_interval=None, is_paused_upon_creation=False, default_args=default_args) as dag:
     def build_cwltool_cmd(**kwargs):
         ctx = kwargs['dag_run'].conf
-        command_str = 'toil-cwl-runner --provisioner aws --jobStore aws:us-west-2:toil-cluster /root/cwl_workflows/' + ctx['repository_name'] + '/' + ctx['workflow_file'] + ' ' + ctx['cli_args']
+        command_str = 'aws s3 cp s3://globus-toil-test-bucket/'+ctx['data_directory']+' /tmp/'+ ctx['data_directory'] +' --recursive  \\' \
+                      'toil-cwl-runner --provisioner aws --jobStore aws:us-west-2:toil-cluster /root/cwl_workflows/' + ctx['repository_name'] + '/' + ctx['workflow_file'] + ' ' + ctx['cli_args']
         return command_str
 
     t0 = PythonOperator(
@@ -43,7 +44,9 @@ with DAG('globus_transfer', schedule_interval=None, is_paused_upon_creation=Fals
             toil ssh-cluster --zone us-east-2a hubmap-test-cluster << EOF
                 set -x
                 source /root/toil_venv/bin/activate
-                {{ti.xcom_pull(task_ids='build_cwltool_cmd')}}
+                #{{ti.xcom_pull(task_ids='build_cwltool_cmd')}}
+                aws s3 cp s3://globus-toil-test-bucket/ometiff-pyramid-test /tmp/ometiff-pyramid-test/ --recursive
+                toil-cwl-runner --provisioner aws --jobStore aws:us-west-2:toil-cluster /root/ome-tiff-pyramid/pipeline.cwl --ometiff_directory /tmp/ometiff-pyramid-test/
                 #toil-cwl-runner --provisioner aws --jobStore aws:us-west-2:toil-cluster $WORK_DIR/${1}/${2} ${3}
                 #/root/cwl-workflows/ome-tiff-pyramid/pipeline.cwl --ometiff_directory /tmp/ometiff-pyramid-test/
                 exit
@@ -53,4 +56,5 @@ with DAG('globus_transfer', schedule_interval=None, is_paused_upon_creation=Fals
 
 
 
-    dag >> t0
+    #dag >> t0 >> t1
+    dag >> t1
