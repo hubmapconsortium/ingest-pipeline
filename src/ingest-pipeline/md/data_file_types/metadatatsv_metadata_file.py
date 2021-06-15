@@ -5,13 +5,13 @@ import os
 from pathlib import Path
 from .tsv_metadata_file import TSVMetadataFile
 from type_base import MetadataError
-from submodules import (ingest_validation_tools_submission,
+from submodules import (ingest_validation_tools_upload,
                         ingest_validation_tools_error_report,
                         ingest_validation_tests)
 
 class MetadataTSVMetadataFile(TSVMetadataFile):
     """
-    A metadata file type for the specialized metadata.tsv files used to store submission info
+    A metadata file type for the specialized metadata.tsv files used to store upload and submission info
     """
     category_name = 'METADATATSV';
 
@@ -23,16 +23,16 @@ class MetadataTSVMetadataFile(TSVMetadataFile):
         #
         # Uncomment offline=True below to avoid validating orcid_id URLs &etc
         #
-        submission = ingest_validation_tools_submission.Submission(directory_path=dirpath,
-                                                                   dataset_ignore_globs=ignore_globs,
-                                                                   submission_ignore_globs='*',
-                                                                   plugin_directory=plugin_path,
-                                                                   #offline=True,
-                                                                   add_notes=False
-                                                                   )
-        if submission.get_errors():
+        upload = ingest_validation_tools_upload.Upload(directory_path=dirpath,
+                                                       dataset_ignore_globs=ignore_globs,
+                                                       upload_ignore_globs='*',
+                                                       plugin_directory=plugin_path,
+                                                       #offline=True,
+                                                       add_notes=False
+        )
+        if upload.get_errors():
             # Scan reports an error result
-            report = ingest_validation_tools_error_report.ErrorReport(submission.get_errors())
+            report = ingest_validation_tools_error_report.ErrorReport(upload.get_errors())
             with open('ingest_validation_tools_report.txt', 'w') as f:
                 f.write(report.as_text())
             raise MetadataError('{} failed ingest validation test'.format(self.path))
