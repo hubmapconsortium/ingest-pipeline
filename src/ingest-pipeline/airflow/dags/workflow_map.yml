@@ -54,7 +54,7 @@ workflow_map:
     'assay_type': '3D Imaging Mass Cytometry'
     'workflow': 'ometiff_pyramid'
   - 'collection_type': '.*'
-    'assay_type': 'Light Sheet'
+    'assay_type': '([Ll]ight)( *)([Ss]heet)'
     'workflow': 'ometiff_pyramid'
   - 'collection_type': '.*'
     'assay_type': 'seqFISH'
