@@ -938,7 +938,7 @@ def make_send_status_msg_function(
             dataset_full_path = dataset_lz_path_fun(**kwargs)
             thumbnail_image_full_path = os.path.join(dataset_full_path, 'extra/thumbnail.jpg')
             if exists(thumbnail_image_full_path):
-                 md['thumbnail'] = thumbnail_image_full_path
+                 md['thumbnail_image'] = thumbnail_image_full_path
             ###################################################################################
 
             manifest_files = find_pipeline_manifests(cwl_workflows)
