@@ -932,6 +932,14 @@ def make_send_status_msg_function(
 
             if metadata_fun:
                 md['metadata'] = metadata_fun(**kwargs)
+                
+            ###################################################################################
+            # Added by Zhou 6/16/2021 for registering thumbnail image
+            dataset_full_path = dataset_lz_path_fun(**kwargs)
+            thumbnail_image_full_path = os.path.join(dataset_full_path, 'extra/thumbnail.jpg')
+            if exists(thumbnail_image_full_path):
+                 md['thumbnail'] = thumbnail_image_full_path
+            ###################################################################################
 
             manifest_files = find_pipeline_manifests(cwl_workflows)
             if ds_dir is not None and not ds_dir == '':
