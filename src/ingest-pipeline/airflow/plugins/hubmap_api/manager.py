@@ -73,7 +73,7 @@ class APIAdminView5(BaseView):
     def api_admin_view5(self):
         LOGGER.info('Triggering Globus Transfer DAG')
 
-        dag_id = 'globus_transfer'
+        dag_id = 'aws_toil_pipeline'
 
         dagbag = models.DagBag(settings.DAGS_FOLDER, store_serialized_dags=STORE_SERIALIZED_DAGS)
 
@@ -83,7 +83,7 @@ class APIAdminView5(BaseView):
         dag = dagbag.get_dag(dag_id)
         if request.method == 'GET':
             return show_template(
-                'trigger.html', dag_id=dag_id, origin='/admin', conf=''
+                'trigger.html', dag_id=dag_id, origin='/admin', conf="{'src': '', 'dest': '', 'pipeline_name': '', 'cli_args': ''}"
             )
 
         request_conf = request.values.get('conf')
