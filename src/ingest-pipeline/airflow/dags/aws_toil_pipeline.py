@@ -2,6 +2,7 @@ from airflow import DAG, models
 from airflow.operators.python_operator import PythonOperator
 from airflow.operators.bash_operator import BashOperator
 from datetime import datetime, timedelta
+import globus_sdk
 
 default_args = {
     'owner': 'hubmap',
@@ -15,11 +16,36 @@ default_args = {
 }
 
 with DAG('aws_toil_pipeline', schedule_interval=None, is_paused_upon_creation=False, default_args=default_args) as dag:
+    def perform_transfer(*argv, **kwargs):
+        ctx = kwargs['dag_run'].conf
+        globus_transfer_token = ctx['tokens']['transfer.api.globus.org']['access_token']
+        src_epid = 'ff1bd56e-2e65-4ec9-86fa-f79422884e96'
+        dest_epid = 'bcc55f9a-63d3-4c05-8da4-7eaa4d215f33'
+        authorizer = globus_sdk.AccessTokenAuthorizer(globus_transfer_token)
+        tc = globus_sdk.TransferClient(authorizer=authorizer)
+        tc.endpoint_autoactivate(src_epid)
+        tc.endpoint_autoactivate(dest_epid)
+
+        td = globus_sdk.TransferData(tc, src_epid, dest_epid, label='Transfer')
+
+        src_dir = ctx['src']
+        dest_dir = ctx['dest']
+        td.add_item(src_dir, dest_dir, recursive=True)
+
+        tc.submit_transfer(td)
+
     def build_cwltool_cmd(**kwargs):
         ctx = kwargs['dag_run'].conf
-        command_str = 'aws s3 cp s3://globus-toil-test-bucket/'+ctx['data_directory']+' /tmp/'+ ctx['data_directory'] +' --recursive  \\' \
-                      'toil-cwl-runner --provisioner aws --jobStore aws:us-west-2:toil-cluster /root/cwl_workflows/' + ctx['repository_name'] + '/' + ctx['workflow_file'] + ' ' + ctx['cli_args']
+        command_str = 'aws s3 cp s3://globus-toil-test-bucket/'+ctx['dest']+' /tmp/'+ ctx['dest'] +' --recursive  \\' \
+                      'toil-cwl-runner --outdir /tmp/'+ctx['dest']+'_output --provisioner aws --jobStore aws:us-west-2:toil-cluster ' \
+                      '/root/cwl_workflows/' + ctx['pipeline_name'] + '/pipeline.cwl ' + ctx['cli_args']
         return command_str
+
+    globus_transfer = PythonOperator(
+        task_id='perform_transfer',
+        python_callable=perform_transfer,
+        provide_context=True
+    )
 
     t0 = PythonOperator(
         task_id='build_cwltool_cmd',
@@ -27,26 +53,17 @@ with DAG('aws_toil_pipeline', schedule_interval=None, is_paused_upon_creation=Fa
         provide_context=True,
     )
 
+    # TODO: Parameterize this command
+    #  Cluster name, repository name, input data, s3 bucket name, cli args
     t1 = BashOperator(
         task_id='launch_cwl_pipeline',
         bash_command="""
-            source venv/bin/activate
-            # repository name
-            echo ${1}
-            # workflow file-path (are these all named pipeline.cwl)
-            echo ${2}
-            # command line args
-            echo ${3}
-                        
-            WORK_DIR="/root/cwl_workflows/"
-            echo $WORK_DIR
-                        
-            toil ssh-cluster --zone us-east-2a hubmap-test-cluster << EOF
+            toil ssh-cluster --zone us-east-2a jp-lh-hubmap-test-cluster << EOF
                 set -x
                 source /root/toil_venv/bin/activate
-                #{{ti.xcom_pull(task_ids='build_cwltool_cmd')}}
-                aws s3 cp s3://globus-toil-test-bucket/ometiff-pyramid-test /tmp/ometiff-pyramid-test/ --recursive
-                toil-cwl-runner --provisioner aws --jobStore aws:us-west-2:toil-cluster /root/ome-tiff-pyramid/pipeline.cwl --ometiff_directory /tmp/ometiff-pyramid-test/
+                {{ti.xcom_pull(task_ids='build_cwltool_cmd')}}
+                #aws s3 cp s3://globus-toil-test-bucket/ometiff-pyramid-test /tmp/ometiff-pyramid-test/ --recursive
+                #toil-cwl-runner --outdir '/tmp/ometiff-pyramid-output/' --provisioner aws --jobStore aws:us-west-2:toil-cluster /root/ome-tiff-pyramid/pipeline.cwl --ometiff_directory /tmp/ometiff-pyramid-test/
                 #toil-cwl-runner --provisioner aws --jobStore aws:us-west-2:toil-cluster $WORK_DIR/${1}/${2} ${3}
                 #/root/cwl-workflows/ome-tiff-pyramid/pipeline.cwl --ometiff_directory /tmp/ometiff-pyramid-test/
                 exit
@@ -56,5 +73,4 @@ with DAG('aws_toil_pipeline', schedule_interval=None, is_paused_upon_creation=Fa
 
 
 
-    #dag >> t0 >> t1
-    dag >> t1
+    dag >> globus_transfer >> t0 >> t1
