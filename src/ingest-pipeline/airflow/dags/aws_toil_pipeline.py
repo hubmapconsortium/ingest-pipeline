@@ -14,7 +14,7 @@ default_args = {
     'retry_delay': timedelta(minutes=1),
 }
 
-with DAG('aws_toil_cwl_pipeline', schedule_interval=None, is_paused_upon_creation=False, default_args=default_args) as dag:
+with DAG('aws_toil_pipeline', schedule_interval=None, is_paused_upon_creation=False, default_args=default_args) as dag:
     def build_cwltool_cmd(**kwargs):
         ctx = kwargs['dag_run'].conf
         command_str = 'aws s3 cp s3://globus-toil-test-bucket/'+ctx['data_directory']+' /tmp/'+ ctx['data_directory'] +' --recursive  \\' \
