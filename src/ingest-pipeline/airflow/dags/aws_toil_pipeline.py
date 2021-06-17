@@ -44,11 +44,12 @@ with DAG('aws_toil_pipeline', schedule_interval=None, is_paused_upon_creation=Fa
         command_str = ''
 
         for transfer_item in ctx['conf']['transfer_items']:
-            command_str += 'aws s3 cp s3://globus-toil-test-bucket/' + transfer_item['dest'] + ' /tmp/' + transfer_item['dest'] + \
-                           ('--recursive' if transfer_item.get('recursive', False) else '') + '\\ \n'
+            command_str += f'aws s3 cp s3://globus-toil-test-bucket/{transfer_item["dest"]} /tmp/{transfer_item["dest"]} ' \
+                           f'{"--recursive" if transfer_item.get("recursive", False) else ""} \\\n'
 
-        command_str += 'toil-cwl-runner --outdir /tmp/'+ctx['conf']['pipeline_name']+'_output --provisioner aws --jobStore aws:us-west-2:toil-cluster ' \
-                      '/root/cwl_workflows/' + ctx['conf']['pipeline_name'] + '/pipeline.cwl ' + ctx['conf']['cli_args']
+        command_str += f'toil-cwl-runner --outdir /tmp/{ctx["conf"]["pipeline_name"]}_output --provisioner aws --jobStore aws:us-west-2:toil-cluster ' \
+                      f'/root/cwl_workflows/{ctx["conf"]["pipeline_name"]}/pipeline.cwl + {ctx["conf"]["cli_args"]}'
+
         return command_str
 
     globus_transfer = PythonOperator(
