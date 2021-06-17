@@ -935,10 +935,10 @@ def make_send_status_msg_function(
                 
             ###################################################################################
             # Added by Zhou 6/16/2021 for registering thumbnail image
-            dataset_full_path = dataset_lz_path_fun(**kwargs)
-            thumbnail_image_full_path = join(dataset_full_path, 'extra/thumbnail.jpg')
-            if exists(thumbnail_image_full_path):
-                 md['thumbnail_image'] = thumbnail_image_full_path
+            dataset_dir_abs_path = dataset_lz_path_fun(**kwargs)
+            thumbnail_image_abs_path = join(dataset_dir_abs_path, 'extra/thumbnail.jpg')
+            if exists(thumbnail_image_abs_path):
+                 md['thumbnail_image_abs_path'] = thumbnail_image_abs_path
             ###################################################################################
 
             manifest_files = find_pipeline_manifests(cwl_workflows)
