@@ -36,7 +36,10 @@ with DAG('aws_toil_pipeline', schedule_interval=None, is_paused_upon_creation=Fa
                 print(e)
                 continue
 
-        tc.submit_transfer(td)
+        task_id = tc.submit_transfer(td)
+
+        while not tc.task_wait(task_id, timeout=10):
+            print(f'Still waiting for task {task_id} to complete...')
 
     def build_cwltool_cmd(**kwargs):
         ctx = kwargs['dag_run'].conf
@@ -46,6 +49,8 @@ with DAG('aws_toil_pipeline', schedule_interval=None, is_paused_upon_creation=Fa
         for transfer_item in ctx['conf']['transfer_items']:
             command_str += f'aws s3 cp s3://globus-toil-test-bucket/{transfer_item["dest"]} /opt/input/{transfer_item["dest"]} ' \
                            f'{"--recursive" if transfer_item.get("recursive", False) else ""}\n'
+
+        command_str += "set -x \n"
 
         command_str += f'toil-cwl-runner --outdir /opt/output/{ctx["conf"]["pipeline_name"]}_output --provisioner aws --jobStore aws:us-west-2:toil-cluster ' \
                       f'/root/cwl_workflows/{ctx["conf"]["pipeline_name"]}/pipeline.cwl {ctx["conf"]["cli_args"]}'
@@ -65,12 +70,11 @@ with DAG('aws_toil_pipeline', schedule_interval=None, is_paused_upon_creation=Fa
     )
 
     # TODO: Parameterize this command
-    #  Cluster name, repository name, input data, s3 bucket name, cli args
+    #  Cluster name, s3 bucket name
     t1 = BashOperator(
         task_id='launch_cwl_pipeline',
         bash_command="""
             toil ssh-cluster --zone us-east-2a jp-lh-hubmap-test-cluster << EOF
-                set -x
                 source /root/toil_venv/bin/activate
                 {{ti.xcom_pull(task_ids='build_cwltool_cmd')}}
                 exit
