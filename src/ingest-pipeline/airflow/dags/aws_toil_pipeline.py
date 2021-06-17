@@ -36,7 +36,7 @@ with DAG('aws_toil_pipeline', schedule_interval=None, is_paused_upon_creation=Fa
                 print(e)
                 continue
 
-        task_id = tc.submit_transfer(td)
+        task_id = tc.submit_transfer(td)['task_id']
 
         while not tc.task_wait(task_id, timeout=10):
             print(f'Still waiting for task {task_id} to complete...')
