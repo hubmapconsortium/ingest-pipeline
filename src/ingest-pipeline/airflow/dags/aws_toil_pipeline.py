@@ -28,16 +28,26 @@ with DAG('aws_toil_pipeline', schedule_interval=None, is_paused_upon_creation=Fa
 
         td = globus_sdk.TransferData(tc, src_epid, dest_epid, label='Transfer')
 
-        src_dir = ctx['src']
-        dest_dir = ctx['dest']
-        td.add_item(src_dir, dest_dir, recursive=True)
+        for transfer_item in ctx['conf']['transfer_items']:
+            try:
+                td.add_item(transfer_item['src'], transfer_item['dest'],
+                            recursive=transfer_item.get('recursive', False))
+            except Exception as e:
+                print(e)
+                continue
 
         tc.submit_transfer(td)
 
     def build_cwltool_cmd(**kwargs):
         ctx = kwargs['dag_run'].conf
-        command_str = 'aws s3 cp s3://globus-toil-test-bucket/'+ctx['dest']+' /tmp/'+ ctx['dest'] +' --recursive  \\' \
-                      'toil-cwl-runner --outdir /tmp/'+ctx['dest']+'_output --provisioner aws --jobStore aws:us-west-2:toil-cluster ' \
+
+        command_str = ''
+
+        for transfer_item in ctx['conf']['transfer_items']:
+            command_str += 'aws s3 cp s3://globus-toil-test-bucket/' + transfer_item['dest'] + ' /tmp/' + transfer_item['dest'] + \
+                           ('--recursive' if transfer_item.get('recursive', False) else '') + '\\ \n'
+
+        command_str = 'toil-cwl-runner --outdir /tmp/'+ctx['pipeline_name']+'_output --provisioner aws --jobStore aws:us-west-2:toil-cluster ' \
                       '/root/cwl_workflows/' + ctx['pipeline_name'] + '/pipeline.cwl ' + ctx['cli_args']
         return command_str
 
