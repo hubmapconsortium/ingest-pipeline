@@ -83,7 +83,7 @@ class APIAdminView5(BaseView):
         dag = dagbag.get_dag(dag_id)
         if request.method == 'GET':
             return show_template(
-                'trigger.html', dag_id=dag_id, origin='/admin', conf='{"transfer_items": [{"src": "", "dest": "", "recursive": "true"}] "pipeline_name": "", "cli_args"": ""}'
+                'trigger.html', dag_id=dag_id, origin='/admin', conf='{"transfer_items": [{"src": "", "dest": "", "recursive": "true"}], "pipeline_name": "", "cli_args": ""}'
             )
 
         request_conf = request.values.get('conf')
