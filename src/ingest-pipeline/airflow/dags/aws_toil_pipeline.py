@@ -47,7 +47,7 @@ with DAG('aws_toil_pipeline', schedule_interval=None, is_paused_upon_creation=Fa
             command_str += 'aws s3 cp s3://globus-toil-test-bucket/' + transfer_item['dest'] + ' /tmp/' + transfer_item['dest'] + \
                            ('--recursive' if transfer_item.get('recursive', False) else '') + '\\ \n'
 
-        command_str = 'toil-cwl-runner --outdir /tmp/'+ctx['conf']['pipeline_name']+'_output --provisioner aws --jobStore aws:us-west-2:toil-cluster ' \
+        command_str += 'toil-cwl-runner --outdir /tmp/'+ctx['conf']['pipeline_name']+'_output --provisioner aws --jobStore aws:us-west-2:toil-cluster ' \
                       '/root/cwl_workflows/' + ctx['conf']['pipeline_name'] + '/pipeline.cwl ' + ctx['conf']['cli_args']
         return command_str
 
@@ -72,10 +72,6 @@ with DAG('aws_toil_pipeline', schedule_interval=None, is_paused_upon_creation=Fa
                 set -x
                 source /root/toil_venv/bin/activate
                 {{ti.xcom_pull(task_ids='build_cwltool_cmd')}}
-                #aws s3 cp s3://globus-toil-test-bucket/ometiff-pyramid-test /tmp/ometiff-pyramid-test/ --recursive
-                #toil-cwl-runner --outdir '/tmp/ometiff-pyramid-output/' --provisioner aws --jobStore aws:us-west-2:toil-cluster /root/ome-tiff-pyramid/pipeline.cwl --ometiff_directory /tmp/ometiff-pyramid-test/
-                #toil-cwl-runner --provisioner aws --jobStore aws:us-west-2:toil-cluster $WORK_DIR/${1}/${2} ${3}
-                #/root/cwl-workflows/ome-tiff-pyramid/pipeline.cwl --ometiff_directory /tmp/ometiff-pyramid-test/
                 exit
             EOF
         """
