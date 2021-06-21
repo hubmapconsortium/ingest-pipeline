@@ -1,6 +1,7 @@
 import sys
 import os
 import ast
+import json
 from pathlib import Path
 from pprint import pprint
 from datetime import datetime, timedelta
@@ -8,17 +9,19 @@ from datetime import datetime, timedelta
 from airflow import DAG
 from airflow.configuration import conf as airflow_conf
 from airflow.operators.python_operator import PythonOperator
+from airflow.operators.bash_operator import BashOperator
 from airflow.exceptions import AirflowException
+from airflow.hooks.http_hook import HttpHook
 
-import utils
 from utils import (
-    get_tmp_dir_path,
+    get_tmp_dir_path, get_auth_tok,
+    map_queue_name, pythonop_get_dataset_state,
     localized_assert_json_matches_schema as assert_json_matches_schema
     )
 
 sys.path.append(airflow_conf.as_dict()['connections']['SRC_PATH']
                 .strip("'").strip('"'))
-from submodules import (ingest_validation_tools_submission,  # noqa E402
+from submodules import (ingest_validation_tools_upload,  # noqa E402
                         ingest_validation_tools_error_report,
                         ingest_validation_tests)
 sys.path.pop()
@@ -34,13 +37,14 @@ default_args = {
     'retries': 1,
     'retry_delay': timedelta(minutes=1),
     'xcom_push': True,
-    'queue': utils.map_queue_name('general')
+    'queue': map_queue_name('general')
 }
 
 
 with DAG('validate_upload',
          schedule_interval=None,
          is_paused_upon_creation=False,
+         user_defined_macros={'tmp_dir_path' : get_tmp_dir_path},
          default_args=default_args,
          ) as dag:
 
@@ -50,7 +54,7 @@ with DAG('validate_upload',
         def my_callable(**kwargs):
             return uuid
 
-        ds_rslt = utils.pythonop_get_dataset_state(
+        ds_rslt = pythonop_get_dataset_state(
             dataset_uuid_callable=my_callable,
             http_conn_id='ingest_api_connection',
             **kwargs
@@ -64,7 +68,7 @@ with DAG('validate_upload',
                     'local_directory_full_path']:
             assert key in ds_rslt, f"Dataset status for {uuid} has no {key}"
 
-        if not ds_rslt['status'] in ['Processing']:
+        if False:  # not ds_rslt['status'] in ['Processing']:
             raise AirflowException(f'Dataset {uuid} is not Processing')
 
         dt = ds_rslt['data_types']
@@ -97,11 +101,6 @@ with DAG('validate_upload',
         python_callable=find_uuid,
         provide_context=True,
         op_kwargs={
-            'crypt_auth_tok': (
-                utils.encrypt_tok(airflow_conf.as_dict()
-                                  ['connections']['APP_CLIENT_SECRET'])
-                .decode()
-                ),
             }
         )
 
@@ -115,33 +114,28 @@ with DAG('validate_upload',
         #
         # Uncomment offline=True below to avoid validating orcid_id URLs &etc
         #
-        submission = ingest_validation_tools_submission.Submission(
+        upload = ingest_validation_tools_upload.Upload(
             directory_path=Path(lz_path),
             dataset_ignore_globs=ignore_globs,
-            submission_ignore_globs='*',
+            upload_ignore_globs='*',
             plugin_directory=plugin_path,
             #offline=True,  # noqa E265
             add_notes=False
         )
         # Scan reports an error result
         report = ingest_validation_tools_error_report.ErrorReport(
-            submission.get_errors()
+            upload.get_errors()
         )
         validation_file_path = Path(get_tmp_dir_path(kwargs['run_id'])) / 'validation_report.txt'
         with open(validation_file_path, 'w') as f:
-            f.write(report.as_html())
-        kwargs['ti'].xcom_push(key='validation_file_path', str(validation_file_path))
+            f.write(report.as_text())
+        kwargs['ti'].xcom_push(key='validation_file_path', value=str(validation_file_path))
 
     t_run_validation = PythonOperator(
         task_id='run_validation',
         python_callable=run_validation,
         provide_context=True,
         op_kwargs={
-            'crypt_auth_tok': (
-                utils.encrypt_tok(airflow_conf.as_dict()
-                                  ['connections']['APP_CLIENT_SECRET'])
-                .decode()
-            ),
         }
     )
 
@@ -151,43 +145,41 @@ with DAG('validate_upload',
         conn_id = ''
         endpoint = f'/entities/{uuid}'
         headers = {
-            'authorization': 'Bearer ' + _get_auth_tok(**kwargs),
+            'authorization': 'Bearer ' + get_auth_tok(**kwargs),
             'content-type': 'application/json',
         }
         extra_options = []
         http_conn_id='entity_api_connection'
         http_hook = HttpHook('PUT', http_conn_id=http_conn_id)
         with open(validation_file_path) as f:
-            report_html = f.read()
-        if report_html_shows_error():
-            data = {
-                "status":"Invalid",
-                "validation_message":"This Upload is invalid because duis eu justo lorem. Sed euismod nunc orci. Nunc ornare massa a enim pellentesque."
-            }       
-        else:
+            report_txt = f.read()
+        if report_txt.startswith('No errors!'):
             data = {
                 "status":"Valid",
             }       
-            
+        else:
+            data = {
+                "status":"Invalid",
+                "validation_message" : report_txt
+            }       
+        print('data: ')
+        pprint(data)
         response = http_hook.run(
             endpoint,
             json.dumps(data),
             headers,
             extra_options,
         )
+        print('response: ')
+        pprint(response.json())
 
 
     
     t_send_status = PythonOperator(
         task_id='send_status',
-        python_callable='send_status_msg',
+        python_callable=send_status_msg,
         provide_context=True,
         op_kwargs={
-            'crypt_auth_tok': (
-                utils.encrypt_tok(airflow_conf.as_dict()
-                                  ['connections']['APP_CLIENT_SECRET'])
-                .decode()
-            ),
         }        
     )
 
@@ -202,4 +194,5 @@ with DAG('validate_upload',
         trigger_rule='all_success'
         )
 
-    (dag >> t_create_tmpdir >> t_find_uuid >> t_run_validation >> t_cleanup_tmpdir)
+    (dag >> t_create_tmpdir >> t_find_uuid >> t_run_validation 
+     >> t_send_status >> t_cleanup_tmpdir)

@@ -32,7 +32,7 @@ from hubmap_api.manager import show_template
 from hubmap_commons.hm_auth import AuthHelper, AuthCache, secured
 #from hubmap_api.hm_auth import AuthHelper, AuthCache, secured
 
-API_VERSION = 3
+API_VERSION = 4
 
 LOGGER = logging.getLogger(__name__)
 
@@ -400,10 +400,10 @@ def request_ingest():
                                       'run_id': run_id})
 
 
-#@csrf.exempt
-@api_bp.route('/uploads/<uuid>/validate')
+@csrf.exempt
+@api_bp.route('/uploads/<uuid>/validate', methods=['PUT'])
 #@secured(groups="HuBMAP-read")
-def validate_upload_uuid(uuid, methods=['PUT']):
+def validate_upload_uuid(uuid):
     auth_tok = _auth_tok_from_request()
     process = 'validate.upload'
     try:
