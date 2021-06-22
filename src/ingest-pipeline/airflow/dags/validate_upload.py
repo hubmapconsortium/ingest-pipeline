@@ -146,6 +146,7 @@ with DAG('validate_upload',
         endpoint = f'/entities/{uuid}'
         headers = {
             'authorization': 'Bearer ' + get_auth_tok(**kwargs),
+            'X-Hubmap-Application':'ingest-pipeline',
             'content-type': 'application/json',
         }
         extra_options = []
