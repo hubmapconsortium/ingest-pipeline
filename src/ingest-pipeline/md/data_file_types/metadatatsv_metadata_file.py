@@ -26,7 +26,6 @@ class MetadataTSVMetadataFile(TSVMetadataFile):
         upload = ingest_validation_tools_upload.Upload(directory_path=dirpath,
                                                        dataset_ignore_globs=ignore_globs,
                                                        upload_ignore_globs='*',
-                                                       plugin_directory=plugin_path,
                                                        #offline=True,
                                                        add_notes=False
         )
