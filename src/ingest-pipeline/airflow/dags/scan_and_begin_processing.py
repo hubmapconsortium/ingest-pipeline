@@ -90,7 +90,7 @@ with DAG('scan_and_begin_processing',
             add_notes=False
         )
         # Scan reports an error result
-        errors = upload.get_errors(**kwargs)
+        errors = upload.get_errors(plugin_kwargs=kwargs)
         if errors:
             report = ingest_validation_tools_error_report.ErrorReport(errors)
             sys.stdout.write('Directory validation failed! Errors follow:\n')

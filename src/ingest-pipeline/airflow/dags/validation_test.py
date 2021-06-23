@@ -132,7 +132,7 @@ with DAG('validation_test',
         )
         # Scan reports an error result
         report = ingest_validation_tools_error_report.ErrorReport(
-            upload.get_errors(**kwargs)
+            upload.get_errors(plugin_kwargs=kwargs)
         )
         with open(os.path.join(lz_path, 'validation_report.txt'), 'w') as f:
             f.write(report.as_text())
