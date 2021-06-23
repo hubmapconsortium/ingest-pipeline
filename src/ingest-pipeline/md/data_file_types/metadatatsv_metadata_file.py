@@ -18,7 +18,7 @@ class MetadataTSVMetadataFile(TSVMetadataFile):
     def collect_metadata(self):
         print('validating {} as metadata.tsv'.format(self.path))
         dirpath = Path(os.path.dirname(self.path))
-        ignore_globs = [os.path.basename(self.path), 'extras']
+        ignore_globs = [os.path.basename(self.path), 'extras', 'validation_report.txt']
         plugin_path = [path for path in ingest_validation_tests.__path__][0]
         #
         # Uncomment offline=True below to avoid validating orcid_id URLs &etc

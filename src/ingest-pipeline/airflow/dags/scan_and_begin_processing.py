@@ -7,6 +7,7 @@ from pprint import pprint
 from datetime import datetime, timedelta
 
 from airflow import DAG
+from airflow.configuration import conf as airflow_conf
 from airflow.operators.bash_operator import BashOperator
 from airflow.operators.python_operator import PythonOperator
 from airflow.operators.python_operator import BranchPythonOperator
@@ -22,6 +23,13 @@ from utils import (
     localized_assert_json_matches_schema as assert_json_matches_schema,
     make_send_status_msg_function
     )
+
+sys.path.append(airflow_conf.as_dict()['connections']['SRC_PATH']
+                .strip("'").strip('"'))
+from submodules import (ingest_validation_tools_upload,  # noqa E402
+                        ingest_validation_tools_error_report,
+                        ingest_validation_tests)
+sys.path.pop()
 
 
 def get_dataset_uuid(**kwargs):
@@ -62,9 +70,46 @@ with DAG('scan_and_begin_processing',
     def get_blank_dataset_lz_path(**kwargs):
         return ''  # used to suppress sending of file metadata
 
+
+    def run_validation(**kwargs):
+        lz_path = kwargs['dag_run'].conf['lz_path']
+        uuid = kwargs['dag_run'].conf['submission_id']
+        plugin_path = [path for path in ingest_validation_tests.__path__][0]
+
+        ignore_globs = [uuid, 'extras', '*metadata.tsv',
+                        'validation_report.txt']
+        #
+        # Uncomment offline=True below to avoid validating orcid_id URLs &etc
+        #
+        upload = ingest_validation_tools_upload.Upload(
+            directory_path=Path(lz_path),
+            dataset_ignore_globs=ignore_globs,
+            upload_ignore_globs='*',
+            plugin_directory=plugin_path,
+            #offline=True,  # noqa E265
+            add_notes=False
+        )
+        # Scan reports an error result
+        errors = upload.get_errors(**kwargs)
+        if errors:
+            report = ingest_validation_tools_error_report.ErrorReport(errors)
+            sys.stdout.write('Directory validation failed! Errors follow:\n')
+            sys.stdout.write(report.as_text())
+            return 1
+        else:
+            return 0
+
+    t_run_validation = PythonOperator(
+        task_id='run_validation',
+        python_callable=run_validation,
+        provide_context=True,
+        op_kwargs={
+        }
+    )
+
     send_status_msg = make_send_status_msg_function(
         dag_file=__file__,
-        retcode_ops=['run_md_extract', 'md_consistency_tests'],
+        retcode_ops=['run_validation', 'run_md_extract', 'md_consistency_tests'],
         cwl_workflows=[],
         dataset_uuid_fun=get_dataset_uuid,
         dataset_lz_path_fun=get_blank_dataset_lz_path,
@@ -142,9 +187,12 @@ with DAG('scan_and_begin_processing',
         print('dag_run conf:')
         ctx = kwargs['dag_run'].conf
         pprint(ctx)
+        run_validation_retcode = int(kwargs['ti'].xcom_pull(task_ids="run_validation"))
         md_extract_retcode = int(kwargs['ti'].xcom_pull(task_ids="run_md_extract"))
         md_consistency_retcode = int(kwargs['ti'].xcom_pull(task_ids="md_consistency_tests"))
-        if md_extract_retcode == 0 and md_consistency_retcode == 0:
+        if (run_validation_retcode == 0
+            and md_extract_retcode == 0
+            and md_consistency_retcode == 0):
             collectiontype = kwargs['ti'].xcom_pull(key='collectiontype',
                                                     task_ids="send_status_msg")
             assay_type = kwargs['ti'].xcom_pull(key='assay_type',
@@ -173,6 +221,7 @@ with DAG('scan_and_begin_processing',
         python_callable=flex_maybe_spawn
         )
 
-    (dag >> t_create_tmpdir >> t_run_md_extract >> t_md_consistency_tests >>
+    (dag >> t_create_tmpdir >> t_run_validation >>
+     t_run_md_extract >> t_md_consistency_tests >>
      t_send_status >> t_maybe_spawn >> t_cleanup_tmpdir)
 
