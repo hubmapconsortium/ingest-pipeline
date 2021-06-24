@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 from airflow import DAG
 from airflow.configuration import conf as airflow_conf
 from airflow.operators.python_operator import PythonOperator
+from airflow.operators.dagrun_operator import DagRunOrder
 from hubmap_operators.flex_multi_dag_run import FlexMultiDagRunOperator
 from airflow.exceptions import AirflowException
 
@@ -118,8 +119,8 @@ with DAG('trigger_downstream_processing',
         assay_type = assay_type[0]
         print('collectiontype: <{}>, assay_type: <{}>'.format(collectiontype, assay_type))
         payload = {k:kwargs['dag_run'].conf[k] for k in kwargs['dag_run'].conf}
-        payload = {'ingest_id' : ctx['run_id'],
-                   'crypt_auth_tok' : ctx['crypt_auth_tok'],
+        payload = {'ingest_id' : kwargs['run_id'],
+                   'crypt_auth_tok' : kwargs['crypt_auth_tok'],
                    'parent_lz_path' : kwargs['ti'].xcom_pull(key='lz_path',
                                                              task_ids="find_uuid"),
                    'parent_submission_id' : kwargs['ti'].xcom_pull(key='uuid',
@@ -133,7 +134,14 @@ with DAG('trigger_downstream_processing',
     t_maybe_spawn = FlexMultiDagRunOperator(
         task_id='flex_maybe_spawn',
         provide_context=True,
-        python_callable=flex_maybe_spawn
+        python_callable=flex_maybe_spawn,
+        op_kwargs={
+            'crypt_auth_tok': (
+                utils.encrypt_tok(airflow_conf.as_dict()
+                                  ['connections']['APP_CLIENT_SECRET'])
+                .decode()
+                ),
+            }
         )
 
 
