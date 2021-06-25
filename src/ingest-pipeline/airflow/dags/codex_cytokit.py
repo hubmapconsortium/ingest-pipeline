@@ -287,7 +287,7 @@ with DAG('codex_cytokit',
             *get_cwltool_base_cmd(tmpdir),
             cwl_workflows['ome_tiff_offsets'],
             '--input_dir',
-            data_dir / 'stitched/expressions',
+            data_dir / 'ometiff-pyramids',
         ]
 
         return join_quote_command_str(command)
