@@ -826,7 +826,7 @@ def get_cwltool_bin_path() -> Path:
 def get_cwltool_base_cmd(tmpdir: Path) -> List[str]:
     return [
         'env',
-        'PATH={}:{}'.format(get_cwltool_bin_path(), environ['PATH']),
+        #'PATH={}:{}'.format(get_cwltool_bin_path(), environ['PATH']),
         'TMPDIR={}'.format(tmpdir),
         'cwltool',
         # The trailing slashes in the next two lines are deliberate.
