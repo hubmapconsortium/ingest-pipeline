@@ -17,6 +17,17 @@ from survey import (Entity, Dataset, Sample, EntityFactory,
 
 
 FROZEN_DF_FNAME = 'frozen_source_df.tsv'
+FAKE_UUID_GENERATOR = None
+SCRATCH_PATH = '/tmp/split_and_create'
+
+
+def create_fake_uuid_generator():
+    """This is used to simulate unique uuids for dryrun executions"""
+    count = 0
+    while True:
+        rslt = 'fakeuuid_%08x'%count
+        count += 1
+        yield rslt
 
 
 def get_canonical_assay_type(row, entity_factory, default_type):
@@ -27,7 +38,8 @@ def get_canonical_assay_type(row, entity_factory, default_type):
     print(f"{row['assay_type']} -> {rslt}")
     return rslt
     
-def create_new_uuid(row, source_entity, entity_factory):
+def create_new_uuid(row, source_entity, entity_factory, dryrun=False):
+    global FAKE_UUID_GENERATOR
     assay_type = row['canonical_assay_type']
     rec_identifier = row['data_path'].strip('/')
     assert rec_identifier and rec_identifier != '.', 'Bad data_path!'
@@ -37,27 +49,36 @@ def create_new_uuid(row, source_entity, entity_factory):
     assert (contains_human_genetic_sequences
             == source_entity.prop_dct['contains_human_genetic_sequences'])
     group_uuid = source_entity.prop_dct['group_uuid']
-    description = source_entity.prop_dct['description'] + ' : ' + rec_identifier
+    if 'description' in source_entity.prop_dct:
+        description = source_entity.prop_dct['description'] + ' : ' + rec_identifier
+    else:
+        description = source_entity.prop_dct['lab_dataset_id'] + ' : ' + rec_identifier
     sample_id = row['tissue_id']
     print(f"tissue_id is {sample_id}")
     sample_uuid = entity_factory.id_to_uuid(sample_id)
     print(f"tissue uuid is {sample_uuid}")
     direct_ancestor_uuids = [sample_uuid]
 
-    rslt = entity_factory.create_dataset(
-        title=title,
-        contains_human_genetic_sequences=contains_human_genetic_sequences,
-        assay_type=assay_type,
-        direct_ancestor_uuids=direct_ancestor_uuids,
-        group_uuid=group_uuid,
-        description=description
-    )
-    return rslt['uuid']
+    if dryrun:
+        if FAKE_UUID_GENERATOR is None:
+            FAKE_UUID_GENERATOR = create_fake_uuid_generator()
+        uuid = FAKE_UUID_GENERATOR.__next__()
+        print(f'Not creating uuid {uuid} with assay_type {assay_type}')
+        return uuid
+    else:
+        rslt = entity_factory.create_dataset(
+            title=title,
+            contains_human_genetic_sequences=contains_human_genetic_sequences,
+            assay_type=assay_type,
+            direct_ancestor_uuids=direct_ancestor_uuids,
+            group_uuid=group_uuid,
+            description=description
+        )
+        return rslt['uuid']
 
 
-def populate(idx, row, source_df, source_entity, entity_factory):
+def populate(idx, row, source_df, source_entity, entity_factory, dryrun=False):
     uuid = row['new_uuid']
-    kid_path = Path(entity_factory.get_full_path(uuid))
     old_data_path = row['data_path']
     row['data_path'] = '.'
     canonical_assay_type = row['canonical_assay_type']
@@ -67,6 +88,13 @@ def populate(idx, row, source_df, source_entity, entity_factory):
                                                        canonical_assay_type)
     row_df = pd.DataFrame([row])
     row_df = row_df.drop(columns=['canonical_assay_type', 'new_uuid'])
+    if dryrun:
+        kid_path = Path(SCRATCH_PATH) / uuid
+        kid_path.mkdir(0o770, parents=True, exist_ok=True)
+        print('writing this metadata to {kid_path}:')
+        print(row_df)
+    else:
+        kid_path = Path(entity_factory.get_full_path(uuid))
     row_df.to_csv(kid_path / f'{uuid}-metadata.tsv', header=True, sep='\t', index=False)
     extras_path = kid_path / 'extras'
     if extras_path.exists():
@@ -74,13 +102,20 @@ def populate(idx, row, source_df, source_entity, entity_factory):
     else:
         source_extras_path = source_entity.full_path / 'extras'
         if source_extras_path.exists():
-            copytree(source_extras_path, extras_path)
+            if dryrun:
+                print(f'copy {source_extras_path} to {extras_path}')
+            else:
+                copytree(source_extras_path, extras_path)
         else:
+            if dryrun:
+                print(f'creating {extras_path}')
             extras_path.mkdir(0o770)
     source_data_path = source_entity.full_path / old_data_path
     for elt in source_data_path.glob('*'):
-        elt.rename(kid_path / elt.name)
-    # print(f'mv "{source_entity.full_path / old_data_path}/"* "{kid_path}"')
+        if dryrun:
+            print(f'rename {elt} to {kid_path / elt.name}')
+        else:
+            elt.rename(kid_path / elt.name)
     print(f"{old_data_path} -> {uuid} -> full path: {kid_path}")
     
     # c_p = row['contributors_path']
@@ -142,6 +177,8 @@ def main():
                         action="store_true")
     parser.add_argument("--instance", help=f"instance to use. One of {ENDPOINTS.keys()}",
                         default = 'PROD')
+    parser.add_argument("--dryrun", help="describe the steps that would be taken but do not make changes",
+                        action="store_true")
     args = parser.parse_args()
 
     if args.stop and args.unstop:
@@ -157,6 +194,7 @@ def main():
         parser.error(f"{args.instance} is not a known instance")
     source_uuid = args.uuid
     instance = args.instance
+    dryrun = args.dryrun
     if args.stop:
         mode = 'stop'
     elif args.unstop:
@@ -180,7 +218,8 @@ def main():
                                                             default_type=source_entity.data_types)
         source_df['new_uuid'] = source_df.apply(create_new_uuid, axis=1,
                                                 source_entity=source_entity,
-                                                entity_factory=entity_factory)
+                                                entity_factory=entity_factory,
+                                                dryrun=dryrun)
         print(source_df[['data_path', 'canonical_assay_type', 'new_uuid']])
         source_df.to_csv(FROZEN_DF_FNAME, sep='\t', header=True, index=False)
         print(f'wrote {FROZEN_DF_FNAME}')
@@ -194,7 +233,7 @@ def main():
 
     if mode in ['all', 'unstop']:
         for idx, row in source_df.iterrows():
-            populate(idx, row, source_df, source_entity, entity_factory)
+            populate(idx, row, source_df, source_entity, entity_factory, dryrun=dryrun)
 
 
 if __name__ == '__main__':
