@@ -41,7 +41,7 @@ default_args = {
 
 
 with DAG(
-    "codex_cytokit",
+    "celldive_deepcell",
     schedule_interval=None,
     is_paused_upon_creation=False,
     default_args=default_args,
@@ -49,9 +49,9 @@ with DAG(
     user_defined_macros={"tmp_dir_path": utils.get_tmp_dir_path},
 ) as dag:
 
-    pipeline_name = "codex-pipeline"
+    pipeline_name = "celldive-pipeline"
     cwl_workflows = get_named_absolute_workflows(
-        cytokit=Path(pipeline_name, "pipeline.cwl"),
+        segmentation=Path(pipeline_name, "pipeline.cwl"),
         sprm=Path("sprm", "pipeline.cwl"),
         create_vis_symlink_archive=Path("create-vis-symlink-archive", "pipeline.cwl"),
         ome_tiff_pyramid=Path("ome-tiff-pyramid", "pipeline.cwl"),
@@ -65,9 +65,9 @@ with DAG(
             dag.dag_id, kwargs["dag_run"].conf["parent_submission_id"], pipeline_name
         )
 
-    prepare_cwl_cytokit = DummyOperator(task_id="prepare_cwl_cytokit")
+    prepare_cwl_segmentation = DummyOperator(task_id="prepare_cwl_segmentation")
 
-    def build_cwltool_cwl_cytokit(**kwargs):
+    def build_cwltool_cwl_segmentation(**kwargs):
         ctx = kwargs["dag_run"].conf
         run_id = kwargs["run_id"]
         tmpdir = utils.get_tmp_dir_path(run_id)
@@ -75,43 +75,51 @@ with DAG(
         data_dir = ctx["parent_lz_path"]
         print("data_dir: ", data_dir)
 
+        workflow = cwl_workflows["segmentation"]
+        meta_yml_path = workflow.parent / "meta.yml"
+
         command = [
             *get_cwltool_base_cmd(tmpdir),
-            cwl_workflows["cytokit"],
-            "--gpus=0,1",
+            "--singularity",
+            workflow,
+            "--gpus=all",
+            "--meta_path",
+            meta_yml_path,
+            "--segmentation_method",
+            "deepcell",
             "--data_dir",
-            data_dir,
+            data_dir / "HuBMAP_OME",
         ]
 
         return join_quote_command_str(command)
 
-    t_build_cwl_cytokit = PythonOperator(
-        task_id="build_cwl_cytokit",
-        python_callable=build_cwltool_cwl_cytokit,
+    t_build_cwl_segmentation = PythonOperator(
+        task_id="build_cwl_segmentation",
+        python_callable=build_cwltool_cwl_segmentation,
         provide_context=True,
         queue=utils.map_queue_name("gpu000_q1"),
     )
 
-    t_pipeline_exec_cwl_cytokit = BashOperator(
-        task_id="pipeline_exec_cwl_cytokit",
+    t_pipeline_exec_cwl_segmentation = BashOperator(
+        task_id="pipeline_exec_cwl_segmentation",
         queue=utils.map_queue_name("gpu000_q1"),
         bash_command=""" \
         tmp_dir={{tmp_dir_path(run_id)}} ; \
         mkdir -p ${tmp_dir}/cwl_out ; \
         cd ${tmp_dir}/cwl_out ; \
-        {{ti.xcom_pull(task_ids='build_cwl_cytokit')}} > $tmp_dir/session.log 2>&1 ; \
+        {{ti.xcom_pull(task_ids='build_cwl_segmentation')}} > $tmp_dir/session.log 2>&1 ; \
         echo $?
         """,
     )
 
-    t_maybe_keep_cwl_cytokit = BranchPythonOperator(
-        task_id="maybe_keep_cwl_cytokit",
+    t_maybe_keep_cwl_segmentation = BranchPythonOperator(
+        task_id="maybe_keep_cwl_segmentation",
         python_callable=utils.pythonop_maybe_keep,
         provide_context=True,
         op_kwargs={
             "next_op": "prepare_cwl_sprm",
             "bail_op": "set_dataset_error",
-            "test_op": "pipeline_exec_cwl_cytokit",
+            "test_op": "pipeline_exec_cwl_segmentation",
         },
     )
 
@@ -132,9 +140,9 @@ with DAG(
             cwl_workflows["sprm"],
             "--enable_manhole",
             "--image_dir",
-            data_dir / "stitched/expressions",
+            data_dir / "pipeline_output/expr",
             "--mask_dir",
-            data_dir / "stitched/mask",
+            data_dir / "pipeline_output/mask",
         ]
 
         return join_quote_command_str(command)
@@ -423,7 +431,7 @@ with DAG(
             "http_conn_id": "ingest_api_connection",
             "endpoint": "/datasets/derived",
             "dataset_name_callable": build_dataset_name,
-            "dataset_types": ["codex_cytokit"],
+            "dataset_types": ["celldive_deepcell"],
         },
     )
 
@@ -456,7 +464,7 @@ with DAG(
     send_status_msg = make_send_status_msg_function(
         dag_file=__file__,
         retcode_ops=[
-            "pipeline_exec_cwl_cytokit",
+            "pipeline_exec_cwl_segmentation",
             "pipeline_exec_cwl_sprm",
             "pipeline_exec_cwl_create_vis_symlink_archive",
             "pipeline_exec_cwl_ome_tiff_offsets",
@@ -483,10 +491,10 @@ with DAG(
         >> t_create_tmpdir
         >> t_send_create_dataset
         >> t_set_dataset_processing
-        >> prepare_cwl_cytokit
-        >> t_build_cwl_cytokit
-        >> t_pipeline_exec_cwl_cytokit
-        >> t_maybe_keep_cwl_cytokit
+        >> prepare_cwl_segmentation
+        >> t_build_cwl_segmentation
+        >> t_pipeline_exec_cwl_segmentation
+        >> t_maybe_keep_cwl_segmentation
         >> prepare_cwl_sprm
         >> t_build_cmd_sprm
         >> t_pipeline_exec_cwl_sprm
@@ -516,7 +524,7 @@ with DAG(
         >> t_send_status
         >> t_join
     )
-    t_maybe_keep_cwl_cytokit >> t_set_dataset_error
+    t_maybe_keep_cwl_segmentation >> t_set_dataset_error
     t_maybe_keep_cwl_sprm >> t_set_dataset_error
     t_maybe_keep_cwl_create_vis_symlink_archive >> t_set_dataset_error
     t_maybe_keep_cwl_ome_tiff_pyramid >> t_set_dataset_error
