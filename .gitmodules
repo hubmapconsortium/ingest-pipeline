@@ -31,3 +31,6 @@
 [submodule "src/ingest-pipeline/submodules/manual-data-ingest"]
 	path = src/ingest-pipeline/submodules/manual-data-ingest
 	url = https://github.com/hubmapconsortium/manual-data-ingest.git
+[submodule "src/ingest-pipeline/airflow/dags/cwl/celldive-pipeline"]
+	path = src/ingest-pipeline/airflow/dags/cwl/celldive-pipeline
+	url = https://github.com/hubmapconsortium/celldive-pipeline
