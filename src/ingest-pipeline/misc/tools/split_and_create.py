@@ -5,7 +5,7 @@ import argparse
 from pprint import pprint
 from datetime import date
 from pathlib import Path
-from shutil import copytree
+from shutil import copytree, copy2
 import pandas as pd
 import numpy as np
 
@@ -19,6 +19,18 @@ from survey import (Entity, Dataset, Sample, EntityFactory,
 FROZEN_DF_FNAME = 'frozen_source_df.tsv'
 FAKE_UUID_GENERATOR = None
 SCRATCH_PATH = '/tmp/split_and_create'
+
+#
+# The following are used to try to deal with bad assay type information in the original
+# upload or the metadata.tsv file, and with new assay types which have not yet been
+# deployed to PROD.
+#
+FALLBACK_ASSAY_TYPE_TRANSLATIONS = {
+    #'SNARE-Seq2-AC': 'SNARE-ATACseq2',
+    'SNARE-Seq2-AC': 'SNAREseq',
+    #'SNARE2-RNAseq': 'SNARE-RNAseq2',
+    'SNARE2-RNAseq': 'sciRNAseq'
+}
 
 
 def create_fake_uuid_generator():
@@ -34,17 +46,24 @@ def get_canonical_assay_type(row, entity_factory, default_type):
     try:
         rslt = entity_factory.type_client.getAssayType(row['assay_type']).name
     except:
-        rslt = default_type
+        print(f"fallback {row['assay_type']} {default_type}")
+        rslt = FALLBACK_ASSAY_TYPE_TRANSLATIONS.get(row['assay_type'], default_type)
     print(f"{row['assay_type']} -> {rslt}")
     return rslt
     
 def create_new_uuid(row, source_entity, entity_factory, dryrun=False):
     global FAKE_UUID_GENERATOR
-    assay_type = row['canonical_assay_type']
+    canonical_assay_type = row['canonical_assay_type']
+    orig_assay_type = row['assay_type']
     rec_identifier = row['data_path'].strip('/')
     assert rec_identifier and rec_identifier != '.', 'Bad data_path!'
     title = source_entity.prop_dct['title'] + ' : ' + rec_identifier
-    type_info = entity_factory.type_client.getAssayType(assay_type)
+    try:
+        type_info = entity_factory.type_client.getAssayType(canonical_assay_type)
+    except:
+        print(f'tried {orig_assay_type}, canoncal version {canonical_assay_type}')
+        print(f'options are {[elt for elt in entity_factory.type_client.iterAssayNames()]}')
+        type_info = entity_factory.type_client.getAssayType(orig_assay_type)
     contains_human_genetic_sequences = type_info.contains_pii
     assert (contains_human_genetic_sequences
             == source_entity.prop_dct['contains_human_genetic_sequences'])
@@ -63,13 +82,13 @@ def create_new_uuid(row, source_entity, entity_factory, dryrun=False):
         if FAKE_UUID_GENERATOR is None:
             FAKE_UUID_GENERATOR = create_fake_uuid_generator()
         uuid = FAKE_UUID_GENERATOR.__next__()
-        print(f'Not creating uuid {uuid} with assay_type {assay_type}')
+        print(f'Not creating uuid {uuid} with assay_type {canonical_assay_type}')
         return uuid
     else:
         rslt = entity_factory.create_dataset(
             title=title,
             contains_human_genetic_sequences=contains_human_genetic_sequences,
-            assay_type=assay_type,
+            assay_type=canonical_assay_type,
             direct_ancestor_uuids=direct_ancestor_uuids,
             group_uuid=group_uuid,
             description=description
@@ -81,17 +100,22 @@ def populate(idx, row, source_df, source_entity, entity_factory, dryrun=False):
     uuid = row['new_uuid']
     old_data_path = row['data_path']
     row['data_path'] = '.'
-    canonical_assay_type = row['canonical_assay_type']
-    row['assay_type'] = {'SNARE-Seq2-AC': 'SNARE-seq2',
-                         'SNARE-Seq2-R': 'SNARE2-RNAseq',
-                         'SNAREseq': 'SNARE2-RNAseq'}.get(canonical_assay_type,
-                                                       canonical_assay_type)
+    old_contrib_path = Path(row['contributors_path'])
+    new_contrib_path = Path('extras') / old_contrib_path.name
+    row['contributors_path'] = str(new_contrib_path)
+    if 'antibodies_path' in row:
+        old_antibodies_path = Path(row['antibodies_path'])
+        new_antibodies_path = Path('extras') / old_antibodies_path.name
+        row['antibodies_path'] = str(new_antibodies_path)
+    else:
+        old_antibodies_path = new_antibodies_path = None
+    row['assay_type'] = row['canonical_assay_type']
     row_df = pd.DataFrame([row])
     row_df = row_df.drop(columns=['canonical_assay_type', 'new_uuid'])
     if dryrun:
         kid_path = Path(SCRATCH_PATH) / uuid
         kid_path.mkdir(0o770, parents=True, exist_ok=True)
-        print('writing this metadata to {kid_path}:')
+        print(f'writing this metadata to {kid_path}:')
         print(row_df)
     else:
         kid_path = Path(entity_factory.get_full_path(uuid))
@@ -116,52 +140,16 @@ def populate(idx, row, source_df, source_entity, entity_factory, dryrun=False):
             print(f'rename {elt} to {kid_path / elt.name}')
         else:
             elt.rename(kid_path / elt.name)
-    print(f"{old_data_path} -> {uuid} -> full path: {kid_path}")
-    
-    # c_p = row['contributors_path']
-    # #if row['contributors_path'] in inv_uuid_map:
-    # #    uuid = inv_uuid_map[row['contributors_path']]
-    # #elif 'tissue_id' in row and row['tissue_id'] in samp_to_uuid_map:
-    # #    uuid = samp_to_uuid_map[row['tissue_id']]
-    # #else:
-    # uuid = get_uuid(row['data_path'])
-    # if not uuid:
-    #     print(f'No uuid found for record {idx}')
-    #     continue
-    # print(f'row {idx} -> {uuid}')
-    # uuid_path = build_tree_root / uuid
-    # uuid_path.mkdir()
-    # path_str = row['contributors_path']
-    # if path_str.startswith('/'):  # common error
-    #     path_str = path_str[1:]
-    # contributors_path = Path(path_str)
-    # if 'antibodies_path' in row:
-    #     path_str = row['antibodies_path']
-    #     if path_str.startswith('/'):  # common error
-    #         path_str = path_str[1:]
-    #     antibodies_path = Path(path_str)
-    #     row['antibodies_path'] = str(Path('extras').joinpath(antibodies_path))
-    # else:
-    #     antibodies_path = None
-    # print(contributors_path.stem)
-    # print([k for k in df_d])
-    # assert get_true_stem(contributors_path) in df_d, f"Cannot find contributors dataframe {contributors_path}"
-    # row['contributors_path'] = str(Path('extras').joinpath(contributors_path))
-    # row['data_path'] = '.'
-    # for col in metadata_df.columns:
-    #     if col.endswith('_datetime'):
-    #         row[col] = reformat_datetime(str(row[col]))
-    # row_df = pd.DataFrame([row])
-    # if 'do_not_save_this_uuid' not in row or not row['do_not_save_this_uuid']:
-    #     row_df.to_csv(uuid_path / f'{uuid}-metadata.tsv', header=True, sep='\t', index=False)
-    # (uuid_path / 'extras').mkdir()
-    # df_d[get_true_stem(contributors_path)].to_csv(uuid_path / row['contributors_path'],
-    #                                               header=True, sep='\t', index=False)
-    # if antibodies_path:
-    #     df = df_d[get_true_stem(antibodies_path)]
-    #     fix_antibodies_df(df).to_csv(uuid_path / row['antibodies_path'],
-    #                                  header=True, sep='\t', index=False)
-
+    if dryrun:
+        print(f'copy {old_contrib_path} to {extras_path}')
+    else:
+        copy2(source_entity.full_path / old_contrib_path, extras_path)
+    if old_antibodies_path is not None:
+        if dryrun:
+            print(f'copy {old_antibodies_path} to {extras_path}')
+        else:
+            copy2(source_entity.full_path / old_antibodies_path, extras_path)
+    print(f"{old_data_path} -> {uuid} -> full path: {kid_path}")    
 
 
 def main():
@@ -175,7 +163,8 @@ def main():
                         action="store_true", )
     parser.add_argument("--unstop", help=f"do not create child uuids; read {FROZEN_DF_FNAME} and continue",
                         action="store_true")
-    parser.add_argument("--instance", help=f"instance to use. One of {ENDPOINTS.keys()}",
+    parser.add_argument("--instance",
+                        help=f"instance to use. One of {[k for k in ENDPOINTS.keys()]} (default %(default)s)",
                         default = 'PROD')
     parser.add_argument("--dryrun", help="describe the steps that would be taken but do not make changes",
                         action="store_true")
@@ -202,6 +191,12 @@ def main():
     else:
         mode = 'all'
 
+    print(
+        """
+        WARNING: this program's default behavior creates new datasets and moves
+        files around on PROD. Be very sure you know what it does before you run it!
+        """
+    )
     auth_tok = input('auth_tok: ')
     entity_factory = EntityFactory(auth_tok, instance='PROD')
 
