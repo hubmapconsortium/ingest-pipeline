@@ -832,6 +832,7 @@ def get_cwltool_base_cmd(tmpdir: Path) -> List[str]:
         'PATH={}:{}'.format(get_cwltool_bin_path(), environ['PATH']),
         'TMPDIR={}'.format(tmpdir),
         'cwltool',
+        '--timestamps',
         # The trailing slashes in the next two lines are deliberate.
         # cwltool treats these path prefixes as *strings*, not as
         # directories in which new temporary dirs should be created, so
