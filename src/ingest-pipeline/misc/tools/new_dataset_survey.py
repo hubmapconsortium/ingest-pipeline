@@ -189,10 +189,8 @@ def main():
             rec['uuid'] = uuid  # just to make sure it is present
         if rec:
             out_recs.append(rec)
-    out_df = pd.DataFrame(out_recs).rename(columns={'sample_display_doi':'sample_doi',
-                                                    'sample_hubmap_display_id':'sample_display_id',
-                                                    'qa_child_uuid':'derived_uuid',
-                                                    'qa_child_display_doi':'derived_doi',
+    out_df = pd.DataFrame(out_recs).rename(columns={'qa_child_uuid':'derived_uuid',
+                                                    'qa_child_hubmap_id':'derived_hubmap_id',
                                                     'qa_child_data_type':'derived_data_type',
                                                     'qa_child_status':'derived_status'})
     if in_df is not None:
@@ -206,11 +204,11 @@ def main():
             drop_list.append(col)
     if 'group_name' in out_df.columns and 'organization' in out_df.columns:
         drop_list.append('organization')
-    if 'display_doi' in out_df.columns and 'hubmap_id' in out_df.columns:
-        if (out_df['display_doi'].isnull() | (out_df['display_doi'] == out_df['hubmap_id'])).all():
-            drop_list.append('display_doi')
+    if 'hubmap_id' in out_df.columns and 'hubmap_id' in out_df.columns:
+        if (out_df['hubmap_id'].isnull() | (out_df['hubmap_id'] == out_df['hubmap_id'])).all():
+            drop_list.append('hubmap_id')
         else:
-            raise AssertionError('display_doi and hubmap_id do not match?')
+            raise AssertionError('hubmap_id and hubmap_id do not match?')
     if 'data_types_x' in out_df.columns and 'data_types_y' in out_df.columns:
         out_df['data_types'] = out_df[['data_types_x', 'data_types_y']].apply(data_type_resolver, axis=1)
         drop_list.extend(['data_types_x', 'data_types_y'])
