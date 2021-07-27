@@ -32,7 +32,7 @@ from hubmap_api.manager import show_template
 from hubmap_commons.hm_auth import AuthHelper, AuthCache, secured
 #from hubmap_api.hm_auth import AuthHelper, AuthCache, secured
 
-API_VERSION = 2
+API_VERSION = 4
 
 LOGGER = logging.getLogger(__name__)
 
@@ -44,11 +44,14 @@ NEEDED_ENV_VARS = [
     'AIRFLOW_CONN_INGEST_API_CONNECTION',
     'AIRFLOW_CONN_UUID_API_CONNECTION',
     'AIRFLOW_CONN_SEARCH_API_CONNECTION',
+    'AIRFLOW_CONN_ENTITY_API_CONNECTION'
     ]
 NEEDED_CONFIG_SECTIONS = [
     'ingest_map',
     ]
 NEEDED_CONFIGS = [
+    ('ingest_map', 'scan.and.begin.processing'),
+    ('ingest_map', 'validate.upload'),
     ('hubmap_api_plugin', 'build_number'),
     ('connections', 'app_client_id'),
     ('connections', 'app_client_secret'),
@@ -258,6 +261,39 @@ def check_ingest_parms(provider, submission_id, process, full_path):
                                           % (provider, submission_id, process))
     
 
+def _auth_tok_from_request():
+    """
+    Parse out and return the authentication token from the current request
+    """ 
+    authorization = request.headers.get('authorization')
+    LOGGER.info('top of request_ingest.')
+    assert authorization[:len('BEARER')].lower() == 'bearer', 'authorization is not BEARER'
+    substr = authorization[len('BEARER'):].strip()
+    if 'nexus' in substr:
+        auth_dct = ast.literal_eval(authorization[len('BEARER'):].strip())
+        #LOGGER.info('auth_dct: %s', auth_dct)
+        assert 'nexus_token' in auth_dct, 'authorization has no nexus_token'
+        auth_tok = auth_dct['nexus_token']
+    else:
+        auth_tok = substr
+    #LOGGER.info('auth_tok: %s', auth_tok)  # reduce visibility of auth_tok
+    return auth_tok
+
+
+def _get_dag(dag_id):
+    """
+    Look up and return the dag associated with this dag_id, or raise KeyError
+    """
+    dagbag = DagBag('dags')
+
+    if dag_id not in dagbag.dags:
+        LOGGER.warning('Requested dag {} not among {}'
+                       .format(dag_id,[did for did in dagbag.dags]))
+        LOGGER.warning('Dag dir full path {}'.os.path.abspath('dags'))
+        raise KeyError(f"Dag id {dag_id} not found")
+    return dagbag.get_dag(dag_id)
+
+
 """
 Parameters for this request (all required)
 
@@ -276,19 +312,8 @@ run_id     string  The identifier by which the ingest run is known to Airflow
 @api_bp.route('/request_ingest', methods=['POST'])
 #@secured(groups="HuBMAP-read")
 def request_ingest():
-    authorization = request.headers.get('authorization')
-    LOGGER.info('top of request_ingest.')
-    assert authorization[:len('BEARER')].lower() == 'bearer', 'authorization is not BEARER'
-    substr = authorization[len('BEARER'):].strip()
-    if 'nexus' in substr:
-        auth_dct = ast.literal_eval(authorization[len('BEARER'):].strip())
-        LOGGER.info('auth_dct: %s', auth_dct)
-        assert 'nexus_token' in auth_dct, 'authorization has no nexus_token'
-        auth_tok = auth_dct['nexus_token']
-    else:
-        auth_tok = substr
-    #LOGGER.info('auth_tok: %s', auth_tok)  # reduce visibility of auth_tok
-  
+    auth_tok = _auth_tok_from_request()
+
     # decode input
     data = request.get_json(force=True)
     
@@ -314,16 +339,10 @@ def request_ingest():
     
         session = settings.Session()
 
-        dagbag = DagBag('dags')
- 
-        if dag_id not in dagbag.dags:
-            LOGGER.warning('Requested dag {} not among {}'.format(dag_id,
-                                                                  [did for did
-                                                                   in dagbag.dags]))
-            LOGGER.warning('Dag dir full path {}'.os.path.abspath('dags'))
-            return HubmapApiResponse.not_found("Dag id {} not found".format(dag_id))
- 
-        dag = dagbag.get_dag(dag_id)
+        try:
+            dag = _get_dag(dag_id)
+        except KeyError as e:
+            HubmapApiResponse.not_found(f'{e}')
 
         # Produce one and only one run
         tz = pytz.timezone(config('core', 'timezone'))
@@ -380,6 +399,65 @@ def request_ingest():
     return HubmapApiResponse.success({'ingest_id': ingest_id,
                                       'run_id': run_id})
 
+
+@csrf.exempt
+@api_bp.route('/uploads/<uuid>/validate', methods=['PUT'])
+#@secured(groups="HuBMAP-read")
+def validate_upload_uuid(uuid):
+    auth_tok = _auth_tok_from_request()
+    process = 'validate.upload'
+    try:
+        dag_id = config('ingest_map', process)
+        session = settings.Session()
+        dag = _get_dag(dag_id)
+
+        # Produce one and only one run
+        tz = pytz.timezone(config('core', 'timezone'))
+        execution_date = datetime.now(tz)
+        LOGGER.info('starting {} with execution_date: {}'.format(dag_id,
+                                                                 execution_date))
+
+        run_id = '{}_{}_{}'.format(uuid, process, execution_date.isoformat())
+        fernet = Fernet(config('core', 'fernet_key').encode())
+        crypt_auth_tok = fernet.encrypt(auth_tok.encode()).decode()
+
+        conf = {'process': process,
+                'dag_id': dag_id,
+                'run_id': run_id,
+                'crypt_auth_tok': crypt_auth_tok,
+                'src_path': config('connections', 'src_path'),
+                'uuid': uuid
+                }
+
+        if find_dag_runs(session, dag_id, run_id, execution_date):
+            # The run already happened??
+            raise AirflowException('The request happened twice?')
+
+        try:
+            dr = trigger_dag.trigger_dag(dag_id, run_id, conf, execution_date=execution_date)
+        except AirflowException as err:
+            LOGGER.error(err)
+            raise AirflowException("Attempt to trigger run produced an error: {}".format(err))
+        LOGGER.info('dagrun follows: {}'.format(dr))
+
+        session.close()
+    except HubmapApiConfigException:
+        return HubmapApiResponse.bad_request(f'{process} does not map to a known DAG')
+    except HubmapApiInputException as e:
+        return HubmapApiResponse.bad_request(str(e))
+    except ValueError as e:
+        return HubmapApiResponse.server_error(str(e))
+    except KeyError as e:
+        HubmapApiResponse.not_found(f'{e}')
+    except AirflowException as e:
+        return HubmapApiResponse.server_error(str(e))
+    except Exception as e:
+        return HubmapApiResponse.server_error(str(e))
+
+    return HubmapApiResponse.success({'run_id': run_id})
+
+    
+    
 """
 Parameters for this request: None
 

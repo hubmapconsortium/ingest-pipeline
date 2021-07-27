@@ -507,7 +507,7 @@ def pythonop_maybe_keep(**kwargs) -> str:
         return bail_op
 
 
-def _get_auth_tok(**kwargs) -> str:
+def get_auth_tok(**kwargs) -> str:
     """
     Recover the authorization token from the environment, and
     decrpyt it.
@@ -552,7 +552,7 @@ def pythonop_send_create_dataset(**kwargs) -> str:
     ctx = kwargs['dag_run'].conf
     method = 'POST'
     headers = {
-        'authorization' : 'Bearer ' + _get_auth_tok(**kwargs),
+        'authorization' : 'Bearer ' + get_auth_tok(**kwargs),
         'content-type' : 'application/json'}
     #print('headers:')
     #pprint(headers)  # Reduce exposure of auth_tok
@@ -605,7 +605,7 @@ def pythonop_set_dataset_state(**kwargs) -> None:
     message = kwargs['message'] if 'message' in kwargs else 'update state'
     method = 'PUT'
     headers = {
-        'authorization' : 'Bearer ' + _get_auth_tok(**kwargs),
+        'authorization' : 'Bearer ' + get_auth_tok(**kwargs),
         'content-type' : 'application/json'}
 #     print('headers:')
 #     pprint(headers)  # reduce visibility of auth_tok
@@ -643,7 +643,7 @@ def pythonop_get_dataset_state(**kwargs) -> JSONType:
     uuid = kwargs['dataset_uuid_callable'](**kwargs)
     http_conn_id = kwargs['http_conn_id']
     method = 'GET'
-    auth_tok = _get_auth_tok(**kwargs)
+    auth_tok = get_auth_tok(**kwargs)
     headers = {
         'authorization' : f'Bearer {auth_tok}',
         'content-type' : 'application/json'
@@ -717,7 +717,7 @@ def _uuid_lookup(uuid, **kwargs):
     http_conn_id = 'uuid_api_connection'
     endpoint = 'hmuuid/{}'.format(uuid)
     method = 'GET'
-    headers = {'authorization' : 'Bearer ' + _get_auth_tok(**kwargs)}
+    headers = {'authorization' : 'Bearer ' + get_auth_tok(**kwargs)}
 #     print('headers:')
 #     pprint(headers)
     extra_options = []
@@ -914,7 +914,7 @@ def make_send_status_msg_function(
         endpoint = '/datasets/status'
         method = 'PUT'
         headers = {
-            'authorization': 'Bearer ' + _get_auth_tok(**kwargs),
+            'authorization': 'Bearer ' + get_auth_tok(**kwargs),
             'content-type': 'application/json',
         }
         extra_options = []
