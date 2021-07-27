@@ -1,6 +1,7 @@
 import sys
 import os
 import ast
+import json
 from pathlib import Path
 from pprint import pprint
 from datetime import datetime, timedelta
@@ -8,10 +9,13 @@ from datetime import datetime, timedelta
 from airflow import DAG
 from airflow.configuration import conf as airflow_conf
 from airflow.operators.python_operator import PythonOperator
+from airflow.operators.bash_operator import BashOperator
 from airflow.exceptions import AirflowException
+from airflow.hooks.http_hook import HttpHook
 
-import utils
 from utils import (
+    get_tmp_dir_path, get_auth_tok,
+    map_queue_name, pythonop_get_dataset_state,
     localized_assert_json_matches_schema as assert_json_matches_schema
     )
 
@@ -33,31 +37,24 @@ default_args = {
     'retries': 1,
     'retry_delay': timedelta(minutes=1),
     'xcom_push': True,
-    'queue': utils.map_queue_name('general')
+    'queue': map_queue_name('general')
 }
 
 
-with DAG('validation_test',
+with DAG('validate_upload',
          schedule_interval=None,
          is_paused_upon_creation=False,
+         user_defined_macros={'tmp_dir_path' : get_tmp_dir_path},
          default_args=default_args,
          ) as dag:
 
     def find_uuid(**kwargs):
-        try:
-            assert_json_matches_schema(kwargs['dag_run'].conf,
-                                       'validation_test_schema.yml')
-        except AssertionError:
-            print('invalid metadata follows:')
-            pprint(kwargs['dag_run'].conf)
-            raise
-
         uuid = kwargs['dag_run'].conf['uuid']
 
         def my_callable(**kwargs):
             return uuid
 
-        ds_rslt = utils.pythonop_get_dataset_state(
+        ds_rslt = pythonop_get_dataset_state(
             dataset_uuid_callable=my_callable,
             http_conn_id='ingest_api_connection',
             **kwargs
@@ -71,8 +68,8 @@ with DAG('validation_test',
                     'local_directory_full_path']:
             assert key in ds_rslt, f"Dataset status for {uuid} has no {key}"
 
-        if not ds_rslt['status'] in ['New', 'Invalid']:
-            raise AirflowException(f'Dataset {uuid} is not New or Invalid')
+        if False:  # not ds_rslt['status'] in ['Processing']:
+            raise AirflowException(f'Dataset {uuid} is not Processing')
 
         dt = ds_rslt['data_types']
         if isinstance(dt, str) and dt.startswith('[') and dt.endswith(']'):
@@ -104,11 +101,6 @@ with DAG('validation_test',
         python_callable=find_uuid,
         provide_context=True,
         op_kwargs={
-            'crypt_auth_tok': (
-                utils.encrypt_tok(airflow_conf.as_dict()
-                                  ['connections']['APP_CLIENT_SECRET'])
-                .decode()
-                ),
             }
         )
 
@@ -134,20 +126,74 @@ with DAG('validation_test',
         report = ingest_validation_tools_error_report.ErrorReport(
             upload.get_errors(plugin_kwargs=kwargs)
         )
-        with open(os.path.join(lz_path, 'validation_report.txt'), 'w') as f:
+        validation_file_path = Path(get_tmp_dir_path(kwargs['run_id'])) / 'validation_report.txt'
+        with open(validation_file_path, 'w') as f:
             f.write(report.as_text())
+        kwargs['ti'].xcom_push(key='validation_file_path', value=str(validation_file_path))
 
     t_run_validation = PythonOperator(
         task_id='run_validation',
         python_callable=run_validation,
         provide_context=True,
         op_kwargs={
-            'crypt_auth_tok': (
-                utils.encrypt_tok(airflow_conf.as_dict()
-                                  ['connections']['APP_CLIENT_SECRET'])
-                .decode()
-            ),
         }
     )
 
-    (dag >> t_find_uuid >> t_run_validation)
+    def send_status_msg(**kwargs):
+        validation_file_path = Path(kwargs['ti'].xcom_pull(key='validation_file_path'))
+        uuid = kwargs['ti'].xcom_pull(key='uuid')
+        conn_id = ''
+        endpoint = f'/entities/{uuid}'
+        headers = {
+            'authorization': 'Bearer ' + get_auth_tok(**kwargs),
+            'X-Hubmap-Application':'ingest-pipeline',
+            'content-type': 'application/json',
+        }
+        extra_options = []
+        http_conn_id='entity_api_connection'
+        http_hook = HttpHook('PUT', http_conn_id=http_conn_id)
+        with open(validation_file_path) as f:
+            report_txt = f.read()
+        if report_txt.startswith('No errors!'):
+            data = {
+                "status":"Valid",
+            }       
+        else:
+            data = {
+                "status":"Invalid",
+                "validation_message" : report_txt
+            }       
+        print('data: ')
+        pprint(data)
+        response = http_hook.run(
+            endpoint,
+            json.dumps(data),
+            headers,
+            extra_options,
+        )
+        print('response: ')
+        pprint(response.json())
+
+
+    
+    t_send_status = PythonOperator(
+        task_id='send_status',
+        python_callable=send_status_msg,
+        provide_context=True,
+        op_kwargs={
+        }        
+    )
+
+    t_create_tmpdir = BashOperator(
+        task_id='create_temp_dir',
+        bash_command='mkdir {{tmp_dir_path(run_id)}}'
+        )
+
+    t_cleanup_tmpdir = BashOperator(
+        task_id='cleanup_temp_dir',
+        bash_command='rm -r {{tmp_dir_path(run_id)}}',
+        trigger_rule='all_success'
+        )
+
+    (dag >> t_create_tmpdir >> t_find_uuid >> t_run_validation 
+     >> t_send_status >> t_cleanup_tmpdir)
