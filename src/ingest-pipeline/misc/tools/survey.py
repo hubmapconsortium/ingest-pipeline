@@ -11,15 +11,34 @@ import pandas as pd
 
 from hubmap_commons.type_client import TypeClient
 
-ENTITY_URL = 'https://entity.api.hubmapconsortium.org'  # no trailing slash
-SEARCH_URL = 'https://search.api.hubmapconsortium.org'
-#SEARCH_URL = 'https://search-api.test.hubmapconsortium.org'
-ASSAY_INFO_URL = 'https://search.api.hubmapconsortium.org'
-#INGEST_URL = 'https://ingest.api.hubmapconsortium.org'
-INGEST_URL = 'http://hivevm193.psc.edu:7777'
 
-
-TC = TypeClient(ASSAY_INFO_URL)
+# No trailing slashes in the following URLs!
+ENDPOINTS = {
+    'PROD': {
+        'entity_url': 'https://entity.api.hubmapconsortium.org',
+        'search_url': 'https://search.api.hubmapconsortium.org',
+        'ingest_url': 'http://hivevm193.psc.edu:7777',
+        'assay_info_url': 'https://search.api.hubmapconsortium.org' 
+        },
+    'STAGE': {
+        'entity_url': 'https://entity-api.stage.hubmapconsortium.org',
+        'search_url': 'https://search-api.stage.hubmapconsortium.org',
+        'ingest_url': 'http://hivevm195.psc.edu:7777', 
+        'assay_info_url': 'https://search-api.stage.hubmapconsortium.org' 
+        },
+    'TEST': {
+        'entity_url': 'https://entity-api.test.hubmapconsortium.org',
+        'search_url': 'https://search-api.test.hubmapconsortium.org',
+        'ingest_url': 'http://hivevm192.psc.edu:7777', 
+        'assay_info_url': 'https://search-api.test.hubmapconsortium.org' 
+        },
+    'DEV': {
+        'entity_url': 'https://entity-api.dev.hubmapconsortium.org',
+        'search_url': 'https://search-api.dev.hubmapconsortium.org',
+        'ingest_url': 'http://hivevm191.psc.edu:7777', 
+        'assay_info_url': 'https://search-api.dev.hubmapconsortium.org' 
+        },
+    }
 
 
 STRIP_DOUBLEQUOTES_RE = re.compile(r'"(.*)"')
@@ -73,33 +92,6 @@ def parse_text_list(s):
 def column_sorter(col_l):
     sort_me = [((COLUMN_SORT_WEIGHTS[key] if key in COLUMN_SORT_WEIGHTS else 0), key) for key in col_l]
     return [key for wt, key in sorted(sort_me)]
-
-
-def _get_entity_prov(uuid, auth_tok):
-    """
-    not currently used
-    """
-    r = requests.get(f'{ENTITY_URL}/entities/{uuid}/provenance',
-                     headers={'Authorization': f'Bearer {auth_tok}'})
-    if r.status_code >= 300:
-        r.raise_for_status()
-    pprint(r.json())
-    jsn = r.json()
-    print(jsn.keys())
-    for key in ['agent', 'entity', 'activity']:
-        print(f'-----{key}------')
-        print(jsn[key].keys())
-    print('------ACTIVITIES-----------')
-    for elt in jsn['activity']:
-        thing = jsn['activity'][elt]
-        print(f"{elt}: {thing['hubmap:uuid']} {thing['prov:type']}")
-    print('------ENTITIES-------------')
-    for elt in jsn['entity']:
-        thing = jsn['entity'][elt]
-        print(f"{elt}: "
-              f"{thing['hubmap:displayDOI']} "
-              f"{thing['hubmap:displayIdentifier']} {thing['hubmap:uuid']} "
-              f"{thing['prov:label']} {thing['prov:type']}")
 
 
 class SplitTree(object):
@@ -199,7 +191,7 @@ class Dataset(Entity):
         if isinstance(assay_type, list) and len(assay_type) == 1:
             assay_type = assay_type[0]
         try:
-            type_info = TC.getAssayType(assay_type)
+            type_info = self.entity_factory.type_client.getAssayType(assay_type)
             self.data_types = type_info.name
             self.is_derived = not type_info.primary
         except Exception as e:
@@ -374,22 +366,31 @@ class Support(Dataset):
 
 
 class EntityFactory(object):
-    def __init__(self, auth_tok=None):
+    def __init__(self, auth_tok=None, instance=None):
+        """
+        Instance is one of 'PROD', 'STAGE', 'TEST, 'DEV', defaulting to 'PROD'
+        """
         assert auth_tok, 'auth_tok is required'
         self.auth_tok = auth_tok
-    
+        assert (instance is None
+                or instance in ['PROD', 'STAGE', 'TEST', 'DEV']), 'invalid instance'
+        self.instance = instance or 'PROD'
+        self.type_client = TypeClient(ENDPOINTS[self.instance]['assay_info_url'])
+
     def get(self, uuid):
         """
         Returns an entity of some kind
         """
         data = {'query': {'ids': {'values': [f'{uuid}']}}}
-        r = requests.post(f'{SEARCH_URL}/portal/search',
+        search_url = ENDPOINTS[self.instance]['search_url']
+        r = requests.post(f'{search_url}/portal/search',
                           data=json.dumps(data),
                           headers={'Authorization': f'Bearer {self.auth_tok}',
                                    'Content-Type': 'application/json'})
         if r.status_code >= 300:
             r.raise_for_status()
         jsn = r.json()
+        assert len(jsn['hits']['hits']) != 0, f'The uuid {uuid} is unknown'
         assert len(jsn['hits']['hits']) == 1, f'More than one hit on uuid {uuid}'
         hit = jsn['hits']['hits'][0]
         assert hit['_id'] == uuid, f"uuid {uuid} gave back uuid {hit['_id']}"
@@ -407,8 +408,8 @@ class EntityFactory(object):
 
     def get_full_path(self, ds_uuid):
         """ ds_uuid must be the uuid of a dataset.  Other entity types will fail. """
-        
-        r = requests.get(f'{INGEST_URL}/datasets/{ds_uuid}/file-system-abs-path',
+        ingest_url = ENDPOINTS[self.instance]['ingest_url']
+        r = requests.get(f'{ingest_url}/datasets/{ds_uuid}/file-system-abs-path',
                           headers={'Authorization': f'Bearer {self.auth_tok}',
                                    'Content-Type': 'application/json'})
         #print(f'query was {r.request.body}')

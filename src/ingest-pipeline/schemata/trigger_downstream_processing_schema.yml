@@ -1,0 +1,17 @@
+'$schema': 'http://json-schema.org/schema#'
+'$id': 'http://schemata.hubmapconsortium.org/trigger_downstream_processing_schema.yml'
+'title': 'trigger_downstream_processing metadata schema'
+'description': 'trigger_downstream_processing metadata schema'
+
+'allOf': [{'$ref': '#/definitions/trigger_downstream_processing_metadata'}]
+
+'definitions':
+
+  'trigger_downstream_processing_metadata':
+    'type': 'object'
+    'properties':
+      'uuid':
+        'type': 'string'
+        'description': 'a dataset uuid or DOI'
+    'required': ['uuid']
+    

@@ -36,6 +36,10 @@ def get_dataset_uuid(**kwargs):
     ctx = kwargs['dag_run'].conf
     return ctx['submission_id']
 
+def get_dataset_lz_path(**kwargs):
+    ctx = kwargs['dag_run'].conf
+    return ctx['lz_path']
+
 
 # Following are defaults which can be overridden later on
 default_args = {
@@ -67,10 +71,7 @@ with DAG('scan_and_begin_processing',
             scanned_md = yaml.safe_load(f)
         return scanned_md
 
-    def get_blank_dataset_lz_path(**kwargs):
-        return ''  # used to suppress sending of file metadata
-
-
+    
     def run_validation(**kwargs):
         lz_path = kwargs['dag_run'].conf['lz_path']
         uuid = kwargs['dag_run'].conf['submission_id']
@@ -107,13 +108,15 @@ with DAG('scan_and_begin_processing',
         }
     )
 
+
     send_status_msg = make_send_status_msg_function(
         dag_file=__file__,
         retcode_ops=['run_validation', 'run_md_extract', 'md_consistency_tests'],
         cwl_workflows=[],
         dataset_uuid_fun=get_dataset_uuid,
-        dataset_lz_path_fun=get_blank_dataset_lz_path,
-        metadata_fun=read_metadata_file
+        dataset_lz_path_fun=get_dataset_lz_path,
+        metadata_fun=read_metadata_file,
+        include_file_metadata=False
     )
 
     def wrapped_send_status_msg(**kwargs):
