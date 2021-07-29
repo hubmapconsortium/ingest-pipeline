@@ -564,7 +564,7 @@ def pythonop_send_create_dataset(**kwargs) -> str:
         dataset_types = kwargs['dataset_types_callable'](**kwargs)
     dataset_name = kwargs['dataset_name_callable'](**kwargs)
     data = {
-        "source_dataset_uuid": kwargs['parent_dataset_uuid_callable'](**kwargs),
+        "source_dataset_uuids": kwargs['parent_dataset_uuid_callable'](**kwargs),
         "derived_dataset_name": dataset_name,
         "derived_dataset_types": _canonicalize_assay_type_if_possible(dataset_types)
     }

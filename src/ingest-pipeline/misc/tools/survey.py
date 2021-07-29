@@ -142,12 +142,12 @@ class Entity(object):
         self.uuid = prop_dct['uuid']
         self.prop_dct = prop_dct
         self.entity_factory = entity_factory
-        self.display_doi = prop_dct['display_doi']
+        self.hubmap_id = prop_dct['hubmap_id']
         self.notes = []
 
     def describe(self, prefix='', file=sys.stdout):
         print(f"{prefix}{self.uuid}: "
-              f"{self.display_doi} ",
+              f"{self.hubmap_id} ",
               file=file)
         if self.kid_dataset_uuids:
             for kid in self.kid_dataset_uuids:
@@ -225,7 +225,7 @@ class Dataset(Entity):
         
     def describe(self, prefix='', file=sys.stdout):
         print(f"{prefix}Dataset {self.uuid}: "
-              f"{self.display_doi} "
+              f"{self.hubmap_id} "
               f"{self.data_types} "
               f"{self.status} "
               f"{self.notes if self.notes else ''}",
@@ -245,16 +245,16 @@ class Dataset(Entity):
             for p_uuid in other_parent_uuids:
                 samp = self.entity_factory.get(p_uuid)
                 assert isinstance(samp, Sample), 'was expecting a sample?'
-                s_t.add(samp.hubmap_display_id)
-            sample_display_id = str(s_t)
-            sample_display_doi = (samp.display_doi if len(other_parent_uuids) == 1
+                s_t.add(samp.submission_id)
+            sample_submission_id = str(s_t)
+            sample_hubmap_id = (samp.hubmap_id if len(other_parent_uuids) == 1
                                   else 'multiple')
             parent_dataset = None
         else:
-            sample_display_id = sample_display_doi = None
+            sample_submission_id = sample_hubmap_id = None
             parent_dataset = (self.parent_dataset_uuids[0] if len(self.parent_dataset_uuids) == 1
                               else 'multiple')
-        return parent_dataset, sample_display_id, sample_display_doi
+        return parent_dataset, sample_submission_id, sample_hubmap_id
 
 
     def build_rec(self, include_all_children=False):
@@ -262,11 +262,11 @@ class Dataset(Entity):
         Returns a dict containing:
         
         uuid
-        display_doi
+        hubmap_id
         data_types[0]  (verifying there is only 1 entry)
         status
         QA_child.uuid
-        QA_child.display_doi
+        QA_child.hubmap_id
         QA_child.data_types[0]  (verifying there is only 1 entry)
         QA_child.status   (which must be QA or Published)
         note 
@@ -274,7 +274,7 @@ class Dataset(Entity):
         If include_all_children=True, all child datasets are included rather
         than just those that are QA or Published.
         """
-        rec = {'uuid': self.uuid, 'display_doi': self.display_doi, 'status': self.status,
+        rec = {'uuid': self.uuid, 'hubmap_id': self.hubmap_id, 'status': self.status,
                'group_name': self.group_name, 'is_derived': self.is_derived}
         if not self.data_types:
             rec['data_types'] = "[]"
@@ -285,23 +285,23 @@ class Dataset(Entity):
         else:
             rec['data_types'] = f"[{','.join(self.data_types)}]"
         (rec['parent_dataset'],
-         rec['sample_hubmap_display_id'],
-         rec['sample_display_doi']) = self._parse_sample_parents()
+         rec['sample_submission_id'],
+         rec['sample_hubmap_id']) = self._parse_sample_parents()
         if include_all_children:
             filtered_kids = [self.kids[uuid] for uuid in self.kids]
-            uuid_hdr, doi_hdr, data_type_hdr, status_hdr, note_note = ('child_uuid', 'child_display_doi',
+            uuid_hdr, doi_hdr, data_type_hdr, status_hdr, note_note = ('child_uuid', 'child_hubmap_id',
                                                                        'child_data_type', 'child_status',
                                                                        'Multiple derived datasets')
         else:
             filtered_kids = [self.kids[uuid] for uuid in self.kids if self.kids[uuid].status in ['QA', 'Published']]
-            uuid_hdr, doi_hdr, data_type_hdr, status_hdr, note_note = ('qa_child_uuid', 'qa_child_display_doi',
+            uuid_hdr, doi_hdr, data_type_hdr, status_hdr, note_note = ('qa_child_uuid', 'qa_child_hubmap_id',
                                                                        'qa_child_data_type', 'qa_child_status',
                                                                        'Multiple QA derived datasets')
         if any(filtered_kids):
             rec['note'] = note_note if len(filtered_kids) > 1 else ''
             this_kid = filtered_kids[0]
             rec[uuid_hdr] = this_kid.uuid
-            rec[doi_hdr] = this_kid.display_doi
+            rec[doi_hdr] = this_kid.hubmap_id
             rec[data_type_hdr] = this_kid.data_types[0]
             rec[status_hdr] = this_kid.status
         else:
@@ -329,17 +329,17 @@ class Sample(Entity):
     def __init__(self, prop_dct, entity_factory):
         super().__init__(prop_dct, entity_factory)
         assert prop_dct['entity_type'] == 'Sample', f"uuid {uuid} is a {prop_dct['entity_type']}"
-        self.display_doi = prop_dct['display_doi']
-        self.donor_display_doi = prop_dct['donor']['display_doi']
-        self.hubmap_display_id = prop_dct['hubmap_display_id']
-        self.donor_hubmap_display_id = prop_dct['donor']['hubmap_display_id']
+        self.hubmap_id = prop_dct['hubmap_id']
+        self.donor_hubmap_id = prop_dct['donor']['hubmap_id']
+        self.submission_id = prop_dct['submission_id']
+        self.donor_submission_id = prop_dct['donor']['submission_id']
         self.donor_uuid = prop_dct['donor']['uuid']
 
     def describe(self, prefix='', file=sys.stdout):
         print(f"{prefix}Sample {self.uuid}: "
-              f"{self.display_doi} "
-              f"{self.hubmap_display_id} "
-              f"{self.donor_hubmap_display_id}",
+              f"{self.hubmap_id} "
+              f"{self.submission_id} "
+              f"{self.donor_submission_id}",
               file=file)
 
 
@@ -347,11 +347,11 @@ class Support(Dataset):
     def __init__(self, prop_dct, entity_factory):
         super().__init__(prop_dct, entity_factory)
         assert prop_dct['entity_type'] == 'Support', f"uuid {uuid} is a {prop_dct['entity_type']}"
-        self.donor_hubmap_display_id = prop_dct['donor']['hubmap_display_id']
+        self.donor_submission_id = prop_dct['donor']['submission_id']
 
     def describe(self, prefix='', file=sys.stdout):
         print(f"{prefix}Support {self.uuid}: "
-              f"{self.display_doi} "
+              f"{self.hubmap_id} "
               f"{self.data_types} "
               f"{self.notes if self.notes else ''}",
               file=file)
@@ -485,12 +485,10 @@ def main():
             rec['uuid'] = uuid  # just to make sure it is present
         if rec:
             out_recs.append(rec)
-    out_df = pd.DataFrame(out_recs).rename(columns={'sample_display_doi':'sample_doi',
-                                                    'sample_hubmap_display_id':'sample_display_id',
-                                                    'qa_child_uuid':'derived_uuid',
+    out_df = pd.DataFrame(out_recs).rename(columns={'qa_child_uuid':'derived_uuid',
                                                     'child_uuid':'derived_uuid',
-                                                    'qa_child_display_doi':'derived_doi',
-                                                    'child_display_doi':'derived_doi',
+                                                    'qa_child_hubmap_id':'derived_hubmap_id',
+                                                    'child_hubmap_id':'derived_hubmap_id',
                                                     'qa_child_data_type':'derived_data_type',
                                                     'child_data_type':'derived_data_type',
                                                     'qa_child_status':'derived_status',
