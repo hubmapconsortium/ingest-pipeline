@@ -1,0 +1,16 @@
+# file: lz
+# owner: hive
+# group: hive
+user::r-x
+user:shirey:r-x
+user:hive:r-x
+group::r-x
+mask::r-x
+other::r-x
+default:user::r-x
+default:user:shirey:r-x
+default:user:hive:r-x
+default:group::r-x
+default:mask::r-x
+default:other::r-x
+

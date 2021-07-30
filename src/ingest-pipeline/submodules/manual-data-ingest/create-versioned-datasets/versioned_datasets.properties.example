@@ -1,0 +1,4 @@
+uuid.api.url=http://uuid-api.dev.hubmapconsortium.org
+entity.api.url=https://entity-api.dev.hubmapconsortium.org
+ingest.api.url=https://ingest-api.dev.hubmapconsortium.org
+nexus.token=xxxxxxmy.nexus.tokenxxxxx
