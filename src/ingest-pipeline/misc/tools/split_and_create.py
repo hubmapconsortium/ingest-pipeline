@@ -2,10 +2,12 @@
 
 import sys
 import argparse
+import re
 from pprint import pprint
 from datetime import date
 from pathlib import Path
 from shutil import copytree, copy2
+from typing import TypeVar, List
 import pandas as pd
 import numpy as np
 
@@ -20,6 +22,8 @@ FROZEN_DF_FNAME = 'frozen_source_df.tsv'
 FAKE_UUID_GENERATOR = None
 SCRATCH_PATH = '/tmp/split_and_create'
 
+StrOrListStr = TypeVar('StrOrListStr', str, List[str])
+
 #
 # The following are used to try to deal with bad assay type information in the original
 # upload or the metadata.tsv file, and with new assay types which have not yet been
@@ -31,6 +35,41 @@ FALLBACK_ASSAY_TYPE_TRANSLATIONS = {
     #'SNARE2-RNAseq': 'SNARE-RNAseq2',
     'SNARE2-RNAseq': 'sciRNAseq'
 }
+
+
+#
+# Some cases need specialized transformations.  For example, when an input upload
+# is validated with an earlier version of the validation tests, but will fail if
+# re-validated with the current version.  These transformations can be used to
+# bring the metadata into compliance with the current validation rules on the fly.
+#
+def remove_na(row: pd.Series, parent_assay_type: StrOrListStr) -> pd.Series:
+    new_row = row.copy()
+    key = 'transposition_kit_number'
+    if key in row and row[key].lower() == 'na':
+        new_row[key] = ''
+    return new_row
+
+SEQ_RD_FMT_TEST_RX = re.compile(r'\d+\+\d+\+\d+\+\d+')
+def reformat_seq_read(row: pd.Series, parent_assay_type: StrOrListStr) -> pd.Series:
+    new_row = row.copy()
+    key = 'sequencing_read_format'
+    if key in row and SEQ_RD_FMT_TEST_RX.match(row[key]):
+        new_row[key] = row[key].replace('+', '/')
+    return new_row
+
+def fix_snare_atac_assay_type(row: pd.Series, parent_assay_type: StrOrListStr) -> pd.Series:
+    new_row = row.copy()
+    key1 = 'assay_type'
+    key2 = 'canonical_assay_type'
+    if (key1 in row and key2 in row
+        and row[key1] == 'SNARE-seq2' and row[key2] == 'SNAREseq'):
+        new_row[key2] = 'SNARE-seq2'
+    return new_row
+
+SPECIAL_CASE_TRANSFORMATIONS = [
+    (re.compile('SNAREseq'), [remove_na, reformat_seq_read, fix_snare_atac_assay_type])
+]
 
 
 def create_fake_uuid_generator():
@@ -51,6 +90,7 @@ def get_canonical_assay_type(row, entity_factory, default_type):
     print(f"{row['assay_type']} -> {rslt}")
     return rslt
     
+
 def create_new_uuid(row, source_entity, entity_factory, dryrun=False):
     global FAKE_UUID_GENERATOR
     canonical_assay_type = row['canonical_assay_type']
@@ -152,6 +192,18 @@ def populate(idx, row, source_df, source_entity, entity_factory, dryrun=False):
     print(f"{old_data_path} -> {uuid} -> full path: {kid_path}")    
 
 
+def apply_special_case_transformations(df: pd.DataFrame, parent_assay_type: StrOrListStr) -> pd.DataFrame:
+    """
+    Sometimes special case transformations must be applied, for example because the
+    valisation rules have changed since the upload was originally validated.
+    """
+    for regex, fun_lst in SPECIAL_CASE_TRANSFORMATIONS:
+        if regex.match(str(parent_assay_type)):
+            for fun in fun_lst:
+                df = df.apply(fun, axis=1, parent_assay_type=parent_assay_type)
+    return df
+
+
 def main():
     """
     main
@@ -215,6 +267,7 @@ def main():
                                                 source_entity=source_entity,
                                                 entity_factory=entity_factory,
                                                 dryrun=dryrun)
+        source_df = apply_special_case_transformations(source_df, source_entity.data_types)
         print(source_df[['data_path', 'canonical_assay_type', 'new_uuid']])
         source_df.to_csv(FROZEN_DF_FNAME, sep='\t', header=True, index=False)
         print(f'wrote {FROZEN_DF_FNAME}')
