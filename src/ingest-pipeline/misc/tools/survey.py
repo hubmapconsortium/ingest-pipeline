@@ -419,6 +419,43 @@ class EntityFactory(object):
         assert 'path' in jsn, f'could not get file-system-abs-path for {ds_uuid}'
         return Path(jsn['path'])
 
+    def id_to_uuid(self, id_or_uuid):
+        """Use the entity service to get the uuid corresponding to an id"""
+        entity_url = ENDPOINTS[self.instance]['entity_url']
+        r = requests.get(f'{entity_url}/entities/{id_or_uuid}',
+                         headers={'Authorization': f'Bearer {self.auth_tok}',
+                                  'Content-Type': 'application/json'})
+        if r.status_code >= 300:
+            r.raise_for_status()
+        return r.json()['uuid']
+                        
+    def create_dataset(self,
+                       title,
+                       contains_human_genetic_sequences,
+                       assay_type,
+                       direct_ancestor_uuids,
+                       group_uuid,
+                       description):
+        """
+        Creates an entirely new Dataset entity, including updating the databases.
+        The created Dataset is returned.  Only a single data_type/assay_type is
+        supported.
+        """
+        ingest_url = ENDPOINTS[self.instance]['ingest_url']
+        data = {"title": title,
+                "contains_human_genetic_sequences": contains_human_genetic_sequences,
+                "data_types": [assay_type],
+                "direct_ancestor_uuids": direct_ancestor_uuids,
+                "group_uuid": group_uuid,
+                "description": description}
+        r = requests.post(f'{ingest_url}/datasets',
+                          data=json.dumps(data),
+                          headers={'Authorization': f'Bearer {self.auth_tok}',
+                                   'Content-Type': 'application/json'})
+        if r.status_code >= 300:
+            r.raise_for_status()
+        return r.json()
+
 
 def is_uuid(s):
     return s and len(s) == 32 and all([c in '0123456789abcdef' for c in list(s)])

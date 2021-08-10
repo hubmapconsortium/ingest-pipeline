@@ -1,27 +1,36 @@
 [submodule "src/ingest-pipeline/airflow/dags/cwl/codex-pipeline"]
 	path = src/ingest-pipeline/airflow/dags/cwl/codex-pipeline
-	url = git@github.com:hubmapconsortium/codex-pipeline.git
+	url = https://github.com/hubmapconsortium/codex-pipeline
 [submodule "src/ingest-pipeline/submodules/ingest-validation-tools"]
 	path = src/ingest-pipeline/submodules/ingest-validation-tools
-	url = git@github.com:hubmapconsortium/ingest-validation-tools.git
+	url = https://github.com/hubmapconsortium/ingest-validation-tools
 [submodule "src/ingest-pipeline/airflow/dags/cwl/portal-containers"]
 	path = src/ingest-pipeline/airflow/dags/cwl/portal-containers
-	url = git@github.com:hubmapconsortium/portal-containers.git
+	url = https://github.com/hubmapconsortium/portal-containers
 [submodule "src/ingest-pipeline/airflow/dags/cwl/salmon-rnaseq"]
 	path = src/ingest-pipeline/airflow/dags/cwl/salmon-rnaseq
-	url = git@github.com:hubmapconsortium/salmon-rnaseq.git
+	url = https://github.com/hubmapconsortium/salmon-rnaseq
 [submodule "src/ingest-pipeline/airflow/dags/cwl/sc-atac-seq-pipeline"]
 	path = src/ingest-pipeline/airflow/dags/cwl/sc-atac-seq-pipeline
-	url = git@github.com:hubmapconsortium/sc-atac-seq-pipeline.git
+	url = https://github.com/hubmapconsortium/sc-atac-seq-pipeline
 [submodule "src/ingest-pipeline/airflow/dags/cwl/ome-tiff-pyramid"]
 	path = src/ingest-pipeline/airflow/dags/cwl/ome-tiff-pyramid
-	url = git@github.com:hubmapconsortium/ome-tiff-pyramid.git
+	url = https://github.com/hubmapconsortium/ome-tiff-pyramid
+[submodule "src/ingest-pipeline/airflow/dags/cwl/sci-atac-seq-pipeline"]
+	path = src/ingest-pipeline/airflow/dags/cwl/sci-atac-seq-pipeline
+	url = https://github.com/hubmapconsortium/sc-atac-seq-pipeline
+[submodule "src/ingest-pipeline/airflow/dags/cwl/bulk-atac-seq"]
+	path = src/ingest-pipeline/airflow/dags/cwl/bulk-atac-seq
+	url = https://github.com/hubmapconsortium/sc-atac-seq-pipeline
+[submodule "src/ingest-pipeline/airflow/dags/cwl/sn-atac-seq-pipeline"]
+	path = src/ingest-pipeline/airflow/dags/cwl/sn-atac-seq-pipeline
+	url = https://github.com/hubmapconsortium/sc-atac-seq-pipeline
 [submodule "src/ingest-pipeline/airflow/dags/cwl/ome-tiff-pyramid-ims"]
 	path = src/ingest-pipeline/airflow/dags/cwl/ome-tiff-pyramid-ims
 	url = https://github.com/hubmapconsortium/ome-tiff-pyramid
 [submodule "src/ingest-pipeline/submodules/ingest-validation-tests"]
 	path = src/ingest-pipeline/submodules/ingest-validation-tests
-	url = git@github.com:hubmapconsortium/ingest-validation-tests.git
+	url = https://github.com/hubmapconsortium/ingest-validation-tests
 [submodule "src/ingest-pipeline/airflow/dags/cwl/sprm"]
 	path = src/ingest-pipeline/airflow/dags/cwl/sprm
 	url = https://github.com/hubmapconsortium/sprm
@@ -33,4 +42,4 @@
 	url = https://github.com/hubmapconsortium/manual-data-ingest.git
 [submodule "src/ingest-pipeline/airflow/dags/cwl/celldive-pipeline"]
 	path = src/ingest-pipeline/airflow/dags/cwl/celldive-pipeline
-	url = https://github.com/hubmapconsortium/celldive-pipeline
+	url = https://github.com//hubmapconsortium/celldive-pipeline
