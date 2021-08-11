@@ -13,6 +13,7 @@ from airflow.operators.bash_operator import BashOperator
 from airflow.exceptions import AirflowException
 from airflow.hooks.http_hook import HttpHook
 
+import utils
 from utils import (
     get_tmp_dir_path, get_auth_tok,
     map_queue_name, pythonop_get_dataset_state,
