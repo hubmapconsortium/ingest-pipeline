@@ -10,6 +10,8 @@ from shutil import copytree, copy2
 from typing import TypeVar, List
 import pandas as pd
 import numpy as np
+import time
+import json
 
 from hubmap_commons.globus_groups import get_globus_groups_info
 
@@ -89,7 +91,7 @@ def get_canonical_assay_type(row, entity_factory, default_type):
         rslt = FALLBACK_ASSAY_TYPE_TRANSLATIONS.get(row['assay_type'], default_type)
     print(f"{row['assay_type']} -> {rslt}")
     return rslt
-    
+
 
 def create_new_uuid(row, source_entity, entity_factory, dryrun=False):
     global FAKE_UUID_GENERATOR
@@ -189,7 +191,7 @@ def populate(idx, row, source_df, source_entity, entity_factory, dryrun=False):
             print(f'copy {old_antibodies_path} to {extras_path}')
         else:
             copy2(source_entity.full_path / old_antibodies_path, extras_path)
-    print(f"{old_data_path} -> {uuid} -> full path: {kid_path}")    
+    print(f"{old_data_path} -> {uuid} -> full path: {kid_path}")
 
 
 def apply_special_case_transformations(df: pd.DataFrame, parent_assay_type: StrOrListStr) -> pd.DataFrame:
@@ -203,6 +205,22 @@ def apply_special_case_transformations(df: pd.DataFrame, parent_assay_type: StrO
                 df = df.apply(fun, axis=1, parent_assay_type=parent_assay_type)
     return df
 
+
+def submit_uuid(uuid, entity_factory, dryrun=False):
+    global FAKE_UUID_GENERATOR
+    if dryrun:
+        if FAKE_UUID_GENERATOR is None:
+            FAKE_UUID_GENERATOR = create_fake_uuid_generator()
+        uuid = FAKE_UUID_GENERATOR.__next__()
+        print(f'Not submitting uuid {uuid}.')
+        return uuid
+    else:
+        uuid_entity_to_submit = entity_factory.get(uuid)
+        rslt = entity_factory.submit_dataset(
+            uuid=uuid,
+            contains_human_genetic_sequences=uuid_entity_to_submit.contains_human_genetic_sequences
+        )
+        return rslt
 
 def main():
     """
@@ -220,6 +238,8 @@ def main():
                         default = 'PROD')
     parser.add_argument("--dryrun", help="describe the steps that would be taken but do not make changes",
                         action="store_true")
+    parser.add_argument("--ingest", help="automatically ingest the generated datasets", action="store_true")
+
     args = parser.parse_args()
 
     if args.stop and args.unstop:
@@ -236,6 +256,7 @@ def main():
     source_uuid = args.uuid
     instance = args.instance
     dryrun = args.dryrun
+    ingest = args.ingest
     if args.stop:
         mode = 'stop'
     elif args.unstop:
@@ -279,11 +300,24 @@ def main():
         source_df = pd.read_csv(FROZEN_DF_FNAME, sep='\t')
         print(f'read {FROZEN_DF_FNAME}')
 
+    dag_config = {'uuid_list': [], 'collection_type': ''}
+
     if mode in ['all', 'unstop']:
         for idx, row in source_df.iterrows():
+            dag_config['uuid_list'].append(row['new_uuid'])
             populate(idx, row, source_df, source_entity, entity_factory, dryrun=dryrun)
+
+        if ingest and not dryrun:
+            print('Beginning ingestion')
+            for uuid in dag_config['uuid_list']:
+                print(f'Ingesting {uuid}')
+                submit_uuid(uuid, entity_factory, dryrun=dryrun)
+                while entity_factory.get(uuid).status not in ['QA', 'Invalid', 'Error']:
+                    time.sleep(30)
+
+
+    print(json.dumps(dag_config))
 
 
 if __name__ == '__main__':
     main()
-
