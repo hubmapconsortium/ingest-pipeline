@@ -141,6 +141,7 @@ with DAG('validation_test',
         task_id='run_validation',
         python_callable=run_validation,
         provide_context=True,
+        queue=utils.map_queue_name('validate'),
         op_kwargs={
             'crypt_auth_tok': (
                 utils.encrypt_tok(airflow_conf.as_dict()

@@ -104,6 +104,7 @@ with DAG('scan_and_begin_processing',
         task_id='run_validation',
         python_callable=run_validation,
         provide_context=True,
+        queue=utils.map_queue_name('validate'),
         op_kwargs={
         }
     )
