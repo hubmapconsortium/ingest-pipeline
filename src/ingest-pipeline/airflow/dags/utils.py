@@ -888,7 +888,7 @@ def make_send_status_msg_function(
     or None.  If given, it will be called with **kwargs arguments.  This function
     will only be evaluated if retcode_ops have all returned 0.
 
-    'include_file_metadata if a boolean defaulting to True which indicates whether
+    'include_file_metadata is a boolean defaulting to True which indicates whether
     file metadata should be included in the transmitted metadata structure.  If False,
     no file metadata will be included.  Note that file metadata may also be excluded
     based on the return value of 'dataset_lz_path_fun' above.
@@ -940,14 +940,17 @@ def make_send_status_msg_function(
             if metadata_fun:
                 md['metadata'] = metadata_fun(**kwargs)
                 
-            ###################################################################################
-            # Added by Zhou 6/16/2021 for registering thumbnail image
-            dataset_dir_abs_path = dataset_lz_path_fun(**kwargs)
-            # This is the only place that uses this hardcoded extras/thumbnail.jpg
-            thumbnail_file_abs_path = join(dataset_dir_abs_path, 'extras/thumbnail.jpg')
-            if exists(thumbnail_file_abs_path):
-                 md['thumbnail_file_abs_path'] = thumbnail_file_abs_path
-            ###################################################################################
+            if dataset_lz_path_fun:
+                dataset_dir_abs_path = dataset_lz_path_fun(**kwargs)
+                if dataset_dir_abs_path:
+                    #########################################################################
+                    # Added by Zhou 6/16/2021 for registering thumbnail image
+                    # This is the only place that uses this hardcoded extras/thumbnail.jpg
+                    thumbnail_file_abs_path = join(dataset_dir_abs_path,
+                                                   'extras/thumbnail.jpg')
+                    if exists(thumbnail_file_abs_path):
+                        md['thumbnail_file_abs_path'] = thumbnail_file_abs_path
+                    #########################################################################
 
             manifest_files = find_pipeline_manifests(cwl_workflows)
             if include_file_metadata and ds_dir is not None and not ds_dir == '':
