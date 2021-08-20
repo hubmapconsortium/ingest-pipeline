@@ -204,15 +204,18 @@ def main():
             drop_list.append(col)
     if 'group_name' in out_df.columns and 'organization' in out_df.columns:
         drop_list.append('organization')
-    if 'hubmap_id' in out_df.columns and 'hubmap_id' in out_df.columns:
-        if (out_df['hubmap_id'].isnull() | (out_df['hubmap_id'] == out_df['hubmap_id'])).all():
-            drop_list.append('hubmap_id')
+    if 'hubmap_id_x' in out_df.columns and 'hubmap_id_y' in out_df.columns:
+        if (out_df['hubmap_id_y'].isnull() | (out_df['hubmap_id_x'] == out_df['hubmap_id_y'])).all():
+            drop_list.append('hubmap_id_y')
+            rename_d['hubmap_id_x'] = 'hubmap_id'
         else:
             raise AssertionError('hubmap_id and hubmap_id do not match?')
     if 'data_types_x' in out_df.columns and 'data_types_y' in out_df.columns:
         out_df['data_types'] = out_df[['data_types_x', 'data_types_y']].apply(data_type_resolver, axis=1)
         drop_list.extend(['data_types_x', 'data_types_y'])
     out_df = out_df.drop(drop_list, axis=1)
+    if rename_d:
+        out_df = out_df.rename(columns=rename_d)
     
     for notes_file in args.notes or []:
         notes_df = pd.read_csv(notes_file, engine='python', sep=None, 
