@@ -1,18 +1,12 @@
 from datetime import datetime, timedelta
 from pathlib import Path
 
-import utils
+from airflow import DAG
 from airflow.operators.bash_operator import BashOperator
 from airflow.operators.dummy_operator import DummyOperator
 from airflow.operators.python_operator import BranchPythonOperator, PythonOperator
-from hubmap_operators.common_operators import (
-    CleanupTmpDirOperator,
-    CreateTmpDirOperator,
-    JoinOperator,
-    LogInfoOperator,
-    MoveDataOperator,
-    SetDatasetProcessingOperator,
-)
+
+import utils
 from utils import (
     get_cwltool_base_cmd,
     get_dataset_uuid,
@@ -22,8 +16,15 @@ from utils import (
     join_quote_command_str,
     make_send_status_msg_function,
 )
+from hubmap_operators.common_operators import (
+    CleanupTmpDirOperator,
+    CreateTmpDirOperator,
+    JoinOperator,
+    LogInfoOperator,
+    MoveDataOperator,
+    SetDatasetProcessingOperator,
+)
 
-from airflow import DAG
 
 default_args = {
     "owner": "hubmap",
@@ -41,12 +42,12 @@ default_args = {
 
 
 with DAG(
-    "celldive_deepcell",
-    schedule_interval=None,
-    is_paused_upon_creation=False,
-    default_args=default_args,
-    max_active_runs=1,
-    user_defined_macros={"tmp_dir_path": utils.get_tmp_dir_path},
+        "celldive_deepcell",
+        schedule_interval=None,
+        is_paused_upon_creation=False,
+        default_args=default_args,
+        max_active_runs=1,
+        user_defined_macros={"tmp_dir_path": utils.get_tmp_dir_path},
 ) as dag:
 
     pipeline_name = "celldive-pipeline"
@@ -65,22 +66,31 @@ with DAG(
             dag.dag_id, kwargs["dag_run"].conf["parent_submission_id"], pipeline_name
         )
 
+    def build_parent_data_dir(**kwargs):
+        """
+        Build the absolute path to the data, including the data_path offset from
+        the parent dataset's metadata
+        """
+        ctx = kwargs["dag_run"].conf
+        data_dir = Path(ctx["parent_lz_path"])
+        rel_data_path = ctx["metadata"]["metadata"]["data_path"]
+        return data_dir / rel_data_path
+
     prepare_cwl_segmentation = DummyOperator(task_id="prepare_cwl_segmentation")
 
     def build_cwltool_cwl_segmentation(**kwargs):
-        ctx = kwargs["dag_run"].conf
         run_id = kwargs["run_id"]
         tmpdir = utils.get_tmp_dir_path(run_id)
         print("tmpdir: ", tmpdir)
-        data_dir = ctx["parent_lz_path"]
+        data_dir = build_parent_data_dir(**kwargs)
         print("data_dir: ", data_dir)
 
         workflow = cwl_workflows["segmentation"]
-        meta_yml_path = workflow.parent / "meta.yml"
+        meta_yml_path = workflow.parent / "meta.yaml"
 
         command = [
             *get_cwltool_base_cmd(tmpdir),
-            "--singularity",
+            #"--singularity",
             workflow,
             "--gpus=all",
             "--meta_path",
@@ -126,11 +136,10 @@ with DAG(
     prepare_cwl_sprm = DummyOperator(task_id="prepare_cwl_sprm")
 
     def build_cwltool_cmd_sprm(**kwargs):
-        ctx = kwargs["dag_run"].conf
         run_id = kwargs["run_id"]
         tmpdir = utils.get_tmp_dir_path(run_id)
         print("tmpdir: ", tmpdir)
-        parent_data_dir = ctx["parent_lz_path"]
+        parent_data_dir = build_parent_data_dir(**kwargs)
         print("parent_data_dir: ", parent_data_dir)
         data_dir = tmpdir / "cwl_out"
         print("data_dir: ", data_dir)
@@ -179,11 +188,10 @@ with DAG(
     )
 
     def build_cwltool_cmd_create_vis_symlink_archive(**kwargs):
-        ctx = kwargs["dag_run"].conf
         run_id = kwargs["run_id"]
         tmpdir = utils.get_tmp_dir_path(run_id)
         print("tmpdir: ", tmpdir)
-        parent_data_dir = ctx["parent_lz_path"]
+        parent_data_dir = build_parent_data_dir(**kwargs)
         print("parent_data_dir: ", parent_data_dir)
         data_dir = tmpdir / "cwl_out"
         print("data_dir: ", data_dir)
@@ -229,7 +237,6 @@ with DAG(
     prepare_cwl_ome_tiff_pyramid = DummyOperator(task_id="prepare_cwl_ome_tiff_pyramid")
 
     def build_cwltool_cwl_ome_tiff_pyramid(**kwargs):
-        ctx = kwargs["dag_run"].conf
         run_id = kwargs["run_id"]
 
         # tmpdir is temp directory in /hubmap-tmp
@@ -237,7 +244,7 @@ with DAG(
         print("tmpdir: ", tmpdir)
 
         # data directory is the stitched images, which are found in tmpdir
-        data_dir = ctx["parent_lz_path"]
+        data_dir = build_parent_data_dir(**kwargs)
         print("data_dir: ", data_dir)
 
         # this is the call to the CWL
@@ -281,11 +288,10 @@ with DAG(
     prepare_cwl_ome_tiff_offsets = DummyOperator(task_id="prepare_cwl_ome_tiff_offsets")
 
     def build_cwltool_cmd_ome_tiff_offsets(**kwargs):
-        ctx = kwargs["dag_run"].conf
         run_id = kwargs["run_id"]
         tmpdir = utils.get_tmp_dir_path(run_id)
         print("tmpdir: ", tmpdir)
-        parent_data_dir = ctx["parent_lz_path"]
+        parent_data_dir = build_parent_data_dir(**kwargs)
         print("parent_data_dir: ", parent_data_dir)
         data_dir = tmpdir / "cwl_out"
         print("data_dir: ", data_dir)
@@ -329,11 +335,10 @@ with DAG(
     prepare_cwl_sprm_to_json = DummyOperator(task_id="prepare_cwl_sprm_to_json")
 
     def build_cwltool_cmd_sprm_to_json(**kwargs):
-        ctx = kwargs["dag_run"].conf
         run_id = kwargs["run_id"]
         tmpdir = utils.get_tmp_dir_path(run_id)
         print("tmpdir: ", tmpdir)
-        parent_data_dir = ctx["parent_lz_path"]
+        parent_data_dir = build_parent_data_dir(**kwargs)
         print("parent_data_dir: ", parent_data_dir)
         data_dir = tmpdir / "cwl_out"  # This stage reads input from stage 1
         print("data_dir: ", data_dir)
@@ -377,11 +382,10 @@ with DAG(
     prepare_cwl_sprm_to_anndata = DummyOperator(task_id="prepare_cwl_sprm_to_anndata")
 
     def build_cwltool_cmd_sprm_to_anndata(**kwargs):
-        ctx = kwargs["dag_run"].conf
         run_id = kwargs["run_id"]
         tmpdir = utils.get_tmp_dir_path(run_id)
         print("tmpdir: ", tmpdir)
-        parent_data_dir = ctx["parent_lz_path"]
+        parent_data_dir = build_parent_data_dir(**kwargs)
         print("parent_data_dir: ", parent_data_dir)
         data_dir = tmpdir / "cwl_out"  # This stage reads input from stage 1
         print("data_dir: ", data_dir)
