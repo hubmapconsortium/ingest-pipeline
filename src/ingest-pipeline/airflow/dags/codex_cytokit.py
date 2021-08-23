@@ -51,8 +51,11 @@ with DAG('codex_cytokit',
          ) as dag:
 
     pipeline_name = 'codex-pipeline'
+    steps_dir = Path(pipeline_name) / 'steps'
     cwl_workflows = get_named_absolute_workflows(
-        cytokit=Path(pipeline_name, 'pipeline.cwl'),
+        illumination_first_stitching=steps_dir / 'illumination_first_stitching.cwl',
+        cytokit=steps_dir / 'run_cytokit.cwl',
+        ometiff_second_stitching=steps_dir / 'ometiff_second_stitching.cwl',
         sprm=Path('sprm', 'pipeline.cwl'),
         create_vis_symlink_archive=Path('create-vis-symlink-archive', 'pipeline.cwl'),
         ome_tiff_pyramid=Path('ome-tiff-pyramid', 'pipeline.cwl'),
@@ -66,9 +69,11 @@ with DAG('codex_cytokit',
                                    kwargs['dag_run'].conf['parent_submission_id'],
                                    pipeline_name)
 
-    prepare_cwl_cytokit = DummyOperator(task_id='prepare_cwl_cytokit')
-    
-    def build_cwltool_cwl_cytokit(**kwargs):
+    prepare_cwl_illumination_first_stitching = DummyOperator(
+        task_id='prepare_cwl_illumination_first_stitching',
+    )
+
+    def build_cwltool_cwl_illumination_first_stitching(**kwargs):
         ctx = kwargs['dag_run'].conf
         run_id = kwargs['run_id']
         tmpdir = utils.get_tmp_dir_path(run_id)
@@ -78,7 +83,7 @@ with DAG('codex_cytokit',
 
         command = [
             *get_cwltool_base_cmd(tmpdir),
-            cwl_workflows['cytokit'],
+            cwl_workflows['illumination_first_stitching'],
             '--gpus=0,1',
             '--data_dir',
             data_dir,
@@ -86,6 +91,53 @@ with DAG('codex_cytokit',
 
         return join_quote_command_str(command)
 
+    t_build_cwl_illumination_first_stitching = PythonOperator(
+        task_id='build_cwl_illumination_first_stitching',
+        python_callable=build_cwltool_cwl_illumination_first_stitching,
+        provide_context=True,
+    )
+
+    t_pipeline_exec_cwl_illumination_first_stitching = BashOperator(
+        task_id='pipeline_exec_cwl_illumination_first_stitching',
+        bash_command=""" \
+        tmp_dir={{tmp_dir_path(run_id)}} ; \
+        mkdir -p ${tmp_dir}/cwl_out ; \
+        cd ${tmp_dir}/cwl_out ; \
+        {{ti.xcom_pull(task_ids='build_cwl_illumination_first_stitching')}} > $tmp_dir/session.log 2>&1 ; \
+        echo $?
+        """
+    )
+
+    t_maybe_keep_cwl_illumination_first_stitching = BranchPythonOperator(
+        task_id='maybe_keep_cwl_illumination_first_stitching',
+        python_callable=utils.pythonop_maybe_keep,
+        provide_context=True,
+        op_kwargs={
+            'next_op': 'prepare_cwl_cytokit',
+            'bail_op': 'set_dataset_error',
+            'test_op': 'pipeline_exec_cwl_illumination_first_stitching',
+        }
+    )
+
+    prepare_cwl_cytokit = DummyOperator(task_id='prepare_cwl_cytokit')
+
+    def build_cwltool_cwl_cytokit(**kwargs):
+        run_id = kwargs['run_id']
+        tmpdir = utils.get_tmp_dir_path(run_id)
+        print('tmpdir: ', tmpdir)
+        data_dir = tmpdir / 'cwl_out'
+        print('data_dir: ', data_dir)
+
+        command = [
+            *get_cwltool_base_cmd(tmpdir),
+            cwl_workflows['cytokit'],
+            '--data_dir',
+            data_dir / 'new_tiles',
+            '--yaml_config',
+            data_dir / 'experiment.yaml',
+        ]
+
+        return join_quote_command_str(command)
 
     t_build_cwl_cytokit = PythonOperator(
         task_id='build_cwl_cytokit',
@@ -94,7 +146,6 @@ with DAG('codex_cytokit',
         queue=utils.map_queue_name('gpu000_q1'),
         )
 
-
     t_pipeline_exec_cwl_cytokit = BashOperator(
         task_id='pipeline_exec_cwl_cytokit',
         queue=utils.map_queue_name('gpu000_q1'),
@@ -102,7 +153,7 @@ with DAG('codex_cytokit',
         tmp_dir={{tmp_dir_path(run_id)}} ; \
         mkdir -p ${tmp_dir}/cwl_out ; \
         cd ${tmp_dir}/cwl_out ; \
-        {{ti.xcom_pull(task_ids='build_cwl_cytokit')}} > $tmp_dir/session.log 2>&1 ; \
+        {{ti.xcom_pull(task_ids='build_cwl_cytokit')}} >> $tmp_dir/session.log 2>&1 ; \
         echo $?
         """
     )
@@ -111,10 +162,73 @@ with DAG('codex_cytokit',
         task_id='maybe_keep_cwl_cytokit',
         python_callable=utils.pythonop_maybe_keep,
         provide_context=True,
-        op_kwargs = {'next_op' : 'prepare_cwl_sprm',
-                     'bail_op' : 'set_dataset_error',
-                     'test_op' : 'pipeline_exec_cwl_cytokit'}
-        )
+        op_kwargs={
+            'next_op': 'prepare_cwl_ometiff_second_stitching',
+            'bail_op': 'set_dataset_error',
+            'test_op': 'pipeline_exec_cwl_cytokit',
+        }
+    )
+
+    prepare_cwl_ometiff_second_stitching = DummyOperator(
+        task_id='prepare_cwl_ometiff_second_stitching',
+    )
+
+    def build_cwltool_cwl_ometiff_second_stitching(**kwargs):
+        run_id = kwargs['run_id']
+        tmpdir = utils.get_tmp_dir_path(run_id)
+        print('tmpdir: ', tmpdir)
+        data_dir = tmpdir / 'cwl_out'
+        print('data_dir: ', data_dir)
+
+        command = [
+            *get_cwltool_base_cmd(tmpdir),
+            cwl_workflows['ometiff_second_stitching'],
+            '--cytokit_config',
+            data_dir / 'experiment.yaml',
+            '--cytokit_output',
+            data_dir / 'cytokit',
+            '--slicing_pipeline_config',
+            data_dir / 'pipelineConfig.json'
+        ]
+
+        return join_quote_command_str(command)
+
+    t_build_cwl_ometiff_second_stitching = PythonOperator(
+        task_id='build_cwl_ometiff_second_stitching',
+        python_callable=build_cwltool_cwl_ometiff_second_stitching,
+        provide_context=True,
+    )
+
+    t_pipeline_exec_cwl_ometiff_second_stitching = BashOperator(
+        task_id='pipeline_exec_cwl_ometiff_second_stitching',
+        bash_command=""" \
+        tmp_dir={{tmp_dir_path(run_id)}} ; \
+        mkdir -p ${tmp_dir}/cwl_out ; \
+        cd ${tmp_dir}/cwl_out ; \
+        {{ti.xcom_pull(task_ids='build_cwl_ometiff_second_stitching')}} >> $tmp_dir/session.log 2>&1 ; \
+        echo $?
+        """
+    )
+
+    t_maybe_keep_cwl_ometiff_second_stitching = BranchPythonOperator(
+        task_id='maybe_keep_cwl_ometiff_second_stitching',
+        python_callable=utils.pythonop_maybe_keep,
+        provide_context=True,
+        op_kwargs={
+            'next_op': 'prepare_cwl_sprm',
+            'bail_op': 'set_dataset_error',
+            'test_op': 'pipeline_exec_cwl_ometiff_second_stitching',
+        }
+    )
+
+    t_delete_internal_pipeline_files = BashOperator(
+        task_id='delete_internal_pipeline_files',
+        bash_command="""\
+        tmp_dir={{tmp_dir_path(run_id)}} ; \
+        cd ${tmp_dir}/cwl_out ; \
+        rm -rf cytokit new_tiles
+        """
+    )
 
     prepare_cwl_sprm = DummyOperator(task_id='prepare_cwl_sprm')
 
@@ -465,7 +579,9 @@ with DAG('codex_cytokit',
     send_status_msg = make_send_status_msg_function(
         dag_file=__file__,
         retcode_ops=[
+            'pipeline_exec_cwl_illumination_first_stitching',
             'pipeline_exec_cwl_cytokit',
+            'pipeline_exec_cwl_ometiff_second_stitching',
             'pipeline_exec_cwl_sprm',
             'pipeline_exec_cwl_create_vis_symlink_archive',
             'pipeline_exec_cwl_ome_tiff_offsets',
@@ -488,17 +604,67 @@ with DAG('codex_cytokit',
     t_set_dataset_processing = SetDatasetProcessingOperator(task_id='set_dataset_processing')
     t_move_data = MoveDataOperator(task_id='move_data')
 
-    (dag >> t_log_info >> t_create_tmpdir
-     >> t_send_create_dataset >> t_set_dataset_processing
-     >> prepare_cwl_cytokit >> t_build_cwl_cytokit >> t_pipeline_exec_cwl_cytokit >> t_maybe_keep_cwl_cytokit
-     >> prepare_cwl_sprm >> t_build_cmd_sprm >> t_pipeline_exec_cwl_sprm >> t_maybe_keep_cwl_sprm
-     >> prepare_cwl_create_vis_symlink_archive >> t_build_cmd_create_vis_symlink_archive >> t_pipeline_exec_cwl_create_vis_symlink_archive >> t_maybe_keep_cwl_create_vis_symlink_archive
-     >> prepare_cwl_ome_tiff_pyramid >> t_build_cmd_ome_tiff_pyramid >> t_pipeline_exec_cwl_ome_tiff_pyramid >> t_maybe_keep_cwl_ome_tiff_pyramid
-     >> prepare_cwl_ome_tiff_offsets >> t_build_cmd_ome_tiff_offsets >> t_pipeline_exec_cwl_ome_tiff_offsets >> t_maybe_keep_cwl_ome_tiff_offsets
-     >> prepare_cwl_sprm_to_json >> t_build_cmd_sprm_to_json >> t_pipeline_exec_cwl_sprm_to_json >> t_maybe_keep_cwl_sprm_to_json
-     >> prepare_cwl_sprm_to_anndata >> t_build_cmd_sprm_to_anndata >> t_pipeline_exec_cwl_sprm_to_anndata >> t_maybe_keep_cwl_sprm_to_anndata
-     >> t_move_data >> t_expand_symlinks >> t_send_status >> t_join)
+    (
+            dag
+            >> t_log_info
+            >> t_create_tmpdir
+            >> t_send_create_dataset
+            >> t_set_dataset_processing
+
+            >> prepare_cwl_illumination_first_stitching
+            >> t_build_cwl_illumination_first_stitching
+            >> t_pipeline_exec_cwl_illumination_first_stitching
+            >> t_maybe_keep_cwl_illumination_first_stitching
+
+            >> prepare_cwl_cytokit
+            >> t_build_cwl_cytokit
+            >> t_pipeline_exec_cwl_cytokit
+            >> t_maybe_keep_cwl_cytokit
+
+            >> prepare_cwl_ometiff_second_stitching
+            >> t_build_cwl_ometiff_second_stitching
+            >> t_pipeline_exec_cwl_ometiff_second_stitching
+            >> t_maybe_keep_cwl_ometiff_second_stitching
+
+            >> prepare_cwl_sprm
+            >> t_build_cmd_sprm
+            >> t_pipeline_exec_cwl_sprm
+            >> t_maybe_keep_cwl_sprm
+
+            >> prepare_cwl_create_vis_symlink_archive
+            >> t_build_cmd_create_vis_symlink_archive
+            >> t_pipeline_exec_cwl_create_vis_symlink_archive
+            >> t_maybe_keep_cwl_create_vis_symlink_archive
+
+            >> prepare_cwl_ome_tiff_pyramid
+            >> t_build_cmd_ome_tiff_pyramid
+            >> t_pipeline_exec_cwl_ome_tiff_pyramid
+            >> t_maybe_keep_cwl_ome_tiff_pyramid
+
+            >> prepare_cwl_ome_tiff_offsets
+            >> t_build_cmd_ome_tiff_offsets
+            >> t_pipeline_exec_cwl_ome_tiff_offsets
+            >> t_maybe_keep_cwl_ome_tiff_offsets
+
+            >> prepare_cwl_sprm_to_json
+            >> t_build_cmd_sprm_to_json
+            >> t_pipeline_exec_cwl_sprm_to_json
+            >> t_maybe_keep_cwl_sprm_to_json
+
+            >> prepare_cwl_sprm_to_anndata
+            >> t_build_cmd_sprm_to_anndata
+            >> t_pipeline_exec_cwl_sprm_to_anndata
+            >> t_maybe_keep_cwl_sprm_to_anndata
+
+            >> t_move_data
+            >> t_expand_symlinks
+            >> t_send_status
+            >> t_join
+    )
+    t_pipeline_exec_cwl_ometiff_second_stitching >> t_delete_internal_pipeline_files
+    t_maybe_keep_cwl_illumination_first_stitching >> t_set_dataset_error
     t_maybe_keep_cwl_cytokit >> t_set_dataset_error
+    t_maybe_keep_cwl_ometiff_second_stitching >> t_set_dataset_error
     t_maybe_keep_cwl_sprm >> t_set_dataset_error
     t_maybe_keep_cwl_create_vis_symlink_archive >> t_set_dataset_error
     t_maybe_keep_cwl_ome_tiff_pyramid >> t_set_dataset_error
