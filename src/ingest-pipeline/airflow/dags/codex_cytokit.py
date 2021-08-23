@@ -661,7 +661,7 @@ with DAG('codex_cytokit',
             >> t_send_status
             >> t_join
     )
-    t_pipeline_exec_cwl_illumination_first_stitching >> t_delete_internal_pipeline_files
+    t_pipeline_exec_cwl_ometiff_second_stitching >> t_delete_internal_pipeline_files
     t_maybe_keep_cwl_illumination_first_stitching >> t_set_dataset_error
     t_maybe_keep_cwl_cytokit >> t_set_dataset_error
     t_maybe_keep_cwl_ometiff_second_stitching >> t_set_dataset_error
