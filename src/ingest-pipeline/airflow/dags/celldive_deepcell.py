@@ -1,18 +1,12 @@
 from datetime import datetime, timedelta
 from pathlib import Path
 
-import utils
+from airflow import DAG
 from airflow.operators.bash_operator import BashOperator
 from airflow.operators.dummy_operator import DummyOperator
 from airflow.operators.python_operator import BranchPythonOperator, PythonOperator
-from hubmap_operators.common_operators import (
-    CleanupTmpDirOperator,
-    CreateTmpDirOperator,
-    JoinOperator,
-    LogInfoOperator,
-    MoveDataOperator,
-    SetDatasetProcessingOperator,
-)
+
+import utils
 from utils import (
     get_cwltool_base_cmd,
     get_dataset_uuid,
@@ -22,8 +16,15 @@ from utils import (
     join_quote_command_str,
     make_send_status_msg_function,
 )
+from hubmap_operators.common_operators import (
+    CleanupTmpDirOperator,
+    CreateTmpDirOperator,
+    JoinOperator,
+    LogInfoOperator,
+    MoveDataOperator,
+    SetDatasetProcessingOperator,
+)
 
-from airflow import DAG
 
 default_args = {
     "owner": "hubmap",
@@ -41,12 +42,12 @@ default_args = {
 
 
 with DAG(
-    "celldive_deepcell",
-    schedule_interval=None,
-    is_paused_upon_creation=False,
-    default_args=default_args,
-    max_active_runs=1,
-    user_defined_macros={"tmp_dir_path": utils.get_tmp_dir_path},
+        "celldive_deepcell",
+        schedule_interval=None,
+        is_paused_upon_creation=False,
+        default_args=default_args,
+        max_active_runs=1,
+        user_defined_macros={"tmp_dir_path": utils.get_tmp_dir_path},
 ) as dag:
 
     pipeline_name = "celldive-pipeline"
@@ -67,7 +68,7 @@ with DAG(
 
     def build_parent_data_dir(**kwargs):
         """
-        Build the absolute path to the data, including the data_path offset from 
+        Build the absolute path to the data, including the data_path offset from
         the parent dataset's metadata
         """
         ctx = kwargs["dag_run"].conf
