@@ -118,7 +118,6 @@ with DAG(
         op_kwargs={
             'parent_dataset_uuid_callable': get_parent_dataset_uuid,
             'http_conn_id': 'ingest_api_connection',
-            'endpoint': '/datasets/derived',
             'dataset_name_callable': build_dataset_name,
             "dataset_types": ["bulk_atacseq"],
         },
@@ -132,7 +131,6 @@ with DAG(
         op_kwargs={
             'dataset_uuid_callable': get_dataset_uuid,
             'http_conn_id': 'ingest_api_connection',
-            'endpoint': '/datasets/status',
             'ds_state': 'Error',
             'message': 'An error occurred in {}'.format(pipeline_name),
         },
