@@ -207,11 +207,7 @@ def apply_special_case_transformations(df: pd.DataFrame, parent_assay_type: StrO
 
 
 def submit_uuid(uuid, entity_factory, dryrun=False):
-    global FAKE_UUID_GENERATOR
     if dryrun:
-        if FAKE_UUID_GENERATOR is None:
-            FAKE_UUID_GENERATOR = create_fake_uuid_generator()
-        uuid = FAKE_UUID_GENERATOR.__next__()
         print(f'Not submitting uuid {uuid}.')
         return uuid
     else:
@@ -307,13 +303,13 @@ def main():
             dag_config['uuid_list'].append(row['new_uuid'])
             populate(idx, row, source_df, source_entity, entity_factory, dryrun=dryrun)
 
-        if ingest and not dryrun:
+        if ingest:
             print('Beginning ingestion')
             for uuid in dag_config['uuid_list']:
-                print(f'Ingesting {uuid}')
-                submit_uuid(uuid, entity_factory, dryrun=dryrun)
-                while entity_factory.get(uuid).status not in ['QA', 'Invalid', 'Error']:
-                    time.sleep(30)
+                submit_uuid(uuid, entity_factory, dryrun)
+                if not dryrun:
+                    while entity_factory.get(uuid).status not in ['QA', 'Invalid', 'Error']:
+                        time.sleep(30)
 
 
     print(json.dumps(dag_config))
