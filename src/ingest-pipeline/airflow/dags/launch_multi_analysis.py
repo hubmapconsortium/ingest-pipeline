@@ -53,6 +53,39 @@ with DAG('launch_multi_analysis',
          user_defined_macros={'tmp_dir_path' : utils.get_tmp_dir_path}
          ) as dag:
 
+
+    def check_one_uuid(uuid, **kwargs):
+        """
+        Look up information on the given uuid or HuBMAP identifier.
+        Returns:
+        - the uuid, translated from an identifier if necessary
+        - data type(s) of the dataset
+        - local directory full path of the dataset
+        """
+        print(f'Starting uuid {uuid}')
+        my_callable = lambda **kwargs: uuid
+        ds_rslt=utils.pythonop_get_dataset_state(dataset_uuid_callable=my_callable,
+                                                 http_conn_id='ingest_api_connection',
+                                                 **kwargs)
+        if not ds_rslt:
+            raise AirflowException(f'Invalid uuid/doi for group: {uuid}')
+        print('ds_rslt:')
+        pprint(ds_rslt)
+
+        for key in ['status', 'uuid', 'data_types', 'local_directory_full_path']:
+            assert key in ds_rslt, f"Dataset status for {uuid} has no {key}"
+
+        if not ds_rslt['status'] in ['QA', 'Published']:
+            raise AirflowException(f'Dataset {uuid} is not QA or better')
+
+        dt = ds_rslt['data_types']
+        if isinstance(dt, str) and dt.startswith('[') and dt.endswith(']'):
+            dt = ast.literal_eval(dt)
+            print(f'parsed dt: {dt}')
+
+        return ds_rslt['uuid'], dt, ds_rslt['local_directory_full_path']
+
+
     def check_uuids(**kwargs):
         print('dag_run conf follows:')
         pprint(kwargs['dag_run'].conf)
@@ -67,30 +100,13 @@ with DAG('launch_multi_analysis',
         
         uuid_l = kwargs['dag_run'].conf['uuid_list']
         collection_type = kwargs['dag_run'].conf['collection_type']
+        prev_version_uuid = kwargs['dag_run'].conf.get('previous_version_uuid',
+                                                       None)
         filtered_uuid_l = []
         filtered_path_l = []
         filtered_data_types = []
         for uuid in uuid_l:
-            print(f'Starting uuid {uuid}')
-            my_callable = lambda **kwargs: uuid
-            ds_rslt=utils.pythonop_get_dataset_state(dataset_uuid_callable=my_callable,
-                                                     http_conn_id='ingest_api_connection',
-                                                     **kwargs)
-            if not ds_rslt:
-                raise AirflowException(f'Invalid uuid/doi for group: {uuid}')
-            print('ds_rslt:')
-            pprint(ds_rslt)
-
-            for key in ['status', 'uuid', 'data_types', 'local_directory_full_path']:
-                assert key in ds_rslt, f"Dataset status for {uuid} has no {key}"
-
-            if not ds_rslt['status'] in ['QA', 'Published']:
-                raise AirflowException(f'Dataset {uuid} is not QA or better')
-
-            dt = ds_rslt['data_types']
-            if isinstance(dt, str) and dt.startswith('[') and dt.endswith(']'):
-                dt = ast.literal_eval(dt)
-            print(f'parsed dt: {dt}')
+            uuid, dt, lz_path = check_one_uuid(uuid, **kwargs)
             if isinstance(dt, list):
                 if dt:
                     if len(dt) == 1:
@@ -102,9 +118,10 @@ with DAG('launch_multi_analysis',
             else:
                 filtered_data_types.append(dt)
 
-            lz_path = ds_rslt['local_directory_full_path']
             filtered_path_l.append(lz_path)
-            filtered_uuid_l.append(ds_rslt['uuid'])
+            filtered_uuid_l.append(uuid)
+        if prev_version_uuid is not None:
+            prev_version_uuid, _, _ = check_one_uuid(prev_version_uuid, **kwargs)
         print(f'Finished uuid {uuid}')
         print(f'filtered data types: {filtered_data_types}')
         print(f'filtered paths: {filtered_path_l}')
@@ -113,6 +130,7 @@ with DAG('launch_multi_analysis',
         kwargs['ti'].xcom_push(key='assay_type', value=filtered_data_types)
         kwargs['ti'].xcom_push(key='lz_paths', value=filtered_path_l)
         kwargs['ti'].xcom_push(key='uuids', value=filtered_uuid_l)
+        kwargs['ti'].xcom_push(key='previous_version_uuid', prev_version_uuid)
 
     check_uuids_t = PythonOperator(
         task_id='check_uuids',
@@ -137,14 +155,18 @@ with DAG('launch_multi_analysis',
         assay_type = kwargs['ti'].xcom_pull(key='assay_type', task_ids="check_uuids")
         lz_paths = kwargs['ti'].xcom_pull(key='lz_paths', task_ids="check_uuids")
         uuids = kwargs['ti'].xcom_pull(key='uuids', task_ids="check_uuids")
+        prev_version_uuid = kwargs['ti'].xcom_pull(key='previous_version_uuid',
+                                                   task_ids="check_uuids")
         print('collectiontype: <{}>, assay_type: <{}>'.format(collectiontype, assay_type))
         print(f'uuids: {uuids}')
         print('lz_paths:')
         pprint(lz_paths)
+        print(f'previous version uuid: {prev_version_uuid}')
         payload = {'ingest_id' : kwargs['run_id'],
                    'crypt_auth_tok' : kwargs['crypt_auth_tok'],
                    'parent_lz_path' : lz_paths,
                    'parent_submission_id' : uuids,
+                   'previous_version_uuid' : prev_version_uuid,
                    'metadata': {},
                    'dag_provenance_list' : utils.get_git_provenance_list(__file__)
         }

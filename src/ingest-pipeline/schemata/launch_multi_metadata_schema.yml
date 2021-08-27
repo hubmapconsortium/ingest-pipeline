@@ -19,5 +19,10 @@
             'type': 'string'
             'description': 'a dataset uuid or DOI'
           'minItems': 1
+        'previous_version_uuid':
+          'type': 'string'
+          'description': >
+            uuid or DOI of the previous version of the product of this
+            analysis, if any
      'required': ['uuid_list', 'collection_type']
     

@@ -22,6 +22,7 @@ from utils import (
     get_named_absolute_workflows,
     get_parent_dataset_uuid,
     get_uuid_for_error,
+    get_previous_revision_uuid,
     join_quote_command_str,
     make_send_status_msg_function,
 )
@@ -542,6 +543,7 @@ with DAG('codex_cytokit',
         python_callable=utils.pythonop_send_create_dataset,
         provide_context=True,
         op_kwargs = {'parent_dataset_uuid_callable' : get_parent_dataset_uuid,
+                     'previous_revision_uuid_callable' : get_previous_revision_uuid,
                      'http_conn_id' : 'ingest_api_connection',
                      'dataset_name_callable' : build_dataset_name,
                      "dataset_types":["codex_cytokit"]

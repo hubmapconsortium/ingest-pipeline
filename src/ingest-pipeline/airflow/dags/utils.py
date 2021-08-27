@@ -232,6 +232,10 @@ def get_parent_dataset_uuid(**kwargs):
     return kwargs['dag_run'].conf['parent_submission_id']
 
 
+def get_previous_revision_uuid(**kwargs):
+    return kwargs['dag_run'].conf.get('previous_version_uuid', None)
+
+
 def get_dataset_uuid(**kwargs):
     return kwargs['ti'].xcom_pull(key='derived_dataset_uuid',
                                   task_ids="send_create_dataset")
@@ -532,7 +536,7 @@ def pythonop_send_create_dataset(**kwargs) -> str:
     'previous_revision_uuid_callable': if present, called with **kwargs;
                                        returns the uuid of the previous
                                        revision of the dataset to be
-                                       created
+                                       created or None
     either
       'dataset_types' : the types list of the new dataset
     or
@@ -600,7 +604,8 @@ def pythonop_send_create_dataset(**kwargs) -> str:
         }
         if 'previous_revision_uuid_callable' in kwargs:
             previous_revision_uuid = kwargs['previous_revision_uuid_callable'](**kwargs);
-            data['previous_revision_uuid'] = previous_revision_uuid
+            if previous_revision_uuid is not None:
+                data['previous_revision_uuid'] = previous_revision_uuid
         print('data for dataset creation:')
         pprint(data)
         response = HttpHook('POST', http_conn_id=http_conn_id).run(
