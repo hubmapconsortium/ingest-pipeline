@@ -75,7 +75,7 @@ with DAG('launch_multi_analysis',
         for key in ['status', 'uuid', 'data_types', 'local_directory_full_path']:
             assert key in ds_rslt, f"Dataset status for {uuid} has no {key}"
 
-        if not ds_rslt['status'] in ['QA', 'Published']:
+        if not ds_rslt['status'] in ['New', 'Error', 'QA', 'Published']:
             raise AirflowException(f'Dataset {uuid} is not QA or better')
 
         dt = ds_rslt['data_types']
@@ -130,7 +130,7 @@ with DAG('launch_multi_analysis',
         kwargs['ti'].xcom_push(key='assay_type', value=filtered_data_types)
         kwargs['ti'].xcom_push(key='lz_paths', value=filtered_path_l)
         kwargs['ti'].xcom_push(key='uuids', value=filtered_uuid_l)
-        kwargs['ti'].xcom_push(key='previous_version_uuid', prev_version_uuid)
+        kwargs['ti'].xcom_push(key='previous_version_uuid', value=prev_version_uuid)
 
     check_uuids_t = PythonOperator(
         task_id='check_uuids',

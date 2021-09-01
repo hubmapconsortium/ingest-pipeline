@@ -232,6 +232,32 @@ def get_parent_dataset_uuid(**kwargs):
     return kwargs['dag_run'].conf['parent_submission_id']
 
 
+def get_parent_dataset_uuids_list(**kwargs):
+    uuid_list = kwargs['dag_run'].conf['parent_submission_id']
+    if not isinstance(uuid_list, list):
+        uuid_list = [uuid_list]
+    return uuid_list
+
+
+def get_parent_dataset_uuid(**kwargs):
+    uuid_set = set(get_parent_dataset_uuids_list(**kwargs))
+    assert len(uuid_set) == 1, f"Found {len(uuid_set)} elements, expected 1"
+    return uuid_set.pop()
+
+
+def get_parent_dataset_paths_list(**kwargs):
+    path_list = kwargs['dag_run'].conf['parent_lz_path']
+    if not isinstance(path_list, list):
+        path_list = [path_list]
+    return path_list
+
+
+def get_parent_dataset_path(**kwargs):
+    path_set = set(get_parent_dataset_paths_list(**kwargs))
+    assert len(path_set) == 1, f"Found {len(path_set)} elements, expected 1"
+    return path_set.pop()
+
+
 def get_previous_revision_uuid(**kwargs):
     return kwargs['dag_run'].conf.get('previous_version_uuid', None)
 
@@ -568,12 +594,13 @@ def pythonop_send_create_dataset(**kwargs) -> str:
         dataset_types = kwargs['dataset_types_callable'](**kwargs)
     if not isinstance(dataset_types, list):
         dataset_types = [dataset_types]
-    canonical_types = []
+    canonical_types = set()  # to avoid duplicates
     contains_seq = False
     for assay_type in dataset_types:
         type_info = _get_type_client().getAssayType(assay_type)
-        canonical_types.append(type_info.name)
+        canonical_types.add(type_info.name)
         contains_seq |= type_info.contains_pii
+    canonical_types = list(canonical_types)
 
     source_uuids = kwargs['parent_dataset_uuid_callable'](**kwargs)
     if not isinstance(source_uuids, list):
@@ -616,6 +643,8 @@ def pythonop_send_create_dataset(**kwargs) -> str:
         )
         response.raise_for_status()
         response_json = response.json()
+        print('response to dataset creation:')
+        pprint(response_json)
         for elt in ['uuid', 'group_uuid']:
             if elt not in response_json:
                 raise ValueError(f'datasets response did not contain {elt}')
@@ -724,8 +753,8 @@ def pythonop_get_dataset_state(**kwargs) -> JSONType:
                                  extra_options={'check_response': False})
         response.raise_for_status()
         query_rslt = response.json()
-        print('query rslt:')
-        pprint(query_rslt)
+        #print('query rslt:')
+        #pprint(query_rslt)  # too verbose
     except HTTPError as e:
         print(f'ERROR: {e}')
         if e.response.status_code == codes.unauthorized:

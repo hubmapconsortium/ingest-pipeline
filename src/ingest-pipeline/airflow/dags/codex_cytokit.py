@@ -21,6 +21,8 @@ from utils import (
     get_dataset_uuid,
     get_named_absolute_workflows,
     get_parent_dataset_uuid,
+    get_parent_dataset_uuids_list,
+    get_parent_dataset_path,
     get_uuid_for_error,
     get_previous_revision_uuid,
     join_quote_command_str,
@@ -66,8 +68,9 @@ with DAG('codex_cytokit',
     )
 
     def build_dataset_name(**kwargs):
+        parent_submission_str = '_'.join(get_parent_dataset_uuids_list(**kwargs))
         return '{}__{}__{}'.format(dag.dag_id,
-                                   kwargs['dag_run'].conf['parent_submission_id'],
+                                   parent_submission_str,
                                    pipeline_name)
 
     prepare_cwl_illumination_first_stitching = DummyOperator(
@@ -75,11 +78,10 @@ with DAG('codex_cytokit',
     )
 
     def build_cwltool_cwl_illumination_first_stitching(**kwargs):
-        ctx = kwargs['dag_run'].conf
         run_id = kwargs['run_id']
         tmpdir = utils.get_tmp_dir_path(run_id)
         print('tmpdir: ', tmpdir)
-        data_dir = ctx['parent_lz_path']
+        data_dir = get_parent_dataset_path(**kwargs)
         print('data_dir: ', data_dir)
 
         command = [
@@ -234,11 +236,10 @@ with DAG('codex_cytokit',
     prepare_cwl_sprm = DummyOperator(task_id='prepare_cwl_sprm')
 
     def build_cwltool_cmd_sprm(**kwargs):
-        ctx = kwargs['dag_run'].conf
         run_id = kwargs['run_id']
         tmpdir = utils.get_tmp_dir_path(run_id)
         print('tmpdir: ', tmpdir)
-        parent_data_dir = ctx['parent_lz_path']
+        parent_data_dir = get_parent_dataset_path(**kwargs)
         print('parent_data_dir: ', parent_data_dir)
         data_dir = tmpdir / 'cwl_out'
         print('data_dir: ', data_dir)
@@ -287,11 +288,10 @@ with DAG('codex_cytokit',
     )
 
     def build_cwltool_cmd_create_vis_symlink_archive(**kwargs):
-        ctx = kwargs['dag_run'].conf
         run_id = kwargs['run_id']
         tmpdir = utils.get_tmp_dir_path(run_id)
         print('tmpdir: ', tmpdir)
-        parent_data_dir = ctx['parent_lz_path']
+        parent_data_dir = get_parent_dataset_path(**kwargs)
         print('parent_data_dir: ', parent_data_dir)
         data_dir = tmpdir / 'cwl_out'
         print('data_dir: ', data_dir)
@@ -338,7 +338,6 @@ with DAG('codex_cytokit',
     prepare_cwl_ome_tiff_pyramid = DummyOperator(task_id='prepare_cwl_ome_tiff_pyramid')
 
     def build_cwltool_cwl_ome_tiff_pyramid(**kwargs):
-        ctx = kwargs['dag_run'].conf
         run_id = kwargs['run_id']
 
         #tmpdir is temp directory in /hubmap-tmp
@@ -346,7 +345,7 @@ with DAG('codex_cytokit',
         print('tmpdir: ', tmpdir)
 
         #data directory is the stitched images, which are found in tmpdir
-        data_dir = ctx['parent_lz_path']
+        data_dir = get_parent_dataset_path(**kwargs)
         print('data_dir: ', data_dir)
 
         #this is the call to the CWL
@@ -389,11 +388,10 @@ with DAG('codex_cytokit',
     prepare_cwl_ome_tiff_offsets = DummyOperator(task_id='prepare_cwl_ome_tiff_offsets')
 
     def build_cwltool_cmd_ome_tiff_offsets(**kwargs):
-        ctx = kwargs['dag_run'].conf
         run_id = kwargs['run_id']
         tmpdir = utils.get_tmp_dir_path(run_id)
         print('tmpdir: ', tmpdir)
-        parent_data_dir = ctx['parent_lz_path']
+        parent_data_dir = get_parent_dataset_path(**kwargs)
         print('parent_data_dir: ', parent_data_dir)
         data_dir = tmpdir / 'cwl_out'
         print('data_dir: ', data_dir)
@@ -441,11 +439,10 @@ with DAG('codex_cytokit',
         )
     
     def build_cwltool_cmd_sprm_to_json(**kwargs):
-        ctx = kwargs['dag_run'].conf
         run_id = kwargs['run_id']
         tmpdir = utils.get_tmp_dir_path(run_id)
         print('tmpdir: ', tmpdir)
-        parent_data_dir = ctx['parent_lz_path']
+        parent_data_dir = get_parent_dataset_path(**kwargs)
         print('parent_data_dir: ', parent_data_dir)
         data_dir = tmpdir / 'cwl_out'  # This stage reads input from stage 1
         print('data_dir: ', data_dir)
@@ -492,11 +489,10 @@ with DAG('codex_cytokit',
         )
     
     def build_cwltool_cmd_sprm_to_anndata(**kwargs):
-        ctx = kwargs['dag_run'].conf
         run_id = kwargs['run_id']
         tmpdir = utils.get_tmp_dir_path(run_id)
         print('tmpdir: ', tmpdir)
-        parent_data_dir = ctx['parent_lz_path']
+        parent_data_dir = get_parent_dataset_path(**kwargs)
         print('parent_data_dir: ', parent_data_dir)
         data_dir = tmpdir / 'cwl_out'  # This stage reads input from stage 1
         print('data_dir: ', data_dir)
