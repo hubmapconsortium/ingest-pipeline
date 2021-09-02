@@ -73,6 +73,16 @@ with DAG('codex_cytokit',
                                    parent_submission_str,
                                    pipeline_name)
 
+    def build_parent_data_dir(**kwargs):
+        """
+        Build the absolute path to the data, including the data_path offset from
+        the parent dataset's metadata
+        """
+        ctx = kwargs["dag_run"].conf
+        data_dir = get_parent_dataset_path(**kwargs)
+        rel_data_path = ctx["metadata"]["metadata"]["data_path"]
+        return data_dir / rel_data_path
+
     prepare_cwl_illumination_first_stitching = DummyOperator(
         task_id='prepare_cwl_illumination_first_stitching',
     )
@@ -81,7 +91,7 @@ with DAG('codex_cytokit',
         run_id = kwargs['run_id']
         tmpdir = utils.get_tmp_dir_path(run_id)
         print('tmpdir: ', tmpdir)
-        data_dir = get_parent_dataset_path(**kwargs)
+        data_dir = build_parent_data_dir(**kwargs)
         print('data_dir: ', data_dir)
 
         command = [
@@ -239,7 +249,7 @@ with DAG('codex_cytokit',
         run_id = kwargs['run_id']
         tmpdir = utils.get_tmp_dir_path(run_id)
         print('tmpdir: ', tmpdir)
-        parent_data_dir = get_parent_dataset_path(**kwargs)
+        parent_data_dir = build_parent_data_dir(**kwargs)
         print('parent_data_dir: ', parent_data_dir)
         data_dir = tmpdir / 'cwl_out'
         print('data_dir: ', data_dir)
@@ -291,7 +301,7 @@ with DAG('codex_cytokit',
         run_id = kwargs['run_id']
         tmpdir = utils.get_tmp_dir_path(run_id)
         print('tmpdir: ', tmpdir)
-        parent_data_dir = get_parent_dataset_path(**kwargs)
+        parent_data_dir = build_parent_data_dir(**kwargs)
         print('parent_data_dir: ', parent_data_dir)
         data_dir = tmpdir / 'cwl_out'
         print('data_dir: ', data_dir)
@@ -345,7 +355,7 @@ with DAG('codex_cytokit',
         print('tmpdir: ', tmpdir)
 
         #data directory is the stitched images, which are found in tmpdir
-        data_dir = get_parent_dataset_path(**kwargs)
+        data_dir = build_parent_data_dir(**kwargs)
         print('data_dir: ', data_dir)
 
         #this is the call to the CWL
@@ -391,7 +401,7 @@ with DAG('codex_cytokit',
         run_id = kwargs['run_id']
         tmpdir = utils.get_tmp_dir_path(run_id)
         print('tmpdir: ', tmpdir)
-        parent_data_dir = get_parent_dataset_path(**kwargs)
+        parent_data_dir = build_parent_data_dir(**kwargs)
         print('parent_data_dir: ', parent_data_dir)
         data_dir = tmpdir / 'cwl_out'
         print('data_dir: ', data_dir)
@@ -442,7 +452,7 @@ with DAG('codex_cytokit',
         run_id = kwargs['run_id']
         tmpdir = utils.get_tmp_dir_path(run_id)
         print('tmpdir: ', tmpdir)
-        parent_data_dir = get_parent_dataset_path(**kwargs)
+        parent_data_dir = build_parent_data_dir(**kwargs)
         print('parent_data_dir: ', parent_data_dir)
         data_dir = tmpdir / 'cwl_out'  # This stage reads input from stage 1
         print('data_dir: ', data_dir)
@@ -492,7 +502,7 @@ with DAG('codex_cytokit',
         run_id = kwargs['run_id']
         tmpdir = utils.get_tmp_dir_path(run_id)
         print('tmpdir: ', tmpdir)
-        parent_data_dir = get_parent_dataset_path(**kwargs)
+        parent_data_dir = build_parent_data_dir(**kwargs)
         print('parent_data_dir: ', parent_data_dir)
         data_dir = tmpdir / 'cwl_out'  # This stage reads input from stage 1
         print('data_dir: ', data_dir)

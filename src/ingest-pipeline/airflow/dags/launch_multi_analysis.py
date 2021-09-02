@@ -72,7 +72,8 @@ with DAG('launch_multi_analysis',
         print('ds_rslt:')
         pprint(ds_rslt)
 
-        for key in ['status', 'uuid', 'data_types', 'local_directory_full_path']:
+        for key in ['status', 'uuid', 'data_types', 'local_directory_full_path',
+                    'metadata']:
             assert key in ds_rslt, f"Dataset status for {uuid} has no {key}"
 
         if not ds_rslt['status'] in ['New', 'Error', 'QA', 'Published']:
@@ -83,7 +84,8 @@ with DAG('launch_multi_analysis',
             dt = ast.literal_eval(dt)
             print(f'parsed dt: {dt}')
 
-        return ds_rslt['uuid'], dt, ds_rslt['local_directory_full_path']
+        return (ds_rslt['uuid'], dt, ds_rslt['local_directory_full_path'],
+                ds_rslt['metadata'])
 
 
     def check_uuids(**kwargs):
@@ -105,8 +107,9 @@ with DAG('launch_multi_analysis',
         filtered_uuid_l = []
         filtered_path_l = []
         filtered_data_types = []
+        filtered_md_l = []
         for uuid in uuid_l:
-            uuid, dt, lz_path = check_one_uuid(uuid, **kwargs)
+            uuid, dt, lz_path, metadata = check_one_uuid(uuid, **kwargs)
             if isinstance(dt, list):
                 if dt:
                     if len(dt) == 1:
@@ -120,8 +123,9 @@ with DAG('launch_multi_analysis',
 
             filtered_path_l.append(lz_path)
             filtered_uuid_l.append(uuid)
+            filtered_md_l.append(metadata)
         if prev_version_uuid is not None:
-            prev_version_uuid, _, _ = check_one_uuid(prev_version_uuid, **kwargs)
+            prev_version_uuid = check_one_uuid(prev_version_uuid, **kwargs)[0]
         print(f'Finished uuid {uuid}')
         print(f'filtered data types: {filtered_data_types}')
         print(f'filtered paths: {filtered_path_l}')
@@ -130,6 +134,7 @@ with DAG('launch_multi_analysis',
         kwargs['ti'].xcom_push(key='assay_type', value=filtered_data_types)
         kwargs['ti'].xcom_push(key='lz_paths', value=filtered_path_l)
         kwargs['ti'].xcom_push(key='uuids', value=filtered_uuid_l)
+        kwargs['ti'].xcom_push(key='metadata', value=filtered_md_l)
         kwargs['ti'].xcom_push(key='previous_version_uuid', value=prev_version_uuid)
 
     check_uuids_t = PythonOperator(
@@ -155,6 +160,7 @@ with DAG('launch_multi_analysis',
         assay_type = kwargs['ti'].xcom_pull(key='assay_type', task_ids="check_uuids")
         lz_paths = kwargs['ti'].xcom_pull(key='lz_paths', task_ids="check_uuids")
         uuids = kwargs['ti'].xcom_pull(key='uuids', task_ids="check_uuids")
+        metadata = kwargs['ti'].xcom_pull(key='metadata', task_ids="check_uuids")
         prev_version_uuid = kwargs['ti'].xcom_pull(key='previous_version_uuid',
                                                    task_ids="check_uuids")
         print('collectiontype: <{}>, assay_type: <{}>'.format(collectiontype, assay_type))
@@ -167,7 +173,7 @@ with DAG('launch_multi_analysis',
                    'parent_lz_path' : lz_paths,
                    'parent_submission_id' : uuids,
                    'previous_version_uuid' : prev_version_uuid,
-                   'metadata': {},
+                   'metadata': metadata,
                    'dag_provenance_list' : utils.get_git_provenance_list(__file__)
         }
         for next_dag in utils.downstream_workflow_iter(collectiontype, assay_type):

@@ -12,9 +12,13 @@ from utils import (
     get_dataset_uuid,
     get_named_absolute_workflows,
     get_parent_dataset_uuid,
+    get_parent_dataset_uuids_list,
+    get_parent_dataset_path,
+    get_previous_revision_uuid,
     get_uuid_for_error,
     join_quote_command_str,
     make_send_status_msg_function,
+    get_tmp_dir_path,
 )
 from hubmap_operators.common_operators import (
     CleanupTmpDirOperator,
@@ -47,7 +51,7 @@ with DAG(
         is_paused_upon_creation=False,
         default_args=default_args,
         max_active_runs=1,
-        user_defined_macros={"tmp_dir_path": utils.get_tmp_dir_path},
+        user_defined_macros={"tmp_dir_path": get_tmp_dir_path},
 ) as dag:
 
     pipeline_name = "celldive-pipeline"
@@ -62,8 +66,9 @@ with DAG(
     )
 
     def build_dataset_name(**kwargs):
+        parent_submission_str = '_'.join(get_parent_dataset_uuids_list(**kwargs))
         return "{}__{}__{}".format(
-            dag.dag_id, kwargs["dag_run"].conf["parent_submission_id"], pipeline_name
+            dag.dag_id, parent_submission_str, pipeline_name
         )
 
     def build_parent_data_dir(**kwargs):
@@ -72,7 +77,7 @@ with DAG(
         the parent dataset's metadata
         """
         ctx = kwargs["dag_run"].conf
-        data_dir = Path(ctx["parent_lz_path"])
+        data_dir = get_parent_dataset_path(**kwargs)
         rel_data_path = ctx["metadata"]["metadata"]["data_path"]
         return data_dir / rel_data_path
 
@@ -80,7 +85,7 @@ with DAG(
 
     def build_cwltool_cwl_segmentation(**kwargs):
         run_id = kwargs["run_id"]
-        tmpdir = utils.get_tmp_dir_path(run_id)
+        tmpdir = get_tmp_dir_path(run_id)
         print("tmpdir: ", tmpdir)
         data_dir = build_parent_data_dir(**kwargs)
         print("data_dir: ", data_dir)
@@ -137,7 +142,7 @@ with DAG(
 
     def build_cwltool_cmd_sprm(**kwargs):
         run_id = kwargs["run_id"]
-        tmpdir = utils.get_tmp_dir_path(run_id)
+        tmpdir = get_tmp_dir_path(run_id)
         print("tmpdir: ", tmpdir)
         parent_data_dir = build_parent_data_dir(**kwargs)
         print("parent_data_dir: ", parent_data_dir)
@@ -189,7 +194,7 @@ with DAG(
 
     def build_cwltool_cmd_create_vis_symlink_archive(**kwargs):
         run_id = kwargs["run_id"]
-        tmpdir = utils.get_tmp_dir_path(run_id)
+        tmpdir = get_tmp_dir_path(run_id)
         print("tmpdir: ", tmpdir)
         parent_data_dir = build_parent_data_dir(**kwargs)
         print("parent_data_dir: ", parent_data_dir)
@@ -240,7 +245,7 @@ with DAG(
         run_id = kwargs["run_id"]
 
         # tmpdir is temp directory in /hubmap-tmp
-        tmpdir = utils.get_tmp_dir_path(run_id)
+        tmpdir = get_tmp_dir_path(run_id)
         print("tmpdir: ", tmpdir)
 
         # data directory is the stitched images, which are found in tmpdir
@@ -289,7 +294,7 @@ with DAG(
 
     def build_cwltool_cmd_ome_tiff_offsets(**kwargs):
         run_id = kwargs["run_id"]
-        tmpdir = utils.get_tmp_dir_path(run_id)
+        tmpdir = get_tmp_dir_path(run_id)
         print("tmpdir: ", tmpdir)
         parent_data_dir = build_parent_data_dir(**kwargs)
         print("parent_data_dir: ", parent_data_dir)
@@ -336,7 +341,7 @@ with DAG(
 
     def build_cwltool_cmd_sprm_to_json(**kwargs):
         run_id = kwargs["run_id"]
-        tmpdir = utils.get_tmp_dir_path(run_id)
+        tmpdir = get_tmp_dir_path(run_id)
         print("tmpdir: ", tmpdir)
         parent_data_dir = build_parent_data_dir(**kwargs)
         print("parent_data_dir: ", parent_data_dir)
@@ -383,7 +388,7 @@ with DAG(
 
     def build_cwltool_cmd_sprm_to_anndata(**kwargs):
         run_id = kwargs["run_id"]
-        tmpdir = utils.get_tmp_dir_path(run_id)
+        tmpdir = get_tmp_dir_path(run_id)
         print("tmpdir: ", tmpdir)
         parent_data_dir = build_parent_data_dir(**kwargs)
         print("parent_data_dir: ", parent_data_dir)
@@ -432,6 +437,7 @@ with DAG(
         provide_context=True,
         op_kwargs={
             "parent_dataset_uuid_callable": get_parent_dataset_uuid,
+            "previous_revision_uuid_callable': get_previous_revision_uuid,
             "http_conn_id": "ingest_api_connection",
             "dataset_name_callable": build_dataset_name,
             "dataset_types": ["celldive_deepcell"],

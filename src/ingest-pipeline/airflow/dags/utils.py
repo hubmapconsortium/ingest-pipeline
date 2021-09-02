@@ -13,6 +13,7 @@ from subprocess import check_output, CalledProcessError
 from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Pattern, Tuple, TypeVar, Union
 from requests.exceptions import HTTPError
 from requests import codes
+from copy import deepcopy
 
 import yaml
 from airflow.configuration import conf as airflow_conf
@@ -226,10 +227,6 @@ def get_named_absolute_workflows(**workflow_kwargs: Path) -> Dict[str, Path]:
         name: PIPELINE_BASE_DIR / workflow
         for name, workflow in workflow_kwargs.items()
     }
-
-
-def get_parent_dataset_uuid(**kwargs):
-    return kwargs['dag_run'].conf['parent_submission_id']
 
 
 def get_parent_dataset_uuids_list(**kwargs):
@@ -719,6 +716,26 @@ def pythonop_set_dataset_state(**kwargs) -> None:
     pprint(response.json())
 
 
+def restructure_entity_metadata(raw_metadata: JSONType) -> JSONType:
+    """
+    When a dataset is initially ingested, the associated metadata is parsed and
+    associated with the database representation of the dataset.  The same metadata
+    is made available to workflows so that they can perform downstream processing
+    on the dataset.  The copy of the metadata which is associated with the dataset
+    uuid in the database is restructured to bring some important information to the
+    top level.  This function attempts to un-do that restructuring to produce a
+    version of the metadata as much as possible like the original.  This
+    de-restructured version can be used by workflows in liu of the original.
+    """
+    md = {'metadata': deepcopy(raw_metadata['ingest_metadata']['metadata']),
+          'contributors': deepcopy(raw_metadata['contributors']),
+          **(md['ingest_metadata']['extra_metadata']),  # this provides collectiontype
+          }
+    if 'antibodies' in raw_metadata:
+        md['antibodies'] = deepcopy(raw_metadata['antibodies'])
+    return md
+
+
 def pythonop_get_dataset_state(**kwargs) -> JSONType:
     """
     Gets the status JSON structure for a dataset.
@@ -769,10 +786,12 @@ def pythonop_get_dataset_state(**kwargs) -> JSONType:
         for key in ['status', 'uuid', 'data_types', 'local_directory_full_path']:
             assert key in ds_rslt, f"Dataset status for {uuid} has no {key}"
         full_path = ds_rslt['local_directory_full_path']
+        metadata = {}  # fortunately this mode is deprecated
     elif INGEST_API_MODE == 'INGEST_REFACTOR_API':
         ds_rslt = query_rslt
-        for key in ['status', 'uuid', 'data_types']:
+        for key in ['status', 'uuid', 'data_types', 'metadata']:
             assert key in ds_rslt, f"Dataset status for {uuid} has no {key}"
+        metadata = restructure_entity_metadata(ds_rslt)
         endpoint = f"datasets/{ds_rslt['uuid']}/file-system-abs-path"
         try:
             response = http_hook.run(endpoint,
@@ -799,6 +818,7 @@ def pythonop_get_dataset_state(**kwargs) -> JSONType:
         'uuid': ds_rslt['uuid'],
         'data_types': ds_rslt['data_types'],
         'local_directory_full_path': full_path
+        'metadata': metadata
         }
     return rslt
 
