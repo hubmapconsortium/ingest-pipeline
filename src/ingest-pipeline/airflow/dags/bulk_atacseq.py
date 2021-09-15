@@ -21,7 +21,10 @@ from utils import (
     get_cwltool_base_cmd,
     get_dataset_uuid,
     get_parent_dataset_uuid,
+    get_parent_dataset_uuids_list,
+    get_parent_dataset_paths_list,
     get_uuid_for_error,
+    get_previous_revision_uuid,
     join_quote_command_str,
     make_send_status_msg_function,
 )
@@ -56,19 +59,16 @@ with DAG(
     )
 
     def build_dataset_name(**kwargs):
-        id_l = kwargs['dag_run'].conf['parent_submission_id']
-        inner_str = id_l if isinstance(id_l, str) else '_'.join(id_l)
-        return f'{dag.dag_id}__{inner_str}__{pipeline_name}'
+        parent_submission_str = '_'.join(get_parent_dataset_uuids_list(**kwargs))
+        return f'{dag.dag_id}__{parent_submission_str}__{pipeline_name}'
 
     prepare_cwl1 = DummyOperator(task_id='prepare_cwl1')
 
     def build_cwltool_cmd1(**kwargs):
-        ctx = kwargs['dag_run'].conf
         run_id = kwargs['run_id']
         tmpdir = utils.get_tmp_dir_path(run_id)
 
-        data_dirs = ctx['parent_lz_path']
-        data_dirs = [data_dirs] if isinstance(data_dirs, str) else data_dirs
+        data_dirs = get_parent_dataset_paths_list(**kwargs)
 
         command = [
             *get_cwltool_base_cmd(tmpdir),
@@ -117,6 +117,7 @@ with DAG(
         provide_context=True,
         op_kwargs={
             'parent_dataset_uuid_callable': get_parent_dataset_uuid,
+            'previous_revision_uuid_callable': get_previous_revision_uuid,
             'http_conn_id': 'ingest_api_connection',
             'dataset_name_callable': build_dataset_name,
             "dataset_types": ["bulk_atacseq"],

@@ -789,7 +789,7 @@ def pythonop_get_dataset_state(**kwargs) -> JSONType:
         metadata = {}  # fortunately this mode is deprecated
     elif INGEST_API_MODE == 'INGEST_REFACTOR_API':
         ds_rslt = query_rslt
-        for key in ['status', 'uuid', 'data_types', 'metadata']:
+        for key in ['status', 'uuid', 'data_types', 'ingest_metadata']:
             assert key in ds_rslt, f"Dataset status for {uuid} has no {key}"
         metadata = restructure_entity_metadata(ds_rslt)
         endpoint = f"datasets/{ds_rslt['uuid']}/file-system-abs-path"
@@ -817,9 +817,9 @@ def pythonop_get_dataset_state(**kwargs) -> JSONType:
         'status': ds_rslt['status'],
         'uuid': ds_rslt['uuid'],
         'data_types': ds_rslt['data_types'],
-        'local_directory_full_path': full_path
-        'metadata': metadata
-        }
+        'local_directory_full_path': full_path,
+        'metadata': metadata,
+    }
     return rslt
 
 
