@@ -229,42 +229,42 @@ def get_named_absolute_workflows(**workflow_kwargs: Path) -> Dict[str, Path]:
     }
 
 
-def get_parent_dataset_uuids_list(**kwargs):
+def get_parent_dataset_uuids_list(**kwargs) -> List[str]:
     uuid_list = kwargs['dag_run'].conf['parent_submission_id']
     if not isinstance(uuid_list, list):
         uuid_list = [uuid_list]
     return uuid_list
 
 
-def get_parent_dataset_uuid(**kwargs):
+def get_parent_dataset_uuid(**kwargs) -> str:
     uuid_set = set(get_parent_dataset_uuids_list(**kwargs))
     assert len(uuid_set) == 1, f"Found {len(uuid_set)} elements, expected 1"
     return uuid_set.pop()
 
 
-def get_parent_dataset_paths_list(**kwargs):
+def get_parent_dataset_paths_list(**kwargs) -> List[Path]:
     path_list = kwargs['dag_run'].conf['parent_lz_path']
     if not isinstance(path_list, list):
         path_list = [path_list]
-    return path_list
+    return [Path(p) for p in path_list]
 
 
-def get_parent_dataset_path(**kwargs):
+def get_parent_dataset_path(**kwargs) -> Path:
     path_set = set(get_parent_dataset_paths_list(**kwargs))
     assert len(path_set) == 1, f"Found {len(path_set)} elements, expected 1"
     return path_set.pop()
 
 
-def get_previous_revision_uuid(**kwargs):
+def get_previous_revision_uuid(**kwargs) -> Optional[str]:
     return kwargs['dag_run'].conf.get('previous_version_uuid', None)
 
 
-def get_dataset_uuid(**kwargs):
+def get_dataset_uuid(**kwargs) -> str:
     return kwargs['ti'].xcom_pull(key='derived_dataset_uuid',
                                   task_ids="send_create_dataset")
 
 
-def get_uuid_for_error(**kwargs):
+def get_uuid_for_error(**kwargs) -> Optional[str]:
     """
     Return the uuid for the derived dataset if it exists, and of the parent dataset otherwise.
     """
@@ -727,12 +727,17 @@ def restructure_entity_metadata(raw_metadata: JSONType) -> JSONType:
     version of the metadata as much as possible like the original.  This
     de-restructured version can be used by workflows in liu of the original.
     """
-    md = {'metadata': deepcopy(raw_metadata['ingest_metadata']['metadata']),
-          'contributors': deepcopy(raw_metadata['contributors']),
-          **(md['ingest_metadata']['extra_metadata']),  # this provides collectiontype
-          }
+    md = {}
+    if 'metadata' in raw_metadata['ingest_metadata']:
+        md['metadata'] = deepcopy(raw_metadata['ingest_metadata']['metadata'])
+    if 'extra_metadata' in raw_metadata['ingest_metadata']:
+        md.update(raw_metadata['ingest_metadata'][extra_metadata])
+    if 'contributors' in raw_metadata:
+        md['contributors'] = deepcopy(raw_metadata['contributors'])
     if 'antibodies' in raw_metadata:
         md['antibodies'] = deepcopy(raw_metadata['antibodies'])
+    #print('reconstructed metadata follows')
+    #pprint(md)
     return md
 
 
@@ -753,7 +758,8 @@ def pythonop_get_dataset_state(**kwargs) -> JSONType:
     auth_tok = get_auth_tok(**kwargs)
     headers = {
         'authorization' : f'Bearer {auth_tok}',
-        'content-type' : 'application/json'
+        'content-type' : 'application/json',
+        'X-Hubmap-Application' : 'ingest-pipeline',
         }
     http_hook = HttpHook(method, http_conn_id=http_conn_id)
 

@@ -134,7 +134,7 @@ with DAG('launch_multi_analysis',
         kwargs['ti'].xcom_push(key='assay_type', value=filtered_data_types)
         kwargs['ti'].xcom_push(key='lz_paths', value=filtered_path_l)
         kwargs['ti'].xcom_push(key='uuids', value=filtered_uuid_l)
-        kwargs['ti'].xcom_push(key='metadata', value=filtered_md_l)
+        kwargs['ti'].xcom_push(key='metadata_list', value=filtered_md_l)
         kwargs['ti'].xcom_push(key='previous_version_uuid', value=prev_version_uuid)
 
     check_uuids_t = PythonOperator(
@@ -160,7 +160,7 @@ with DAG('launch_multi_analysis',
         assay_type = kwargs['ti'].xcom_pull(key='assay_type', task_ids="check_uuids")
         lz_paths = kwargs['ti'].xcom_pull(key='lz_paths', task_ids="check_uuids")
         uuids = kwargs['ti'].xcom_pull(key='uuids', task_ids="check_uuids")
-        metadata = kwargs['ti'].xcom_pull(key='metadata', task_ids="check_uuids")
+        metadata_list = kwargs['ti'].xcom_pull(key='metadata_list', task_ids="check_uuids")
         prev_version_uuid = kwargs['ti'].xcom_pull(key='previous_version_uuid',
                                                    task_ids="check_uuids")
         print('collectiontype: <{}>, assay_type: <{}>'.format(collectiontype, assay_type))
@@ -173,7 +173,7 @@ with DAG('launch_multi_analysis',
                    'parent_lz_path' : lz_paths,
                    'parent_submission_id' : uuids,
                    'previous_version_uuid' : prev_version_uuid,
-                   'metadata': metadata,
+                   'metadata': metadata_list,
                    'dag_provenance_list' : utils.get_git_provenance_list(__file__)
         }
         for next_dag in utils.downstream_workflow_iter(collectiontype, assay_type):
