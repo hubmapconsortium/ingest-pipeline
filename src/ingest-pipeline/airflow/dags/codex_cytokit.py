@@ -80,8 +80,11 @@ with DAG('codex_cytokit',
         """
         ctx = kwargs["dag_run"].conf
         data_dir = get_parent_dataset_path(**kwargs)
-        rel_data_path = ctx["metadata"]["metadata"]["data_path"]
-        return data_dir / rel_data_path
+        ctx_md = ctx["metadata"]
+        if isinstance(ctx_md, list):
+            ctx_md = ctx_md[0]
+        rel_data_path = ctx_md["metadata"]["data_path"]
+        return Path(data_dir) / rel_data_path
 
     prepare_cwl_illumination_first_stitching = DummyOperator(
         task_id='prepare_cwl_illumination_first_stitching',
