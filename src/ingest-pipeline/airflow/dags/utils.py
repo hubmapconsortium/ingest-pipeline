@@ -229,6 +229,11 @@ def get_named_absolute_workflows(**workflow_kwargs: Path) -> Dict[str, Path]:
     }
 
 
+def build_dataset_name(dag_id: str, pipeline_str: str, **kwargs) -> str:
+    parent_submission_str = '_'.join(get_parent_dataset_uuids_list(**kwargs))
+    return f'{dag_id}__{parent_submission_str}__{pipeline_str}'
+
+
 def get_parent_dataset_uuids_list(**kwargs) -> List[str]:
     uuid_list = kwargs['dag_run'].conf['parent_submission_id']
     if not isinstance(uuid_list, list):
@@ -251,6 +256,29 @@ def get_parent_dataset_paths_list(**kwargs) -> List[Path]:
 
 def get_parent_dataset_path(**kwargs) -> Path:
     path_set = set(get_parent_dataset_paths_list(**kwargs))
+    assert len(path_set) == 1, f"Found {len(path_set)} elements, expected 1"
+    return path_set.pop()
+
+
+def get_parent_data_dirs_list(metadata_list: List[JSONtype],
+                              **kwargs) -> List[Path]:
+    """
+    Build the absolute paths to the data, including the data_path offsets from
+    the parent datasets' metadata
+    """
+    ctx = kwargs["dag_run"].conf
+    data_dir_list = get_parent_dataset_paths_list(**kwargs)
+    ctx_md_list = ctx["metadata"]
+    if not isinstance(ctx_md_list, list):
+        ctx_md_list = [ctx_md_list]
+    assert len(data_dir_list) == len(ctx_md_list), "lengths of data directory and md lists do not match"
+    return [Path(data_dir) / ctx_md['metadata']['data_path']
+            for data_dir, ctx_md in zip(data_dir_list, ctx_md_list)]
+
+
+def get_parent_data_dir(metadata_list: List[JSONtype],
+                        **kwargs) -> Path:
+    path_set = set(get_parent_data_dirs_list(metadata_list, **kwargs))
     assert len(path_set) == 1, f"Found {len(path_set)} elements, expected 1"
     return path_set.pop()
 
