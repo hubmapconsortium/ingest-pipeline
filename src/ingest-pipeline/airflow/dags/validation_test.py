@@ -74,28 +74,10 @@ with DAG('validation_test',
         if not ds_rslt['status'] in ['New', 'Invalid']:
             raise AirflowException(f'Dataset {uuid} is not New or Invalid')
 
-        dt = ds_rslt['data_types']
-        if isinstance(dt, str) and dt.startswith('[') and dt.endswith(']'):
-            dt = ast.literal_eval(dt)
-        print(f'parsed dt: {dt}')
-        if isinstance(dt, list):
-            if dt:
-                if len(dt) == 1:
-                    filtered_data_types = [dt[0]]
-                else:
-                    filtered_data_types = [tuple(dt)]
-            else:
-                raise AirflowException(f'Dataset data_types for {uuid}'
-                                       ' is empty')
-        else:
-            filtered_data_types = [dt]
-
         lz_path = ds_rslt['local_directory_full_path']
         uuid = ds_rslt['uuid']  # 'uuid' may  actually be a DOI
         print(f'Finished uuid {uuid}')
-        print(f'filtered data types: {filtered_data_types}')
         print(f'lz path: {lz_path}')
-        kwargs['ti'].xcom_push(key='assay_type', value=filtered_data_types)
         kwargs['ti'].xcom_push(key='lz_path', value=lz_path)
         kwargs['ti'].xcom_push(key='uuid', value=uuid)
 
