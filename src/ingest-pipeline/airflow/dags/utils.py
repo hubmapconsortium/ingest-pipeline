@@ -260,8 +260,7 @@ def get_parent_dataset_path(**kwargs) -> Path:
     return path_set.pop()
 
 
-def get_parent_data_dirs_list(metadata_list: List[JSONType],
-                              **kwargs) -> List[Path]:
+def get_parent_data_dirs_list(**kwargs) -> List[Path]:
     """
     Build the absolute paths to the data, including the data_path offsets from
     the parent datasets' metadata
@@ -276,9 +275,8 @@ def get_parent_data_dirs_list(metadata_list: List[JSONType],
             for data_dir, ctx_md in zip(data_dir_list, ctx_md_list)]
 
 
-def get_parent_data_dir(metadata_list: List[JSONType],
-                        **kwargs) -> Path:
-    path_set = set(get_parent_data_dirs_list(metadata_list, **kwargs))
+def get_parent_data_dir(**kwargs) -> Path:
+    path_set = set(get_parent_data_dirs_list(**kwargs))
     assert len(path_set) == 1, f"Found {len(path_set)} elements, expected 1"
     return path_set.pop()
 
