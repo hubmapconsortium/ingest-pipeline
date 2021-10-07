@@ -71,16 +71,6 @@ with DAG('codex_cytokit',
     def build_dataset_name(**kwargs):
         return inner_build_dataset_name(dag.dag_id, pipeline_name, **kwargs)
 
-    def build_parent_data_dir(**kwargs):
-        """
-        Build the absolute path to the data, including the data_path offset from
-        the parent dataset's metadata
-        """
-        ctx = kwargs["dag_run"].conf
-        data_dir = Path(ctx["parent_lz_path"])
-        rel_data_path = ctx["metadata"]["metadata"]["data_path"]
-        return data_dir / rel_data_path
-
     prepare_cwl_illumination_first_stitching = DummyOperator(
         task_id='prepare_cwl_illumination_first_stitching',
     )
