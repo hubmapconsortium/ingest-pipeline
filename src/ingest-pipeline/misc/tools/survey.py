@@ -456,6 +456,19 @@ class EntityFactory(object):
             r.raise_for_status()
         return r.json()
 
+    def submit_dataset(self, uuid, contains_human_genetic_sequences):
+        """
+        Takes an existing dataset uuid and submits the dataset.
+        """
+        ingest_url = ENDPOINTS[self.instance]['ingest_url']
+        data = {"contains_human_genetic_sequences": contains_human_genetic_sequences}
+        r = requests.put(f'{ingest_url}/datasets/{uuid}/submit',
+                          data=json.dumps(data),
+                          headers={'Authorization': f'Bearer {self.auth_tok}',
+                                   'Content-Type': 'application/json'})
+        if r.status_code >= 300:
+            r.raise_for_status()
+        return r.json()
 
 def is_uuid(s):
     return s and len(s) == 32 and all([c in '0123456789abcdef' for c in list(s)])

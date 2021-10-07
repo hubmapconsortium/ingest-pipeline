@@ -38,9 +38,6 @@ SCHEMA_BASE_PATH = join(dirname(dirname(dirname(realpath(__file__)))),
                         'schemata')
 SCHEMA_BASE_URI = 'http://schemata.hubmapconsortium.org/'
 
-# one of 'INGEST_LEGACY_API' or 'INGEST_REFACTOR_API'
-INGEST_API_MODE = 'INGEST_REFACTOR_API'
-
 # Some constants
 PIPELINE_BASE_DIR = Path(__file__).resolve().parent / 'cwl'
 
@@ -769,7 +766,8 @@ def restructure_entity_metadata(raw_metadata: JSONType) -> JSONType:
 
 def pythonop_get_dataset_state(**kwargs) -> JSONType:
     """
-    Gets the status JSON structure for a dataset.
+    Gets the status JSON structure for a dataset.  Works for Uploads as well
+    as Datasets.
     
     Accepts the following via the caller's op_kwargs:
     'dataset_uuid_callable' : called with **kwargs; returns the
@@ -789,21 +787,16 @@ def pythonop_get_dataset_state(**kwargs) -> JSONType:
         }
     http_hook = HttpHook(method, http_conn_id=http_conn_id)
 
-    if INGEST_API_MODE == 'INGEST_LEGACY_API':
-        endpoint = f'datasets/{uuid}'
-    elif INGEST_API_MODE == 'INGEST_REFACTOR_API':
-        endpoint = f'entities/{uuid}'
-    else:
-        raise RuntimeError(f'Unknown INGEST_API_MODE {INGEST_API_MODE}')
+    endpoint = f'entities/{uuid}'
 
     try:
         response = http_hook.run(endpoint,
                                  headers=headers,
                                  extra_options={'check_response': False})
         response.raise_for_status()
-        query_rslt = response.json()
-        #print('query rslt:')
-        #pprint(query_rslt)  # too verbose
+        ds_rslt = response.json()
+        print('ds rslt:')
+        pprint(ds_rslt)
     except HTTPError as e:
         print(f'ERROR: {e}')
         if e.response.status_code == codes.unauthorized:
@@ -812,43 +805,43 @@ def pythonop_get_dataset_state(**kwargs) -> JSONType:
             print('benign error')
             return {}
 
-    if INGEST_API_MODE == 'INGEST_LEGACY_API':
-        assert 'dataset' in query_rslt, f"Status for {uuid} has no dataset entry"
-        ds_rslt = rslt['dataset']
-        for key in ['status', 'uuid', 'data_types', 'local_directory_full_path']:
-            assert key in ds_rslt, f"Dataset status for {uuid} has no {key}"
-        full_path = ds_rslt['local_directory_full_path']
-        metadata = {}  # fortunately this mode is deprecated
-    elif INGEST_API_MODE == 'INGEST_REFACTOR_API':
-        ds_rslt = query_rslt
-        for key in ['status', 'uuid', 'data_types', 'ingest_metadata']:
-            assert key in ds_rslt, f"Dataset status for {uuid} has no {key}"
+    for key in ['status', 'uuid', 'entity_type', 'ingest_metadata']:
+        assert key in ds_rslt, f"Dataset status for {uuid} has no {key}"
+    if ds_rslt['entity_type'] == 'Dataset':
+        assert 'data_types' in ds_rslt, f"Dataset status for {uuid} has no data_types"
+        data_types = ds_rslt['data_types']
+        assert 'ingest_metadata' in ds_rslt, f"Dataset status for {uuid} has no ingest_metadata"
         metadata = restructure_entity_metadata(ds_rslt)
         endpoint = f"datasets/{ds_rslt['uuid']}/file-system-abs-path"
-        try:
-            response = http_hook.run(endpoint,
-                                     headers=headers,
-                                     extra_options={'check_response': False})
-            response.raise_for_status()
-            path_query_rslt = response.json()
-            print('path_query rslt:')
-            pprint(path_query_rslt)
-        except HTTPError as e:
-            print(f'ERROR: {e}')
-            if e.response.status_code == codes.unauthorized:
-                raise RuntimeError('entity database authorization was rejected?')
-            else:
-                print('benign error')
-                return {}
-        assert 'path' in path_query_rslt, f"Dataset path for {uuid} produced no path"
-        full_path = path_query_rslt['path']
+    elif ds_rslt['entity_type'] == 'Upload':
+        data_types = []
+        metadata = {}
+        endpoint = f"uploads/{ds_rslt['uuid']}/file-system-abs-path"
     else:
-        raise RuntimeError(f'Unknown INGEST_API_MODE {INGEST_API_MODE}')
+        raise RuntimeError(f"Unknown entity_type {ds_rslt['entity_type']}")
+    try:
+        response = http_hook.run(endpoint,
+                                 headers=headers,
+                                 extra_options={'check_response': False})
+        response.raise_for_status()
+        path_query_rslt = response.json()
+        print('path_query rslt:')
+        pprint(path_query_rslt)
+    except HTTPError as e:
+        print(f'ERROR: {e}')
+        if e.response.status_code == codes.unauthorized:
+            raise RuntimeError('entity database authorization was rejected?')
+        else:
+            print('benign error')
+            return {}
+    assert 'path' in path_query_rslt, f"Dataset path for {uuid} produced no path"
+    full_path = path_query_rslt['path']
 
     rslt = {
+        'entity_type': ds_rslt['entity_type'],
         'status': ds_rslt['status'],
         'uuid': ds_rslt['uuid'],
-        'data_types': ds_rslt['data_types'],
+        'data_types': data_types,
         'local_directory_full_path': full_path,
         'metadata': metadata,
     }
@@ -971,7 +964,6 @@ def get_cwltool_bin_path() -> Path:
 def get_cwltool_base_cmd(tmpdir: Path) -> List[str]:
     return [
         'env',
-        'PATH={}:{}'.format(get_cwltool_bin_path(), environ['PATH']),
         'TMPDIR={}'.format(tmpdir),
         'cwltool',
         '--timestamps',
