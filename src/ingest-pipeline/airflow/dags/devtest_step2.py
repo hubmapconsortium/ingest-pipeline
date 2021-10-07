@@ -1,5 +1,4 @@
 from datetime import datetime, timedelta
-from pathlib import Path
 from pprint import pprint
 
 from airflow import DAG
@@ -18,10 +17,14 @@ import utils
 
 from utils import (
     get_dataset_uuid,
-    get_parent_dataset_uuid,
+    get_parent_dataset_uuids_list,
+    get_parent_data_dir,
+    build_dataset_name as inner_build_dataset_name,
+    get_previous_revision_uuid,
     get_uuid_for_error,
     join_quote_command_str,
     make_send_status_msg_function,
+    get_tmp_dir_path
 )
 
 default_args = {
@@ -44,23 +47,19 @@ with DAG(
         is_paused_upon_creation=False,
         default_args=default_args,
         max_active_runs=1,
-        user_defined_macros={'tmp_dir_path': utils.get_tmp_dir_path},
+        user_defined_macros={'tmp_dir_path': get_tmp_dir_path},
 ) as dag:
     pipeline_name = 'devtest-step2-pipeline'
 
     def build_dataset_name(**kwargs):
-        return '{}__{}__{}'.format(
-            dag.dag_id,
-            kwargs['dag_run'].conf['parent_submission_id'],
-            pipeline_name,
-        )
+        return inner_build_dataset_name(dag.dag_id, pipeline_name, **kwargs)
 
     def build_cwltool_cmd1(**kwargs):
         ctx = kwargs['dag_run'].conf
         run_id = kwargs['run_id']
-        tmpdir = utils.get_tmp_dir_path(run_id)
+        tmpdir = get_tmp_dir_path(run_id)
         tmp_subdir = tmpdir / 'cwl_out'
-        data_dir = ctx['parent_lz_path']
+        data_dir = get_parent_data_dir(**kwargs)
 
         try:
             delay_sec = int(ctx['metadata']['delay_sec'])
@@ -120,9 +119,9 @@ with DAG(
         python_callable=utils.pythonop_send_create_dataset,
         provide_context=True,
         op_kwargs={
-            'parent_dataset_uuid_callable': get_parent_dataset_uuid,
+            'parent_dataset_uuid_callable': get_parent_dataset_uuids_list,
+            'previous_revision_uuid_callable': get_previous_revision_uuid,
             'http_conn_id': 'ingest_api_connection',
-            'endpoint': '/datasets/derived',
             'dataset_name_callable': build_dataset_name,
             'dataset_types': ["devtest"],
         },
@@ -136,7 +135,6 @@ with DAG(
         op_kwargs={
             'dataset_uuid_callable': get_dataset_uuid,
             'http_conn_id': 'ingest_api_connection',
-            'endpoint': '/datasets/status',
             'ds_state': 'Error',
             'message': f'An error occurred in {pipeline_name}',
         },

@@ -20,10 +20,14 @@ from utils import (
     get_absolute_workflows,
     get_cwltool_base_cmd,
     get_dataset_uuid,
-    get_parent_dataset_uuid,
+    get_parent_dataset_uuids_list,
+    get_parent_data_dirs_list,
+    build_dataset_name as inner_build_dataset_name,
+    get_previous_revision_uuid,
     get_uuid_for_error,
     join_quote_command_str,
     make_send_status_msg_function,
+    get_tmp_dir_path
 )
 
 THREADS = 6  # to be used by the CWL worker
@@ -48,7 +52,7 @@ with DAG(
         is_paused_upon_creation=False,
         default_args=default_args,
         max_active_runs=4,
-        user_defined_macros={'tmp_dir_path': utils.get_tmp_dir_path},
+        user_defined_macros={'tmp_dir_path': get_tmp_dir_path},
 ) as dag:
     pipeline_name = 'bulk-atac-seq'
     cwl_workflows = get_absolute_workflows(
@@ -56,19 +60,15 @@ with DAG(
     )
 
     def build_dataset_name(**kwargs):
-        id_l = kwargs['dag_run'].conf['parent_submission_id']
-        inner_str = id_l if isinstance(id_l, str) else '_'.join(id_l)
-        return f'{dag.dag_id}__{inner_str}__{pipeline_name}'
+        return inner_build_dataset_name(dag.dag_id, pipeline_name, **kwargs)
 
     prepare_cwl1 = DummyOperator(task_id='prepare_cwl1')
 
     def build_cwltool_cmd1(**kwargs):
-        ctx = kwargs['dag_run'].conf
         run_id = kwargs['run_id']
-        tmpdir = utils.get_tmp_dir_path(run_id)
+        tmpdir = get_tmp_dir_path(run_id)
 
-        data_dirs = ctx['parent_lz_path']
-        data_dirs = [data_dirs] if isinstance(data_dirs, str) else data_dirs
+        data_dirs = get_parent_data_dirs_list(**kwargs)
 
         command = [
             *get_cwltool_base_cmd(tmpdir),
@@ -116,9 +116,9 @@ with DAG(
         python_callable=utils.pythonop_send_create_dataset,
         provide_context=True,
         op_kwargs={
-            'parent_dataset_uuid_callable': get_parent_dataset_uuid,
+            'parent_dataset_uuid_callable': get_parent_dataset_uuids_list,
+            'previous_revision_uuid_callable': get_previous_revision_uuid,
             'http_conn_id': 'ingest_api_connection',
-            'endpoint': '/datasets/derived',
             'dataset_name_callable': build_dataset_name,
             "dataset_types": ["bulk_atacseq"],
         },
@@ -132,7 +132,6 @@ with DAG(
         op_kwargs={
             'dataset_uuid_callable': get_dataset_uuid,
             'http_conn_id': 'ingest_api_connection',
-            'endpoint': '/datasets/status',
             'ds_state': 'Error',
             'message': 'An error occurred in {}'.format(pipeline_name),
         },

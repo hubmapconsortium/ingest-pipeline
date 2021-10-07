@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 from datetime import datetime, timedelta
 
@@ -23,10 +22,14 @@ from utils import (
     get_absolute_workflows,
     get_cwltool_base_cmd,
     get_dataset_uuid,
-    get_parent_dataset_uuid,
+    get_parent_dataset_uuids_list,
+    get_parent_data_dir,
+    build_dataset_name as inner_build_dataset_name,
+    get_previous_revision_uuid,
     get_uuid_for_error,
     join_quote_command_str,
     make_send_status_msg_function,
+    get_tmp_dir_path,
 )
 
 # after running this DAG you should have on disk
@@ -52,7 +55,7 @@ with DAG('ometiff_pyramid',
          is_paused_upon_creation=False,
          default_args=default_args,
          max_active_runs=1,
-         user_defined_macros={'tmp_dir_path' : utils.get_tmp_dir_path}
+         user_defined_macros={'tmp_dir_path' : get_tmp_dir_path}
          ) as dag:
 
     # does the name need to match the filename?
@@ -66,9 +69,7 @@ with DAG('ometiff_pyramid',
     )
 
     def build_dataset_name(**kwargs):
-        return '{}__{}__{}'.format(dag.dag_id,
-                                   kwargs['dag_run'].conf['parent_submission_id'],
-                                   pipeline_name)
+        return inner_build_dataset_name(dag.dag_id, pipeline_name, **kwargs)
 
     # CWL1 - pipeline.cwl
     prepare_cwl1 = DummyOperator(
@@ -77,15 +78,14 @@ with DAG('ometiff_pyramid',
 
     #print useful info and build command line
     def build_cwltool_cmd1(**kwargs):
-        ctx = kwargs['dag_run'].conf
         run_id = kwargs['run_id']
 
         #tmpdir is temp directory in /hubmap-tmp
-        tmpdir = utils.get_tmp_dir_path(run_id)
+        tmpdir = get_tmp_dir_path(run_id)
         print('tmpdir: ', tmpdir)
 
         #data directory is input directory in /hubmap-data
-        data_dir = ctx['parent_lz_path']
+        data_dir = get_parent_data_dir(**kwargs)
         print('data_dir: ', data_dir)
 
         #this is the call to the CWL
@@ -122,18 +122,11 @@ with DAG('ometiff_pyramid',
 
     #print useful info and build command line
     def build_cwltool_cmd2(**kwargs):
-        ctx = kwargs['dag_run'].conf
         run_id = kwargs['run_id']
 
         #tmpdir is temp directory in /hubmap-tmp
-        tmpdir = utils.get_tmp_dir_path(run_id)
+        tmpdir = get_tmp_dir_path(run_id)
         print('tmpdir: ', tmpdir)
-
-        #get data directory
-        parent_data_dir = ctx['parent_lz_path']
-        print('parent_data_dir: ', parent_data_dir)
-        data_dir = os.path.join(tmpdir, 'cwl_out', 'ometiff-pyramids')  # This stage reads input from stage 1
-        print('data_dir: ', data_dir)
 
         #this is the call to the CWL
         command = [
@@ -176,9 +169,9 @@ with DAG('ometiff_pyramid',
         task_id='send_create_dataset',
         python_callable=utils.pythonop_send_create_dataset,
         provide_context=True,
-        op_kwargs = {'parent_dataset_uuid_callable' : get_parent_dataset_uuid,
+        op_kwargs = {'parent_dataset_uuid_callable' : get_parent_dataset_uuids_list,
+                     'previous_revision_uuid_callable' : get_previous_revision_uuid,
                      'http_conn_id' : 'ingest_api_connection',
-                     'endpoint' : '/datasets/derived',
                      'dataset_name_callable' : build_dataset_name,
                      "dataset_types":["image_pyramid"]
                      }
@@ -192,7 +185,6 @@ with DAG('ometiff_pyramid',
         trigger_rule='all_done',
         op_kwargs = {'dataset_uuid_callable' : get_dataset_uuid,
                      'http_conn_id' : 'ingest_api_connection',
-                     'endpoint' : '/datasets/status',
                      'ds_state' : 'Error',
                      'message' : 'An error occurred in {}'.format(pipeline_name)
                      }
@@ -207,18 +199,6 @@ with DAG('ometiff_pyramid',
                      'bail_op' : 'set_dataset_error',
                      'test_op' : 'pipeline_exec_cwl1'}
         )
-
-    # t_expand_symlinks = BashOperator(
-    #     task_id='expand_symlinks',
-    #     bash_command="""
-    #     tmp_dir="{{tmp_dir_path(run_id)}}" ; \
-    #     ds_dir="{{ti.xcom_pull(task_ids="send_create_dataset")}}" ; \
-    #     groupname="{{conf.as_dict()['connections']['OUTPUT_GROUP_NAME']}}" ; \
-    #     cd "$ds_dir" ; \
-    #     tar -xf symlinks.tar ; \
-    #     echo $?
-    #     """
-    #     )
 
     send_status_msg = make_send_status_msg_function(
         dag_file=__file__,

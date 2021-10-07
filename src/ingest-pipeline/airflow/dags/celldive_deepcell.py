@@ -11,10 +11,14 @@ from utils import (
     get_cwltool_base_cmd,
     get_dataset_uuid,
     get_named_absolute_workflows,
-    get_parent_dataset_uuid,
+    get_parent_dataset_uuids_list,
+    get_parent_data_dir,
+    build_dataset_name as inner_build_dataset_name,
+    get_previous_revision_uuid,
     get_uuid_for_error,
     join_quote_command_str,
     make_send_status_msg_function,
+    get_tmp_dir_path,
 )
 from hubmap_operators.common_operators import (
     CleanupTmpDirOperator,
@@ -47,7 +51,7 @@ with DAG(
         is_paused_upon_creation=False,
         default_args=default_args,
         max_active_runs=1,
-        user_defined_macros={"tmp_dir_path": utils.get_tmp_dir_path},
+        user_defined_macros={"tmp_dir_path": get_tmp_dir_path},
 ) as dag:
 
     pipeline_name = "celldive-pipeline"
@@ -62,27 +66,15 @@ with DAG(
     )
 
     def build_dataset_name(**kwargs):
-        return "{}__{}__{}".format(
-            dag.dag_id, kwargs["dag_run"].conf["parent_submission_id"], pipeline_name
-        )
-
-    def build_parent_data_dir(**kwargs):
-        """
-        Build the absolute path to the data, including the data_path offset from
-        the parent dataset's metadata
-        """
-        ctx = kwargs["dag_run"].conf
-        data_dir = Path(ctx["parent_lz_path"])
-        rel_data_path = ctx["metadata"]["metadata"]["data_path"]
-        return data_dir / rel_data_path
+        return inner_build_dataset_name(dag.dag_id, pipeline_name, **kwargs)
 
     prepare_cwl_segmentation = DummyOperator(task_id="prepare_cwl_segmentation")
 
     def build_cwltool_cwl_segmentation(**kwargs):
         run_id = kwargs["run_id"]
-        tmpdir = utils.get_tmp_dir_path(run_id)
+        tmpdir = get_tmp_dir_path(run_id)
         print("tmpdir: ", tmpdir)
-        data_dir = build_parent_data_dir(**kwargs)
+        data_dir = get_parent_data_dir(**kwargs)
         print("data_dir: ", data_dir)
 
         workflow = cwl_workflows["segmentation"]
@@ -137,9 +129,9 @@ with DAG(
 
     def build_cwltool_cmd_sprm(**kwargs):
         run_id = kwargs["run_id"]
-        tmpdir = utils.get_tmp_dir_path(run_id)
+        tmpdir = get_tmp_dir_path(run_id)
         print("tmpdir: ", tmpdir)
-        parent_data_dir = build_parent_data_dir(**kwargs)
+        parent_data_dir = get_parent_data_dir(**kwargs)
         print("parent_data_dir: ", parent_data_dir)
         data_dir = tmpdir / "cwl_out"
         print("data_dir: ", data_dir)
@@ -189,9 +181,9 @@ with DAG(
 
     def build_cwltool_cmd_create_vis_symlink_archive(**kwargs):
         run_id = kwargs["run_id"]
-        tmpdir = utils.get_tmp_dir_path(run_id)
+        tmpdir = get_tmp_dir_path(run_id)
         print("tmpdir: ", tmpdir)
-        parent_data_dir = build_parent_data_dir(**kwargs)
+        parent_data_dir = get_parent_data_dir(**kwargs)
         print("parent_data_dir: ", parent_data_dir)
         data_dir = tmpdir / "cwl_out"
         print("data_dir: ", data_dir)
@@ -240,11 +232,11 @@ with DAG(
         run_id = kwargs["run_id"]
 
         # tmpdir is temp directory in /hubmap-tmp
-        tmpdir = utils.get_tmp_dir_path(run_id)
+        tmpdir = get_tmp_dir_path(run_id)
         print("tmpdir: ", tmpdir)
 
         # data directory is the stitched images, which are found in tmpdir
-        data_dir = build_parent_data_dir(**kwargs)
+        data_dir = get_parent_data_dir(**kwargs)
         print("data_dir: ", data_dir)
 
         # this is the call to the CWL
@@ -289,9 +281,9 @@ with DAG(
 
     def build_cwltool_cmd_ome_tiff_offsets(**kwargs):
         run_id = kwargs["run_id"]
-        tmpdir = utils.get_tmp_dir_path(run_id)
+        tmpdir = get_tmp_dir_path(run_id)
         print("tmpdir: ", tmpdir)
-        parent_data_dir = build_parent_data_dir(**kwargs)
+        parent_data_dir = get_parent_data_dir(**kwargs)
         print("parent_data_dir: ", parent_data_dir)
         data_dir = tmpdir / "cwl_out"
         print("data_dir: ", data_dir)
@@ -336,9 +328,9 @@ with DAG(
 
     def build_cwltool_cmd_sprm_to_json(**kwargs):
         run_id = kwargs["run_id"]
-        tmpdir = utils.get_tmp_dir_path(run_id)
+        tmpdir = get_tmp_dir_path(run_id)
         print("tmpdir: ", tmpdir)
-        parent_data_dir = build_parent_data_dir(**kwargs)
+        parent_data_dir = get_parent_data_dir(**kwargs)
         print("parent_data_dir: ", parent_data_dir)
         data_dir = tmpdir / "cwl_out"  # This stage reads input from stage 1
         print("data_dir: ", data_dir)
@@ -383,9 +375,9 @@ with DAG(
 
     def build_cwltool_cmd_sprm_to_anndata(**kwargs):
         run_id = kwargs["run_id"]
-        tmpdir = utils.get_tmp_dir_path(run_id)
+        tmpdir = get_tmp_dir_path(run_id)
         print("tmpdir: ", tmpdir)
-        parent_data_dir = build_parent_data_dir(**kwargs)
+        parent_data_dir = get_parent_data_dir(**kwargs)
         print("parent_data_dir: ", parent_data_dir)
         data_dir = tmpdir / "cwl_out"  # This stage reads input from stage 1
         print("data_dir: ", data_dir)
@@ -431,9 +423,9 @@ with DAG(
         python_callable=utils.pythonop_send_create_dataset,
         provide_context=True,
         op_kwargs={
-            "parent_dataset_uuid_callable": get_parent_dataset_uuid,
+            "parent_dataset_uuid_callable": get_parent_dataset_uuids_list,
+            "previous_revision_uuid_callable": get_previous_revision_uuid,
             "http_conn_id": "ingest_api_connection",
-            "endpoint": "/datasets/derived",
             "dataset_name_callable": build_dataset_name,
             "dataset_types": ["celldive_deepcell"],
         },
@@ -447,7 +439,6 @@ with DAG(
         op_kwargs={
             "dataset_uuid_callable": get_dataset_uuid,
             "http_conn_id": "ingest_api_connection",
-            "endpoint": "/datasets/status",
             "ds_state": "Error",
             "message": "An error occurred in {}".format(pipeline_name),
         },

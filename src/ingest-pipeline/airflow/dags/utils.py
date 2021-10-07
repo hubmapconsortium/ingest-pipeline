@@ -13,6 +13,7 @@ from subprocess import check_output, CalledProcessError
 from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Pattern, Tuple, TypeVar, Union
 from requests.exceptions import HTTPError
 from requests import codes
+from copy import deepcopy
 
 import yaml
 from airflow.configuration import conf as airflow_conf
@@ -225,16 +226,68 @@ def get_named_absolute_workflows(**workflow_kwargs: Path) -> Dict[str, Path]:
     }
 
 
-def get_parent_dataset_uuid(**kwargs):
-    return kwargs['dag_run'].conf['parent_submission_id']
+def build_dataset_name(dag_id: str, pipeline_str: str, **kwargs) -> str:
+    parent_submission_str = '_'.join(get_parent_dataset_uuids_list(**kwargs))
+    return f'{dag_id}__{parent_submission_str}__{pipeline_str}'
 
 
-def get_dataset_uuid(**kwargs):
+def get_parent_dataset_uuids_list(**kwargs) -> List[str]:
+    uuid_list = kwargs['dag_run'].conf['parent_submission_id']
+    if not isinstance(uuid_list, list):
+        uuid_list = [uuid_list]
+    return uuid_list
+
+
+def get_parent_dataset_uuid(**kwargs) -> str:
+    uuid_set = set(get_parent_dataset_uuids_list(**kwargs))
+    assert len(uuid_set) == 1, f"Found {len(uuid_set)} elements, expected 1"
+    return uuid_set.pop()
+
+
+def get_parent_dataset_paths_list(**kwargs) -> List[Path]:
+    path_list = kwargs['dag_run'].conf['parent_lz_path']
+    if not isinstance(path_list, list):
+        path_list = [path_list]
+    return [Path(p) for p in path_list]
+
+
+def get_parent_dataset_path(**kwargs) -> Path:
+    path_set = set(get_parent_dataset_paths_list(**kwargs))
+    assert len(path_set) == 1, f"Found {len(path_set)} elements, expected 1"
+    return path_set.pop()
+
+
+def get_parent_data_dirs_list(**kwargs) -> List[Path]:
+    """
+    Build the absolute paths to the data, including the data_path offsets from
+    the parent datasets' metadata
+    """
+    ctx = kwargs["dag_run"].conf
+    data_dir_list = get_parent_dataset_paths_list(**kwargs)
+    ctx_md_list = ctx["metadata"]
+    if not isinstance(ctx_md_list, list):
+        ctx_md_list = [ctx_md_list]
+    assert len(data_dir_list) == len(ctx_md_list), "lengths of data directory and md lists do not match"
+    return [Path(data_dir) / ctx_md['metadata']['data_path']
+            for data_dir, ctx_md in zip(data_dir_list, ctx_md_list)]
+
+
+def get_parent_data_dir(**kwargs) -> Path:
+    path_set = set(get_parent_data_dirs_list(**kwargs))
+    assert len(path_set) == 1, f"Found {len(path_set)} elements, expected 1"
+    return path_set.pop()
+
+
+def get_previous_revision_uuid(**kwargs) -> Optional[str]:
+    return kwargs['dag_run'].conf.get('previous_version_uuid', None)
+
+
+def get_dataset_uuid(**kwargs) -> str:
     return kwargs['ti'].xcom_pull(key='derived_dataset_uuid',
                                   task_ids="send_create_dataset")
 
 
-def get_uuid_for_error(**kwargs):
+def get_uuid_for_error(**kwargs) -> Optional[str]:
     """
     Return the uuid for the derived dataset if it exists, and of the parent dataset otherwise.
     """
@@ -522,11 +575,14 @@ def pythonop_send_create_dataset(**kwargs) -> str:
     
     Accepts the following via the caller's op_kwargs:
     'http_conn_id' : the http connection to be used
-    'endpoint' : the REST endpoint
     'parent_dataset_uuid_callable' : called with **kwargs; returns uuid
                                      of the parent of the new dataset
     'dataset_name_callable' : called with **kwargs; returns the
                               display name of the new dataset
+    'previous_revision_uuid_callable': if present, called with **kwargs;
+                                       returns the uuid of the previous
+                                       revision of the dataset to be
+                                       created or None
     either
       'dataset_types' : the types list of the new dataset
     or
@@ -538,47 +594,107 @@ def pythonop_send_create_dataset(**kwargs) -> str:
     'derived_dataset_uuid' : uuid for the created dataset
     'group_uuid' : group uuid for the created dataset
     """
-    for arg in ['parent_dataset_uuid_callable', 'http_conn_id', 'endpoint',
-                'dataset_name_callable', 'dataset_types']:
+
+    for arg in ['parent_dataset_uuid_callable', 'http_conn_id']:
         assert arg in kwargs, "missing required argument {}".format(arg)
     for arg_options in [['dataset_types', 'dataset_types_callable']]:
         assert any([arg in kwargs for arg in arg_options])
-    http_conn_id = kwargs['http_conn_id']
-    endpoint = kwargs['endpoint']
 
+    http_conn_id = kwargs['http_conn_id']
     ctx = kwargs['dag_run'].conf
-    method = 'POST'
     headers = {
         'authorization' : 'Bearer ' + get_auth_tok(**kwargs),
-        'content-type' : 'application/json'}
-    #print('headers:')
-    #pprint(headers)  # Reduce exposure of auth_tok
-    extra_options = []
-    http_hook = HttpHook(method, http_conn_id=http_conn_id)
+        'content-type' : 'application/json',
+        'X-Hubmap-Application' : 'ingest-pipeline'
+    }
+
     if 'dataset_types' in kwargs:
         dataset_types = kwargs['dataset_types']
     else:
         dataset_types = kwargs['dataset_types_callable'](**kwargs)
+    if not isinstance(dataset_types, list):
+        dataset_types = [dataset_types]
+    canonical_types = set()  # to avoid duplicates
+    contains_seq = False
+    for assay_type in dataset_types:
+        type_info = _get_type_client().getAssayType(assay_type)
+        canonical_types.add(type_info.name)
+        contains_seq |= type_info.contains_pii
+    canonical_types = list(canonical_types)
+
+    source_uuids = kwargs['parent_dataset_uuid_callable'](**kwargs)
+    if not isinstance(source_uuids, list):
+        source_uuids = [source_uuids]
+
     dataset_name = kwargs['dataset_name_callable'](**kwargs)
-    data = {
-        "source_dataset_uuids": kwargs['parent_dataset_uuid_callable'](**kwargs),
-        "derived_dataset_name": dataset_name,
-        "derived_dataset_types": _canonicalize_assay_type_if_possible(dataset_types)
-    }
-    print('data:')
-    pprint(data)
-    response = http_hook.run(endpoint,
-                             json.dumps(data),
-                             headers,
-                             extra_options)
-    print('response: ')
-    pprint(response.json())
-    data_dir_path = response.json()['full_path']
-    kwargs['ti'].xcom_push(key='group_uuid',
-                           value=response.json()['group_uuid'])
-    kwargs['ti'].xcom_push(key='derived_dataset_uuid', 
-                           value=response.json()['derived_dataset_uuid'])
-    return data_dir_path
+    
+    try:
+        response = HttpHook('GET', http_conn_id=http_conn_id).run(
+            endpoint=f'entities/{source_uuids[0]}',
+            headers=headers,
+            extra_options={'check_response': False}
+        )
+        response.raise_for_status()
+        response_json = response.json()
+        if 'group_uuid' not in response_json:
+            print(f'response from GET on entities{source_uuids[0]}:')
+            pprint(response_json)
+            raise ValueError('entities response did not contain group_uuid')
+        parent_group_uuid = response_json['group_uuid']
+
+        data = {
+            "direct_ancestor_uuids": source_uuids,
+            "title": dataset_name,
+            "data_types": dataset_types,
+            "group_uuid": parent_group_uuid,
+            "contains_human_genetic_sequences": contains_seq
+        }
+        if 'previous_revision_uuid_callable' in kwargs:
+            previous_revision_uuid = kwargs['previous_revision_uuid_callable'](**kwargs);
+            if previous_revision_uuid is not None:
+                data['previous_revision_uuid'] = previous_revision_uuid
+        print('data for dataset creation:')
+        pprint(data)
+        response = HttpHook('POST', http_conn_id=http_conn_id).run(
+            endpoint='datasets',
+            data=json.dumps(data),
+            headers=headers,
+            extra_options=[]
+        )
+        response.raise_for_status()
+        response_json = response.json()
+        print('response to dataset creation:')
+        pprint(response_json)
+        for elt in ['uuid', 'group_uuid']:
+            if elt not in response_json:
+                raise ValueError(f'datasets response did not contain {elt}')
+        uuid = response_json['uuid']
+        group_uuid = response_json['group_uuid']
+        
+        response = HttpHook('GET', http_conn_id=http_conn_id).run(
+            endpoint=f'datasets/{uuid}/file-system-abs-path',
+            headers=headers,
+            extra_options={'check_response': False}
+        )
+        response.raise_for_status()
+        response_json = response.json()
+        if 'path' not in response_json:
+            print(f'response from datasets/{uuid}/file-system-abs-path:')
+            pprint(response_json)
+            raise ValueError(f'datasets/{uuid}/file-system-abs-path'
+                             ' did not return a path')
+        abs_path = response_json['path']
+
+    except HTTPError as e:
+        print(f'ERROR: {e}')
+        if e.response.status_code == codes.unauthorized:
+            raise RuntimeError(f'authorization for {endpoint} was rejected?')
+        else:
+            raise RuntimeError(f'misc error {e} on {endpoint}')
+            
+    kwargs['ti'].xcom_push(key='group_uuid', value=group_uuid)
+    kwargs['ti'].xcom_push(key='derived_dataset_uuid', value=uuid)
+    return abs_path
 
 
 def pythonop_set_dataset_state(**kwargs) -> None:
@@ -589,23 +705,20 @@ def pythonop_set_dataset_state(**kwargs) -> None:
     'dataset_uuid_callable' : called with **kwargs; returns the
                               uuid of the dataset to be modified
     'http_conn_id' : the http connection to be used
-    'endpoint' : the REST endpoint
     'ds_state' : one of 'QA', 'Processing', 'Error', 'Invalid'. Default: 'Processing'
     'message' : update message. Default: 'update state'
     """
-    for arg in ['dataset_uuid_callable', 'http_conn_id', 'endpoint']:
+    for arg in ['dataset_uuid_callable', 'http_conn_id']:
         assert arg in kwargs, "missing required argument {}".format(arg)
     dataset_uuid = kwargs['dataset_uuid_callable'](**kwargs)
     http_conn_id = kwargs['http_conn_id']
-    endpoint = kwargs['endpoint']
+    endpoint = '/datasets/status'
     ds_state = kwargs['ds_state'] if 'ds_state' in kwargs else 'Processing'
     message = kwargs['message'] if 'message' in kwargs else 'update state'
     method = 'PUT'
     headers = {
         'authorization' : 'Bearer ' + get_auth_tok(**kwargs),
         'content-type' : 'application/json'}
-#     print('headers:')
-#     pprint(headers)  # reduce visibility of auth_tok
     extra_options = []
 
     http_hook = HttpHook(method,
@@ -626,6 +739,31 @@ def pythonop_set_dataset_state(**kwargs) -> None:
     pprint(response.json())
 
 
+def restructure_entity_metadata(raw_metadata: JSONType) -> JSONType:
+    """
+    When a dataset is initially ingested, the associated metadata is parsed and
+    associated with the database representation of the dataset.  The same metadata
+    is made available to workflows so that they can perform downstream processing
+    on the dataset.  The copy of the metadata which is associated with the dataset
+    uuid in the database is restructured to bring some important information to the
+    top level.  This function attempts to un-do that restructuring to produce a
+    version of the metadata as much as possible like the original.  This
+    de-restructured version can be used by workflows in liu of the original.
+    """
+    md = {}
+    if 'metadata' in raw_metadata['ingest_metadata']:
+        md['metadata'] = deepcopy(raw_metadata['ingest_metadata']['metadata'])
+    if 'extra_metadata' in raw_metadata['ingest_metadata']:
+        md.update(raw_metadata['ingest_metadata'][extra_metadata])
+    if 'contributors' in raw_metadata:
+        md['contributors'] = deepcopy(raw_metadata['contributors'])
+    if 'antibodies' in raw_metadata:
+        md['antibodies'] = deepcopy(raw_metadata['antibodies'])
+    #print('reconstructed metadata follows')
+    #pprint(md)
+    return md
+
+
 def pythonop_get_dataset_state(**kwargs) -> JSONType:
     """
     Gets the status JSON structure for a dataset.  Works for Uploads as well
@@ -644,7 +782,8 @@ def pythonop_get_dataset_state(**kwargs) -> JSONType:
     auth_tok = get_auth_tok(**kwargs)
     headers = {
         'authorization' : f'Bearer {auth_tok}',
-        'content-type' : 'application/json'
+        'content-type' : 'application/json',
+        'X-Hubmap-Application' : 'ingest-pipeline',
         }
     http_hook = HttpHook(method, http_conn_id=http_conn_id)
 
@@ -666,14 +805,17 @@ def pythonop_get_dataset_state(**kwargs) -> JSONType:
             print('benign error')
             return {}
 
-    for key in ['status', 'uuid', 'entity_type']:
+    for key in ['status', 'uuid', 'entity_type', 'ingest_metadata']:
         assert key in ds_rslt, f"Dataset status for {uuid} has no {key}"
     if ds_rslt['entity_type'] == 'Dataset':
         assert 'data_types' in ds_rslt, f"Dataset status for {uuid} has no data_types"
         data_types = ds_rslt['data_types']
+        assert 'ingest_metadata' in ds_rslt, f"Dataset status for {uuid} has no ingest_metadata"
+        metadata = restructure_entity_metadata(ds_rslt)
         endpoint = f"datasets/{ds_rslt['uuid']}/file-system-abs-path"
     elif ds_rslt['entity_type'] == 'Upload':
         data_types = []
+        metadata = {}
         endpoint = f"uploads/{ds_rslt['uuid']}/file-system-abs-path"
     else:
         raise RuntimeError(f"Unknown entity_type {ds_rslt['entity_type']}")
@@ -700,8 +842,9 @@ def pythonop_get_dataset_state(**kwargs) -> JSONType:
         'status': ds_rslt['status'],
         'uuid': ds_rslt['uuid'],
         'data_types': data_types,
-        'local_directory_full_path': full_path
-        }
+        'local_directory_full_path': full_path,
+        'metadata': metadata,
+    }
     return rslt
 
 
@@ -1023,7 +1166,6 @@ def create_dataset_state_error_callback(dataset_uuid_callable: Callable[[Any], s
         new_kwargs.update(contextDict)
         new_kwargs.update({'dataset_uuid_callable' : dataset_uuid_callable,
                            'http _conn_id' : 'ingest_api_connection',
-                           'endpoint' : '/datasets/status',
                            'ds_state' : 'Error',
                            'message' : msg
                            })
