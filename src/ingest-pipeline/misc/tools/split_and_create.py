@@ -99,6 +99,8 @@ def create_new_uuid(row, source_entity, entity_factory, dryrun=False):
     orig_assay_type = row['assay_type']
     rec_identifier = row['data_path'].strip('/')
     assert rec_identifier and rec_identifier != '.', 'Bad data_path!'
+    print('prop_dct follows')
+    pprint(source_entity.prop_dct)
     title = source_entity.prop_dct['title'] + ' : ' + rec_identifier
     try:
         type_info = entity_factory.type_client.getAssayType(canonical_assay_type)
@@ -267,7 +269,7 @@ def main():
         """
     )
     auth_tok = input('auth_tok: ')
-    entity_factory = EntityFactory(auth_tok, instance='PROD')
+    entity_factory = EntityFactory(auth_tok, instance=instance)
 
     print(f'Decomposing {source_uuid}')
     source_entity = entity_factory.get(source_uuid)
@@ -275,16 +277,20 @@ def main():
         source_metadata_files = [elt for elt in source_entity.full_path.glob('*metadata.tsv')]
         assert len(source_metadata_files) == 1, f'Too many netadata files in {source_entity.full_path}'
         source_df = pd.read_csv(source_metadata_files[0], sep='\t')
-        assert isinstance(source_entity.data_types, str)
+        if hasattr(source_entity, 'data_types'):
+            assert isinstance(source_entity.data_types, str)
+            source_data_types = source_entity.data_types
+        else:
+            source_data_types = None
         source_df['canonical_assay_type'] = source_df.apply(get_canonical_assay_type,
                                                             axis=1,
                                                             entity_factory=entity_factory,
-                                                            default_type=source_entity.data_types)
+                                                            default_type=source_data_types)
         source_df['new_uuid'] = source_df.apply(create_new_uuid, axis=1,
                                                 source_entity=source_entity,
                                                 entity_factory=entity_factory,
                                                 dryrun=dryrun)
-        source_df = apply_special_case_transformations(source_df, source_entity.data_types)
+        source_df = apply_special_case_transformations(source_df, source_data_types)
         print(source_df[['data_path', 'canonical_assay_type', 'new_uuid']])
         source_df.to_csv(FROZEN_DF_FNAME, sep='\t', header=True, index=False)
         print(f'wrote {FROZEN_DF_FNAME}')

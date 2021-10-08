@@ -71,7 +71,12 @@ COLUMN_SORT_WEIGHTS = {
 ROW_SORT_KEYS = ['is_derived', 'group_name', 'data_types', 'status', 'uuid']
 
 
+class SurveyException(AssertionError):
+    pass
+
+
 def parse_text_list(s):
+    s = str(s) if s is not None else ''
     this_s = s
     while True:
         if isinstance(s, list):
@@ -164,7 +169,7 @@ class Entity(object):
         Returns a list of unique dataset UUIDs associated with this entity
         """
         return []
-
+    
 
 class Dataset(Entity):
     def __init__(self, prop_dct, entity_factory):
@@ -180,11 +185,13 @@ class Dataset(Entity):
         else:
             dag_prv = None
         self.dag_provenance = dag_prv
-        self.parent_uuids = [elt['uuid'] for elt in prop_dct['immediate_ancestors']]
-        self.parent_dataset_uuids = [elt['uuid'] for elt in prop_dct['immediate_ancestors']
+        direct_ancestors_list = prop_dct.get('direct_ancestors', [])
+        self.parent_uuids = [elt['uuid'] for elt in direct_ancestors_list]
+        self.parent_dataset_uuids = [elt['uuid'] for elt in direct_ancestors_list
                                      if elt['entity_type'] == 'Dataset']
-        self.kid_uuids = [elt['uuid'] for elt in prop_dct['immediate_descendants']]
-        self.kid_dataset_uuids = [elt['uuid'] for elt in prop_dct['immediate_descendants']
+        direct_descendants_list = prop_dct.get('direct_descendants', [])
+        self.kid_uuids = [elt['uuid'] for elt in direct_descendants_list]
+        self.kid_dataset_uuids = [elt['uuid'] for elt in direct_descendants_list
                                   if elt['entity_type'] == 'Dataset']
         self.data_types = prop_dct['data_types'] if 'data_types' in prop_dct else []
         assay_type = parse_text_list(self.data_types)
@@ -198,7 +205,7 @@ class Dataset(Entity):
             self.data_types = f'{self.data_types}'
             self.notes.append('BAD TYPE NAME')
             self.is_derived = None
-        self.donor_uuid = prop_dct['donor']['uuid']
+        self._donor_uuid = None  # requires graph search, so be lazy
         self.group_name = prop_dct['group_name']
         c_h_g = prop_dct['contains_human_genetic_sequences']
         if isinstance(c_h_g, str):
@@ -206,7 +213,20 @@ class Dataset(Entity):
         self.contains_human_genetic_sequences = c_h_g
         self._kid_dct = None
         self._parent_dct = None
-    
+
+    @property
+    def donor_uuid(self):
+        if self._donor_uuid is None:
+            import pdb
+            pdb.Pdb().set_trace()
+            for parent_uuid in self.parent_uuids:
+                parent_entity = self.entity_factory.get(parent_uuid)
+                parent_donor_uuid = parent_entity.donor_uuid
+                if parent_donor_uuid is not None:
+                    self._donor_uuid = parent_donor_uuid
+                    break
+        return self._donor_uuid
+
     @property
     def kids(self):
         if self._kid_dct is None:
@@ -244,7 +264,7 @@ class Dataset(Entity):
             s_t = SplitTree()
             for p_uuid in other_parent_uuids:
                 samp = self.entity_factory.get(p_uuid)
-                assert isinstance(samp, Sample), 'was expecting a sample?'
+                assert isinstance(samp, (Sample, Donor)), 'was expecting a sample or donor?'
                 s_t.add(samp.submission_id)
             sample_submission_id = str(s_t)
             sample_hubmap_id = (samp.hubmap_id if len(other_parent_uuids) == 1
@@ -325,21 +345,172 @@ class Dataset(Entity):
         return super().all_dataset_uuids() + self.kid_dataset_uuids + self.parent_dataset_uuids
     
 
+class Upload(Entity):
+    def __init__(self, prop_dct, entity_factory):
+        super().__init__(prop_dct, entity_factory)
+        assert prop_dct['entity_type'] in ['Upload'], (f"uuid {uuid} is a"
+                                                       f"{prop_dct['entity_type']}")
+        self.status = prop_dct['status']
+        if 'metadata' in prop_dct and prop_dct['metadata']:
+            if 'dag_provenance_list' in prop_dct['metadata']:
+                dag_prv = prop_dct['metadata']['dag_provenance_list']
+            else:
+                dag_prv = None
+        else:
+            dag_prv = None
+        self.dag_provenance = dag_prv
+        direct_ancestors_list = prop_dct.get('direct_ancestors', [])
+        self.parent_uuids = [elt['uuid'] for elt in direct_ancestors_list]
+        self.parent_dataset_uuids = [elt['uuid'] for elt in direct_ancestors_list
+                                     if elt['entity_type'] == 'Dataset']
+        direct_descendants_list = prop_dct.get('direct_descendants', [])
+        self.kid_uuids = [elt['uuid'] for elt in direct_descendants_list]
+        self.kid_dataset_uuids = [elt['uuid'] for elt in direct_descendants_list
+                                  if elt['entity_type'] == 'Dataset']
+        self.group_name = prop_dct['group_name']
+        self._kid_dct = None
+        self._parent_dct = None
+    
+    @property
+    def kids(self):
+        if self._kid_dct is None:
+            self._kid_dct = {uuid: self.entity_factory.get(uuid) for uuid in self.kid_uuids}
+        return self._kid_dct
+    
+    @property
+    def parents(self):
+        if self._parent_dct is None:
+            self._parent_dct = {uuid: self.entity_factory.get(uuid) for uuid in self.parent_uuids}
+        return self._parent_dct
+
+    @property
+    def full_path(self):
+        return self.entity_factory.get_full_path(self.uuid)
+        
+    def describe(self, prefix='', file=sys.stdout):
+        print(f"{prefix}Upload {self.uuid}: "
+              f"{self.hubmap_id} "
+              f"{self.status} "
+              f"{self.notes if self.notes else ''}",
+              file=file)
+        if self.kid_dataset_uuids:
+            for kid in self.kid_dataset_uuids:
+                self.kids[kid].describe(prefix=prefix+'    ', file=file)
+
+    def _parse_sample_parents(self):
+        other_parent_uuids = [uuid for uuid in self.parent_uuids
+                              if uuid not in self.parent_dataset_uuids]
+        assert not (self.parent_dataset_uuids
+                    and other_parent_uuids), ('All parents should be datasets, or'
+                                              ' no parent should be a dataset')
+        if other_parent_uuids:
+            s_t = SplitTree()
+            for p_uuid in other_parent_uuids:
+                samp = self.entity_factory.get(p_uuid)
+                assert isinstance(samp, (Sample, Donor)), 'was expecting a sample or donor?'
+                s_t.add(samp.submission_id)
+            sample_submission_id = str(s_t)
+            sample_hubmap_id = (samp.hubmap_id if len(other_parent_uuids) == 1
+                                  else 'multiple')
+            parent_dataset = None
+        else:
+            sample_submission_id = sample_hubmap_id = None
+            parent_dataset = (self.parent_dataset_uuids[0] if len(self.parent_dataset_uuids) == 1
+                              else 'multiple')
+        return parent_dataset, sample_submission_id, sample_hubmap_id
+
+
+    def build_rec(self, include_all_children=False):
+        """
+        Returns a dict containing:
+        
+        uuid
+        hubmap_id
+        status
+        group_name
+        note 
+
+        """
+        rec = {'uuid': self.uuid, 'hubmap_id': self.hubmap_id, 'status': self.status,
+               'group_name': self.group_name, 'note': ''}
+        rec['note'] = '; '.join([rec['note']] + self.notes)
+        return rec
+            
+    def all_uuids(self):
+        """
+        Returns a list of unique UUIDs associated with this entity
+        """
+        return super().all_uuids() + self.kid_uuids + self.parent_uuids
+
+    def all_dataset_uuids(self):
+        """
+        Returns a list of unique dataset or support UUIDs associated with this entity
+        """
+        return super().all_dataset_uuids() + self.kid_dataset_uuids + self.parent_dataset_uuids
+    
+
 class Sample(Entity):
     def __init__(self, prop_dct, entity_factory):
         super().__init__(prop_dct, entity_factory)
         assert prop_dct['entity_type'] == 'Sample', f"uuid {uuid} is a {prop_dct['entity_type']}"
         self.hubmap_id = prop_dct['hubmap_id']
-        self.donor_hubmap_id = prop_dct['donor']['hubmap_id']
+        self._donor_hubmap_id = None
         self.submission_id = prop_dct['submission_id']
-        self.donor_submission_id = prop_dct['donor']['submission_id']
-        self.donor_uuid = prop_dct['donor']['uuid']
+        self._donor_submission_id = None
+        self._donor_uuid = None
+
+    @property
+    def donor_uuid(self):
+        if self._donor_uuid is None:
+            import pdb
+            pdb.Pdb().set_trace()
+            for parent_uuid in self.parent_uuids:
+                parent_entity = self.entity_factory.get(parent_uuid)
+                assert isinstance(parent_entity, [Sample, Donor]), (f'Parent of sample {self.uuid}'
+                                                                    f'is a {type(parent_entity)}')
+                if isinstance(parent_entity, Sample):
+                    self._donor_uuid = parent_entity.donor_uuid
+                    self._donor_submission_id = parent_entity.donor_submission_id
+                    self._donor_hubmap_id = parent_entity.donor_hubmap_id
+                else:
+                    self._donor_uuid = parent_entity.uuid
+                    self._donor_submission_id = parent_entity.submission_id
+                    self._donor_hubmap_id = parent_entity.hubmap_id
+                if self._donor_uuid:
+                    break
+        return self._donor_uuid
+
+    @property
+    def donor_submission_id(self):
+        if self._donor_submission_id is None:
+            _ = donor_uuid(self)  # force search for donor
+        return self._donor_submission_id
+
+    @property
+    def donor_hubmap_id(self):
+        if self._donor_hubmap_id is None:
+            _ = donor_uuid(self)  # force search for donor
+        return self._donor_hubmap_id
 
     def describe(self, prefix='', file=sys.stdout):
         print(f"{prefix}Sample {self.uuid}: "
               f"{self.hubmap_id} "
               f"{self.submission_id} "
               f"{self.donor_submission_id}",
+              file=file)
+
+
+class Donor(Entity):
+    def __init__(self, prop_dct, entity_factory):
+        super().__init__(prop_dct, entity_factory)
+        assert prop_dct['entity_type'] == 'Donor', f"uuid {uuid} is a {prop_dct['entity_type']}"
+        self.hubmap_id = prop_dct['hubmap_id']
+        self.submission_id = prop_dct['submission_id']
+
+    def describe(self, prefix='', file=sys.stdout):
+        print(f"{prefix}Donor {self.uuid}: "
+              f"{self.hubmap_id} "
+              f"{self.submission_id} ",
               file=file)
 
 
@@ -381,28 +552,32 @@ class EntityFactory(object):
         """
         Returns an entity of some kind
         """
-        data = {'query': {'ids': {'values': [f'{uuid}']}}}
-        search_url = ENDPOINTS[self.instance]['search_url']
-        r = requests.post(f'{search_url}/portal/search',
-                          data=json.dumps(data),
+
+        ingest_url = ENDPOINTS[self.instance]['ingest_url']
+        r = requests.get(f'{ingest_url}/entities/{uuid}',
                           headers={'Authorization': f'Bearer {self.auth_tok}',
                                    'Content-Type': 'application/json'})
         if r.status_code >= 300:
             r.raise_for_status()
-        jsn = r.json()
-        assert len(jsn['hits']['hits']) != 0, f'The uuid {uuid} is unknown'
-        assert len(jsn['hits']['hits']) == 1, f'More than one hit on uuid {uuid}'
-        hit = jsn['hits']['hits'][0]
-        assert hit['_id'] == uuid, f"uuid {uuid} gave back uuid {hit['_id']}"
-        prop_dct = hit['_source']
+        prop_dct = r.json()
+
         assert prop_dct['uuid'] == uuid, f"uuid {uuid} gave back inner uuid {prop_dct['uuid']}"
         entity_type = prop_dct['entity_type']
         if entity_type == 'Dataset':
-            return Dataset(prop_dct, self)
+            ds = Dataset(prop_dct, self)
+            print('DESCRIPTION follows:')
+            ds.describe()
+            print('REC follows:')
+            pprint(ds.build_rec())
+            return ds
         elif entity_type == 'Sample':
             return Sample(prop_dct, self)
+        elif entity_type == 'Donor':
+            return Donor(prop_dct, self)
         elif entity_type == 'Support':
             return Support(prop_dct, self)
+        elif entity_type == 'Upload':
+            return Upload(prop_dct, self)
         else:
             return Entity(prop_dct, self)
 
@@ -523,16 +698,17 @@ def main():
         ds.describe()
         new_uuids = ds.all_dataset_uuids()
         rec = {}
-        try:
-            rec = ds.build_rec(include_all_children=args.include_all_children)
-            if any([uuid in known_uuids for uuid in new_uuids]):
+        if hasattr(ds, 'build_rec'):
+            try:
+                rec = ds.build_rec(include_all_children=args.include_all_children)
+                if any([uuid in known_uuids for uuid in new_uuids]):
+                    old_note = rec['note'] if 'note' in rec else ''
+                    rec['note'] = 'UUID COLLISION! ' + old_note
+                known_uuids = known_uuids.union(new_uuids)
+            except AssertionError as e:
                 old_note = rec['note'] if 'note' in rec else ''
-                rec['note'] = 'UUID COLLISION! ' + old_note
-            known_uuids = known_uuids.union(new_uuids)
-        except AssertionError as e:
-            old_note = rec['note'] if 'note' in rec else ''
-            rec['note'] = f'BAD UUID: {e} ' + old_note
-            rec['uuid'] = uuid  # just to make sure it is present
+                rec['note'] = f'BAD UUID: {e} ' + old_note
+                rec['uuid'] = uuid  # just to make sure it is present
         if rec:
             out_recs.append(rec)
     out_df = pd.DataFrame(out_recs).rename(columns={'qa_child_uuid':'derived_uuid',

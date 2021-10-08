@@ -9,7 +9,7 @@ import numpy as np
 
 from survey import (Entity, Dataset, Sample, EntityFactory,
                     ROW_SORT_KEYS, column_sorter, is_uuid,
-                    parse_text_list)
+                    parse_text_list, SurveyException)
 
 
 """
@@ -166,27 +166,32 @@ def main():
     
     known_uuids = set()
     for uuid in uuid_l:
-        ds = entity_factory.get(uuid)
-        ds.describe()
-        new_uuids = ds.all_dataset_uuids()
         rec = {}
         try:
-            rec = ds.build_rec()
-            rec['has_metadata'], rec['n_md_recs'] = detect_metadatatsv(ds)
-            rec['has_data'] = detect_otherdata(ds)
-            rec['validated'] = detect_clean_validation_report(ds)
+            ds = entity_factory.get(uuid)
+            ds.describe()
+            new_uuids = ds.all_dataset_uuids()
             try:
-                rec['last_touch'] = get_most_recent_touch(ds)
-            except OSError as e:
-                rec['last_touch'] = f'OSError: {e}'
-            if any([uuid in known_uuids for uuid in new_uuids]):
-                rec['note'] = 'UUID COLLISION! '
-                print(f'collision on {[uuid for uuid in new_uuids if uuid in known_uuids]}')
-            known_uuids = known_uuids.union(new_uuids)
-        except AssertionError as e:
-            old_note = rec['note'] if 'note' in rec else ''
-            rec['note'] = f'BAD UUID: {e} ' + old_note
-            rec['uuid'] = uuid  # just to make sure it is present
+                rec = ds.build_rec()
+                rec['has_metadata'], rec['n_md_recs'] = detect_metadatatsv(ds)
+                rec['has_data'] = detect_otherdata(ds)
+                rec['validated'] = detect_clean_validation_report(ds)
+                try:
+                    rec['last_touch'] = get_most_recent_touch(ds)
+                except OSError as e:
+                    rec['last_touch'] = f'OSError: {e}'
+                if any([uuid in known_uuids for uuid in new_uuids]):
+                    rec['note'] = 'UUID COLLISION! '
+                    print(f'collision on {[uuid for uuid in new_uuids if uuid in known_uuids]}')
+                    known_uuids = known_uuids.union(new_uuids)
+            except AssertionError as e:
+                old_note = rec['note'] if 'note' in rec else ''
+                rec['note'] = f'BAD UUID: {e} ' + old_note
+                rec['uuid'] = uuid  # just to make sure it is present
+        except SurveyException as e:
+            print(f'dropping {uuid} because {e}')
+            rec['uuid'] = uuid
+            rec['note'] = f'not in survey because {e}'
         if rec:
             out_recs.append(rec)
     out_df = pd.DataFrame(out_recs).rename(columns={'qa_child_uuid':'derived_uuid',
@@ -209,7 +214,11 @@ def main():
             drop_list.append('hubmap_id_y')
             rename_d['hubmap_id_x'] = 'hubmap_id'
         else:
-            raise AssertionError('hubmap_id and hubmap_id do not match?')
+            print('ALERT! hubmap_id mismatch mismatch!')
+            out_df.to_csv('/tmp/debug_out_df.tsv', sep='\t')
+            drop_list.append('hubmap_id_y')
+            rename_d['hubmap_id_x'] = 'hubmap_id'
+            #raise AssertionError('hubmap_id and hubmap_id do not match?')
     if 'data_types_x' in out_df.columns and 'data_types_y' in out_df.columns:
         out_df['data_types'] = out_df[['data_types_x', 'data_types_y']].apply(data_type_resolver, axis=1)
         drop_list.extend(['data_types_x', 'data_types_y'])
