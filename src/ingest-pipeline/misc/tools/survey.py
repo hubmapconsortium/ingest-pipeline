@@ -507,20 +507,18 @@ class Sample(Entity):
     @property
     def donor_uuid(self):
         if self._donor_uuid is None:
-            for parent_uuid in self.parent_uuids:
-                parent_entity = self.entity_factory.get(parent_uuid)
-                assert isinstance(parent_entity, (Sample, Donor)), (f'Parent of sample {self.uuid}'
-                                                                    f'is a {type(parent_entity)}')
-                if isinstance(parent_entity, Sample):
-                    self._donor_uuid = parent_entity.donor_uuid
-                    self._donor_submission_id = parent_entity.donor_submission_id
-                    self._donor_hubmap_id = parent_entity.donor_hubmap_id
-                else:
-                    self._donor_uuid = parent_entity.uuid
-                    self._donor_submission_id = parent_entity.submission_id
-                    self._donor_hubmap_id = parent_entity.hubmap_id
-                if self._donor_uuid:
-                    break
+            parent_uuid = self.parent_uuids[0]
+            parent_entity = self.entity_factory.get(parent_uuid)
+            assert isinstance(parent_entity, (Sample, Donor)), (f'Parent of sample {self.uuid}'
+                                                                f'is a {type(parent_entity)}')
+            if isinstance(parent_entity, Sample):
+                self._donor_uuid = parent_entity.donor_uuid
+                self._donor_submission_id = parent_entity.donor_submission_id
+                self._donor_hubmap_id = parent_entity.donor_hubmap_id
+            else:
+                self._donor_uuid = parent_uuid
+                self._donor_submission_id = parent_entity.submission_id
+                self._donor_hubmap_id = parent_entity.hubmap_id
         return self._donor_uuid
 
     @property
