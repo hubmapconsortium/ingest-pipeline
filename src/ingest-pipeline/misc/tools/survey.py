@@ -71,6 +71,12 @@ COLUMN_SORT_WEIGHTS = {
 ROW_SORT_KEYS = ['is_derived', 'group_name', 'data_types', 'status', 'uuid']
 
 
+#
+# Some Entities are worth caching
+#
+ENTITY_CACHE = {}
+
+
 class SurveyException(AssertionError):
     pass
 
@@ -332,7 +338,6 @@ class Dataset(Entity):
         if len(self.organs) > 1:
             raise SurveyException(f'Sample {self.uuid} comes from multiple organs,'
                                   ' which is not supported')
-        rec['organ'] = self.organs[0]
         if include_all_children:
             filtered_kids = [self.kids[uuid] for uuid in self.kids]
             uuid_hdr, doi_hdr, data_type_hdr, status_hdr, note_note = ('child_uuid', 'child_hubmap_id',
@@ -590,29 +595,33 @@ class EntityFactory(object):
         """
         Returns an entity of some kind
         """
+        if uuid not in ENTITY_CACHE:
+            ingest_url = ENDPOINTS[self.instance]['ingest_url']
+            r = requests.get(f'{ingest_url}/entities/{uuid}',
+                             headers={'Authorization': f'Bearer {self.auth_tok}',
+                                      'Content-Type': 'application/json'})
+            if r.status_code >= 300:
+                r.raise_for_status()
+            prop_dct = r.json()
 
-        ingest_url = ENDPOINTS[self.instance]['ingest_url']
-        r = requests.get(f'{ingest_url}/entities/{uuid}',
-                          headers={'Authorization': f'Bearer {self.auth_tok}',
-                                   'Content-Type': 'application/json'})
-        if r.status_code >= 300:
-            r.raise_for_status()
-        prop_dct = r.json()
+            assert prop_dct['uuid'] == uuid, (f"uuid {uuid} gave back inner"
+                                              " uuid {prop_dct['uuid']}")
+            entity_type = prop_dct['entity_type']
+            if entity_type == 'Dataset':
+                entity = Dataset(prop_dct, self)
+            elif entity_type == 'Sample':
+                entity = Sample(prop_dct, self)
+            elif entity_type == 'Donor':
+                entity = Donor(prop_dct, self)
+            elif entity_type == 'Support':
+                entity = Support(prop_dct, self)
+            elif entity_type == 'Upload':
+                entity = Upload(prop_dct, self)
+            else:
+                entity = Entity(prop_dct, self)
 
-        assert prop_dct['uuid'] == uuid, f"uuid {uuid} gave back inner uuid {prop_dct['uuid']}"
-        entity_type = prop_dct['entity_type']
-        if entity_type == 'Dataset':
-            return Dataset(prop_dct, self)
-        elif entity_type == 'Sample':
-            return Sample(prop_dct, self)
-        elif entity_type == 'Donor':
-            return Donor(prop_dct, self)
-        elif entity_type == 'Support':
-            return Support(prop_dct, self)
-        elif entity_type == 'Upload':
-            return Upload(prop_dct, self)
-        else:
-            return Entity(prop_dct, self)
+            ENTITY_CACHE[uuid] = entity
+        return ENTITY_CACHE[uuid]
 
     def get_full_path(self, ds_uuid):
         """ ds_uuid must be the uuid of a dataset.  Other entity types will fail. """
