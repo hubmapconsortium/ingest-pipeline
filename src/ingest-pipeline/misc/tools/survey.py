@@ -224,16 +224,13 @@ class Dataset(Entity):
     @property
     def donor_uuid(self):
         if self._donor_uuid is None:
-            for parent_uuid in self.parent_uuids:
-                parent_entity = self.entity_factory.get(parent_uuid)
-                if isinstance(parent_entity, Donor):
-                    self._donor_uuid = parent_uuid
-                    break
-                else:
-                    parent_donor_uuid = parent_entity.donor_uuid
-                    if parent_donor_uuid is not None:
-                        self._donor_uuid = parent_donor_uuid
-                        break
+            parent_uuid = self.parent_uuids[0]
+            parent_entity = self.entity_factory.get(parent_uuid)
+            if isinstance(parent_entity, Donor):
+                self._donor_uuid = parent_uuid
+            else:
+                parent_donor_uuid = parent_entity.donor_uuid
+                self._donor_uuid = parent_donor_uuid
         return self._donor_uuid
 
     @property
