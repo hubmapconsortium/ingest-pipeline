@@ -35,7 +35,8 @@ FALLBACK_ASSAY_TYPE_TRANSLATIONS = {
     #'SNARE-Seq2-AC': 'SNARE-ATACseq2',
     'SNARE-Seq2-AC': 'SNAREseq',
     #'SNARE2-RNAseq': 'SNARE-RNAseq2',
-    'SNARE2-RNAseq': 'sciRNAseq'
+    'SNARE2-RNAseq': 'sciRNAseq',
+    'scRNAseq-10xGenomics-v2': 'scRNA-Seq-10x',
 }
 
 
@@ -109,8 +110,10 @@ def create_new_uuid(row, source_entity, entity_factory, dryrun=False):
         print(f'options are {[elt for elt in entity_factory.type_client.iterAssayNames()]}')
         type_info = entity_factory.type_client.getAssayType(orig_assay_type)
     contains_human_genetic_sequences = type_info.contains_pii
-    assert (contains_human_genetic_sequences
-            == source_entity.prop_dct['contains_human_genetic_sequences'])
+    # Check consistency in case this is a Dataset, which will have this info
+    if 'contains_human_genetic_sequences' in source_entity.prop_dct:
+        assert (contains_human_genetic_sequences
+                == source_entity.prop_dct['contains_human_genetic_sequences'])
     group_uuid = source_entity.prop_dct['group_uuid']
     if 'description' in source_entity.prop_dct:
         description = source_entity.prop_dct['description'] + ' : ' + rec_identifier

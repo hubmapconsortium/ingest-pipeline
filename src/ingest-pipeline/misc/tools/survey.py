@@ -213,19 +213,37 @@ class Dataset(Entity):
         self.contains_human_genetic_sequences = c_h_g
         self._kid_dct = None
         self._parent_dct = None
+        self._organs = None
 
     @property
     def donor_uuid(self):
         if self._donor_uuid is None:
-            import pdb
-            pdb.Pdb().set_trace()
             for parent_uuid in self.parent_uuids:
                 parent_entity = self.entity_factory.get(parent_uuid)
-                parent_donor_uuid = parent_entity.donor_uuid
-                if parent_donor_uuid is not None:
-                    self._donor_uuid = parent_donor_uuid
+                if isinstance(parent_entity, Donor):
+                    self._donor_uuid = parent_uuid
                     break
+                else:
+                    parent_donor_uuid = parent_entity.donor_uuid
+                    if parent_donor_uuid is not None:
+                        self._donor_uuid = parent_donor_uuid
+                        break
         return self._donor_uuid
+
+    @property
+    def organs(self):
+        if self._organs is None:
+            organ_list = []
+            for parent_uuid in self.parent_uuids:
+                parent_entity = self.entity_factory.get(parent_uuid)
+                if isinstance(parent_entity, Sample):
+                    organ_list.append(parent_entity.organ)
+                elif isinstance(parent_entity, Donor):
+                    raise SurveyException(f'Parent of Dataset {self.uuid} is a Donor!')
+                else:
+                    organ_list.extend(parent_entity.organs)
+            self._organs = list(set(organ_list))
+        return self._organs
 
     @property
     def kids(self):
@@ -307,6 +325,14 @@ class Dataset(Entity):
         (rec['parent_dataset'],
          rec['sample_submission_id'],
          rec['sample_hubmap_id']) = self._parse_sample_parents()
+        rec['donor_uuid'] = self.donor_uuid
+        if not(self.organs):
+            raise SurveyException(f'The source organ for Sample {self.uuid}'
+                                  'could not be found')
+        if len(self.organs) > 1:
+            raise SurveyException(f'Sample {self.uuid} comes from multiple organs,'
+                                  ' which is not supported')
+        rec['organ'] = self.organs[0]
         if include_all_children:
             filtered_kids = [self.kids[uuid] for uuid in self.kids]
             uuid_hdr, doi_hdr, data_type_hdr, status_hdr, note_note = ('child_uuid', 'child_hubmap_id',
@@ -458,15 +484,27 @@ class Sample(Entity):
         self.submission_id = prop_dct['submission_id']
         self._donor_submission_id = None
         self._donor_uuid = None
+        assert 'direct_ancestor' in prop_dct, 'prop_dct for Sample with no direct_ancestors'
+        direct_ancestors_list = [prop_dct['direct_ancestor']]
+        self.parent_uuids = [elt['uuid'] for elt in direct_ancestors_list]
+        self._organ = prop_dct.get('organ', None)
+
+    @property
+    def organ(self):
+        if self._organ is None:
+            # There should only be one parent, another Sample
+            for parent_uuid in self.parent_uuids:
+                parent_entity = self.entity_factory.get(parent_uuid)
+                assert isinstance(parent_entity, Sample), 'Outermost sample has no organ code?'
+                self._organ = parent_entity.organ
+        return self._organ
 
     @property
     def donor_uuid(self):
         if self._donor_uuid is None:
-            import pdb
-            pdb.Pdb().set_trace()
             for parent_uuid in self.parent_uuids:
                 parent_entity = self.entity_factory.get(parent_uuid)
-                assert isinstance(parent_entity, [Sample, Donor]), (f'Parent of sample {self.uuid}'
+                assert isinstance(parent_entity, (Sample, Donor)), (f'Parent of sample {self.uuid}'
                                                                     f'is a {type(parent_entity)}')
                 if isinstance(parent_entity, Sample):
                     self._donor_uuid = parent_entity.donor_uuid
@@ -564,12 +602,7 @@ class EntityFactory(object):
         assert prop_dct['uuid'] == uuid, f"uuid {uuid} gave back inner uuid {prop_dct['uuid']}"
         entity_type = prop_dct['entity_type']
         if entity_type == 'Dataset':
-            ds = Dataset(prop_dct, self)
-            print('DESCRIPTION follows:')
-            ds.describe()
-            print('REC follows:')
-            pprint(ds.build_rec())
-            return ds
+            return Dataset(prop_dct, self)
         elif entity_type == 'Sample':
             return Sample(prop_dct, self)
         elif entity_type == 'Donor':
