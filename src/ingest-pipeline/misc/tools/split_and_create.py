@@ -278,7 +278,7 @@ def main():
     source_entity = entity_factory.get(source_uuid)
     if mode in ['all', 'stop']:
         source_metadata_files = [elt for elt in source_entity.full_path.glob('*metadata.tsv')]
-        assert len(source_metadata_files) == 1, f'Too many netadata files in {source_entity.full_path}'
+        assert len(source_metadata_files) == 1, f'Too many metadata files in {source_entity.full_path}'
         source_df = pd.read_csv(source_metadata_files[0], sep='\t')
         if hasattr(source_entity, 'data_types'):
             assert isinstance(source_entity.data_types, str)
