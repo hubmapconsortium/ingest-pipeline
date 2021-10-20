@@ -642,7 +642,7 @@ class EntityFactory(object):
         return r.json()['uuid']
                         
     def create_dataset(self,
-                       title,
+                       provider_info,
                        contains_human_genetic_sequences,
                        assay_type,
                        direct_ancestor_uuids,
@@ -654,7 +654,7 @@ class EntityFactory(object):
         supported.
         """
         ingest_url = ENDPOINTS[self.instance]['ingest_url']
-        data = {"title": title,
+        data = {"provider_info": provider_info,
                 "contains_human_genetic_sequences": contains_human_genetic_sequences,
                 "data_types": [assay_type],
                 "direct_ancestor_uuids": direct_ancestor_uuids,

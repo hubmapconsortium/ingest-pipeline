@@ -47,7 +47,7 @@ def main():
     sys.exit('done')
 
     rslt = entity_factory.create_dataset(
-        title=title,
+        provider_info=title,
         contains_human_genetic_sequences=contains_human_genetic_sequences,
         assay_type=assay_type,
         direct_ancestor_uuids=direct_ancestor_uuids,

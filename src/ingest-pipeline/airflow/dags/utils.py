@@ -644,7 +644,7 @@ def pythonop_send_create_dataset(**kwargs) -> str:
 
         data = {
             "direct_ancestor_uuids": source_uuids,
-            "title": dataset_name,
+            "dataset_info": dataset_name,
             "data_types": dataset_types,
             "group_uuid": parent_group_uuid,
             "contains_human_genetic_sequences": contains_seq

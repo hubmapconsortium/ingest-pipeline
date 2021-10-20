@@ -100,9 +100,19 @@ def create_new_uuid(row, source_entity, entity_factory, dryrun=False):
     orig_assay_type = row['assay_type']
     rec_identifier = row['data_path'].strip('/')
     assert rec_identifier and rec_identifier != '.', 'Bad data_path!'
-    print('prop_dct follows')
-    pprint(source_entity.prop_dct)
-    title = source_entity.prop_dct['title'] + ' : ' + rec_identifier
+    info_txt_key = None
+    if isinstance(source_entity, Dataset):
+        assert 'lab_dataset_id' in source_entity.prop_dct, (f'Dataset {uuid}'
+                                                            ' has no lab_dataset_id')
+        info_txt_key = 'lab_dataset_id'
+    elif isinstance(source_entity, Upload):
+        assert 'title' in source_entity.prop_dct, (f'Upload {uuid}'
+                                                   ' has no lab_dataset_id')
+        info_txt_key = 'title'
+    assert info_txt_key is not None, 'Expected a Dataset or an Upload'
+    info_txt_root = source_entity.prop_dct[info_txt_key]
+    assert info_txt_root, f'{uuid} field {info_txt_key} is empty'
+    info_txt = info_txt_root + ' : ' + rec_identifier
     try:
         type_info = entity_factory.type_client.getAssayType(canonical_assay_type)
     except:
@@ -133,7 +143,7 @@ def create_new_uuid(row, source_entity, entity_factory, dryrun=False):
         return uuid
     else:
         rslt = entity_factory.create_dataset(
-            title=title,
+            provider_info=info_txt,
             contains_human_genetic_sequences=contains_human_genetic_sequences,
             assay_type=canonical_assay_type,
             direct_ancestor_uuids=direct_ancestor_uuids,
