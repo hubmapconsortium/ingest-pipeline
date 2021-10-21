@@ -15,7 +15,7 @@ import json
 
 from hubmap_commons.globus_groups import get_globus_groups_info
 
-from survey import (Entity, Dataset, Sample, EntityFactory,
+from survey import (Entity, Dataset, Sample, EntityFactory, Upload,
                     ROW_SORT_KEYS, column_sorter, is_uuid,
                     parse_text_list, ENDPOINTS)
 
