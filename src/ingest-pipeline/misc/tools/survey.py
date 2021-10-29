@@ -209,7 +209,7 @@ class Dataset(Entity):
         self._donor_uuid = None  # requires graph search, so be lazy
         self.group_name = prop_dct['group_name']
         if self.group_name.startswith('hubmap-'):  # it's actually a group id
-            self.group_name = AuthHelper.getGroupDisplayName(self.group_name)
+            self.group_name = AuthHelper.getGroupDisplayName(prop_dct['group_uuid'])
         c_h_g = prop_dct['contains_human_genetic_sequences']
         if isinstance(c_h_g, str):
             c_h_g = (c_h_g.lower() in ['yes', 'true'])
