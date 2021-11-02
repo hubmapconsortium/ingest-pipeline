@@ -754,7 +754,7 @@ def restructure_entity_metadata(raw_metadata: JSONType) -> JSONType:
     if 'metadata' in raw_metadata['ingest_metadata']:
         md['metadata'] = deepcopy(raw_metadata['ingest_metadata']['metadata'])
     if 'extra_metadata' in raw_metadata['ingest_metadata']:
-        md.update(raw_metadata['ingest_metadata'][extra_metadata])
+        md.update(raw_metadata['ingest_metadata']['extra_metadata'])
     if 'contributors' in raw_metadata:
         md['contributors'] = deepcopy(raw_metadata['contributors'])
     if 'antibodies' in raw_metadata:
