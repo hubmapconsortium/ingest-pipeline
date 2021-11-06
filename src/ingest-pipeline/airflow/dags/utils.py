@@ -751,10 +751,11 @@ def restructure_entity_metadata(raw_metadata: JSONType) -> JSONType:
     de-restructured version can be used by workflows in liu of the original.
     """
     md = {}
-    if 'metadata' in raw_metadata['ingest_metadata']:
-        md['metadata'] = deepcopy(raw_metadata['ingest_metadata']['metadata'])
-    if 'extra_metadata' in raw_metadata['ingest_metadata']:
-        md.update(raw_metadata['ingest_metadata']['extra_metadata'])
+    if 'ingest_metadata' in raw_metadata:
+        if 'metadata' in raw_metadata['ingest_metadata']:
+            md['metadata'] = deepcopy(raw_metadata['ingest_metadata']['metadata'])
+        if 'extra_metadata' in raw_metadata['ingest_metadata']:
+            md.update(raw_metadata['ingest_metadata']['extra_metadata'])
     if 'contributors' in raw_metadata:
         md['contributors'] = deepcopy(raw_metadata['contributors'])
     if 'antibodies' in raw_metadata:
@@ -805,12 +806,11 @@ def pythonop_get_dataset_state(**kwargs) -> JSONType:
             print('benign error')
             return {}
 
-    for key in ['status', 'uuid', 'entity_type', 'ingest_metadata']:
+    for key in ['status', 'uuid', 'entity_type']:
         assert key in ds_rslt, f"Dataset status for {uuid} has no {key}"
     if ds_rslt['entity_type'] == 'Dataset':
         assert 'data_types' in ds_rslt, f"Dataset status for {uuid} has no data_types"
         data_types = ds_rslt['data_types']
-        assert 'ingest_metadata' in ds_rslt, f"Dataset status for {uuid} has no ingest_metadata"
         metadata = restructure_entity_metadata(ds_rslt)
         endpoint = f"datasets/{ds_rslt['uuid']}/file-system-abs-path"
     elif ds_rslt['entity_type'] == 'Upload':
