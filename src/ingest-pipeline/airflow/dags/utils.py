@@ -856,6 +856,7 @@ def pythonop_get_dataset_state(**kwargs) -> JSONType:
             organs_query_rslt = response.json()
             print('organs_query_rslt:')
             pprint(organs_query_rslt)
+            rslt['organs'] = [entry['organ'] for entry in organs_query_rslt]
         except HTTPError as e:
             print(f'ERROR: {e}')
             if e.response.status_code == codes.unauthorized:
@@ -863,7 +864,6 @@ def pythonop_get_dataset_state(**kwargs) -> JSONType:
             else:
                 print('benign error')
                 return {}
-        rslt['organs'] = [entry['organ'] for entry in organs_query_rslt]
         
     return rslt
 
