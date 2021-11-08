@@ -64,9 +64,10 @@ with DAG('launch_multi_analysis',
         """
         print(f'Starting uuid {uuid}')
         my_callable = lambda **kwargs: uuid
-        ds_rslt=utils.pythonop_get_dataset_state(dataset_uuid_callable=my_callable,
-                                                 http_conn_id='ingest_api_connection',
-                                                 **kwargs)
+        ds_rslt=utils.pythonop_get_dataset_state(
+            dataset_uuid_callable=my_callable,
+            **kwargs
+        )
         if not ds_rslt:
             raise AirflowException(f'Invalid uuid/doi for group: {uuid}')
         print('ds_rslt:')

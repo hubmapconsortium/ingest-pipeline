@@ -80,9 +80,10 @@ with DAG('launch_checksums',
         filtered_data_type = None
         print(f'Starting uuid {uuid}')
         my_callable = lambda **kwargs: uuid
-        rslt=utils.pythonop_get_dataset_state(dataset_uuid_callable=my_callable,
-                                              http_conn_id='ingest_api_connection',
-                                              **kwargs)
+        rslt=utils.pythonop_get_dataset_state(
+            dataset_uuid_callable=my_callable,
+            **kwargs
+        )
         if not rslt:
             raise AirflowException(f'Invalid uuid/doi: {uuid}')
         print('rslt:')
