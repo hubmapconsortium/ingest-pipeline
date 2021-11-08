@@ -784,7 +784,7 @@ def pythonop_get_dataset_state(**kwargs) -> JSONType:
         'content-type' : 'application/json',
         'X-Hubmap-Application' : 'ingest-pipeline',
         }
-    http_hook = HttpHook(method, http_conn_id='ingest-api-connection')
+    http_hook = HttpHook(method, http_conn_id='ingest_api_connection')
 
     endpoint = f'entities/{uuid}'
 
@@ -846,7 +846,7 @@ def pythonop_get_dataset_state(**kwargs) -> JSONType:
     }
 
     if ds_rslt['entity_type'] == 'Dataset':
-        http_hook = HttpHook('GET', http_conn_id='entity-api-connection')
+        http_hook = HttpHook('GET', http_conn_id='entity_api_connection')
         endpoint = f"datasets/{ds_rslt['uuid']}/organs"
         try:
             response = http_hook.run(endpoint,
@@ -863,7 +863,7 @@ def pythonop_get_dataset_state(**kwargs) -> JSONType:
             else:
                 print('benign error')
                 return {}
-        rslt['organs'] = [entry['organ] for entry in organs_query_rslt]
+        rslt['organs'] = [entry['organ'] for entry in organs_query_rslt]
         
     return rslt
 
