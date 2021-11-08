@@ -843,6 +843,7 @@ def pythonop_get_dataset_state(**kwargs) -> JSONType:
         'data_types': data_types,
         'local_directory_full_path': full_path,
         'metadata': metadata,
+        'organ': organ,
     }
 
     if ds_rslt['entity_type'] == 'Dataset':

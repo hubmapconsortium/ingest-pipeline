@@ -29,6 +29,7 @@ from utils import (
     join_quote_command_str,
     make_send_status_msg_function,
     get_tmp_dir_path,
+    pythonop_get_dataset_state,
 )
 
 # to be used by the CWL worker
@@ -61,6 +62,7 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
 
         cwl_workflows = get_absolute_workflows(
             Path("salmon-rnaseq", "pipeline.cwl"),
+            Path("azimuth-annotate", "pipeline.cwl"),
             Path("portal-containers", "h5ad-to-arrow.cwl"),
             Path("portal-containers", "anndata-to-ui.cwl"),
         )
@@ -73,6 +75,8 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
         prepare_cwl2 = DummyOperator(task_id="prepare_cwl2")
 
         prepare_cwl3 = DummyOperator(task_id="prepare_cwl3")
+
+        prepare_cwl4 = DummyOperator(task_id="prepare_cwl4")
 
         def build_cwltool_cmd1(**kwargs):
             run_id = kwargs["run_id"]
@@ -106,6 +110,31 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
             tmpdir = get_tmp_dir_path(run_id)
             print("tmpdir: ", tmpdir)
 
+            # get organ type
+            my_callable = lambda **kwargs: uuid
+            ds_rslt = pythonop_get_dataset_state(
+                dataset_uuid_callable=my_callable,
+                http_conn_id='ingest_api_connection',
+                **kwargs
+            )
+
+            command = [
+                *get_cwltool_base_cmd(run_id),
+                "--reference",
+                ds_rslt["organ"],
+                "--matrix",
+                "expr.h5ad",
+                "--secondary-analysis-matrix",
+                "secondary_analysis.h5ad"
+            ]
+
+            return join_quote_command_str(command)
+
+        def build_cwltool_cmd3(**kwargs):
+            run_id = kwargs["run_id"]
+            tmpdir = get_tmp_dir_path(run_id)
+            print("tmpdir: ", tmpdir)
+
             command = [
                 *get_cwltool_base_cmd(tmpdir),
                 cwl_workflows[1],
@@ -117,7 +146,7 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
 
             return join_quote_command_str(command)
 
-        def build_cwltool_cmd3(**kwargs):
+        def build_cwltool_cmd4(**kwargs):
             run_id = kwargs["run_id"]
             tmpdir = get_tmp_dir_path(run_id)
             print("tmpdir: ", tmpdir)
@@ -148,6 +177,12 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
         t_build_cmd3 = PythonOperator(
             task_id="build_cmd3",
             python_callable=build_cwltool_cmd3,
+            provide_context=True,
+        )
+
+        t_build_cmd4 = PythonOperator(
+            task_id="build_cmd4",
+            python_callable=build_cwltool_cmd4,
             provide_context=True,
         )
 
