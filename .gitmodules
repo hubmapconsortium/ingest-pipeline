@@ -43,3 +43,6 @@
 [submodule "src/ingest-pipeline/airflow/dags/cwl/celldive-pipeline"]
 	path = src/ingest-pipeline/airflow/dags/cwl/celldive-pipeline
 	url = https://github.com//hubmapconsortium/celldive-pipeline
+[submodule "src/ingest-pipeline/airflow/dags/cwl/azimuth-annotate"]
+	path = src/ingest-pipeline/airflow/dags/cwl/azimuth-annotate
+	url = git@github.com:hubmapconsortium/azimuth-annotate.git
