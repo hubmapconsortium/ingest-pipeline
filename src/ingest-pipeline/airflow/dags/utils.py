@@ -772,13 +772,11 @@ def pythonop_get_dataset_state(**kwargs) -> JSONType:
     
     Accepts the following via the caller's op_kwargs:
     'dataset_uuid_callable' : called with **kwargs; returns the
-                              uuid of the dataset to be modified
-    'http_conn_id' : the http connection to be used
+                              uuid of the Dataset or Upload to be examined
     """
-    for arg in ['dataset_uuid_callable', 'http_conn_id']:
+    for arg in ['dataset_uuid_callable']:
         assert arg in kwargs, "missing required argument {}".format(arg)
     uuid = kwargs['dataset_uuid_callable'](**kwargs)
-    http_conn_id = kwargs['http_conn_id']
     method = 'GET'
     auth_tok = get_auth_tok(**kwargs)
     headers = {
@@ -786,7 +784,7 @@ def pythonop_get_dataset_state(**kwargs) -> JSONType:
         'content-type' : 'application/json',
         'X-Hubmap-Application' : 'ingest-pipeline',
         }
-    http_hook = HttpHook(method, http_conn_id=http_conn_id)
+    http_hook = HttpHook(method, http_conn_id='ingest_api_connection')
 
     endpoint = f'entities/{uuid}'
 
@@ -834,7 +832,8 @@ def pythonop_get_dataset_state(**kwargs) -> JSONType:
         else:
             print('benign error')
             return {}
-    assert 'path' in path_query_rslt, f"Dataset path for {uuid} produced no path"
+    assert 'path' in path_query_rslt, (f"Dataset path for {uuid} produced"
+                                       " no path")
     full_path = path_query_rslt['path']
 
     rslt = {
@@ -845,6 +844,27 @@ def pythonop_get_dataset_state(**kwargs) -> JSONType:
         'local_directory_full_path': full_path,
         'metadata': metadata,
     }
+
+    if ds_rslt['entity_type'] == 'Dataset':
+        http_hook = HttpHook('GET', http_conn_id='entity_api_connection')
+        endpoint = f"datasets/{ds_rslt['uuid']}/organs"
+        try:
+            response = http_hook.run(endpoint,
+                                     headers=headers,
+                                     extra_options={'check_response': False})
+            response.raise_for_status()
+            organs_query_rslt = response.json()
+            print('organs_query_rslt:')
+            pprint(organs_query_rslt)
+            rslt['organs'] = [entry['organ'] for entry in organs_query_rslt]
+        except HTTPError as e:
+            print(f'ERROR: {e}')
+            if e.response.status_code == codes.unauthorized:
+                raise RuntimeError('entity database authorization was rejected?')
+            else:
+                print('benign error')
+                return {}
+        
     return rslt
 
 
