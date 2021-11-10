@@ -843,7 +843,6 @@ def pythonop_get_dataset_state(**kwargs) -> JSONType:
         'data_types': data_types,
         'local_directory_full_path': full_path,
         'metadata': metadata,
-        'organ': organ,
     }
 
     if ds_rslt['entity_type'] == 'Dataset':
@@ -1186,7 +1185,7 @@ def create_dataset_state_error_callback(dataset_uuid_callable: Callable[[Any], s
         new_kwargs = kwargs.copy()
         new_kwargs.update(contextDict)
         new_kwargs.update({'dataset_uuid_callable' : dataset_uuid_callable,
-                           'http _conn_id' : 'ingest_api_connection',
+                           'http_conn_id' : 'ingest_api_connection',
                            'ds_state' : 'Error',
                            'message' : msg
                            })
