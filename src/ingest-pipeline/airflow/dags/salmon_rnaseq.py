@@ -116,8 +116,8 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
                 **kwargs
             )
 
-            organ_code = (ds_rslt['organs'][0] if len(ds_rslt['organs']) == 1
-                          else 'multi')
+            organ_list = list(set(ds_rslt['organs']))
+            organ_code = organ_list[0] if len(organ_list) == 1 else 'multi'
 
             command = [
                 *get_cwltool_base_cmd(tmpdir),
@@ -139,7 +139,7 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
 
             command = [
                 *get_cwltool_base_cmd(tmpdir),
-                cwl_workflows[1],
+                cwl_workflows[2],
                 "--input_dir",
                 # This pipeline invocation runs in a 'hubmap_ui' subdirectory,
                 # so use the parent directory as input
@@ -155,7 +155,7 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
 
             command = [
                 *get_cwltool_base_cmd(tmpdir),
-                cwl_workflows[2],
+                cwl_workflows[3],
                 "--input_dir",
                 # This pipeline invocation runs in a 'hubmap_ui' subdirectory,
                 # so use the parent directory as input
@@ -201,6 +201,7 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
             task_id="pipeline_exec_azimuth_annotate",
             bash_command=""" \
             tmp_dir={{tmp_dir_path(run_id)}} ; \
+            cd "$tmp_dir"/cwl_out ; \
             {{ti.xcom_pull(task_ids='build_cmd2')}} >> $tmp_dir/session.log 2>&1 ; \
             echo $?
             """,
