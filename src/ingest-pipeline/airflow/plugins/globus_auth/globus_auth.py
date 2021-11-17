@@ -114,7 +114,7 @@ class GlobusAuthBackend(object):
         try:
             if 'code' not in request.args:
                 auth_uri = self.globus_oauth.oauth2_get_authorize_url(additional_params={
-                    "scope": "openid profile email urn:globus:auth:scope:transfer.api.globus.org:all urn:globus:auth:scope:auth.globus.org:view_identities urn:globus:auth:scope:groups.api.globus.org:groups"})
+                    "scope": "openid profile email urn:globus:auth:scope:transfer.api.globus.org:all urn:globus:auth:scope:auth.globus.org:view_identities urn:globus:auth:scope:groups.api.globus.org:all"})
                 return redirect(auth_uri)
             else:
                 code = request.args.get('code')
