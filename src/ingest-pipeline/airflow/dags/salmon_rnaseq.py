@@ -29,6 +29,7 @@ from utils import (
     join_quote_command_str,
     make_send_status_msg_function,
     get_tmp_dir_path,
+    pythonop_get_dataset_state,
 )
 
 # to be used by the CWL worker
@@ -61,6 +62,7 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
 
         cwl_workflows = get_absolute_workflows(
             Path("salmon-rnaseq", "pipeline.cwl"),
+            Path("azimuth-annotate", "pipeline.cwl"),
             Path("portal-containers", "h5ad-to-arrow.cwl"),
             Path("portal-containers", "anndata-to-ui.cwl"),
         )
@@ -73,6 +75,8 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
         prepare_cwl2 = DummyOperator(task_id="prepare_cwl2")
 
         prepare_cwl3 = DummyOperator(task_id="prepare_cwl3")
+
+        prepare_cwl4 = DummyOperator(task_id="prepare_cwl4")
 
         def build_cwltool_cmd1(**kwargs):
             run_id = kwargs["run_id"]
@@ -106,13 +110,24 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
             tmpdir = get_tmp_dir_path(run_id)
             print("tmpdir: ", tmpdir)
 
+            # get organ type
+            ds_rslt = pythonop_get_dataset_state(
+                dataset_uuid_callable=get_dataset_uuid,
+                **kwargs
+            )
+
+            organ_list = list(set(ds_rslt['organs']))
+            organ_code = organ_list[0] if len(organ_list) == 1 else 'multi'
+
             command = [
                 *get_cwltool_base_cmd(tmpdir),
                 cwl_workflows[1],
-                "--input_dir",
-                # This pipeline invocation runs in a 'hubmap_ui' subdirectory,
-                # so use the parent directory as input
-                "..",
+                "--reference",
+                organ_code,
+                "--matrix",
+                "expr.h5ad",
+                "--secondary-analysis-matrix",
+                "secondary_analysis.h5ad"
             ]
 
             return join_quote_command_str(command)
@@ -125,6 +140,22 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
             command = [
                 *get_cwltool_base_cmd(tmpdir),
                 cwl_workflows[2],
+                "--input_dir",
+                # This pipeline invocation runs in a 'hubmap_ui' subdirectory,
+                # so use the parent directory as input
+                "..",
+            ]
+
+            return join_quote_command_str(command)
+
+        def build_cwltool_cmd4(**kwargs):
+            run_id = kwargs["run_id"]
+            tmpdir = get_tmp_dir_path(run_id)
+            print("tmpdir: ", tmpdir)
+
+            command = [
+                *get_cwltool_base_cmd(tmpdir),
+                cwl_workflows[3],
                 "--input_dir",
                 # This pipeline invocation runs in a 'hubmap_ui' subdirectory,
                 # so use the parent directory as input
@@ -151,11 +182,27 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
             provide_context=True,
         )
 
+        t_build_cmd4 = PythonOperator(
+            task_id="build_cmd4",
+            python_callable=build_cwltool_cmd4,
+            provide_context=True,
+        )
+
         t_pipeline_exec = BashOperator(
             task_id="pipeline_exec",
             bash_command=""" \
             tmp_dir={{tmp_dir_path(run_id)}} ; \
             {{ti.xcom_pull(task_ids='build_cmd1')}} > $tmp_dir/session.log 2>&1 ; \
+            echo $?
+            """,
+        )
+
+        t_pipeline_exec_azimuth_annotate = BashOperator(
+            task_id="pipeline_exec_azimuth_annotate",
+            bash_command=""" \
+            tmp_dir={{tmp_dir_path(run_id)}} ; \
+            cd "$tmp_dir"/cwl_out ; \
+            {{ti.xcom_pull(task_ids='build_cmd2')}} >> $tmp_dir/session.log 2>&1 ; \
             echo $?
             """,
         )
@@ -168,7 +215,7 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
             cd "$tmp_dir"/cwl_out ; \
             mkdir -p hubmap_ui ; \
             cd hubmap_ui ; \
-            {{ti.xcom_pull(task_ids='build_cmd2')}} >> $tmp_dir/session.log 2>&1 ; \
+            {{ti.xcom_pull(task_ids='build_cmd3')}} >> $tmp_dir/session.log 2>&1 ; \
             echo $?
             """,
         )
@@ -181,7 +228,7 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
             cd "$tmp_dir"/cwl_out ; \
             mkdir -p hubmap_ui ; \
             cd hubmap_ui ; \
-            {{ti.xcom_pull(task_ids='build_cmd3')}} >> $tmp_dir/session.log 2>&1 ; \
+            {{ti.xcom_pull(task_ids='build_cmd4')}} >> $tmp_dir/session.log 2>&1 ; \
             echo $?
             """,
         )
@@ -204,12 +251,23 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
             op_kwargs={
                 "next_op": "prepare_cwl3",
                 "bail_op": "set_dataset_error",
-                "test_op": "convert_for_ui",
+                "test_op": "pipeline_exec_azimuth_annotate",
             },
         )
 
         t_maybe_keep_cwl3 = BranchPythonOperator(
             task_id="maybe_keep_cwl3",
+            python_callable=utils.pythonop_maybe_keep,
+            provide_context=True,
+            op_kwargs={
+                "next_op": "prepare_cwl4",
+                "bail_op": "set_dataset_error",
+                "test_op": "convert_for_ui",
+            },
+        )
+
+        t_maybe_keep_cwl4 = BranchPythonOperator(
+            task_id="maybe_keep_cwl4",
             python_callable=utils.pythonop_maybe_keep,
             provide_context=True,
             op_kwargs={
@@ -248,6 +306,7 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
         send_status_msg = make_send_status_msg_function(
             dag_file=__file__,
             retcode_ops=["pipeline_exec",
+                         "pipeline_exec_azimuth_annotate",
                          "move_data",
                          "convert_for_ui",
                          "convert_for_ui_2"],
@@ -278,12 +337,16 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
             >> t_maybe_keep_cwl1
             >> prepare_cwl2
             >> t_build_cmd2
-            >> t_convert_for_ui
+            >> t_pipeline_exec_azimuth_annotate
             >> t_maybe_keep_cwl2
             >> prepare_cwl3
             >> t_build_cmd3
-            >> t_convert_for_ui_2
+            >> t_convert_for_ui
             >> t_maybe_keep_cwl3
+            >> prepare_cwl4
+            >> t_build_cmd4
+            >> t_convert_for_ui_2
+            >> t_maybe_keep_cwl4
             >> t_move_data
             >> t_send_status
             >> t_join
@@ -291,6 +354,7 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
         t_maybe_keep_cwl1 >> t_set_dataset_error
         t_maybe_keep_cwl2 >> t_set_dataset_error
         t_maybe_keep_cwl3 >> t_set_dataset_error
+        t_maybe_keep_cwl4 >> t_set_dataset_error
         t_set_dataset_error >> t_join
         t_join >> t_cleanup_tmpdir
 

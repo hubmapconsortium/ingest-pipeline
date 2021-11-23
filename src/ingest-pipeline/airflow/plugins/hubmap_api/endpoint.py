@@ -9,7 +9,6 @@ import configparser
 from datetime import datetime
 import pytz
 import yaml
-import ast
 from cryptography.fernet import Fernet
 
 from werkzeug.exceptions import HTTPException, NotFound 
@@ -269,13 +268,7 @@ def _auth_tok_from_request():
     LOGGER.info('top of request_ingest.')
     assert authorization[:len('BEARER')].lower() == 'bearer', 'authorization is not BEARER'
     substr = authorization[len('BEARER'):].strip()
-    if 'nexus' in substr:
-        auth_dct = ast.literal_eval(authorization[len('BEARER'):].strip())
-        #LOGGER.info('auth_dct: %s', auth_dct)
-        assert 'nexus_token' in auth_dct, 'authorization has no nexus_token'
-        auth_tok = auth_dct['nexus_token']
-    else:
-        auth_tok = substr
+    auth_tok = substr
     #LOGGER.info('auth_tok: %s', auth_tok)  # reduce visibility of auth_tok
     return auth_tok
 

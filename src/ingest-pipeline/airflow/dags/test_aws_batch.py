@@ -91,7 +91,6 @@ with DAG('test_aws_batch',
     #         print(f'Starting uuid {uuid}')
     #         my_callable = lambda **kwargs: uuid
     #         rslt=utils.pythonop_get_dataset_state(dataset_uuid_callable=my_callable,
-    #                                               http_conn_id='ingest_api_connection',
     #                                               **kwargs)
     #         if not rslt:
     #             raise AirflowException(f'Invalid uuid/doi for group: {uuid}')

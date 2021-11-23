@@ -57,7 +57,6 @@ with DAG('validate_upload',
 
         ds_rslt = pythonop_get_dataset_state(
             dataset_uuid_callable=my_callable,
-            http_conn_id='ingest_api_connection',
             **kwargs
         )
         if not ds_rslt:

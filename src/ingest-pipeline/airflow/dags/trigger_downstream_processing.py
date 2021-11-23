@@ -55,7 +55,6 @@ with DAG('trigger_downstream_processing',
 
         ds_rslt = utils.pythonop_get_dataset_state(
             dataset_uuid_callable=my_callable,
-            http_conn_id='ingest_api_connection',
             **kwargs
         )
         if not ds_rslt:

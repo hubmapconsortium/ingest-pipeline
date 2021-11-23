@@ -45,7 +45,7 @@ workflow_map:
     'assay_type': 'sciRNAseq'
     'workflow': 'salmon_rnaseq_sciseq'
 #  - 'collection_type': '.*'  # disconnected because we expect these to be multis
-#    'assay_type': 'SNARE2-RNAseq'
+#    'assay_type': 'SNARE-RNAseq2'
 #    'workflow': 'salmon_rnaseq_snareseq'
   - 'collection_type': 'SNARE2-RNAseq_collection'
     'assay_type': '.*'
