@@ -66,12 +66,19 @@ with DAG('validation_test',
         print('ds_rslt:')
         pprint(ds_rslt)
 
-        for key in ['status', 'uuid', 'data_types',
+        for key in ['entity_type', 'status', 'uuid', 'data_types',
                     'local_directory_full_path']:
             assert key in ds_rslt, f"Dataset status for {uuid} has no {key}"
 
-        if not ds_rslt['status'] in ['New', 'Invalid']:
-            raise AirflowException(f'Dataset {uuid} is not New or Invalid')
+        if not ds_rslt['entity_type'] in ['Dataset', 'Upload']:
+            raise AirflowException(f'Entity {uuid} is not a Dataset or Upload')
+
+        if ds_rslt['entity_type'] == 'Dataset':
+            if not ds_rslt['status'] in ['New', 'Invalid']:
+                raise AirflowException(f'Dataset {uuid} is not New or Invalid')
+        else:
+            if not ds_rslt['status'] in ['New', 'Submitted', 'Invalid']:
+                raise AirflowException(f'Upload {uuid} is not New, Submitted, or Invalid')
 
         lz_path = ds_rslt['local_directory_full_path']
         uuid = ds_rslt['uuid']  # 'uuid' may  actually be a DOI
