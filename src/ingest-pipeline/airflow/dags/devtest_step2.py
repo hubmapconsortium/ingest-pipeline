@@ -134,7 +134,6 @@ with DAG(
         trigger_rule='all_done',
         op_kwargs={
             'dataset_uuid_callable': get_dataset_uuid,
-            'http_conn_id': 'ingest_api_connection',
             'ds_state': 'Error',
             'message': f'An error occurred in {pipeline_name}',
         },

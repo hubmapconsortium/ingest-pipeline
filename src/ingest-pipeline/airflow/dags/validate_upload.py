@@ -70,8 +70,8 @@ with DAG('validate_upload',
 
         if ds_rslt['entity_type'] != 'Upload':
             raise AirflowException(f'{uuid} is not an Upload')
-        if ds_rslt['status'] not in ['New', 'Submitted', 'Invalid']:
-            raise AirflowException(f'status of Upload {uuid} is not New, Submitted, or Invalid')
+        if ds_rslt['status'] not in ['New', 'Submitted', 'Invalid', 'Processing']:
+            raise AirflowException(f'status of Upload {uuid} is not New, Submitted, Invalid, or Processing')
 
         lz_path = ds_rslt['local_directory_full_path']
         uuid = ds_rslt['uuid']  # 'uuid' may  actually be a DOI

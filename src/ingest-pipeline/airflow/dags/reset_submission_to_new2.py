@@ -12,31 +12,27 @@ from airflow.operators.python_operator import PythonOperator
 from airflow.operators.python_operator import BranchPythonOperator
 from airflow.operators.dummy_operator import DummyOperator
 from airflow.hooks.http_hook import HttpHook
-from airflow.configuration import conf as airflow_conf
 
 import utils
 
 from utils import localized_assert_json_matches_schema as assert_json_matches_schema
 
-UUIDS_TO_RESET = [
-    '2c467ffa1d01c41effb7057d7d329c8f',
-    '48c8dd2ad06aa23e36c095c9088a4913',
-    '08ee9f5575339641eb9f8fb17cc1d1bd'
-    ]
-
+def get_dataset_uuid(**kwargs):
+    return '4eb5941f178625de6237fd28de6ae4f1'
 
 def get_uuid_for_error(**kwargs):
     """
     Return the uuid for the derived dataset if it exists, and of the parent dataset otherwise.
     """
-    return None
+    rslt = get_dataset_uuid(**kwargs)
+    return rslt
 
 
 default_args = {
     'owner': 'hubmap',
     'depends_on_past': False,
     'start_date': datetime(2019, 1, 1),
-    'email': ['joel.welling@gmail.com'],
+    'email': ['icaoberg@psc.edu'],
     'email_on_failure': False,
     'email_on_retry': False,
     'retries': 1,
@@ -47,11 +43,7 @@ default_args = {
 }
 
 
-def uuid_fun(**kwargs):
-    return kwargs['uuid']
-
-
-with DAG('reset_submission_to_new', 
+with DAG('reset_submission_to_new2', 
          schedule_interval=None, 
          is_paused_upon_creation=False, 
          default_args=default_args,
@@ -59,24 +51,18 @@ with DAG('reset_submission_to_new',
          user_defined_macros={'tmp_dir_path' : utils.get_tmp_dir_path}
          ) as dag:
 
-    prev = dag
-    
-    for idx, uuid in enumerate(UUIDS_TO_RESET):
+    t_set_dataset_new = PythonOperator(
+        task_id='set_dataset_new',
+        python_callable=utils.pythonop_set_dataset_state,
+        provide_context=True,
+        op_kwargs = {'dataset_uuid_callable' : get_dataset_uuid,
+                     'ds_state' : 'New',
+                     'message' : 'Resetting state to NEW',
+                     'crypt_auth_tok' : utils.encrypt_tok('gimzYEgmjMtPmNJ0qoV11gdicAK8dguyigj2m3MTE').decode()
+                     }
+    )
 
-        this_t = PythonOperator(
-            task_id=f'set_dataset_new_{idx}',
-            python_callable=utils.pythonop_set_dataset_state,
-            provide_context=True,
-            op_kwargs = {'dataset_uuid_callable' : uuid_fun,
-                         'ds_state' : 'New',
-                         'message' : 'Resetting state to NEW',
-                         'crypt_auth_tok' : utils.encrypt_tok(airflow_conf.as_dict()
-                                                              ['connections']['APP_CLIENT_SECRET']).decode(),
-                         'uuid': uuid
-                         }
-        )
-        
-        prev >> this_t
-        prev = this_t
+
+    dag >> t_set_dataset_new
 
 

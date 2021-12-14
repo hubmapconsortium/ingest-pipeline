@@ -551,7 +551,6 @@ with DAG('codex_cytokit',
         provide_context=True,
         trigger_rule='all_done',
         op_kwargs = {'dataset_uuid_callable' : get_dataset_uuid,
-                     'http_conn_id' : 'ingest_api_connection',
                      'ds_state' : 'Error',
                      'message' : 'An error occurred in {}'.format(pipeline_name)
                      }
