@@ -68,7 +68,6 @@ with DAG('reset_submission_to_new',
             python_callable=utils.pythonop_set_dataset_state,
             provide_context=True,
             op_kwargs = {'dataset_uuid_callable' : uuid_fun,
-                         'http_conn_id' : 'ingest_api_connection',
                          'ds_state' : 'New',
                          'message' : 'Resetting state to NEW',
                          'crypt_auth_tok' : utils.encrypt_tok(airflow_conf.as_dict()

@@ -59,8 +59,6 @@ class SetDatasetProcessingOperator(PythonOperator):
                          provide_context=True,
                          op_kwargs={
                              'dataset_uuid_callable': get_dataset_uuid,
-                             'http_conn_id': 'ingest_api_connection',
-                             'endpoint': '/datasets/status'
                          },
                          **kwargs)
     

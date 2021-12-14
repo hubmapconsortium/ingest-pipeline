@@ -699,35 +699,37 @@ def pythonop_send_create_dataset(**kwargs) -> str:
 
 def pythonop_set_dataset_state(**kwargs) -> None:
     """
-    Sets the status of a dataset to 'Processing'
+    Sets the status of a dataset, to 'Processing' if no specific state
+    is specified.  NOTE that this routine cannot change a dataset into
+    or out of the Published state.
     
     Accepts the following via the caller's op_kwargs:
     'dataset_uuid_callable' : called with **kwargs; returns the
                               uuid of the dataset to be modified
-    'http_conn_id' : the http connection to be used
+    'http_conn_id' : the http connection to be used.  Default is "entity_api_connection"
     'ds_state' : one of 'QA', 'Processing', 'Error', 'Invalid'. Default: 'Processing'
-    'message' : update message. Default: 'update state'
+    'message' : update message, saved as dataset metadata element "pipeline_messsage".
+                The default is not to save any message.
     """
-    for arg in ['dataset_uuid_callable', 'http_conn_id']:
+    for arg in ['dataset_uuid_callable']:
         assert arg in kwargs, "missing required argument {}".format(arg)
     dataset_uuid = kwargs['dataset_uuid_callable'](**kwargs)
-    http_conn_id = kwargs['http_conn_id']
-    endpoint = '/datasets/status'
+    http_conn_id = kwargs.get('http_conn_id', 'entity_api_connection')
+    endpoint = f'/entities/{dataset_uuid}'
     ds_state = kwargs['ds_state'] if 'ds_state' in kwargs else 'Processing'
-    message = kwargs['message'] if 'message' in kwargs else 'update state'
-    method = 'PUT'
+    message = kwargs.get('message', None)
     headers = {
         'authorization' : 'Bearer ' + get_auth_tok(**kwargs),
-        'content-type' : 'application/json'}
+        'content-type' : 'application/json',
+        'X-Hubmap-Application': 'ingest-pipeline'}
     extra_options = []
 
-    http_hook = HttpHook(method,
+    http_hook = HttpHook('PUT',
                          http_conn_id=http_conn_id)
 
-    data = {'dataset_id' : dataset_uuid,
-            'status' : ds_state,
-            'message' : message,
-            'metadata': {}}
+    data = {'status' : ds_state}
+    if message is not None:
+        data['pipeline_message'] = message
     print('data: ')
     pprint(data)
 
