@@ -64,12 +64,14 @@ with DAG('validate_upload',
         print('ds_rslt:')
         pprint(ds_rslt)
 
-        for key in ['status', 'uuid', 'data_types',
+        for key in ['entity_type', 'status', 'uuid', 'data_types',
                     'local_directory_full_path']:
             assert key in ds_rslt, f"Dataset status for {uuid} has no {key}"
 
-        if False:  # not ds_rslt['status'] in ['Processing']:
-            raise AirflowException(f'Dataset {uuid} is not Processing')
+        if ds_rslt['entity_type'] != 'Upload':
+            raise AirflowException(f'{uuid} is not an Upload')
+        if ds_rslt['status'] not in ['New', 'Submitted', 'Invalid', 'Processing']:
+            raise AirflowException(f'status of Upload {uuid} is not New, Submitted, Invalid, or Processing')
 
         lz_path = ds_rslt['local_directory_full_path']
         uuid = ds_rslt['uuid']  # 'uuid' may  actually be a DOI
