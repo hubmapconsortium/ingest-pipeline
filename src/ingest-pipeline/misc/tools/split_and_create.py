@@ -107,7 +107,7 @@ def create_new_uuid(row, source_entity, entity_factory, dryrun=False):
         info_txt_key = 'lab_dataset_id'
     elif isinstance(source_entity, Upload):
         assert 'title' in source_entity.prop_dct, (f'Upload {uuid}'
-                                                   ' has no lab_dataset_id')
+                                                   ' has no title')
         info_txt_key = 'title'
     assert info_txt_key is not None, 'Expected a Dataset or an Upload'
     info_txt_root = source_entity.prop_dct[info_txt_key]
@@ -125,10 +125,14 @@ def create_new_uuid(row, source_entity, entity_factory, dryrun=False):
         assert (contains_human_genetic_sequences
                 == source_entity.prop_dct['contains_human_genetic_sequences'])
     group_uuid = source_entity.prop_dct['group_uuid']
-    if 'description' in source_entity.prop_dct:
+    if 'description' in row:
+        description = row['description']
+    elif 'description' in source_entity.prop_dct:
         description = source_entity.prop_dct['description'] + ' : ' + rec_identifier
-    else:
+    elif 'lab_dataset_id' in source_entity.prop_dct:
         description = source_entity.prop_dct['lab_dataset_id'] + ' : ' + rec_identifier
+    else:
+        description = ': ' + rec_identifier
     sample_id = row['tissue_id']
     print(f"tissue_id is {sample_id}")
     sample_uuid = entity_factory.id_to_uuid(sample_id)
@@ -209,10 +213,55 @@ def populate(idx, row, source_df, source_entity, entity_factory, dryrun=False):
     print(f"{old_data_path} -> {uuid} -> full path: {kid_path}")
 
 
+def update_upload_entity(source_df, source_entity, dryrun=False):
+    child_uuid_list = [row['new_uuid'] for idx, row in source_df.iterrows()]
+    if isinstance(source_entity, Upload):
+        if dryrun:
+            print(f'set status of <{source_entity.uuid}> to "Reorganized"')
+            print(f'set <{source_entity.uuid}> dataset_uuids_to_link to {child_uuid_list}')
+        else:
+           pass
+        # # Set Upload status to "Reorganized"
+        # entity_url = ENDPOINTS[source_entity.entity_factory.instance]['entity_url']
+        # data = {
+        #     "upload_id": source_entity.uuid,
+        #     "status": "Reorganized"
+        #     }
+        # endpoint = f'{entity_url}/uploads/status'
+        # print(f'sending to {endpoint}:')
+        # pprint(data)
+        # r = requests.put(endpoint,
+        #                  data=json.dumps(data),
+        #                  headers={'Authorization': f'Bearer {self.auth_tok}',
+        #                           'Content-Type': 'application/json'})
+        # if r.status_code >= 300:
+        #     r.raise_for_status()
+        # print('response:')
+        # pprint(r.json())
+        # # Set links from Upload to split Datasets"
+        # data = {
+        #     "dataset_uuids_to_link": child_uuid_list
+        #     }
+        # endpoint = f'{entity_url}/uploads/{source_entity.uuid}'
+        # print(f'sending to {endpoint}:')
+        # pprint(data)
+        # r = requests.put(endpoint,
+        #                  data=json.dumps(data),
+        #                  headers={'Authorization': f'Bearer {self.auth_tok}',
+        #                           'Content-Type': 'application/json'})
+        # if r.status_code >= 300:
+        #     r.raise_for_status()
+        # print('response:')
+        # pprint(r.json())
+
+    else:
+        print(f'source entity <{source_entity.uuid}> is not an upload, so its status was not updated')
+
+
 def apply_special_case_transformations(df: pd.DataFrame, parent_assay_type: StrOrListStr) -> pd.DataFrame:
     """
     Sometimes special case transformations must be applied, for example because the
-    valisation rules have changed since the upload was originally validated.
+    validation rules have changed since the upload was originally validated.
     """
     for regex, fun_lst in SPECIAL_CASE_TRANSFORMATIONS:
         if regex.match(str(parent_assay_type)):
@@ -322,6 +371,8 @@ def main():
             dag_config['uuid_list'].append(row['new_uuid'])
             populate(idx, row, source_df, source_entity, entity_factory, dryrun=dryrun)
 
+        update_upload_entity(source_df, source_entity, dryrun=dryrun)
+            
         if ingest:
             print('Beginning ingestion')
             for uuid in dag_config['uuid_list']:
