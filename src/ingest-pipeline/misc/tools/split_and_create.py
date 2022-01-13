@@ -12,6 +12,7 @@ import pandas as pd
 import numpy as np
 import time
 import json
+import requests
 
 from hubmap_commons.globus_groups import get_globus_groups_info
 
@@ -220,39 +221,43 @@ def update_upload_entity(source_df, source_entity, dryrun=False):
             print(f'set status of <{source_entity.uuid}> to "Reorganized"')
             print(f'set <{source_entity.uuid}> dataset_uuids_to_link to {child_uuid_list}')
         else:
-           pass
-        # # Set Upload status to "Reorganized"
-        # entity_url = ENDPOINTS[source_entity.entity_factory.instance]['entity_url']
-        # data = {
-        #     "upload_id": source_entity.uuid,
-        #     "status": "Reorganized"
-        #     }
-        # endpoint = f'{entity_url}/uploads/status'
-        # print(f'sending to {endpoint}:')
-        # pprint(data)
-        # r = requests.put(endpoint,
-        #                  data=json.dumps(data),
-        #                  headers={'Authorization': f'Bearer {self.auth_tok}',
-        #                           'Content-Type': 'application/json'})
-        # if r.status_code >= 300:
-        #     r.raise_for_status()
-        # print('response:')
-        # pprint(r.json())
-        # # Set links from Upload to split Datasets"
-        # data = {
-        #     "dataset_uuids_to_link": child_uuid_list
-        #     }
-        # endpoint = f'{entity_url}/uploads/{source_entity.uuid}'
-        # print(f'sending to {endpoint}:')
-        # pprint(data)
-        # r = requests.put(endpoint,
-        #                  data=json.dumps(data),
-        #                  headers={'Authorization': f'Bearer {self.auth_tok}',
-        #                           'Content-Type': 'application/json'})
-        # if r.status_code >= 300:
-        #     r.raise_for_status()
-        # print('response:')
-        # pprint(r.json())
+            # Set Upload status to "Reorganized"
+            entity_url = ENDPOINTS[source_entity.entity_factory.instance]['entity_url']
+            data = {
+                "status": "Reorganized"
+            }
+            endpoint = f'{entity_url}/entities/{source_entity.uuid}'
+            print(f'sending to {endpoint}:')
+            pprint(data)
+            r = requests.put(endpoint,
+                             data=json.dumps(data),
+                             headers={
+                                 'Authorization': f'Bearer {source_entity.entity_factory.auth_tok}',
+                                 'Content-Type': 'application/json',
+                                 'X-Hubmap-Application': 'ingest-pipeline'
+                             })
+            if r.status_code >= 300:
+                r.raise_for_status()
+            print('response:')
+            pprint(r.json())
+            # Set links from Upload to split Datasets"
+            data = {
+                "dataset_uuids_to_link": child_uuid_list
+            }
+            endpoint = f'{entity_url}/entities/{source_entity.uuid}'
+            print(f'sending to {endpoint}:')
+            pprint(data)
+            r = requests.put(endpoint,
+                             data=json.dumps(data),
+                             headers={
+                                 'Authorization': f'Bearer {source_entity.entity_factory.auth_tok}',
+                                 'Content-Type': 'application/json',
+                                 'X-Hubmap-Application': 'ingest-pipeline'
+                             })
+            if r.status_code >= 300:
+                r.raise_for_status()
+            print('response:')
+            pprint(r.json())
 
     else:
         print(f'source entity <{source_entity.uuid}> is not an upload, so its status was not updated')
