@@ -222,26 +222,10 @@ def update_upload_entity(source_df, source_entity, dryrun=False):
             print(f'set <{source_entity.uuid}> dataset_uuids_to_link to {child_uuid_list}')
         else:
             # Set Upload status to "Reorganized"
+            # Set links from Upload to split Datasets"
             entity_url = ENDPOINTS[source_entity.entity_factory.instance]['entity_url']
             data = {
-                "status": "Reorganized"
-            }
-            endpoint = f'{entity_url}/entities/{source_entity.uuid}'
-            print(f'sending to {endpoint}:')
-            pprint(data)
-            r = requests.put(endpoint,
-                             data=json.dumps(data),
-                             headers={
-                                 'Authorization': f'Bearer {source_entity.entity_factory.auth_tok}',
-                                 'Content-Type': 'application/json',
-                                 'X-Hubmap-Application': 'ingest-pipeline'
-                             })
-            if r.status_code >= 300:
-                r.raise_for_status()
-            print('response:')
-            pprint(r.json())
-            # Set links from Upload to split Datasets"
-            data = {
+                "status": "Reorganized",
                 "dataset_uuids_to_link": child_uuid_list
             }
             endpoint = f'{entity_url}/entities/{source_entity.uuid}'
