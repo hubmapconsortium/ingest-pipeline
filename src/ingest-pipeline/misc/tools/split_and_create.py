@@ -233,55 +233,25 @@ def submit_uuid(uuid, entity_factory, dryrun=False):
         )
         return rslt
 
-def main():
+
+def reorganize(source_uuid, **kwargs) -> None:
     """
-    main
+    Carry out the reorganization.  Parameters and kwargs are:
+
+    source_uuid: the uuid to be reorganized
+    kwargs['auth_tok']: auth token
+    kwargs['mode']: one of ['stop', 'unstop', 'all']
+    kwargs['ingest']: boolean.  Should the split datasets be immediately ingested?
+    kwargs['dryrun']: boolean.  If dryrun=True, actions will be printed but no changed
+                                to the database or data will be made.
+    kwargs['instance']: one of the instances, e.g. 'PROD' or 'DEV'
     """
-    parser = argparse.ArgumentParser()
-    parser.add_argument("uuid",
-                        help="input .txt file containing uuids or .csv or .tsv file with uuid column")
-    parser.add_argument("--stop", help=f"stop after creating child uuids and writing {FROZEN_DF_FNAME}",
-                        action="store_true", )
-    parser.add_argument("--unstop", help=f"do not create child uuids; read {FROZEN_DF_FNAME} and continue",
-                        action="store_true")
-    parser.add_argument("--instance",
-                        help=f"instance to use. One of {[k for k in ENDPOINTS.keys()]} (default %(default)s)",
-                        default = 'PROD')
-    parser.add_argument("--dryrun", help="describe the steps that would be taken but do not make changes",
-                        action="store_true")
-    parser.add_argument("--ingest", help="automatically ingest the generated datasets", action="store_true")
-
-    args = parser.parse_args()
-
-    if args.stop and args.unstop:
-        parser.error("--stop and --unstop are mutually exclusive")
-    if len(args.uuid) == 32:
-        try:
-            int(args.uuid, base=16)
-        except ValueError:
-            parser.error(f"{args.uuid} doesn't look like a uuid")
-    else:
-        parser.error(f"{args.uuid} is the wrong length to be a uuid")
-    if args.instance not in ENDPOINTS.keys():
-        parser.error(f"{args.instance} is not a known instance")
-    source_uuid = args.uuid
-    instance = args.instance
-    dryrun = args.dryrun
-    ingest = args.ingest
-    if args.stop:
-        mode = 'stop'
-    elif args.unstop:
-        mode = 'unstop'
-    else:
-        mode = 'all'
-
-    print(
-        """
-        WARNING: this program's default behavior creates new datasets and moves
-        files around on PROD. Be very sure you know what it does before you run it!
-        """
-    )
-    auth_tok = input('auth_tok: ')
+    auto_tok = kwargs['auth_tok']
+    mode = kwargs['mode']
+    ingest = kwargs['ingest']
+    dryrun = kwargs['dryrun']
+    instance = kwargs['instance']
+    
     entity_factory = EntityFactory(auth_tok, instance=instance)
 
     print(f'Decomposing {source_uuid}')
@@ -332,6 +302,64 @@ def main():
 
 
     print(json.dumps(dag_config))
+
+
+def main():
+    """
+    main
+    """
+    parser = argparse.ArgumentParser()
+    parser.add_argument("uuid",
+                        help="input .txt file containing uuids or .csv or .tsv file with uuid column")
+    parser.add_argument("--stop", help=f"stop after creating child uuids and writing {FROZEN_DF_FNAME}",
+                        action="store_true", )
+    parser.add_argument("--unstop", help=f"do not create child uuids; read {FROZEN_DF_FNAME} and continue",
+                        action="store_true")
+    parser.add_argument("--instance",
+                        help=f"instance to use. One of {[k for k in ENDPOINTS.keys()]} (default %(default)s)",
+                        default = 'PROD')
+    parser.add_argument("--dryrun", help="describe the steps that would be taken but do not make changes",
+                        action="store_true")
+    parser.add_argument("--ingest", help="automatically ingest the generated datasets", action="store_true")
+
+    args = parser.parse_args()
+
+    if args.stop and args.unstop:
+        parser.error("--stop and --unstop are mutually exclusive")
+    if len(args.uuid) == 32:
+        try:
+            int(args.uuid, base=16)
+        except ValueError:
+            parser.error(f"{args.uuid} doesn't look like a uuid")
+    else:
+        parser.error(f"{args.uuid} is the wrong length to be a uuid")
+    if args.instance not in ENDPOINTS.keys():
+        parser.error(f"{args.instance} is not a known instance")
+    source_uuid = args.uuid
+    instance = args.instance
+    dryrun = args.dryrun
+    ingest = args.ingest
+    if args.stop:
+        mode = 'stop'
+    elif args.unstop:
+        mode = 'unstop'
+    else:
+        mode = 'all'
+
+    print(
+        """
+        WARNING: this program's default behavior creates new datasets and moves
+        files around on PROD. Be very sure you know what it does before you run it!
+        """
+    )
+    auth_tok = input('auth_tok: ')
+
+    reorganize(source_uuid,
+               auth_tok=auth_tok,
+               mode=mode,
+               ingest=ingest,
+               dryrun=dryrun,
+               instance=instance)
 
 
 if __name__ == '__main__':
