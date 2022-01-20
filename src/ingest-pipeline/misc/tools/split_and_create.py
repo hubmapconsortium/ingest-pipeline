@@ -9,7 +9,11 @@ import time
 import json
 import pandas as pd
 
-from survey import (Dataset, EntityFactory, Upload, ENDPOINTS)
+# There has got to be a better solution for this, but I can't find it
+try:
+    from survey import (Dataset, EntityFactory, Upload, ENDPOINTS)
+except ImportError:
+    from .survey import (Dataset, EntityFactory, Upload, ENDPOINTS)
 
 
 DEFAULT_FROZEN_DF_FNAME = 'frozen_source_df.tsv'
