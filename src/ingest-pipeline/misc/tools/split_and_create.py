@@ -15,12 +15,12 @@ import json
 
 from hubmap_commons.globus_groups import get_globus_groups_info
 
-from survey import (Entity, Dataset, Sample, EntityFactory, Upload,
-                    ROW_SORT_KEYS, column_sorter, is_uuid,
-                    parse_text_list, ENDPOINTS)
+from .survey import (Entity, Dataset, Sample, EntityFactory, Upload,
+                     ROW_SORT_KEYS, column_sorter, is_uuid,
+                     parse_text_list, ENDPOINTS)
 
 
-FROZEN_DF_FNAME = 'frozen_source_df.tsv'
+DEFAULT_FROZEN_DF_FNAME = 'frozen_source_df.tsv'
 FAKE_UUID_GENERATOR = None
 SCRATCH_PATH = '/tmp/split_and_create'
 
@@ -245,12 +245,14 @@ def reorganize(source_uuid, **kwargs) -> None:
     kwargs['dryrun']: boolean.  If dryrun=True, actions will be printed but no changed
                                 to the database or data will be made.
     kwargs['instance']: one of the instances, e.g. 'PROD' or 'DEV'
+    kwargs['frozen_df_fname']: path for the tsv file created/read in stop/unstop mode
     """
-    auto_tok = kwargs['auth_tok']
+    auth_tok = kwargs['auth_tok']
     mode = kwargs['mode']
     ingest = kwargs['ingest']
     dryrun = kwargs['dryrun']
     instance = kwargs['instance']
+    frozen_df_fname = kwargs['frozen_df_fname']
     
     entity_factory = EntityFactory(auth_tok, instance=instance)
 
@@ -275,15 +277,15 @@ def reorganize(source_uuid, **kwargs) -> None:
                                                 dryrun=dryrun)
         source_df = apply_special_case_transformations(source_df, source_data_types)
         print(source_df[['data_path', 'canonical_assay_type', 'new_uuid']])
-        source_df.to_csv(FROZEN_DF_FNAME, sep='\t', header=True, index=False)
-        print(f'wrote {FROZEN_DF_FNAME}')
+        source_df.to_csv(frozen_df_fname, sep='\t', header=True, index=False)
+        print(f'wrote {frozen_df_fname}')
 
     if mode == 'stop':
-        sys.exit('done')
+        return
 
     if mode == 'unstop':
-        source_df = pd.read_csv(FROZEN_DF_FNAME, sep='\t')
-        print(f'read {FROZEN_DF_FNAME}')
+        source_df = pd.read_csv(frozen_df_fname, sep='\t')
+        print(f'read {frozen_df_fname}')
 
     dag_config = {'uuid_list': [], 'collection_type': ''}
 
@@ -311,9 +313,9 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("uuid",
                         help="input .txt file containing uuids or .csv or .tsv file with uuid column")
-    parser.add_argument("--stop", help=f"stop after creating child uuids and writing {FROZEN_DF_FNAME}",
+    parser.add_argument("--stop", help=f"stop after creating child uuids and writing {DEFAULT_FROZEN_DF_FNAME}",
                         action="store_true", )
-    parser.add_argument("--unstop", help=f"do not create child uuids; read {FROZEN_DF_FNAME} and continue",
+    parser.add_argument("--unstop", help=f"do not create child uuids; read {DEFAULT_FROZEN_DF_FNAME} and continue",
                         action="store_true")
     parser.add_argument("--instance",
                         help=f"instance to use. One of {[k for k in ENDPOINTS.keys()]} (default %(default)s)",
@@ -359,7 +361,9 @@ def main():
                mode=mode,
                ingest=ingest,
                dryrun=dryrun,
-               instance=instance)
+               instance=instance,
+               frozen_df_fname=DEFAULT_FROZEN_DF_FNAME
+    )
 
 
 if __name__ == '__main__':
