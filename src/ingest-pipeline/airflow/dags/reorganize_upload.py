@@ -1,7 +1,4 @@
 import sys
-import os
-import ast
-import json
 from pathlib import Path
 from pprint import pprint
 from datetime import datetime, timedelta
@@ -11,7 +8,6 @@ from airflow.configuration import conf as airflow_conf
 from airflow.operators.python_operator import PythonOperator
 from airflow.operators.python_operator import BranchPythonOperator
 from airflow.operators.bash_operator import BashOperator
-from airflow.operators.dummy_operator import DummyOperator
 from airflow.exceptions import AirflowException
 from airflow.hooks.http_hook import HttpHook
 
@@ -20,15 +16,13 @@ from hubmap_operators.common_operators import (
     JoinOperator,
     CreateTmpDirOperator,
     CleanupTmpDirOperator,
-    SetDatasetProcessingOperator
 )
 
-import utils
 from utils import (
     pythonop_maybe_keep,
     get_tmp_dir_path, get_auth_tok,
     map_queue_name, pythonop_get_dataset_state,
-    localized_assert_json_matches_schema as assert_json_matches_schema
+    pythonop_set_dataset_state
     )
 
 sys.path.append(airflow_conf.as_dict()['connections']['SRC_PATH']
@@ -88,7 +82,8 @@ with DAG('reorganize_upload',
         if ds_rslt['entity_type'] != 'Upload':
             raise AirflowException(f'{uuid} is not an Upload')
         if ds_rslt['status'] not in ['Valid', 'Processing']:
-            raise AirflowException(f'status of Upload {uuid} is not New, Submitted, Invalid, or Processing')
+            raise AirflowException(f'status of Upload {uuid} is not'
+                                   ' New, Submitted, Invalid, or Processing')
 
         lz_path = ds_rslt['local_directory_full_path']
         uuid = ds_rslt['uuid']  # 'uuid' may  actually be a DOI
@@ -213,10 +208,10 @@ with DAG('reorganize_upload',
 
     t_set_dataset_error = PythonOperator(
         task_id='set_dataset_error',
-        python_callable=utils.pythonop_set_dataset_state,
+        python_callable=pythonop_set_dataset_state,
         provide_context=True,
         trigger_rule='all_done',
-        op_kwargs = {
+        op_kwargs={
             'dataset_uuid_callable' : _get_upload_uuid,
             'ds_state' : 'Error'
         }
