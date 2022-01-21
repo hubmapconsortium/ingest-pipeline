@@ -42,7 +42,7 @@ FALLBACK_ASSAY_TYPE_TRANSLATIONS = {
 # re-validated with the current version.  These transformations can be used to
 # bring the metadata into compliance with the current validation rules on the fly.
 #
-def remove_na(row: pd.Series, parent_assay_type: StrOrListStr) -> pd.Series:
+def _remove_na(row: pd.Series, parent_assay_type: StrOrListStr) -> pd.Series:
     new_row = row.copy()
     key = 'transposition_kit_number'
     if key in row and row[key].lower() == 'na':
@@ -50,14 +50,14 @@ def remove_na(row: pd.Series, parent_assay_type: StrOrListStr) -> pd.Series:
     return new_row
 
 SEQ_RD_FMT_TEST_RX = re.compile(r'\d+\+\d+\+\d+\+\d+')
-def reformat_seq_read(row: pd.Series, parent_assay_type: StrOrListStr) -> pd.Series:
+def _reformat_seq_read(row: pd.Series, parent_assay_type: StrOrListStr) -> pd.Series:
     new_row = row.copy()
     key = 'sequencing_read_format'
     if key in row and SEQ_RD_FMT_TEST_RX.match(row[key]):
         new_row[key] = row[key].replace('+', '/')
     return new_row
 
-def fix_snare_atac_assay_type(row: pd.Series, parent_assay_type: StrOrListStr) -> pd.Series:
+def _fix_snare_atac_assay_type(row: pd.Series, parent_assay_type: StrOrListStr) -> pd.Series:
     new_row = row.copy()
     key1 = 'assay_type'
     key2 = 'canonical_assay_type'
@@ -67,7 +67,7 @@ def fix_snare_atac_assay_type(row: pd.Series, parent_assay_type: StrOrListStr) -
     return new_row
 
 SPECIAL_CASE_TRANSFORMATIONS = [
-    (re.compile('SNAREseq'), [remove_na, reformat_seq_read, fix_snare_atac_assay_type])
+    (re.compile('SNAREseq'), [_remove_na, _reformat_seq_read, _fix_snare_atac_assay_type])
 ]
 
 
@@ -81,6 +81,9 @@ def create_fake_uuid_generator():
 
 
 def get_canonical_assay_type(row, entity_factory, default_type):
+    """
+    Convert assay type to canonical form, with fallback
+    """
     try:
         rslt = entity_factory.type_client.getAssayType(row['assay_type']).name
     except Exception:
@@ -92,7 +95,7 @@ def get_canonical_assay_type(row, entity_factory, default_type):
 
 def create_new_uuid(row, source_entity, entity_factory, dryrun=False):
     """
-    Create a new Dataset and its associated uuid
+    Use the entity_factory to create a new dataset, with safety checks
     """
     global FAKE_UUID_GENERATOR
     canonical_assay_type = row['canonical_assay_type']
@@ -106,7 +109,7 @@ def create_new_uuid(row, source_entity, entity_factory, dryrun=False):
         info_txt_key = 'lab_dataset_id'
     elif isinstance(source_entity, Upload):
         assert 'title' in source_entity.prop_dct, (f'Upload {source_entity.uuid}'
-                                                   ' has no lab_dataset_id')
+                                                   ' has no title')
         info_txt_key = 'title'
     assert info_txt_key is not None, 'Expected a Dataset or an Upload'
     info_txt_root = source_entity.prop_dct[info_txt_key]
@@ -124,10 +127,14 @@ def create_new_uuid(row, source_entity, entity_factory, dryrun=False):
         assert (contains_human_genetic_sequences
                 == source_entity.prop_dct['contains_human_genetic_sequences'])
     group_uuid = source_entity.prop_dct['group_uuid']
-    if 'description' in source_entity.prop_dct:
+    if 'description' in row:
+        description = row['description']
+    elif 'description' in source_entity.prop_dct:
         description = source_entity.prop_dct['description'] + ' : ' + rec_identifier
-    else:
+    elif 'lab_dataset_id' in source_entity.prop_dct:
         description = source_entity.prop_dct['lab_dataset_id'] + ' : ' + rec_identifier
+    else:
+        description = ': ' + rec_identifier
     sample_id = row['tissue_id']
     print(f"tissue_id is {sample_id}")
     sample_uuid = entity_factory.id_to_uuid(sample_id)
@@ -154,7 +161,7 @@ def create_new_uuid(row, source_entity, entity_factory, dryrun=False):
 
 def populate(row, source_entity, entity_factory, dryrun=False):
     """
-    Populate the newly created Dataset with files from the parent Upload
+    Build the contents of the newly created dataset using info from the parent
     """
     uuid = row['new_uuid']
     old_data_path = row['data_path']
@@ -217,7 +224,7 @@ def apply_special_case_transformations(
 ) -> pd.DataFrame:
     """
     Sometimes special case transformations must be applied, for example because the
-    valisation rules have changed since the upload was originally validated.
+    validation rules have changed since the upload was originally validated.
     """
     for regex, fun_lst in SPECIAL_CASE_TRANSFORMATIONS:
         if regex.match(str(parent_assay_type)):
@@ -226,9 +233,49 @@ def apply_special_case_transformations(
     return df
 
 
+def update_upload_entity(source_df, source_entity, dryrun=False, verbose=False):
+    """
+    Change the database entry for the parent Upload now that it has been Reorganized
+    """
+    child_uuid_list = [row['new_uuid'] for idx, row in source_df.iterrows()]
+    if isinstance(source_entity, Upload):
+        if dryrun:
+            print(f'set status of <{source_entity.uuid}> to "Reorganized"')
+            print(f'set <{source_entity.uuid}> dataset_uuids_to_link to {child_uuid_list}')
+        else:
+            # Set Upload status to "Reorganized"
+            # Set links from Upload to split Datasets"
+            entity_url = ENDPOINTS[source_entity.entity_factory.instance]['entity_url']
+            data = {
+                "status": "Reorganized",
+                "dataset_uuids_to_link": child_uuid_list
+            }
+            endpoint = f'{entity_url}/entities/{source_entity.uuid}'
+            print(f'sending to {endpoint}:')
+            pprint(data)
+            r = requests.put(endpoint,
+                             data=json.dumps(data),
+                             headers={
+                                 'Authorization': f'Bearer {source_entity.entity_factory.auth_tok}',
+                                 'Content-Type': 'application/json',
+                                 'X-Hubmap-Application': 'ingest-pipeline'
+                             })
+            if r.status_code >= 300:
+                r.raise_for_status()
+            if verbose:
+                print('response:')
+                pprint(r.json())
+            else:
+                print(f'{source_entity.uuid} status is Reorganized')
+
+    else:
+        print(f'source entity <{source_entity.uuid}> is not an upload,'
+              ' so its status was not updated')
+
+
 def submit_uuid(uuid, entity_factory, dryrun=False):
     """
-    Actually submit the uuid for ingestion
+    Submit the given dataset, causing it to be ingested.
     """
     if dryrun:
         print(f'Not submitting uuid {uuid}.')
@@ -302,6 +349,8 @@ def reorganize(source_uuid, **kwargs) -> None:
         for _, row in source_df.iterrows():
             dag_config['uuid_list'].append(row['new_uuid'])
             populate(row, source_entity, entity_factory, dryrun=dryrun)
+
+        update_upload_entity(source_df, source_entity, dryrun=dryrun, verbose=verbose)
 
         if ingest:
             print('Beginning ingestion')
