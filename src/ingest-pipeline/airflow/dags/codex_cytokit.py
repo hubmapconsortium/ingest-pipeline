@@ -247,9 +247,9 @@ with DAG('codex_cytokit',
             cwl_workflows['sprm'],
             '--enable_manhole',
             '--image_dir',
-            data_dir / 'stitched/expressions',
+            data_dir / 'pipeline_output/expr',
             '--mask_dir',
-            data_dir / 'stitched/mask',
+            data_dir / 'pipeline_output/mask',
         ]
 
         return join_quote_command_str(command)
@@ -298,7 +298,7 @@ with DAG('codex_cytokit',
             *get_cwltool_base_cmd(tmpdir),
             cwl_workflows['create_vis_symlink_archive'],
             '--ometiff_dir',
-            data_dir / 'stitched',
+            data_dir / 'pipeline_output',
             '--sprm_output',
             data_dir / 'sprm_outputs',
         ]
