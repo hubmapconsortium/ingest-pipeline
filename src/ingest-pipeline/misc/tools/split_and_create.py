@@ -1,21 +1,22 @@
 #! /usr/bin/env python
 
-import sys
 import argparse
 import re
-from pprint import pprint
 from pathlib import Path
 from shutil import copytree, copy2
 from typing import TypeVar, List
 import time
 import json
 import pandas as pd
-import requests
 
-from survey import (Dataset, EntityFactory, Upload, ENDPOINTS)
+# There has got to be a better solution for this, but I can't find it
+try:
+    from survey import (Dataset, EntityFactory, Upload, ENDPOINTS)
+except ImportError:
+    from .survey import (Dataset, EntityFactory, Upload, ENDPOINTS)
 
 
-FROZEN_DF_FNAME = 'frozen_source_df.tsv'
+DEFAULT_FROZEN_DF_FNAME = 'frozen_source_df.tsv'
 FAKE_UUID_GENERATOR = None
 SCRATCH_PATH = '/tmp/split_and_create'
 
@@ -118,7 +119,7 @@ def create_new_uuid(row, source_entity, entity_factory, dryrun=False):
         type_info = entity_factory.type_client.getAssayType(canonical_assay_type)
     except Exception:
         print(f'tried {orig_assay_type}, canoncal version {canonical_assay_type}')
-        print(f'options are {[elt for elt in entity_factory.type_client.iterAssayNames()]}')
+        print(f'options are {list(entity_factory.type_client.iterAssayNames())}')
         type_info = entity_factory.type_client.getAssayType(orig_assay_type)
     contains_human_genetic_sequences = type_info.contains_pii
     # Check consistency in case this is a Dataset, which will have this info
@@ -217,6 +218,21 @@ def populate(row, source_entity, entity_factory, dryrun=False):
     print(f"{old_data_path} -> {uuid} -> full path: {kid_path}")
 
 
+def apply_special_case_transformations(
+        df: pd.DataFrame,
+        parent_assay_type: StrOrListStr
+) -> pd.DataFrame:
+    """
+    Sometimes special case transformations must be applied, for example because the
+    validation rules have changed since the upload was originally validated.
+    """
+    for regex, fun_lst in SPECIAL_CASE_TRANSFORMATIONS:
+        if regex.match(str(parent_assay_type)):
+            for fun in fun_lst:
+                df = df.apply(fun, axis=1, parent_assay_type=parent_assay_type)
+    return df
+
+
 def update_upload_entity(source_df, source_entity, dryrun=False, verbose=False):
     """
     Change the database entry for the parent Upload now that it has been Reorganized
@@ -257,19 +273,6 @@ def update_upload_entity(source_df, source_entity, dryrun=False, verbose=False):
               ' so its status was not updated')
 
 
-def apply_special_case_transformations(df: pd.DataFrame,
-                                       parent_assay_type: StrOrListStr) -> pd.DataFrame:
-    """
-    Sometimes special case transformations must be applied, for example because the
-    validation rules have changed since the upload was originally validated.
-    """
-    for regex, fun_lst in SPECIAL_CASE_TRANSFORMATIONS:
-        if regex.match(str(parent_assay_type)):
-            for fun in fun_lst:
-                df = df.apply(fun, axis=1, parent_assay_type=parent_assay_type)
-    return df
-
-
 def submit_uuid(uuid, entity_factory, dryrun=False):
     """
     Submit the given dataset, causing it to be ingested.
@@ -285,71 +288,35 @@ def submit_uuid(uuid, entity_factory, dryrun=False):
         )
         return rslt
 
-def main():
+
+def reorganize(source_uuid, **kwargs) -> None:
     """
-    main
+    Carry out the reorganization.  Parameters and kwargs are:
+
+    source_uuid: the uuid to be reorganized
+    kwargs['auth_tok']: auth token
+    kwargs['mode']: one of ['stop', 'unstop', 'all']
+    kwargs['ingest']: boolean.  Should the split datasets be immediately ingested?
+    kwargs['dryrun']: boolean.  If dryrun=True, actions will be printed but no changed
+                                to the database or data will be made.
+    kwargs['instance']: one of the instances, e.g. 'PROD' or 'DEV'
+    kwargs['frozen_df_fname']: path for the tsv file created/read in stop/unstop mode
     """
-    parser = argparse.ArgumentParser()
-    parser.add_argument("uuid",
-                        help="input .txt file containing uuids or .csv"
-                        " or .tsv file with uuid column")
-    parser.add_argument("--stop",
-                        help=f"stop after creating child uuids and writing {FROZEN_DF_FNAME}",
-                        action="store_true")
-    parser.add_argument("--unstop",
-                        help=f"do not create child uuids; read {FROZEN_DF_FNAME} and continue",
-                        action="store_true")
-    parser.add_argument("--instance",
-                        help=("instance to use."
-                              f" One of {[k for k in ENDPOINTS]} (default %(default)s)"),
-                        default='PROD')
-    parser.add_argument("--dryrun",
-                        help="describe the steps that would be taken but do not make changes",
-                        action="store_true")
-    parser.add_argument("--ingest",
-                        help="automatically ingest the generated datasets", action="store_true")
-    parser.add_argument("-v", "--verbose", help="more verbose output", action="store_true")
+    auth_tok = kwargs['auth_tok']
+    mode = kwargs['mode']
+    ingest = kwargs['ingest']
+    dryrun = kwargs['dryrun']
+    instance = kwargs['instance']
+    frozen_df_fname = kwargs['frozen_df_fname']
 
-    args = parser.parse_args()
-
-    if args.stop and args.unstop:
-        parser.error("--stop and --unstop are mutually exclusive")
-    if len(args.uuid) == 32:
-        try:
-            int(args.uuid, base=16)
-        except ValueError:
-            parser.error(f"{args.uuid} doesn't look like a uuid")
-    else:
-        parser.error(f"{args.uuid} is the wrong length to be a uuid")
-    if args.instance not in ENDPOINTS.keys():
-        parser.error(f"{args.instance} is not a known instance")
-    source_uuid = args.uuid
-    instance = args.instance
-    dryrun = args.dryrun
-    verbose = args.verbose
-    ingest = args.ingest
-    if args.stop:
-        mode = 'stop'
-    elif args.unstop:
-        mode = 'unstop'
-    else:
-        mode = 'all'
-
-    print(
-        """
-        WARNING: this program's default behavior creates new datasets and moves
-        files around on PROD. Be very sure you know what it does before you run it!
-        """
-    )
-    auth_tok = input('auth_tok: ')
     entity_factory = EntityFactory(auth_tok, instance=instance)
 
     print(f'Decomposing {source_uuid}')
     source_entity = entity_factory.get(source_uuid)
     if mode in ['all', 'stop']:
-        source_metadata_files = [elt for elt in source_entity.full_path.glob('*metadata.tsv')]
-        s_f_p = source_entity.full_path
-        assert len(source_metadata_files) == 1, f'Too many metadata files in {s_f_p}'
+        source_metadata_files = list(source_entity.full_path.glob('*metadata.tsv'))
+        assert len(source_metadata_files) == 1, ('Too many metadata files in'
+                                                 f' {source_entity.full_path}')
         source_df = pd.read_csv(source_metadata_files[0], sep='\t')
         if hasattr(source_entity, 'data_types'):
             assert isinstance(source_entity.data_types, str)
@@ -366,15 +333,15 @@ def main():
                                                 dryrun=dryrun)
         source_df = apply_special_case_transformations(source_df, source_data_types)
         print(source_df[['data_path', 'canonical_assay_type', 'new_uuid']])
-        source_df.to_csv(FROZEN_DF_FNAME, sep='\t', header=True, index=False)
-        print(f'wrote {FROZEN_DF_FNAME}')
+        source_df.to_csv(frozen_df_fname, sep='\t', header=True, index=False)
+        print(f'wrote {frozen_df_fname}')
 
     if mode == 'stop':
-        sys.exit('done')
+        return
 
     if mode == 'unstop':
-        source_df = pd.read_csv(FROZEN_DF_FNAME, sep='\t')
-        print(f'read {FROZEN_DF_FNAME}')
+        source_df = pd.read_csv(frozen_df_fname, sep='\t')
+        print(f'read {frozen_df_fname}')
 
     dag_config = {'uuid_list': [], 'collection_type': ''}
 
@@ -395,6 +362,76 @@ def main():
 
 
     print(json.dumps(dag_config))
+
+
+def main():
+    """
+    main
+    """
+    parser = argparse.ArgumentParser()
+    parser.add_argument("uuid",
+                        help=("input .txt file containing uuids or"
+                              " .csv or .tsv file with uuid column"))
+    parser.add_argument("--stop",
+                        help=("stop after creating child uuids and writing"
+                              f" {DEFAULT_FROZEN_DF_FNAME}"),
+                        action="store_true")
+    parser.add_argument("--unstop",
+                        help=("do not create child uuids;"
+                              f" read {DEFAULT_FROZEN_DF_FNAME} and continue"),
+                        action="store_true")
+    parser.add_argument("--instance",
+                        help=("instance to use."
+                              f" One of {list(ENDPOINTS)} (default %(default)s)"),
+                        default='PROD')
+    parser.add_argument("--dryrun",
+                        help=("describe the steps that would be taken but"
+                              " do not make changes"),
+                        action="store_true")
+    parser.add_argument("--ingest",
+                        help="automatically ingest the generated datasets",
+                        action="store_true")
+
+    args = parser.parse_args()
+
+    if args.stop and args.unstop:
+        parser.error("--stop and --unstop are mutually exclusive")
+    if len(args.uuid) == 32:
+        try:
+            int(args.uuid, base=16)
+        except ValueError:
+            parser.error(f"{args.uuid} doesn't look like a uuid")
+    else:
+        parser.error(f"{args.uuid} is the wrong length to be a uuid")
+    if args.instance not in ENDPOINTS.keys():
+        parser.error(f"{args.instance} is not a known instance")
+    source_uuid = args.uuid
+    instance = args.instance
+    dryrun = args.dryrun
+    ingest = args.ingest
+    if args.stop:
+        mode = 'stop'
+    elif args.unstop:
+        mode = 'unstop'
+    else:
+        mode = 'all'
+
+    print(
+        """
+        WARNING: this program's default behavior creates new datasets and moves
+        files around on PROD. Be very sure you know what it does before you run it!
+        """
+    )
+    auth_tok = input('auth_tok: ')
+
+    reorganize(source_uuid,
+               auth_tok=auth_tok,
+               mode=mode,
+               ingest=ingest,
+               dryrun=dryrun,
+               instance=instance,
+               frozen_df_fname=DEFAULT_FROZEN_DF_FNAME
+    )
 
 
 if __name__ == '__main__':

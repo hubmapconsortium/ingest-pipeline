@@ -44,8 +44,12 @@ class CleanupTmpDirOperator(BashOperator):
         super().__init__(
             bash_command="""
             tmp_dir="{{tmp_dir_path(run_id)}}" ; \
-            ds_dir="{{ti.xcom_pull(task_ids="send_create_dataset")}}" ; \
-            mv "$tmp_dir/session.log" "$ds_dir"  && rm -r "$tmp_dir"
+            if [ -e "$tmp_dir/session.log" ] ; then
+              ds_dir="{{ti.xcom_pull(task_ids="send_create_dataset")}}" ; \
+              mv "$tmp_dir/session.log" "$ds_dir"  && echo rm -r "$tmp_dir" ; \
+            else \
+              echo rm -r "$tmp_dir" ; \
+            fi
             """,
             trigger_rule='all_success',
             **kwargs
