@@ -88,7 +88,8 @@ with DAG('scan_and_begin_processing',
             upload_ignore_globs='*',
             plugin_directory=plugin_path,
             #offline=True,  # noqa E265
-            add_notes=False
+            add_notes=False,
+            ignore_deprecation=True
         )
         # Scan reports an error result
         errors = upload.get_errors(plugin_kwargs=kwargs)
