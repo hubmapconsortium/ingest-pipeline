@@ -1,26 +1,22 @@
 #! /usr/bin/env python
 
-import sys
 import argparse
 import re
-from pprint import pprint
-from datetime import date
 from pathlib import Path
 from shutil import copytree, copy2
 from typing import TypeVar, List
-import pandas as pd
-import numpy as np
 import time
 import json
+import pandas as pd
 
-from hubmap_commons.globus_groups import get_globus_groups_info
+# There has got to be a better solution for this, but I can't find it
+try:
+    from survey import (Dataset, EntityFactory, Upload, ENDPOINTS)
+except ImportError:
+    from .survey import (Dataset, EntityFactory, Upload, ENDPOINTS)
 
-from survey import (Entity, Dataset, Sample, EntityFactory, Upload,
-                    ROW_SORT_KEYS, column_sorter, is_uuid,
-                    parse_text_list, ENDPOINTS)
 
-
-FROZEN_DF_FNAME = 'frozen_source_df.tsv'
+DEFAULT_FROZEN_DF_FNAME = 'frozen_source_df.tsv'
 FAKE_UUID_GENERATOR = None
 SCRATCH_PATH = '/tmp/split_and_create'
 
@@ -46,7 +42,7 @@ FALLBACK_ASSAY_TYPE_TRANSLATIONS = {
 # re-validated with the current version.  These transformations can be used to
 # bring the metadata into compliance with the current validation rules on the fly.
 #
-def remove_na(row: pd.Series, parent_assay_type: StrOrListStr) -> pd.Series:
+def _remove_na(row: pd.Series, parent_assay_type: StrOrListStr) -> pd.Series:
     new_row = row.copy()
     key = 'transposition_kit_number'
     if key in row and row[key].lower() == 'na':
@@ -54,24 +50,24 @@ def remove_na(row: pd.Series, parent_assay_type: StrOrListStr) -> pd.Series:
     return new_row
 
 SEQ_RD_FMT_TEST_RX = re.compile(r'\d+\+\d+\+\d+\+\d+')
-def reformat_seq_read(row: pd.Series, parent_assay_type: StrOrListStr) -> pd.Series:
+def _reformat_seq_read(row: pd.Series, parent_assay_type: StrOrListStr) -> pd.Series:
     new_row = row.copy()
     key = 'sequencing_read_format'
     if key in row and SEQ_RD_FMT_TEST_RX.match(row[key]):
         new_row[key] = row[key].replace('+', '/')
     return new_row
 
-def fix_snare_atac_assay_type(row: pd.Series, parent_assay_type: StrOrListStr) -> pd.Series:
+def _fix_snare_atac_assay_type(row: pd.Series, parent_assay_type: StrOrListStr) -> pd.Series:
     new_row = row.copy()
     key1 = 'assay_type'
     key2 = 'canonical_assay_type'
     if (key1 in row and key2 in row
-        and row[key1] == 'SNARE-seq2' and row[key2] == 'SNAREseq'):
+            and row[key1] == 'SNARE-seq2' and row[key2] == 'SNAREseq'):
         new_row[key2] = 'SNARE-seq2'
     return new_row
 
 SPECIAL_CASE_TRANSFORMATIONS = [
-    (re.compile('SNAREseq'), [remove_na, reformat_seq_read, fix_snare_atac_assay_type])
+    (re.compile('SNAREseq'), [_remove_na, _reformat_seq_read, _fix_snare_atac_assay_type])
 ]
 
 
@@ -85,9 +81,12 @@ def create_fake_uuid_generator():
 
 
 def get_canonical_assay_type(row, entity_factory, default_type):
+    """
+    Convert assay type to canonical form, with fallback
+    """
     try:
         rslt = entity_factory.type_client.getAssayType(row['assay_type']).name
-    except:
+    except Exception:
         print(f"fallback {row['assay_type']} {default_type}")
         rslt = FALLBACK_ASSAY_TYPE_TRANSLATIONS.get(row['assay_type'], default_type)
     print(f"{row['assay_type']} -> {rslt}")
@@ -95,6 +94,9 @@ def get_canonical_assay_type(row, entity_factory, default_type):
 
 
 def create_new_uuid(row, source_entity, entity_factory, dryrun=False):
+    """
+    Use the entity_factory to create a new dataset, with safety checks
+    """
     global FAKE_UUID_GENERATOR
     canonical_assay_type = row['canonical_assay_type']
     orig_assay_type = row['assay_type']
@@ -102,22 +104,22 @@ def create_new_uuid(row, source_entity, entity_factory, dryrun=False):
     assert rec_identifier and rec_identifier != '.', 'Bad data_path!'
     info_txt_key = None
     if isinstance(source_entity, Dataset):
-        assert 'lab_dataset_id' in source_entity.prop_dct, (f'Dataset {uuid}'
+        assert 'lab_dataset_id' in source_entity.prop_dct, (f'Dataset {source_entity.uuid}'
                                                             ' has no lab_dataset_id')
         info_txt_key = 'lab_dataset_id'
     elif isinstance(source_entity, Upload):
-        assert 'title' in source_entity.prop_dct, (f'Upload {uuid}'
-                                                   ' has no lab_dataset_id')
+        assert 'title' in source_entity.prop_dct, (f'Upload {source_entity.uuid}'
+                                                   ' has no title')
         info_txt_key = 'title'
     assert info_txt_key is not None, 'Expected a Dataset or an Upload'
     info_txt_root = source_entity.prop_dct[info_txt_key]
-    assert info_txt_root, f'{uuid} field {info_txt_key} is empty'
+    assert info_txt_root, f'{source_entity.uuid} field {info_txt_key} is empty'
     info_txt = info_txt_root + ' : ' + rec_identifier
     try:
         type_info = entity_factory.type_client.getAssayType(canonical_assay_type)
-    except:
+    except Exception:
         print(f'tried {orig_assay_type}, canoncal version {canonical_assay_type}')
-        print(f'options are {[elt for elt in entity_factory.type_client.iterAssayNames()]}')
+        print(f'options are {list(entity_factory.type_client.iterAssayNames())}')
         type_info = entity_factory.type_client.getAssayType(orig_assay_type)
     contains_human_genetic_sequences = type_info.contains_pii
     # Check consistency in case this is a Dataset, which will have this info
@@ -125,10 +127,14 @@ def create_new_uuid(row, source_entity, entity_factory, dryrun=False):
         assert (contains_human_genetic_sequences
                 == source_entity.prop_dct['contains_human_genetic_sequences'])
     group_uuid = source_entity.prop_dct['group_uuid']
-    if 'description' in source_entity.prop_dct:
+    if 'description' in row:
+        description = row['description']
+    elif 'description' in source_entity.prop_dct:
         description = source_entity.prop_dct['description'] + ' : ' + rec_identifier
-    else:
+    elif 'lab_dataset_id' in source_entity.prop_dct:
         description = source_entity.prop_dct['lab_dataset_id'] + ' : ' + rec_identifier
+    else:
+        description = ': ' + rec_identifier
     sample_id = row['tissue_id']
     print(f"tissue_id is {sample_id}")
     sample_uuid = entity_factory.id_to_uuid(sample_id)
@@ -153,7 +159,10 @@ def create_new_uuid(row, source_entity, entity_factory, dryrun=False):
         return rslt['uuid']
 
 
-def populate(idx, row, source_df, source_entity, entity_factory, dryrun=False):
+def populate(row, source_entity, entity_factory, dryrun=False):
+    """
+    Build the contents of the newly created dataset using info from the parent
+    """
     uuid = row['new_uuid']
     old_data_path = row['data_path']
     row['data_path'] = '.'
@@ -209,10 +218,13 @@ def populate(idx, row, source_df, source_entity, entity_factory, dryrun=False):
     print(f"{old_data_path} -> {uuid} -> full path: {kid_path}")
 
 
-def apply_special_case_transformations(df: pd.DataFrame, parent_assay_type: StrOrListStr) -> pd.DataFrame:
+def apply_special_case_transformations(
+        df: pd.DataFrame,
+        parent_assay_type: StrOrListStr
+) -> pd.DataFrame:
     """
     Sometimes special case transformations must be applied, for example because the
-    valisation rules have changed since the upload was originally validated.
+    validation rules have changed since the upload was originally validated.
     """
     for regex, fun_lst in SPECIAL_CASE_TRANSFORMATIONS:
         if regex.match(str(parent_assay_type)):
@@ -221,7 +233,50 @@ def apply_special_case_transformations(df: pd.DataFrame, parent_assay_type: StrO
     return df
 
 
+def update_upload_entity(source_df, source_entity, dryrun=False, verbose=False):
+    """
+    Change the database entry for the parent Upload now that it has been Reorganized
+    """
+    child_uuid_list = [row['new_uuid'] for idx, row in source_df.iterrows()]
+    if isinstance(source_entity, Upload):
+        if dryrun:
+            print(f'set status of <{source_entity.uuid}> to "Reorganized"')
+            print(f'set <{source_entity.uuid}> dataset_uuids_to_link to {child_uuid_list}')
+        else:
+            # Set Upload status to "Reorganized"
+            # Set links from Upload to split Datasets"
+            entity_url = ENDPOINTS[source_entity.entity_factory.instance]['entity_url']
+            data = {
+                "status": "Reorganized",
+                "dataset_uuids_to_link": child_uuid_list
+            }
+            endpoint = f'{entity_url}/entities/{source_entity.uuid}'
+            print(f'sending to {endpoint}:')
+            pprint(data)
+            r = requests.put(endpoint,
+                             data=json.dumps(data),
+                             headers={
+                                 'Authorization': f'Bearer {source_entity.entity_factory.auth_tok}',
+                                 'Content-Type': 'application/json',
+                                 'X-Hubmap-Application': 'ingest-pipeline'
+                             })
+            if r.status_code >= 300:
+                r.raise_for_status()
+            if verbose:
+                print('response:')
+                pprint(r.json())
+            else:
+                print(f'{source_entity.uuid} status is Reorganized')
+
+    else:
+        print(f'source entity <{source_entity.uuid}> is not an upload,'
+              ' so its status was not updated')
+
+
 def submit_uuid(uuid, entity_factory, dryrun=False):
+    """
+    Submit the given dataset, causing it to be ingested.
+    """
     if dryrun:
         print(f'Not submitting uuid {uuid}.')
         return uuid
@@ -233,23 +288,109 @@ def submit_uuid(uuid, entity_factory, dryrun=False):
         )
         return rslt
 
+
+def reorganize(source_uuid, **kwargs) -> None:
+    """
+    Carry out the reorganization.  Parameters and kwargs are:
+
+    source_uuid: the uuid to be reorganized
+    kwargs['auth_tok']: auth token
+    kwargs['mode']: one of ['stop', 'unstop', 'all']
+    kwargs['ingest']: boolean.  Should the split datasets be immediately ingested?
+    kwargs['dryrun']: boolean.  If dryrun=True, actions will be printed but no changed
+                                to the database or data will be made.
+    kwargs['instance']: one of the instances, e.g. 'PROD' or 'DEV'
+    kwargs['frozen_df_fname']: path for the tsv file created/read in stop/unstop mode
+    """
+    auth_tok = kwargs['auth_tok']
+    mode = kwargs['mode']
+    ingest = kwargs['ingest']
+    dryrun = kwargs['dryrun']
+    instance = kwargs['instance']
+    frozen_df_fname = kwargs['frozen_df_fname']
+
+    entity_factory = EntityFactory(auth_tok, instance=instance)
+
+    print(f'Decomposing {source_uuid}')
+    source_entity = entity_factory.get(source_uuid)
+    if mode in ['all', 'stop']:
+        source_metadata_files = list(source_entity.full_path.glob('*metadata.tsv'))
+        assert len(source_metadata_files) == 1, ('Too many metadata files in'
+                                                 f' {source_entity.full_path}')
+        source_df = pd.read_csv(source_metadata_files[0], sep='\t')
+        if hasattr(source_entity, 'data_types'):
+            assert isinstance(source_entity.data_types, str)
+            source_data_types = source_entity.data_types
+        else:
+            source_data_types = None
+        source_df['canonical_assay_type'] = source_df.apply(get_canonical_assay_type,
+                                                            axis=1,
+                                                            entity_factory=entity_factory,
+                                                            default_type=source_data_types)
+        source_df['new_uuid'] = source_df.apply(create_new_uuid, axis=1,
+                                                source_entity=source_entity,
+                                                entity_factory=entity_factory,
+                                                dryrun=dryrun)
+        source_df = apply_special_case_transformations(source_df, source_data_types)
+        print(source_df[['data_path', 'canonical_assay_type', 'new_uuid']])
+        source_df.to_csv(frozen_df_fname, sep='\t', header=True, index=False)
+        print(f'wrote {frozen_df_fname}')
+
+    if mode == 'stop':
+        return
+
+    if mode == 'unstop':
+        source_df = pd.read_csv(frozen_df_fname, sep='\t')
+        print(f'read {frozen_df_fname}')
+
+    dag_config = {'uuid_list': [], 'collection_type': ''}
+
+    if mode in ['all', 'unstop']:
+        for _, row in source_df.iterrows():
+            dag_config['uuid_list'].append(row['new_uuid'])
+            populate(row, source_entity, entity_factory, dryrun=dryrun)
+
+        update_upload_entity(source_df, source_entity, dryrun=dryrun, verbose=verbose)
+
+        if ingest:
+            print('Beginning ingestion')
+            for uuid in dag_config['uuid_list']:
+                submit_uuid(uuid, entity_factory, dryrun)
+                if not dryrun:
+                    while entity_factory.get(uuid).status not in ['QA', 'Invalid', 'Error']:
+                        time.sleep(30)
+
+
+    print(json.dumps(dag_config))
+
+
 def main():
     """
     main
     """
     parser = argparse.ArgumentParser()
     parser.add_argument("uuid",
-                        help="input .txt file containing uuids or .csv or .tsv file with uuid column")
-    parser.add_argument("--stop", help=f"stop after creating child uuids and writing {FROZEN_DF_FNAME}",
-                        action="store_true", )
-    parser.add_argument("--unstop", help=f"do not create child uuids; read {FROZEN_DF_FNAME} and continue",
+                        help=("input .txt file containing uuids or"
+                              " .csv or .tsv file with uuid column"))
+    parser.add_argument("--stop",
+                        help=("stop after creating child uuids and writing"
+                              f" {DEFAULT_FROZEN_DF_FNAME}"),
+                        action="store_true")
+    parser.add_argument("--unstop",
+                        help=("do not create child uuids;"
+                              f" read {DEFAULT_FROZEN_DF_FNAME} and continue"),
                         action="store_true")
     parser.add_argument("--instance",
-                        help=f"instance to use. One of {[k for k in ENDPOINTS.keys()]} (default %(default)s)",
-                        default = 'PROD')
-    parser.add_argument("--dryrun", help="describe the steps that would be taken but do not make changes",
+                        help=("instance to use."
+                              f" One of {list(ENDPOINTS)} (default %(default)s)"),
+                        default='PROD')
+    parser.add_argument("--dryrun",
+                        help=("describe the steps that would be taken but"
+                              " do not make changes"),
                         action="store_true")
-    parser.add_argument("--ingest", help="automatically ingest the generated datasets", action="store_true")
+    parser.add_argument("--ingest",
+                        help="automatically ingest the generated datasets",
+                        action="store_true")
 
     args = parser.parse_args()
 
@@ -282,56 +423,15 @@ def main():
         """
     )
     auth_tok = input('auth_tok: ')
-    entity_factory = EntityFactory(auth_tok, instance=instance)
 
-    print(f'Decomposing {source_uuid}')
-    source_entity = entity_factory.get(source_uuid)
-    if mode in ['all', 'stop']:
-        source_metadata_files = [elt for elt in source_entity.full_path.glob('*metadata.tsv')]
-        assert len(source_metadata_files) == 1, f'Too many metadata files in {source_entity.full_path}'
-        source_df = pd.read_csv(source_metadata_files[0], sep='\t')
-        if hasattr(source_entity, 'data_types'):
-            assert isinstance(source_entity.data_types, str)
-            source_data_types = source_entity.data_types
-        else:
-            source_data_types = None
-        source_df['canonical_assay_type'] = source_df.apply(get_canonical_assay_type,
-                                                            axis=1,
-                                                            entity_factory=entity_factory,
-                                                            default_type=source_data_types)
-        source_df['new_uuid'] = source_df.apply(create_new_uuid, axis=1,
-                                                source_entity=source_entity,
-                                                entity_factory=entity_factory,
-                                                dryrun=dryrun)
-        source_df = apply_special_case_transformations(source_df, source_data_types)
-        print(source_df[['data_path', 'canonical_assay_type', 'new_uuid']])
-        source_df.to_csv(FROZEN_DF_FNAME, sep='\t', header=True, index=False)
-        print(f'wrote {FROZEN_DF_FNAME}')
-
-    if mode == 'stop':
-        sys.exit('done')
-
-    if mode == 'unstop':
-        source_df = pd.read_csv(FROZEN_DF_FNAME, sep='\t')
-        print(f'read {FROZEN_DF_FNAME}')
-
-    dag_config = {'uuid_list': [], 'collection_type': ''}
-
-    if mode in ['all', 'unstop']:
-        for idx, row in source_df.iterrows():
-            dag_config['uuid_list'].append(row['new_uuid'])
-            populate(idx, row, source_df, source_entity, entity_factory, dryrun=dryrun)
-
-        if ingest:
-            print('Beginning ingestion')
-            for uuid in dag_config['uuid_list']:
-                submit_uuid(uuid, entity_factory, dryrun)
-                if not dryrun:
-                    while entity_factory.get(uuid).status not in ['QA', 'Invalid', 'Error']:
-                        time.sleep(30)
-
-
-    print(json.dumps(dag_config))
+    reorganize(source_uuid,
+               auth_tok=auth_tok,
+               mode=mode,
+               ingest=ingest,
+               dryrun=dryrun,
+               instance=instance,
+               frozen_df_fname=DEFAULT_FROZEN_DF_FNAME
+    )
 
 
 if __name__ == '__main__':

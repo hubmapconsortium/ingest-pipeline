@@ -393,12 +393,9 @@ def request_ingest():
                                       'run_id': run_id})
 
 
-@csrf.exempt
-@api_bp.route('/uploads/<uuid>/validate', methods=['PUT'])
-#@secured(groups="HuBMAP-read")
-def validate_upload_uuid(uuid):
+def generic_invoke_dag_on_uuid(uuid, process_name):
     auth_tok = _auth_tok_from_request()
-    process = 'validate.upload'
+    process = process_name
     try:
         dag_id = config('ingest_map', process)
         session = settings.Session()
@@ -449,6 +446,21 @@ def validate_upload_uuid(uuid):
 
     return HubmapApiResponse.success({'run_id': run_id})
 
+
+@csrf.exempt
+@api_bp.route('/uploads/<uuid>/validate', methods=['PUT'])
+#@secured(groups="HuBMAP-read")
+def validate_upload_uuid(uuid):
+    return generic_invoke_dag_on_uuid(uuid, 'validate.upload')
+    auth_tok = _auth_tok_from_request()
+    process = 'validate.upload'
+
+
+@csrf.exempt
+@api_bp.route('/uploads/<uuid>/reorganize', methods=['PUT'])
+#@secured(groups="HuBMAP-read")
+def reorganize_upload_uuid(uuid):
+    return generic_invoke_dag_on_uuid(uuid, 'reorganize.upload')
     
     
 """
