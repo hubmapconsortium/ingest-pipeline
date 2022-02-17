@@ -59,7 +59,7 @@ def generate_atac_seq_dag(params: SequencingDagParameters) -> DAG:
         user_defined_macros={"tmp_dir_path": get_tmp_dir_path},
     ) as dag:
         cwl_workflows = get_absolute_workflows(
-            Path("sc-atac-seq-pipeline", "create_snap_and_analyze.cwl"),
+            Path("sc-atac-seq-pipeline", "sc_atac_seq_prep_process_analyze.cwl"),
             Path("portal-containers", "scatac-csv-to-arrow.cwl"),
         )
 
