@@ -599,8 +599,8 @@ class EntityFactory:
         Returns an entity of some kind
         """
         if uuid not in ENTITY_CACHE:
-            ingest_url = ENDPOINTS[self.instance]['ingest_url']
-            r = requests.get(f'{ingest_url}/entities/{uuid}',
+            entity_url = ENDPOINTS[self.instance]['entity_url']
+            r = requests.get(f'{entity_url}/entities/{uuid}',
                              headers={'Authorization': f'Bearer {self.auth_tok}',
                                       'Content-Type': 'application/json'})
             if r.status_code >= 300:
