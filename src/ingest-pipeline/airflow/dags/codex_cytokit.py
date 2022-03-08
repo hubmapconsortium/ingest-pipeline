@@ -28,12 +28,10 @@ from utils import (
     join_quote_command_str,
     make_send_status_msg_function,
     get_tmp_dir_path,
-    get_queue_resource,
-    get_lanes_resource
+    HMDAG,
+    get_queue_resource
 )
 
-
-dag_id = "codex_cytokit"
 
 default_args = {
     'owner': 'hubmap',
@@ -50,13 +48,12 @@ default_args = {
 }
 
 
-with DAG(dag_id,
-         schedule_interval=None,
-         is_paused_upon_creation=False,
-         default_args=default_args,
-         max_active_runs=get_lanes_resource(dag_id),
-         user_defined_macros={'tmp_dir_path' : get_tmp_dir_path}
-         ) as dag:
+with HMDAG("codex_cytokit",
+           schedule_interval=None,
+           is_paused_upon_creation=False,
+           default_args=default_args,
+           user_defined_macros={'tmp_dir_path' : get_tmp_dir_path}
+) as dag:
 
     pipeline_name = 'codex-pipeline'
     steps_dir = Path(pipeline_name) / 'steps'
@@ -148,12 +145,10 @@ with DAG(dag_id,
         task_id='build_cwl_cytokit',
         python_callable=build_cwltool_cwl_cytokit,
         provide_context=True,
-        queue=get_queue_resource(dag_id, 'build_cwl_cytokit')
         )
 
     t_pipeline_exec_cwl_cytokit = BashOperator(
         task_id='pipeline_exec_cwl_cytokit',
-        queue=get_queue_resource(dag_id, 'pipeline_exec_cwl_cytokit'),
         bash_command=""" \
         tmp_dir={{tmp_dir_path(run_id)}} ; \
         mkdir -p ${tmp_dir}/cwl_out ; \

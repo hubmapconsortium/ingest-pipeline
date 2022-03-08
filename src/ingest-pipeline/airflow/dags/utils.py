@@ -22,6 +22,8 @@ from requests import codes
 from copy import deepcopy
 
 import yaml
+from airflow import DAG
+from airflow.operators import BaseOperator
 from airflow.configuration import conf as airflow_conf
 from airflow.hooks.http_hook import HttpHook
 from cryptography.fernet import Fernet
@@ -197,6 +199,38 @@ class DummyFileMatcher(FileMatcher):
         return True, '', '', False
 
 
+class HMDAG(DAG):
+    """
+    A wrapper class for an Airflow DAG which applies certain defaults.
+    Defaults are applied to the DAG itself, and to any Tasks added to
+    the DAG.
+    """
+    def __init__(self, dag_id: str, **kwargs):
+        """
+        Provide "max_active_runs" from the lanes resource, if it is
+        not already present.
+        """
+        if 'max_active_runs' not in kwargs:
+            kwargs['max_active_runs'] = get_lanes_resource(dag_id)
+        super().__init__(dag_id, **kwargs)
+
+    def add_task(self, task: BaseOperator):
+        """
+        Provide "queue".  This overwrites existing data on the fly
+        unless the queue specified in the resource table is None.
+
+        TODO: because a value will be set for "queue" in BaseOperator
+        based on conf.get('celery', 'default_queue') it is not easy
+        to know if the creator of this task tried to override that
+        default value.  One would have to monkeypatch BaseOperator
+        to respect a queue specified on the task definition line.
+        """
+        res_queue = get_queue_resource(self.dag_id, task.task_id)
+        if res_queue is not None:
+            task.queue = res_queue
+        super().add_task(task)
+
+        
 def find_pipeline_manifests(cwl_files: Iterable[Path]) -> List[Path]:
     """
     Constructs manifest paths from CWL files (strip '.cwl', append
