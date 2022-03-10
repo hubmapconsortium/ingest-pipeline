@@ -5,6 +5,7 @@ import re
 from pathlib import Path
 from shutil import copytree, copy2
 from typing import TypeVar, List
+from pprint import pprint
 import time
 import json
 import pandas as pd
@@ -301,6 +302,7 @@ def reorganize(source_uuid, **kwargs) -> None:
                                 to the database or data will be made.
     kwargs['instance']: one of the instances, e.g. 'PROD' or 'DEV'
     kwargs['frozen_df_fname']: path for the tsv file created/read in stop/unstop mode
+    kwargs['verbose']: if present and True, increase verbosity of output
     """
     auth_tok = kwargs['auth_tok']
     mode = kwargs['mode']
@@ -308,6 +310,7 @@ def reorganize(source_uuid, **kwargs) -> None:
     dryrun = kwargs['dryrun']
     instance = kwargs['instance']
     frozen_df_fname = kwargs['frozen_df_fname']
+    verbose = kwargs.get('verbose', False)
 
     entity_factory = EntityFactory(auth_tok, instance=instance)
 
