@@ -9,7 +9,6 @@ from pprint import pprint
 import time
 import json
 import pandas as pd
-from airflow.hooks.http_hook import HttpHook
 
 # There has got to be a better solution for this, but I can't find it
 try:
@@ -252,20 +251,16 @@ def update_upload_entity(source_df, source_entity, dryrun=False, verbose=False):
                 "status": "Reorganized",
                 "dataset_uuids_to_link": child_uuid_list
             }
-            endpoint = f'/entities/{source_entity.uuid}'
+            endpoint = f'{entity_url}/entities/{source_entity.uuid}'
             print(f'sending to {endpoint}:')
             pprint(data)
-            http_hook = HttpHook('PUT', http_conn_id='entity_api_connection')
-            r = http_hook.run(
-                endpoint,
-                json.dumps(data),
-                headers={
-                    'Authorization': f'Bearer {source_entity.entity_factory.auth_tok}',
-                    'Content-Type': 'application/json',
-                    'X-Hubmap-Application': 'ingest-pipeline'
-                },
-                extra_options=[]
-            )
+            r = requests.put(endpoint,
+                             data=json.dumps(data),
+                             headers={
+                                 'Authorization': f'Bearer {source_entity.entity_factory.auth_tok}',
+                                 'Content-Type': 'application/json',
+                                 'X-Hubmap-Application': 'ingest-pipeline'
+                             })
             if r.status_code >= 300:
                 r.raise_for_status()
             if verbose:
