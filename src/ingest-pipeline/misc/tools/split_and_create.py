@@ -5,9 +5,11 @@ import re
 from pathlib import Path
 from shutil import copytree, copy2
 from typing import TypeVar, List
+from pprint import pprint
 import time
 import json
 import pandas as pd
+from airflow.hooks.http_hook import HttpHook
 
 # There has got to be a better solution for this, but I can't find it
 try:
@@ -250,16 +252,20 @@ def update_upload_entity(source_df, source_entity, dryrun=False, verbose=False):
                 "status": "Reorganized",
                 "dataset_uuids_to_link": child_uuid_list
             }
-            endpoint = f'{entity_url}/entities/{source_entity.uuid}'
+            endpoint = f'/entities/{source_entity.uuid}'
             print(f'sending to {endpoint}:')
             pprint(data)
-            r = requests.put(endpoint,
-                             data=json.dumps(data),
-                             headers={
-                                 'Authorization': f'Bearer {source_entity.entity_factory.auth_tok}',
-                                 'Content-Type': 'application/json',
-                                 'X-Hubmap-Application': 'ingest-pipeline'
-                             })
+            http_hook = HttpHook('PUT', http_conn_id='entity_api_connection')
+            r = http_hook.run(
+                endpoint,
+                json.dumps(data),
+                headers={
+                    'Authorization': f'Bearer {source_entity.entity_factory.auth_tok}',
+                    'Content-Type': 'application/json',
+                    'X-Hubmap-Application': 'ingest-pipeline'
+                },
+                extra_options=[]
+            )
             if r.status_code >= 300:
                 r.raise_for_status()
             if verbose:
@@ -301,6 +307,7 @@ def reorganize(source_uuid, **kwargs) -> None:
                                 to the database or data will be made.
     kwargs['instance']: one of the instances, e.g. 'PROD' or 'DEV'
     kwargs['frozen_df_fname']: path for the tsv file created/read in stop/unstop mode
+    kwargs['verbose']: if present and True, increase verbosity of output
     """
     auth_tok = kwargs['auth_tok']
     mode = kwargs['mode']
@@ -308,6 +315,7 @@ def reorganize(source_uuid, **kwargs) -> None:
     dryrun = kwargs['dryrun']
     instance = kwargs['instance']
     frozen_df_fname = kwargs['frozen_df_fname']
+    verbose = kwargs.get('verbose', False)
 
     entity_factory = EntityFactory(auth_tok, instance=instance)
 
