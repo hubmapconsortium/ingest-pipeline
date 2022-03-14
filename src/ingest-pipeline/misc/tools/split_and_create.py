@@ -8,6 +8,7 @@ from typing import TypeVar, List
 from pprint import pprint
 import time
 import json
+import requests
 import pandas as pd
 
 # There has got to be a better solution for this, but I can't find it
