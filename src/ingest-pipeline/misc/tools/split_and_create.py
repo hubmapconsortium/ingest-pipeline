@@ -7,6 +7,7 @@ from shutil import copytree, copy2
 from typing import TypeVar, List
 from pprint import pprint
 import time
+import requests
 import json
 import pandas as pd
 
