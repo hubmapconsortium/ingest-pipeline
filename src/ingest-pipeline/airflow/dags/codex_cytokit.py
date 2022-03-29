@@ -28,7 +28,7 @@ from utils import (
     join_quote_command_str,
     make_send_status_msg_function,
     get_tmp_dir_path,
-    HMWrapDAG,
+    HMDAG,
     get_queue_resource
 )
 
@@ -43,15 +43,16 @@ default_args = {
     'retries': 1,
     'retry_delay': timedelta(minutes=1),
     'xcom_push': True,
-    'queue': get_queue_resource("codex_cytokit"),
+    'queue': get_queue_resource(dag_id),
     'on_failure_callback': utils.create_dataset_state_error_callback(get_uuid_for_error)
 }
 
-with HMWrapDAG("codex_cytokit",
-               schedule_interval=None,
-               is_paused_upon_creation=False,
-               default_args=default_args,
-               user_defined_macros={'tmp_dir_path' : get_tmp_dir_path}
+
+with HMDAG("codex_cytokit",
+           schedule_interval=None,
+           is_paused_upon_creation=False,
+           default_args=default_args,
+           user_defined_macros={'tmp_dir_path' : get_tmp_dir_path}
 ) as dag:
 
     pipeline_name = 'codex-pipeline'
@@ -596,7 +597,8 @@ with HMWrapDAG("codex_cytokit",
     t_move_data = MoveDataOperator(task_id='move_data')
 
     (
-        dag >> t_log_info
+            dag
+            >> t_log_info
             >> t_create_tmpdir
             >> t_send_create_dataset
             >> t_set_dataset_processing
@@ -663,12 +665,4 @@ with HMWrapDAG("codex_cytokit",
     t_maybe_keep_cwl_sprm_to_anndata >> t_set_dataset_error
     t_set_dataset_error >> t_join
     t_join >> t_cleanup_tmpdir
-
-from pprint import pprint
-pprint(globals())
-print('type check', type(dag))
-print(isinstance(dag, DAG))
-print(isinstance(dag, HMWrapDAG))
-print(isinstance(HMWrapDAG('foo'), HMWrapDAG))
-print(isinstance(dag.dag, HMWrapDAG))
 

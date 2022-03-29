@@ -199,23 +199,11 @@ class DummyFileMatcher(FileMatcher):
         return True, '', '', False
 
 
-class HMWrapMeta(type):
-    def __instancecheck__(self, other):
-        print("HIT INSTANCECHECK!")
-        print(self)
-        print(other)
-        return isinstance(other.dag, self)
-
-
-class HMWrapDAG(metaclass=HMWrapMeta):
+class HMDAG(DAG):
     """
     A wrapper class for an Airflow DAG which applies certain defaults.
     Defaults are applied to the DAG itself, and to any Tasks added to
     the DAG.
-
-    DAG is a magical class in Airflow, and classes derived from DAG
-    are not treated correctly.  The DAG created internally here will
-    be picked up by Airflow and treated correctly.
     """
     def __init__(self, dag_id: str, **kwargs):
         """
@@ -224,7 +212,7 @@ class HMWrapDAG(metaclass=HMWrapMeta):
         """
         if 'max_active_runs' not in kwargs:
             kwargs['max_active_runs'] = get_lanes_resource(dag_id)
-        self.dag = DAG(dag_id, **kwargs)
+        super().__init__(dag_id, **kwargs)
 
     def add_task(self, task: BaseOperator):
         """
@@ -239,24 +227,8 @@ class HMWrapDAG(metaclass=HMWrapMeta):
         """
         res_queue = get_queue_resource(self.dag_id, task.task_id)
         if res_queue is not None:
-            if (not task.queue
-                or task.queue == airflow_conf.get('celery', 'default_queue')):
-                task.queue = res_queue
-        self.dag.add_task(task)
-
-    def __rshift__(self, other):
-        return self.dag >> other
-
-    def __getattr__(self, name):
-        return getattr(self.dag, name)
-
-    def __enter__(self):
-        self.dag.__enter__()
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.dag.__exit__(exc_type, exc_val, exc_tb)
-        globals()[self.dag.dag_id] = self.dag
+            task.queue = res_queue
+        super().add_task(task)
 
         
 def find_pipeline_manifests(cwl_files: Iterable[Path]) -> List[Path]:
@@ -1376,7 +1348,7 @@ def get_lanes_resource(dag_id: str) -> int:
     resource map.
     """
     rec = _lookup_resource_record(dag_id)
-    #pprint(rec)
+    pprint(rec)
     assert 'lanes' in rec, 'schema should guarantee "lanes" is present?'
     return map_queue_name(rec['lanes'])
     return 1
