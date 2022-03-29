@@ -198,38 +198,7 @@ class DummyFileMatcher(FileMatcher):
     def get_file_metadata(self, file_path: Path) -> ManifestMatch:
         return True, '', '', False
 
-
-class HMDAG(DAG):
-    """
-    A wrapper class for an Airflow DAG which applies certain defaults.
-    Defaults are applied to the DAG itself, and to any Tasks added to
-    the DAG.
-    """
-    def __init__(self, dag_id: str, **kwargs):
-        """
-        Provide "max_active_runs" from the lanes resource, if it is
-        not already present.
-        """
-        if 'max_active_runs' not in kwargs:
-            kwargs['max_active_runs'] = get_lanes_resource(dag_id)
-        super().__init__(dag_id, **kwargs)
-
-    def add_task(self, task: BaseOperator):
-        """
-        Provide "queue".  This overwrites existing data on the fly
-        unless the queue specified in the resource table is None.
-
-        TODO: because a value will be set for "queue" in BaseOperator
-        based on conf.get('celery', 'default_queue') it is not easy
-        to know if the creator of this task tried to override that
-        default value.  One would have to monkeypatch BaseOperator
-        to respect a queue specified on the task definition line.
-        """
-        res_queue = get_queue_resource(self.dag_id, task.task_id)
-        if res_queue is not None:
-            task.queue = res_queue
-        super().add_task(task)
-
+###HMWrapDAG goes here
         
 def find_pipeline_manifests(cwl_files: Iterable[Path]) -> List[Path]:
     """
@@ -1348,7 +1317,7 @@ def get_lanes_resource(dag_id: str) -> int:
     resource map.
     """
     rec = _lookup_resource_record(dag_id)
-    pprint(rec)
+    #pprint(rec)
     assert 'lanes' in rec, 'schema should guarantee "lanes" is present?'
     return map_queue_name(rec['lanes'])
     return 1
