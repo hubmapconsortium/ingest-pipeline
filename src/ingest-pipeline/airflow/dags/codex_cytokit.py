@@ -28,7 +28,7 @@ from utils import (
     join_quote_command_str,
     make_send_status_msg_function,
     get_tmp_dir_path,
-    #HMWrapDAG,
+    HMWrapDAG,
     get_queue_resource
 )
 
@@ -46,61 +46,6 @@ default_args = {
     'queue': get_queue_resource("codex_cytokit"),
     'on_failure_callback': utils.create_dataset_state_error_callback(get_uuid_for_error)
 }
-
-from airflow.configuration import conf as airflow_conf
-from airflow.operators import BaseOperator
-from utils import get_lanes_resource
-class HMWrapDAG:
-    """
-    A wrapper class for an Airflow DAG which applies certain defaults.
-    Defaults are applied to the DAG itself, and to any Tasks added to
-    the DAG.
-
-    DAG is a magical class in Airflow, and classes derived from DAG
-    are not treated correctly.  The DAG created internally here will
-    be picked up by Airflow and treated correctly.
-    """
-    def __init__(self, dag_id: str, **kwargs):
-        """
-        Provide "max_active_runs" from the lanes resource, if it is
-        not already present.
-        """
-        if 'max_active_runs' not in kwargs:
-            kwargs['max_active_runs'] = get_lanes_resource(dag_id)
-        self.dag = DAG(dag_id, **kwargs)
-
-    def add_task(self, task: BaseOperator):
-        """
-        Provide "queue".  This overwrites existing data on the fly
-        unless the queue specified in the resource table is None.
-
-        TODO: because a value will be set for "queue" in BaseOperator
-        based on conf.get('celery', 'default_queue') it is not easy
-        to know if the creator of this task tried to override that
-        default value.  One would have to monkeypatch BaseOperator
-        to respect a queue specified on the task definition line.
-        """
-        res_queue = get_queue_resource(self.dag_id, task.task_id)
-        if res_queue is not None:
-            if (not task.queue
-                or task.queue == airflow_conf.get('celery', 'default_queue')):
-                task.queue = res_queue
-        self.dag.add_task(task)
-
-    def __rshift__(self, other):
-        return self.dag >> other
-
-    def __getattr__(self, name):
-        return getattr(self.dag, name)
-
-    def __enter__(self):
-        self.dag.__enter__()
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.dag.__exit__(exc_type, exc_val, exc_tb)
-        globals()[self.dag.dag_id] = self.dag
-
 
 with HMWrapDAG("codex_cytokit",
                schedule_interval=None,
@@ -718,4 +663,12 @@ with HMWrapDAG("codex_cytokit",
     t_maybe_keep_cwl_sprm_to_anndata >> t_set_dataset_error
     t_set_dataset_error >> t_join
     t_join >> t_cleanup_tmpdir
+
+from pprint import pprint
+pprint(globals())
+print('type check', type(dag))
+print(isinstance(dag, DAG))
+print(isinstance(dag, HMWrapDAG))
+print(isinstance(HMWrapDAG('foo'), HMWrapDAG))
+print(isinstance(dag.dag, HMWrapDAG))
 
