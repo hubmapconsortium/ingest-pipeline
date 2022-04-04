@@ -16,7 +16,11 @@ from airflow.configuration import conf as airflow_conf
 
 import utils
 
-from utils import localized_assert_json_matches_schema as assert_json_matches_schema
+from utils import (
+    localized_assert_json_matches_schema as assert_json_matches_schema,
+    HMDAG,
+    get_queue_resource,
+)
 
 UUIDS_TO_RESET = [
     #'2c467ffa1d01c41effb7057d7d329c8f',
@@ -51,7 +55,7 @@ default_args = {
     'retries': 1,
     'retry_delay': timedelta(minutes=1),
     'xcom_push': True,
-    'queue': utils.map_queue_name('general'),
+    'queue': get_queue_resource('reset_submission_to_new'),
     'on_failure_callback': utils.create_dataset_state_error_callback(get_uuid_for_error)
 }
 
@@ -60,13 +64,12 @@ def uuid_fun(**kwargs):
     return kwargs['uuid']
 
 
-with DAG('reset_submission_to_new', 
-         schedule_interval=None, 
-         is_paused_upon_creation=False, 
-         default_args=default_args,
-         max_active_runs=1,
-         user_defined_macros={'tmp_dir_path' : utils.get_tmp_dir_path}
-         ) as dag:
+with HMDAG('reset_submission_to_new', 
+           schedule_interval=None, 
+           is_paused_upon_creation=False, 
+           default_args=default_args,
+           user_defined_macros={'tmp_dir_path' : utils.get_tmp_dir_path}
+       ) as dag:
 
     prev = dag
     

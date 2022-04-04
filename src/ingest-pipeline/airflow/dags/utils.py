@@ -1350,8 +1350,7 @@ def get_lanes_resource(dag_id: str) -> int:
     rec = _lookup_resource_record(dag_id)
     pprint(rec)
     assert 'lanes' in rec, 'schema should guarantee "lanes" is present?'
-    return map_queue_name(rec['lanes'])
-    return 1
+    return int(rec['lanes'])
 
 
 def get_threads_resource(dag_id: str, task_id: Optional[str] = None) -> int:
@@ -1365,7 +1364,7 @@ def get_threads_resource(dag_id: str, task_id: Optional[str] = None) -> int:
         task_id = '__default__'
     rec = _lookup_resource_record(dag_id, task_id)
     assert 'threads' in rec, 'schema should guarantee "threads" is present?'
-    return map_queue_name(rec['threads'])
+    return int(rec['threads'])
 
 
 def _get_type_client() -> TypeClient:

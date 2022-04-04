@@ -21,7 +21,9 @@ import utils
 
 from utils import (
     localized_assert_json_matches_schema as assert_json_matches_schema,
-    make_send_status_msg_function
+    make_send_status_msg_function,
+    HMDAG,
+    get_queue_resource,
     )
 
 sys.path.append(airflow_conf.as_dict()['connections']['SRC_PATH']
@@ -52,17 +54,17 @@ default_args = {
     'retries': 1,
     'retry_delay': timedelta(minutes=1),
     'xcom_push': True,
-    'queue': utils.map_queue_name('general'),
+    'queue': get_queue_resource('scan_and_begin_processing'),
     'on_failure_callback': utils.create_dataset_state_error_callback(get_dataset_uuid)    
 }
 
 
-with DAG('scan_and_begin_processing', 
-         schedule_interval=None, 
-         is_paused_upon_creation=False, 
-         default_args=default_args,
-         user_defined_macros={'tmp_dir_path' : utils.get_tmp_dir_path}         
-         ) as dag:
+with HMDAG('scan_and_begin_processing', 
+           schedule_interval=None, 
+           is_paused_upon_creation=False, 
+           default_args=default_args,
+           user_defined_macros={'tmp_dir_path' : utils.get_tmp_dir_path}         
+       ) as dag:
 
     def read_metadata_file(**kwargs):
         md_fname = os.path.join(utils.get_tmp_dir_path(kwargs['run_id']),
@@ -105,7 +107,6 @@ with DAG('scan_and_begin_processing',
         task_id='run_validation',
         python_callable=run_validation,
         provide_context=True,
-        queue=utils.map_queue_name('validate'),
         op_kwargs={
         }
     )
