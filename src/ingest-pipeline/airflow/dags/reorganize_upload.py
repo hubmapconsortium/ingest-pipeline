@@ -47,7 +47,16 @@ default_args = {
 
 
 def _get_frozen_df_path(run_id):
-    return Path(get_tmp_dir_path(run_id)) / 'frozen_source_df.tsv'
+    # This version of the path is passed to the internals of
+    # split_and_create, and must contain formatting space for
+    # a suffix.
+    return str(Path(get_tmp_dir_path(run_id)) / 'frozen_source_df{}.tsv')
+
+
+def _get_frozen_df_wildcard(run_id):
+    # This version of the path is used from a bash command line
+    # and must match all frozen_df files regardless of suffix.
+    return str(Path(get_tmp_dir_path(run_id)) / 'frozen_source_df*.tsv')
 
 
 with DAG('reorganize_upload',
@@ -55,7 +64,8 @@ with DAG('reorganize_upload',
          is_paused_upon_creation=False,
          user_defined_macros={
              'tmp_dir_path' : get_tmp_dir_path,
-             'frozen_df_path' : _get_frozen_df_path
+             'frozen_df_path' : _get_frozen_df_path,
+             'frozen_df_wildcard': _get_frozen_df_wildcard
          },
          default_args=default_args,
          ) as dag:
@@ -106,10 +116,10 @@ with DAG('reorganize_upload',
     t_preserve_info = BashOperator(
         task_id='preserve_info',
         bash_command="""
-        frozen_df="{{frozen_df_path(run_id)}}" ; \
+        frozen_df_wildcard="{{frozen_df_wildcard(run_id)}}" ; \
         upload_path="{{ti.xcom_pull(task_ids="find_uuid", key="lz_path")}}" ; \
-        if [ -e ${frozen_df} ] ; then \
-          cp ${frozen_df} "${upload_path}" ; \
+        if ls $frozen_df_wildcard > /dev/null 2>&1 ; then \
+          cp ${frozen_df_wildcard} "${upload_path}" ; \
         fi
         """
     )
