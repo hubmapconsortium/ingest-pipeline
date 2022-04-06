@@ -18,7 +18,7 @@ except ImportError:
     from .survey import (Dataset, EntityFactory, Upload, ENDPOINTS)
 
 
-DEFAULT_FROZEN_DF_FNAME = 'frozen_source_df.tsv'
+DEFAULT_FROZEN_DF_FNAME = 'frozen_source_df{}.tsv'  # must work with frozen_name.format(suffix)
 FAKE_UUID_GENERATOR = None
 SCRATCH_PATH = '/tmp/split_and_create'
 
@@ -104,18 +104,18 @@ def create_new_uuid(row, source_entity, entity_factory, dryrun=False):
     orig_assay_type = row['assay_type']
     rec_identifier = row['data_path'].strip('/')
     assert rec_identifier and rec_identifier != '.', 'Bad data_path!'
-    info_txt_key = None
+    info_txt_root = None
     if isinstance(source_entity, Dataset):
         assert 'lab_dataset_id' in source_entity.prop_dct, (f'Dataset {source_entity.uuid}'
                                                             ' has no lab_dataset_id')
-        info_txt_key = 'lab_dataset_id'
+        info_txt_root = source_entity.prop_dct['lab_dataset_id']
     elif isinstance(source_entity, Upload):
-        assert 'title' in source_entity.prop_dct, (f'Upload {source_entity.uuid}'
-                                                   ' has no title')
-        info_txt_key = 'title'
-    assert info_txt_key is not None, 'Expected a Dataset or an Upload'
-    info_txt_root = source_entity.prop_dct[info_txt_key]
-    assert info_txt_root, f'{source_entity.uuid} field {info_txt_key} is empty'
+        if 'title' in source_entity.prop_dct:
+            info_txt_root = source_entity.prop_dct['title']
+        else:
+            print(f'WARNING: Upload {source_entity.uuid} has no title')
+            info_txt_root = f"Upload {source_entity.prop_dct['hubmap_id']}"
+    assert info_txt_root is not None, 'Expected a Dataset or an Upload'
     info_txt = info_txt_root + ' : ' + rec_identifier
     try:
         type_info = entity_factory.type_client.getAssayType(canonical_assay_type)
@@ -235,11 +235,10 @@ def apply_special_case_transformations(
     return df
 
 
-def update_upload_entity(source_df, source_entity, dryrun=False, verbose=False):
+def update_upload_entity(child_uuid_list, source_entity, dryrun=False, verbose=False):
     """
     Change the database entry for the parent Upload now that it has been Reorganized
     """
-    child_uuid_list = [row['new_uuid'] for idx, row in source_df.iterrows()]
     if isinstance(source_entity, Upload):
         if dryrun:
             print(f'set status of <{source_entity.uuid}> to "Reorganized"')
@@ -302,7 +301,8 @@ def reorganize(source_uuid, **kwargs) -> None:
     kwargs['dryrun']: boolean.  If dryrun=True, actions will be printed but no changed
                                 to the database or data will be made.
     kwargs['instance']: one of the instances, e.g. 'PROD' or 'DEV'
-    kwargs['frozen_df_fname']: path for the tsv file created/read in stop/unstop mode
+    kwargs['frozen_df_fname']: path for the tsv file created/read in stop/unstop mode.  It
+                               must be formattable as frozen_df_fname.format(index_string)
     kwargs['verbose']: if present and True, increase verbosity of output
     """
     auth_tok = kwargs['auth_tok']
@@ -318,47 +318,50 @@ def reorganize(source_uuid, **kwargs) -> None:
     print(f'Decomposing {source_uuid}')
     source_entity = entity_factory.get(source_uuid)
     if mode in ['all', 'stop']:
-        source_metadata_files = list(source_entity.full_path.glob('*metadata.tsv'))
-        assert len(source_metadata_files) == 1, ('Too many metadata files in'
-                                                 f' {source_entity.full_path}')
-        source_df = pd.read_csv(source_metadata_files[0], sep='\t')
         if hasattr(source_entity, 'data_types'):
             assert isinstance(source_entity.data_types, str)
             source_data_types = source_entity.data_types
         else:
             source_data_types = None
-        source_df['canonical_assay_type'] = source_df.apply(get_canonical_assay_type,
-                                                            axis=1,
-                                                            entity_factory=entity_factory,
-                                                            default_type=source_data_types)
-        source_df['new_uuid'] = source_df.apply(create_new_uuid, axis=1,
-                                                source_entity=source_entity,
-                                                entity_factory=entity_factory,
-                                                dryrun=dryrun)
-        source_df = apply_special_case_transformations(source_df, source_data_types)
-        print(source_df[['data_path', 'canonical_assay_type', 'new_uuid']])
-        source_df.to_csv(frozen_df_fname, sep='\t', header=True, index=False)
-        print(f'wrote {frozen_df_fname}')
+        source_metadata_files = list(source_entity.full_path.glob('*metadata.tsv'))
+        for src_idx, smf in enumerate(source_metadata_files):
+            source_df = pd.read_csv(smf, sep='\t')
+            source_df['canonical_assay_type'] = source_df.apply(get_canonical_assay_type,
+                                                                axis=1,
+                                                                entity_factory=entity_factory,
+                                                                default_type=source_data_types)
+            source_df['new_uuid'] = source_df.apply(create_new_uuid, axis=1,
+                                                    source_entity=source_entity,
+                                                    entity_factory=entity_factory,
+                                                    dryrun=dryrun)
+            source_df = apply_special_case_transformations(source_df, source_data_types)
+            print(source_df[['data_path', 'canonical_assay_type', 'new_uuid']])
+            this_frozen_df_fname = frozen_df_fname.format('_' + str(src_idx))
+            source_df.to_csv(this_frozen_df_fname, sep='\t', header=True, index=False)
+            print(f'wrote {this_frozen_df_fname}')
 
     if mode == 'stop':
         return
 
-    if mode == 'unstop':
-        source_df = pd.read_csv(frozen_df_fname, sep='\t')
-        print(f'read {frozen_df_fname}')
-
-    dag_config = {'uuid_list': [], 'collection_type': ''}
-
     if mode in ['all', 'unstop']:
-        for _, row in source_df.iterrows():
-            dag_config['uuid_list'].append(row['new_uuid'])
-            populate(row, source_entity, entity_factory, dryrun=dryrun)
+        dag_config = {'uuid_list': [], 'collection_type': ''}
+        child_uuid_list = []
+        source_metadata_files = list(source_entity.full_path.glob('*metadata.tsv'))
+        for src_idx, _ in enumerate(source_metadata_files):
+            this_frozen_df_fname = frozen_df_fname.format('_' + str(src_idx))
+            source_df = pd.read_csv(this_frozen_df_fname, sep='\t')
+            print(f'read {this_frozen_df_fname}')
 
-        update_upload_entity(source_df, source_entity, dryrun=dryrun, verbose=verbose)
+            for _, row in source_df.iterrows():
+                dag_config['uuid_list'].append(row['new_uuid'])
+                child_uuid_list.append(row['new_uuid'])
+                populate(row, source_entity, entity_factory, dryrun=dryrun)
+
+        update_upload_entity(child_uuid_list, source_entity, dryrun=dryrun, verbose=verbose)
 
         if ingest:
             print('Beginning ingestion')
-            for uuid in dag_config['uuid_list']:
+            for uuid in child_uuid_list:
                 submit_uuid(uuid, entity_factory, dryrun)
                 if not dryrun:
                     while entity_factory.get(uuid).status not in ['QA', 'Invalid', 'Error']:
@@ -373,16 +376,17 @@ def main():
     main
     """
     parser = argparse.ArgumentParser()
+    simplified_frozen_df_fname = DEFAULT_FROZEN_DF_FNAME.format('')  # no suffix
     parser.add_argument("uuid",
                         help=("input .txt file containing uuids or"
                               " .csv or .tsv file with uuid column"))
     parser.add_argument("--stop",
                         help=("stop after creating child uuids and writing"
-                              f" {DEFAULT_FROZEN_DF_FNAME}"),
+                              f" {simplified_frozen_df_fname}"),
                         action="store_true")
     parser.add_argument("--unstop",
                         help=("do not create child uuids;"
-                              f" read {DEFAULT_FROZEN_DF_FNAME} and continue"),
+                              f" read {simplified_frozen_df_fname} and continue"),
                         action="store_true")
     parser.add_argument("--instance",
                         help=("instance to use."
