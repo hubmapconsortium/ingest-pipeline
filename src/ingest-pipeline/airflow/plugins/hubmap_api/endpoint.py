@@ -273,6 +273,14 @@ def _auth_tok_from_request():
     return auth_tok
 
 
+def _auth_tok_from_environment():
+    """
+    Get the 'permanent authorization token'
+    """
+    tok = airflow_conf.as_dict()['connections']['APP_CLIENT_SECRET']
+    return tok
+
+
 def _get_dag(dag_id):
     """
     Look up and return the dag associated with this dag_id, or raise KeyError
@@ -305,7 +313,7 @@ run_id     string  The identifier by which the ingest run is known to Airflow
 @api_bp.route('/request_ingest', methods=['POST'])
 #@secured(groups="HuBMAP-read")
 def request_ingest():
-    auth_tok = _auth_tok_from_request()
+    auth_tok = _auth_tok_from_environment()
 
     # decode input
     data = request.get_json(force=True)
@@ -394,7 +402,7 @@ def request_ingest():
 
 
 def generic_invoke_dag_on_uuid(uuid, process_name):
-    auth_tok = _auth_tok_from_request()
+    auth_tok = _auth_tok_from_environment()
     process = process_name
     try:
         dag_id = config('ingest_map', process)
