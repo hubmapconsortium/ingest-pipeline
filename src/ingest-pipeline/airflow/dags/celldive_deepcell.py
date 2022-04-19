@@ -140,6 +140,7 @@ with DAG(
             *get_cwltool_base_cmd(tmpdir),
             cwl_workflows["sprm"],
             "--enable_manhole",
+            "--options_preset=celldive",
             "--image_dir",
             data_dir / "pipeline_output/expr",
             "--mask_dir",
