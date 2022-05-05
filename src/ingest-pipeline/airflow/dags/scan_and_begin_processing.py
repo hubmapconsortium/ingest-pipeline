@@ -99,6 +99,11 @@ with HMDAG('scan_and_begin_processing',
             report = ingest_validation_tools_error_report.ErrorReport(errors)
             sys.stdout.write('Directory validation failed! Errors follow:\n')
             sys.stdout.write(report.as_text())
+            log_fname = os.path.join(utils.get_tmp_dir_path(kwargs['run_id']),
+                                     'session.log')
+            with open(log_fname, 'w') as f:
+                f.write('Directory validation failed! Errors follow:\n')
+                f.write(report.as_text())
             return 1
         else:
             return 0
@@ -149,7 +154,7 @@ with HMDAG('scan_and_begin_processing',
         cd $work_dir ; \
         env PYTHONPATH=${PYTHONPATH}:$top_dir \
         python $src_dir/metadata_extract.py --out ./rslt.yml --yaml "$lz_dir" \
-          > session.log 2> error.log ; \
+          >> session.log 2> error.log ; \
         echo $? ; \
         if [ -s error.log ] ; \
         then echo 'ERROR!' `cat error.log` >> session.log ; \
@@ -179,7 +184,7 @@ with HMDAG('scan_and_begin_processing',
 
     t_cleanup_tmpdir = BashOperator(
         task_id='cleanup_temp_dir',
-        bash_command='rm -r {{tmp_dir_path(run_id)}}',
+        bash_command='echo rm -r {{tmp_dir_path(run_id)}}',
         trigger_rule='all_success'
         )
 

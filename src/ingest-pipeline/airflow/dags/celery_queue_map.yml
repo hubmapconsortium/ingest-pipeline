@@ -1,0 +1,37 @@
+#
+# This file shows the 'typical' placement of Celery queues on nodes.  There
+# is no automatic mechanism implementing this; it is meant as a note to be
+# read by humans.  <inst> is meant to be translated as instance name, so
+# for example on the PROD instance 'general_<inst>' means 'general_prod'.
+#
+celery_queue_map:
+  - host: l001.hive.psc.edu
+    queues:
+      - l001_q1_<inst>
+      - general_<inst>
+      - general_l001_<inst>
+      - validate_<inst>
+  - host: gpu000.hive.psc.edu
+    queues: [] # no running queues; gpu memory is too small now
+  - host: hivevm191.psc.edu
+    queues: # VM is too small to run general_
+      - local_q1_dev
+      - validate_dev
+  - host: hivevm192.psc.edu
+    queues: # VM is too small to run general_
+      - local_q1_test
+      - validate_test
+  - host: hivevm193.psc.edu
+    queues: # VM is too small to run general_
+      - local_q1_prod
+      - validate_prod
+  - host: hivevm195.psc.edu
+    queues: # VM is too small to run general_
+      - local_q1_stage
+      - validate_stage
+  - host: v004.ib.bridges2.psc.edu
+    queues:
+      - gpu000_q1_<inst>
+      - gpu000_q1_b2_<inst>
+      
+      
