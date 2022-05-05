@@ -12,7 +12,9 @@ from airflow.exceptions import AirflowException
 
 import utils
 from utils import (
-    localized_assert_json_matches_schema as assert_json_matches_schema
+    localized_assert_json_matches_schema as assert_json_matches_schema,
+    HMDAG,
+    get_queue_resource,
     )
 
 sys.path.append(airflow_conf.as_dict()['connections']['SRC_PATH']
@@ -33,15 +35,15 @@ default_args = {
     'retries': 1,
     'retry_delay': timedelta(minutes=1),
     'xcom_push': True,
-    'queue': utils.map_queue_name('general')
+    'queue': get_queue_resource('validation_test'),
 }
 
 
-with DAG('validation_test',
-         schedule_interval=None,
-         is_paused_upon_creation=False,
-         default_args=default_args,
-         ) as dag:
+with HMDAG('validation_test',
+           schedule_interval=None,
+           is_paused_upon_creation=False,
+           default_args=default_args,
+       ) as dag:
 
     def find_uuid(**kwargs):
         try:
@@ -129,7 +131,6 @@ with DAG('validation_test',
         task_id='run_validation',
         python_callable=run_validation,
         provide_context=True,
-        queue=utils.map_queue_name('validate'),
         op_kwargs={
             'crypt_auth_tok': (
                 utils.encrypt_tok(airflow_conf.as_dict()

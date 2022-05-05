@@ -1,3 +1,4 @@
+
 from datetime import datetime, timedelta
 from pprint import pprint
 
@@ -24,7 +25,9 @@ from utils import (
     get_uuid_for_error,
     join_quote_command_str,
     make_send_status_msg_function,
-    get_tmp_dir_path
+    get_tmp_dir_path,
+    HMDAG,
+    get_queue_resource
 )
 
 default_args = {
@@ -37,16 +40,15 @@ default_args = {
     'retries': 1,
     'retry_delay': timedelta(minutes=1),
     'xcom_push': True,
-    'queue': utils.map_queue_name('general'),
+    'queue': get_queue_resource('devtest_step2'),
     'on_failure_callback': utils.create_dataset_state_error_callback(get_uuid_for_error),
 }
 
-with DAG(
+with HMDAG(
         'devtest_step2',
         schedule_interval=None,
         is_paused_upon_creation=False,
         default_args=default_args,
-        max_active_runs=1,
         user_defined_macros={'tmp_dir_path': get_tmp_dir_path},
 ) as dag:
     pipeline_name = 'devtest-step2-pipeline'

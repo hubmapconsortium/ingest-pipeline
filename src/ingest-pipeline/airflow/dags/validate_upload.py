@@ -17,7 +17,9 @@ import utils
 from utils import (
     get_tmp_dir_path, get_auth_tok,
     map_queue_name, pythonop_get_dataset_state,
-    localized_assert_json_matches_schema as assert_json_matches_schema
+    localized_assert_json_matches_schema as assert_json_matches_schema,
+    HMDAG,
+    get_queue_resource,
     )
 
 sys.path.append(airflow_conf.as_dict()['connections']['SRC_PATH']
@@ -38,11 +40,11 @@ default_args = {
     'retries': 1,
     'retry_delay': timedelta(minutes=1),
     'xcom_push': True,
-    'queue': map_queue_name('general')
+    'queue': get_queue_resource('validate_upload')
 }
 
 
-with DAG('validate_upload',
+with HMDAG('validate_upload',
          schedule_interval=None,
          is_paused_upon_creation=False,
          user_defined_macros={'tmp_dir_path' : get_tmp_dir_path},
@@ -119,7 +121,6 @@ with DAG('validate_upload',
         task_id='run_validation',
         python_callable=run_validation,
         provide_context=True,
-        queue=utils.map_queue_name('validate'),
         op_kwargs={
         }
     )
