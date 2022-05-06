@@ -1,0 +1,47 @@
+'$schema': 'http://json-schema.org/schema#'
+'$id': 'http://schemata.hubmapconsortium.org/resource_map_schema.yml'
+'title': 'resource map schema'
+'description': 'resource map schema'
+
+'allOf': [{'$ref': '#/definitions/resource_map_wrapper'}]
+
+'definitions':
+
+  'resource_map_task_record':
+    'type': 'object'
+    'properties':
+      'task_re':
+        'type': 'string'
+        'description': 'a regex masking a task id, e.g. "pipeline_exec_cwl.*"'
+      'queue':
+        'type': 'string'
+        'description': 'an execution queue root name, e.g. "general"'
+      'threads':
+        'type': 'integer'
+        'description': |
+          available number of threads, e.g. 6 . May not be respected by the task.
+    'required': ['task_re', 'queue', 'threads']
+  
+  'resource_map_record':
+    'type': 'object'
+    'properties':
+      'dag_re':
+        'type': 'string'
+        'description': 'a regex matching a DAG name, e.g. "codex_cytokit"'
+      'lanes':
+        'type': 'integer'
+        'description': 'Number of instances of this DAG to run simultaneously'
+      'tasks':
+        'type': 'array'
+        'items': {'$ref': '#/definitions/resource_map_task_record'}
+    'required': ['dag_re', 'lanes', 'tasks']
+
+  'resource_map':
+    'type': 'array'
+    'items': {'$ref': '#/definitions/resource_map_record'}
+  'resource_map_wrapper':  # to avoid exposing array at top level of JSON object
+    'type': 'object'
+    'properties':
+      'resource_map': {'$ref': '#/definitions/resource_map'}
+    'required': ['resource_map']
+    

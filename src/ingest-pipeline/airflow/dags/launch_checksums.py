@@ -23,10 +23,12 @@ from hubmap_operators.common_operators import (
 
 import utils
 
-from utils import localized_assert_json_matches_schema as assert_json_matches_schema
-
-# Worker threads for running checksums
-THREADS=6
+from utils import (
+    localized_assert_json_matches_schema as assert_json_matches_schema,
+    HMDAG,
+    get_queue_resource,
+    get_threads_resource,
+)
 
 def get_uuid_for_error(**kwargs):
     """
@@ -45,22 +47,21 @@ default_args = {
     'retries': 1,
     'retry_delay': timedelta(minutes=1),
     'xcom_push': True,
-    'queue': utils.map_queue_name('general'),
+    'queue': get_queue_resource('launch_checksums'),
     'on_failure_callback': utils.create_dataset_state_error_callback(get_uuid_for_error)
 }
 
 
-with DAG('launch_checksums', 
-         schedule_interval=None, 
-         is_paused_upon_creation=False, 
-         default_args=default_args,
-         max_active_runs=1,
-         user_defined_macros={'tmp_dir_path' : utils.get_tmp_dir_path,
-                              'src_path' : (airflow_conf.as_dict()['connections']['SRC_PATH']
-                                            .strip('"').strip("'")),
-                              'THREADS' : THREADS
-                              }
-         ) as dag:
+with HMDAG('launch_checksums', 
+           schedule_interval=None, 
+           is_paused_upon_creation=False, 
+           default_args=default_args,
+           user_defined_macros={'tmp_dir_path' : utils.get_tmp_dir_path,
+                                'src_path' : (airflow_conf.as_dict()['connections']['SRC_PATH']
+                                              .strip('"').strip("'")),
+                                'THREADS' : get_threads_resource('launch_checksums')
+                            }
+       ) as dag:
 
     def check_uuid(**kwargs):
         print('dag_run conf follows:')

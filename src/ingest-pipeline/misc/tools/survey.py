@@ -362,6 +362,10 @@ class Dataset(Entity):
                 rec[key] = None
             rec['note'] = ''
         rec['note'] = '; '.join([rec['note']] + self.notes)
+        if 'upload' in self.prop_dct:
+            rec['upload'] = self.prop_dct['upload']['uuid']
+        else:
+            rec['upload'] = None
 
         return rec
 
