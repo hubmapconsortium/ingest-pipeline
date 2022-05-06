@@ -1348,7 +1348,6 @@ def get_lanes_resource(dag_id: str) -> int:
     resource map.
     """
     rec = _lookup_resource_record(dag_id)
-    pprint(rec)
     assert 'lanes' in rec, 'schema should guarantee "lanes" is present?'
     return int(rec['lanes'])
 
