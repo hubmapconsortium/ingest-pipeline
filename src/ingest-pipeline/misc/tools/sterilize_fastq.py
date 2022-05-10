@@ -45,7 +45,7 @@ def _get_random_matching_character(input_char) -> str:
 
 
 def _open_stream(filename: str, for_writing: bool) -> TextIO:
-    open_mode = 'wt' if for_writing else 'rt'
+    open_mode = 'w' if for_writing else 'r'
 
     if not filename:
         assert for_writing, 'Only the output filename may be omitted.'
@@ -63,9 +63,7 @@ def _sterilize_line1_or_3(line: str) -> str:
     Line 3 begins with a '+' character and is optionally followed by the
     same sequence identifier (and any description) again.
     """
-    output = ''
-    for input_char in line:
-        output += _get_random_matching_character(input_char)
+    output = str([_get_random_matching_character(c) for c in line])
 
     return output
 
@@ -96,24 +94,21 @@ def _sterilize_line(line: str, sequence_index: int) -> str:
     return (
         _sterilize_line2(line) if sequence_index == 2
         else _sterilize_line4(line) if sequence_index == 4
-        else _sterilize_line1_or_3(line, sequence_index)
+        else _sterilize_line1_or_3(line)
     )
 
 
 def sterilize(input_stream: TextIO, output_stream: TextIO,
               retain_percent: float) -> None:
-    sequence_index = 1
     output_this_block = False
 
-    for line in input_stream:
-        if sequence_index == 1:
+    for sequence_index, line in enumerate(input_stream):
+        if sequence_index % 4 == 0:
             output_this_block = random.random() * 100.0 < retain_percent
 
         if output_this_block:
-            output = _sterilize_line(line.strip(), sequence_index)
+            output = _sterilize_line(line.strip(), sequence_index % 4 + 1)
             output_stream.write(f'{output}\n')
-
-        sequence_index = sequence_index % 4 + 1
 
 
 def main():
