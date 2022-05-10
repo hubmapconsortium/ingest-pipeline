@@ -2,50 +2,16 @@
 
 import gzip
 import random
-import string
 import sys
 
 from argparse import ArgumentParser
 from typing import TextIO
 
-ALPHABETIC_CHARS = string.ascii_uppercase
-NUMERIC_CHARS = string.digits
-RNA_CHARS = 'ACGT'
-QUALITY_CHARS = string.digits + string.ascii_letters + string.punctuation
-
-
-def _get_random_alpha() -> str:
-    return random.choice(ALPHABETIC_CHARS)
-
-
-def _get_random_digit() -> str:
-    return random.choice(NUMERIC_CHARS)
-
-
-def _get_random_rna() -> str:
-    return random.choice(RNA_CHARS)
-
-
-def _get_random_quality() -> str:
-    return random.choice(QUALITY_CHARS)
-
-
-def _get_random_matching_character(input_char) -> str:
-    """This selects a random character, matching the input type.
-
-    * Letters get replaced with random, uppercase letters;
-    * Digits get replaced with random digits; and
-    * all other characters are copied (they may be significant).
-    """
-    return (
-        _get_random_alpha() if str.isalpha(input_char)
-        else _get_random_digit() if str.isdigit(input_char)
-        else input_char
-    )
-
 
 def _open_stream(filename: str, for_writing: bool) -> TextIO:
-    open_mode = 'w' if for_writing else 'r'
+    # Text mode must be specified explicitly when gzip.open() is used. (It's
+    # the default for the builtin open().
+    open_mode = 'wt' if for_writing else 'rt'
 
     if not filename:
         assert for_writing, 'Only the output filename may be omitted.'
@@ -57,44 +23,31 @@ def _open_stream(filename: str, for_writing: bool) -> TextIO:
     )
 
 
-def _sterilize_line1_or_3(line: str) -> str:
-    """Line 1 begins with a '@' character and is followed by a sequence
-    identifier and an optional description (like a FASTA title line).
-    Line 3 begins with a '+' character and is optionally followed by the
-    same sequence identifier (and any description) again.
+def _get_substitute_character(input_char: str, preserve_specials: bool) -> str:
+    """This selects a random character, matching the input type.
+
+    * Letters get replaced with A;
+    * Digits get replaced with 0;
+    * Some instances of @ and + are preserved (when needed for syntax); and
+    * all other characters are replaced with *.
     """
-    output = str([_get_random_matching_character(c) for c in line])
 
-    return output
-
-
-def _sterilize_line2(line: str) -> str:
-    """Line 2 is the raw sequence letters."""
-    output = ''
-    for _ in line:
-        output += _get_random_rna()
-
-    return output
-
-
-def _sterilize_line4(line: str) -> str:
-    """Line 4 encodes the quality values for the sequence in Line 2, and
-    must contain the same number of symbols as letters in the sequence.
-    """
-    output = ''
-    for _ in line:
-        output += _get_random_quality()
-
-    return output
+    # Note that given quality may contain a random ordering of symbols which
+    # may include '@' and '+', here, they must be stripped away as any
+    # remaining symbols stored in fixed positions in a string may be
+    # identifiable.
+    return (
+        'A' if input_char.isalpha()
+        else '0' if input_char.isdigit()
+        else input_char if preserve_specials and input_char in ['@', '+']
+        else '*'
+    )
 
 
 def _sterilize_line(line: str, sequence_index: int) -> str:
     assert 1 <= sequence_index <= 4
-
-    return (
-        _sterilize_line2(line) if sequence_index == 2
-        else _sterilize_line4(line) if sequence_index == 4
-        else _sterilize_line1_or_3(line)
+    return ''.join(
+        [_get_substitute_character(c, sequence_index in [1, 3]) for c in line]
     )
 
 
@@ -102,12 +55,12 @@ def sterilize(input_stream: TextIO, output_stream: TextIO,
               retain_percent: float) -> None:
     output_this_block = False
 
-    for sequence_index, line in enumerate(input_stream):
-        if sequence_index % 4 == 0:
+    for line_number, line in enumerate(input_stream):
+        if line_number % 4 == 0:
             output_this_block = random.random() * 100.0 < retain_percent
 
         if output_this_block:
-            output = _sterilize_line(line.strip(), sequence_index % 4 + 1)
+            output = _sterilize_line(line.strip(), line_number % 4 + 1)
             output_stream.write(f'{output}\n')
 
 
