@@ -19,6 +19,8 @@ from utils import (
     join_quote_command_str,
     make_send_status_msg_function,
     get_tmp_dir_path,
+    HMDAG,
+    get_queue_resource,
 )
 from hubmap_operators.common_operators import (
     CleanupTmpDirOperator,
@@ -40,17 +42,16 @@ default_args = {
     "retries": 1,
     "retry_delay": timedelta(minutes=1),
     "xcom_push": True,
-    "queue": utils.map_queue_name("general"),
+    "queue": get_queue_resource("celldive_deepcell"),
     "on_failure_callback": utils.create_dataset_state_error_callback(get_uuid_for_error),
 }
 
 
-with DAG(
+with HMDAG(
         "celldive_deepcell",
         schedule_interval=None,
         is_paused_upon_creation=False,
         default_args=default_args,
-        max_active_runs=1,
         user_defined_macros={"tmp_dir_path": get_tmp_dir_path},
 ) as dag:
 
@@ -99,12 +100,10 @@ with DAG(
         task_id="build_cwl_segmentation",
         python_callable=build_cwltool_cwl_segmentation,
         provide_context=True,
-        queue=utils.map_queue_name("gpu000_q1"),
     )
 
     t_pipeline_exec_cwl_segmentation = BashOperator(
         task_id="pipeline_exec_cwl_segmentation",
-        queue=utils.map_queue_name("gpu000_q1"),
         bash_command=""" \
         tmp_dir={{tmp_dir_path(run_id)}} ; \
         mkdir -p ${tmp_dir}/cwl_out ; \

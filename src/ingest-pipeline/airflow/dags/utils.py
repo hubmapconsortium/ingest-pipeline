@@ -3,7 +3,10 @@ from collections import namedtuple
 from functools import lru_cache
 import json
 from os import environ, fspath, walk
-from os.path import basename, dirname, relpath, split, join, getsize, realpath, exists
+from os.path import (
+    basename, dirname, relpath, split, join, getsize,
+    realpath, exists
+)
 from pathlib import Path
 from pprint import pprint
 import re
@@ -11,19 +14,26 @@ import shlex
 import sys
 import uuid
 from subprocess import check_output, CalledProcessError
-from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Pattern, Tuple, TypeVar, Union
+from typing import (
+    Any, Callable, Dict, Iterable, List, Mapping, Optional,
+    Pattern, Tuple, TypeVar, Union
+)
 from requests.exceptions import HTTPError
 from requests import codes
 from copy import deepcopy
 
 import yaml
+from airflow import DAG
+from airflow.operators import BaseOperator
 from airflow.configuration import conf as airflow_conf
 from airflow.hooks.http_hook import HttpHook
 from cryptography.fernet import Fernet
 
-from hubmap_commons.schema_tools import assert_json_matches_schema, set_schema_base_path
+from hubmap_commons.schema_tools import (
+    assert_json_matches_schema,
+    set_schema_base_path
+)
 from hubmap_commons.type_client import TypeClient
-
 
 import cwltool  # used to find its path
 
@@ -107,11 +117,19 @@ FILE_TYPE_MATCHERS = [(r'^.*\.csv$', 'csv'),  # format is (regex, type)
 COMPILED_TYPE_MATCHERS: Optional[List[Tuple[Pattern, str]]] = None
 
 """
-Lazy construction; a list of tuples (collection_type_regex, assay_type_regex, workflow)
+Lazy construction: a list of tuples (collection_type_regex, assay_type_regex, workflow)
 """
-WORKFLOW_MAP_FILENAME = 'workflow_map.yml'  # Expected to be found in the same dir as this file
+WORKFLOW_MAP_FILENAME = 'workflow_map.yml'  # Expected to be found in this same dir
 WORKFLOW_MAP_SCHEMA = 'workflow_map_schema.yml'
 COMPILED_WORKFLOW_MAP: Optional[List[Tuple[Pattern, Pattern, str]]] = None
+
+"""
+Lazy construction; a list of tuples (dag_id_reges, task_id_regex, {key:value})
+"""
+RESOURCE_MAP_FILENAME = 'resource_map.yml'  # Expected to be found in this same dir
+RESOURCE_MAP_SCHEMA = 'resource_map_schema.yml'
+COMPILED_RESOURCE_MAP: Optional[List[Tuple[Pattern, int, Dict[str, Any]]]] = None
+
 TYPE_CLIENT: Optional[TypeClient] = None
 
 # Parameters used to generate scRNA and scATAC analysis DAGs; these
@@ -191,6 +209,38 @@ class DummyFileMatcher(FileMatcher):
         return True, '', '', False
 
 
+class HMDAG(DAG):
+    """
+    A wrapper class for an Airflow DAG which applies certain defaults.
+    Defaults are applied to the DAG itself, and to any Tasks added to
+    the DAG.
+    """
+    def __init__(self, dag_id: str, **kwargs):
+        """
+        Provide "max_active_runs" from the lanes resource, if it is
+        not already present.
+        """
+        if 'max_active_runs' not in kwargs:
+            kwargs['max_active_runs'] = get_lanes_resource(dag_id)
+        super().__init__(dag_id, **kwargs)
+
+    def add_task(self, task: BaseOperator):
+        """
+        Provide "queue".  This overwrites existing data on the fly
+        unless the queue specified in the resource table is None.
+
+        TODO: because a value will be set for "queue" in BaseOperator
+        based on conf.get('celery', 'default_queue') it is not easy
+        to know if the creator of this task tried to override that
+        default value.  One would have to monkeypatch BaseOperator
+        to respect a queue specified on the task definition line.
+        """
+        res_queue = get_queue_resource(self.dag_id, task.task_id)
+        if res_queue is not None:
+            task.queue = res_queue
+        super().add_task(task)
+
+        
 def find_pipeline_manifests(cwl_files: Iterable[Path]) -> List[Path]:
     """
     Constructs manifest paths from CWL files (strip '.cwl', append
@@ -1235,6 +1285,95 @@ def _get_workflow_map() -> List[Tuple[Pattern, Pattern, str]]:
             cmp_map.append((ct_re, at_re, dct['workflow']))
         COMPILED_WORKFLOW_MAP = cmp_map
     return COMPILED_WORKFLOW_MAP
+
+
+def _get_resource_map() -> List[Tuple[Pattern, Pattern, Dict[str, str]]]:
+    """
+    Lazy compilation of resource map
+    """
+    global COMPILED_RESOURCE_MAP
+    if COMPILED_RESOURCE_MAP is None:
+        map_path = join(dirname(__file__), RESOURCE_MAP_FILENAME)
+        with open(map_path, 'r') as f:
+            map = yaml.safe_load(f)
+        localized_assert_json_matches_schema(map, RESOURCE_MAP_SCHEMA)
+        cmp_map = []
+        for dct in map['resource_map']:
+            dag_re = re.compile(dct['dag_re'])
+            lanes = dct['lanes']
+            tasks = []
+            for task_dct in dct['tasks']:
+                tasks.append({
+                    'task_re': re.compile(task_dct['task_re']),
+                    'queue': task_dct['queue'],
+                    'threads': task_dct['threads']
+                })
+            cmp_map.append((dag_re, lanes, tasks))
+        COMPILED_RESOURCE_MAP = cmp_map
+    return COMPILED_RESOURCE_MAP
+
+
+def _lookup_resource_record(dag_id: str,
+                            task_id: Optional[str] = None) -> Tuple[int, Dict]:
+    """
+    Look up the resource map entry for the given dag_id and task_id. The first
+    match is returned.  If the task_id is None, the first record matching only
+    the dag_id is returned and only the information which is not task_id-specific
+    is included.
+    """
+    for dag_re, num_lanes, attr_dict_list in _get_resource_map():
+        if dag_re.match(dag_id):
+            if task_id is None:
+                return {'lanes': num_lanes}
+            else:
+                for attr_dict in attr_dict_list:
+                    assert 'task_re' in attr_dict, ('schema should guarantee'
+                                                    ' "task_re" is present?')
+                    if attr_dict['task_re'].match(task_id):
+                        rslt = {'lanes': num_lanes}
+                        rslt.update(attr_dict)
+                        del rslt['task_re']
+                        return rslt
+    else:
+        raise ValueError('No resource map entry found for'
+                         f' dag_id <{dag_id}> task_id <{task_id}>')
+
+    
+def get_queue_resource(dag_id: str, task_id: Optional[str] = None) -> str:
+    """
+    Look up the queue defined for this dag_id and task_id in the current
+    resource map.  If the task_id is None, the lookup is done with 
+    task_id='__default__', which presumably only matches the wildcard case.  
+    """
+    if task_id is None:
+        task_id = '__default__'
+    rec = _lookup_resource_record(dag_id, task_id)
+    assert 'queue' in rec, 'schema should guarantee "queue" is present?'
+    return map_queue_name(rec['queue'])
+
+
+def get_lanes_resource(dag_id: str) -> int:
+    """
+    Look up the number of lanes defined for this dag_id in the current
+    resource map.
+    """
+    rec = _lookup_resource_record(dag_id)
+    assert 'lanes' in rec, 'schema should guarantee "lanes" is present?'
+    return int(rec['lanes'])
+
+
+def get_threads_resource(dag_id: str, task_id: Optional[str] = None) -> int:
+    """
+    Look up the number of threads defined for this dag_id and task_id in
+    the current resource map.  If the task_id is None, the lookup is done
+    with task_id='__default__', which presumably only matches the wildcard
+    case.  
+    """
+    if task_id is None:
+        task_id = '__default__'
+    rec = _lookup_resource_record(dag_id, task_id)
+    assert 'threads' in rec, 'schema should guarantee "threads" is present?'
+    return int(rec['threads'])
 
 
 def _get_type_client() -> TypeClient:

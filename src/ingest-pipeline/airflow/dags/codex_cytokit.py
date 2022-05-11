@@ -28,6 +28,8 @@ from utils import (
     join_quote_command_str,
     make_send_status_msg_function,
     get_tmp_dir_path,
+    HMDAG,
+    get_queue_resource
 )
 
 
@@ -41,18 +43,17 @@ default_args = {
     'retries': 1,
     'retry_delay': timedelta(minutes=1),
     'xcom_push': True,
-    'queue': utils.map_queue_name('general'),
+    'queue': get_queue_resource("codex_cytokit"),
     'on_failure_callback': utils.create_dataset_state_error_callback(get_uuid_for_error)
 }
 
 
-with DAG('codex_cytokit',
-         schedule_interval=None,
-         is_paused_upon_creation=False,
-         default_args=default_args,
-         max_active_runs=1,
-         user_defined_macros={'tmp_dir_path' : get_tmp_dir_path}
-         ) as dag:
+with HMDAG("codex_cytokit",
+           schedule_interval=None,
+           is_paused_upon_creation=False,
+           default_args=default_args,
+           user_defined_macros={'tmp_dir_path' : get_tmp_dir_path}
+) as dag:
 
     pipeline_name = 'codex-pipeline'
     steps_dir = Path(pipeline_name) / 'steps'
@@ -144,12 +145,10 @@ with DAG('codex_cytokit',
         task_id='build_cwl_cytokit',
         python_callable=build_cwltool_cwl_cytokit,
         provide_context=True,
-        queue=utils.map_queue_name('gpu000_q1'),
         )
 
     t_pipeline_exec_cwl_cytokit = BashOperator(
         task_id='pipeline_exec_cwl_cytokit',
-        queue=utils.map_queue_name('gpu000_q1'),
         bash_command=""" \
         tmp_dir={{tmp_dir_path(run_id)}} ; \
         mkdir -p ${tmp_dir}/cwl_out ; \

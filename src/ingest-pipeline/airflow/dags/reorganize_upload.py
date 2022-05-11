@@ -23,7 +23,9 @@ from utils import (
     get_tmp_dir_path, get_auth_tok,
     map_queue_name, pythonop_get_dataset_state,
     pythonop_set_dataset_state,
-    find_matching_endpoint
+    find_matching_endpoint,
+    HMDAG,
+    get_queue_resource,
     )
 
 sys.path.append(airflow_conf.as_dict()['connections']['SRC_PATH']
@@ -42,7 +44,7 @@ default_args = {
     'retries': 1,
     'retry_delay': timedelta(minutes=1),
     'xcom_push': True,
-    'queue': map_queue_name('general')
+    'queue': get_queue_resource('reorganize_upload'),
 }
 
 
@@ -59,16 +61,16 @@ def _get_frozen_df_wildcard(run_id):
     return str(Path(get_tmp_dir_path(run_id)) / 'frozen_source_df*.tsv')
 
 
-with DAG('reorganize_upload',
-         schedule_interval=None,
-         is_paused_upon_creation=False,
-         user_defined_macros={
-             'tmp_dir_path' : get_tmp_dir_path,
-             'frozen_df_path' : _get_frozen_df_path,
-             'frozen_df_wildcard': _get_frozen_df_wildcard
-         },
-         default_args=default_args,
-         ) as dag:
+with HMDAG('reorganize_upload',
+           schedule_interval=None,
+           is_paused_upon_creation=False,
+           user_defined_macros={
+               'tmp_dir_path' : get_tmp_dir_path,
+               'frozen_df_path' : _get_frozen_df_path,
+               'frozen_df_wildcard': _get_frozen_df_wildcard
+           },
+           default_args=default_args,
+       ) as dag:
 
     def find_uuid(**kwargs):
         uuid = kwargs['dag_run'].conf['uuid']
