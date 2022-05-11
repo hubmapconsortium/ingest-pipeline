@@ -23,7 +23,8 @@ from hubmap_operators.common_operators import CreateTmpDirOperator, CleanupTmpDi
 import utils
 from utils import (
     get_tmp_dir_path,
-    get_auth_tok
+    get_auth_tok,
+    find_matching_endpoint
     )
 
 default_args = {
@@ -48,9 +49,16 @@ with HMDAG('generate_usage_report',
 
     def build_report(**kwargs):
         entity_token = get_auth_tok(**kwargs)
-        usage_csv = ????
-        log_directory = ????
-        usage_output = ????
+        usage_csv = '/hive/hubmap/data/usage-reports/Globus_Usage_Transfer_Detail.csv'
+        log_directory = '/hive/users/backups/app001/var/log/gridftp-audit/'
+        entity_host = HttpHook.get_connection('entity_api_connection').host
+        instance_identifier = find_matching_endpoint(entity_host)
+        # This is intended to throw an error if the instance is unknown or not listed
+        output_dir = {'PROD' :  '/hive/hubmap/assets/status',
+                      'STAGE' : '/hive/hubmap-stage/assets/status',
+                      'TEST' :  '/hive/hubmap-test/assets/status',
+                      'DEV' :   '/hive/hubmap-dev/assets/status'}[instance_identifier]
+        usage_output = f'{output_dir}/usage_report.json'
 
         temp_name = get_tmp_dir_path()
         for filename in os.listdir(log_directory):
