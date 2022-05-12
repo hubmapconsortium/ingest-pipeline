@@ -2,6 +2,12 @@
 # ids will provide the entries for that DAG and task, so safe defaults defined
 # by wildcards for last.
 resource_map:
+  - 'dag_re': 'generate_usage_report'
+    'lanes': 1
+    'tasks':
+    - 'task_re': '.*'
+      'queue': 'general'
+      'threads': 6
   - 'dag_re': 'codex_cytokit'
     'lanes': 2
     'tasks':

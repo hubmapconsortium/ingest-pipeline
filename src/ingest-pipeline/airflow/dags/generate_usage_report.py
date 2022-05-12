@@ -22,6 +22,7 @@ from hubmap_operators.common_operators import CreateTmpDirOperator, CleanupTmpDi
 
 import utils
 from utils import (
+    HMDAG,
     get_tmp_dir_path,
     get_auth_tok,
     find_matching_endpoint
@@ -30,18 +31,18 @@ from utils import (
 default_args = {
     'owner': 'hubmap',
     'depends_on_past': False,
-    'start_date': datetime(2019, 1, 1),
+    'start_date': datetime.datetime(2019, 1, 1),
     'email': ['joel.welling@gmail.com'],
     'email_on_failure': False,
     'email_on_retry': False,
     'retries': 1,
-    'retry_delay': timedelta(minutes=1),
+    'retry_delay': datetime.timedelta(minutes=1),
     'xcom_push': True,
     'queue': utils.map_queue_name('general')
 }
 
 with HMDAG('generate_usage_report',
-           schedule_interval=None,
+           schedule_interval=datetime.timedelta(days=7),
            is_paused_upon_creation=False,
            default_args=default_args,
            user_defined_macros={'tmp_dir_path': get_tmp_dir_path}
@@ -60,7 +61,7 @@ with HMDAG('generate_usage_report',
                       'DEV' :   '/hive/hubmap-dev/assets/status'}[instance_identifier]
         usage_output = f'{output_dir}/usage_report.json'
 
-        temp_name = get_tmp_dir_path()
+        temp_name = get_tmp_dir_path(kwargs['run_id'])
         for filename in os.listdir(log_directory):
             f = os.path.join(log_directory, filename)
             destination = os.path.join(temp_name, filename)
@@ -210,8 +211,12 @@ with HMDAG('generate_usage_report',
 
     t_build_report = PythonOperator(
         task_id='build_report',
-        python_callable='build_report',
-        provide_context=True
+        python_callable=build_report,
+        provide_context=True,
+        op_kwargs={
+            'crypt_auth_tok' : utils.encrypt_tok(airflow_conf.as_dict()
+                                                 ['connections']['APP_CLIENT_SECRET']).decode(),
+            }
         )
     
     t_create_tmpdir = CreateTmpDirOperator(task_id='create_tmpdir')
@@ -223,7 +228,3 @@ with HMDAG('generate_usage_report',
      >> t_cleanup_tmpdir
      )
 
-def main(entity_token, usage_csv, log_directory, usage_output):
-    # Create temporary file. Then create a copy of each file inside the directory and put it in the temp file.
-
-if __name__ == "__main__":
