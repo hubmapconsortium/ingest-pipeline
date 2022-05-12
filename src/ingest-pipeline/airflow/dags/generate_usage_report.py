@@ -42,7 +42,7 @@ default_args = {
 }
 
 with HMDAG('generate_usage_report',
-           schedule_interval=datetime.timedelta(days=7),
+           schedule_interval='@weekly',
            is_paused_upon_creation=False,
            default_args=default_args,
            user_defined_macros={'tmp_dir_path': get_tmp_dir_path}
