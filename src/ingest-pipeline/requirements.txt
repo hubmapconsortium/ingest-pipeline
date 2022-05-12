@@ -1,4 +1,4 @@
-git+git://github.com/hubmapconsortium/commons.git@${COMMONS_BRANCH}#egg=hubmap-commons
+git+https://github.com/hubmapconsortium/commons@${COMMONS_BRANCH}#egg=hubmap-commons
 prov==1.5.1
 #pylibczi>=1.1.1
 #tifffile==2020.12.8
@@ -15,7 +15,7 @@ PyYAML>=5.3.1
 rdflib==4.2.2
 rdflib-jsonld==0.4.0
 Flask-OAuthlib==0.9.6
-git+git://github.com/hubmapconsortium/cwltool.git@docker-gpu#egg=cwltool
+git+https://github.com/hubmapconsortium/cwltool.git@docker-gpu#egg=cwltool
 # We need the dependencies of ingest-validation tools, but relative paths don't work
 # -r ${CWD}/submodules/ingest-validation-tools/requirements.txt
 #jsonschema==3.2.0
