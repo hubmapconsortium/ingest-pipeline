@@ -81,8 +81,14 @@ def main():
     parser.add_argument('-r', '--retain', metavar='percent', type=float,
                         default=1.0,
                         help='Percentage of records to retain from input')
+    parser.add_argument('-s', '--seed', metavar='seed-value', type=str,
+                        help='Seed value to ensure consistent record '
+                             'selection across related FASTQ files')
 
     args = parser.parse_args()
+
+    if args.seed is not None:
+        random.seed(args.seed)
 
     with _open_stream(args.input, False) as input_stream, \
             _open_stream(args.output, True) as output_stream:
