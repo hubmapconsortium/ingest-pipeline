@@ -22,13 +22,15 @@ from utils import (
     pythonop_maybe_keep,
     get_tmp_dir_path, get_auth_tok,
     map_queue_name, pythonop_get_dataset_state,
-    pythonop_set_dataset_state
+    pythonop_set_dataset_state,
+    find_matching_endpoint,
+    HMDAG,
+    get_queue_resource,
     )
 
 sys.path.append(airflow_conf.as_dict()['connections']['SRC_PATH']
                 .strip("'").strip('"'))
 from misc.tools.split_and_create import reorganize
-from misc.tools.survey import ENDPOINTS
 sys.path.pop()
 
 # Following are defaults which can be overridden later on
@@ -42,7 +44,7 @@ default_args = {
     'retries': 1,
     'retry_delay': timedelta(minutes=1),
     'xcom_push': True,
-    'queue': map_queue_name('general')
+    'queue': get_queue_resource('reorganize_upload'),
 }
 
 
@@ -59,16 +61,16 @@ def _get_frozen_df_wildcard(run_id):
     return str(Path(get_tmp_dir_path(run_id)) / 'frozen_source_df*.tsv')
 
 
-with DAG('reorganize_upload',
-         schedule_interval=None,
-         is_paused_upon_creation=False,
-         user_defined_macros={
-             'tmp_dir_path' : get_tmp_dir_path,
-             'frozen_df_path' : _get_frozen_df_path,
-             'frozen_df_wildcard': _get_frozen_df_wildcard
-         },
-         default_args=default_args,
-         ) as dag:
+with HMDAG('reorganize_upload',
+           schedule_interval=None,
+           is_paused_upon_creation=False,
+           user_defined_macros={
+               'tmp_dir_path' : get_tmp_dir_path,
+               'frozen_df_path' : _get_frozen_df_path,
+               'frozen_df_wildcard': _get_frozen_df_wildcard
+           },
+           default_args=default_args,
+       ) as dag:
 
     def find_uuid(**kwargs):
         uuid = kwargs['dag_run'].conf['uuid']
@@ -124,17 +126,6 @@ with DAG('reorganize_upload',
         """
     )
 
-    def _strip_url(url):
-        return url.split(':')[1].strip('/')
-
-    def _find_matching_endpoint(host_url):
-        stripped_url = _strip_url(host_url)
-        print(f'stripped_url: {stripped_url}')
-        candidates = [ep for ep in ENDPOINTS
-                      if stripped_url == _strip_url(ENDPOINTS[ep]['entity_url'])]
-        assert len(candidates) == 1, f'Found {candidates}, expected 1 match'
-        return candidates[0]
-
     def split_stage_1(**kwargs):
         uuid = kwargs['ti'].xcom_pull(task_ids='find_uuid', key='uuid')
         entity_host = HttpHook.get_connection('entity_api_connection').host
@@ -145,7 +136,7 @@ with DAG('reorganize_upload',
                 ingest=False,
                 #dryrun=True,
                 dryrun=False,
-                instance=_find_matching_endpoint(entity_host),
+                instance=find_matching_endpoint(entity_host),
                 auth_tok=get_auth_tok(**kwargs),
                 frozen_df_fname=_get_frozen_df_path(kwargs['run_id'])
             )
@@ -183,7 +174,7 @@ with DAG('reorganize_upload',
                 ingest=False,
                 #dryrun=True,
                 dryrun=False,
-                instance=_find_matching_endpoint(entity_host),
+                instance=find_matching_endpoint(entity_host),
                 auth_tok=get_auth_tok(**kwargs),
                 frozen_df_fname=_get_frozen_df_path(kwargs['run_id'])
             )

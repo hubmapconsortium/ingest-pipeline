@@ -2,6 +2,7 @@ from airflow import DAG, models
 from airflow.operators.python_operator import PythonOperator
 from datetime import datetime, timedelta
 import globus_sdk
+from utils import HMDAG, get_queue_resource
 
 default_args = {
     'owner': 'hubmap',
@@ -12,9 +13,10 @@ default_args = {
     'email_on_retry': False,
     'retries': 1,
     'retry_delay': timedelta(minutes=1),
+    'queue': get_queue_resource('globus_transfer'),
 }
 
-with DAG('globus_transfer', schedule_interval=None, is_paused_upon_creation=False, default_args=default_args) as dag:
+with HMDAG('globus_transfer', schedule_interval=None, is_paused_upon_creation=False, default_args=default_args) as dag:
     def perform_transfer(*argv, **kwargs):
         dag_run_conf = kwargs['dag_run'].conf
         globus_transfer_token = dag_run_conf['tokens']['transfer.api.globus.org']['access_token']

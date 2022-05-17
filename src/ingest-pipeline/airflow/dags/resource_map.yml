@@ -1,0 +1,79 @@
+# Order is important here!  The first regex pair that matches the DAG and task
+# ids will provide the entries for that DAG and task, so safe defaults defined
+# by wildcards for last.
+resource_map:
+  - 'dag_re': 'generate_usage_report'
+    'lanes': 1
+    'tasks':
+    - 'task_re': '.*'
+      'queue': 'general'
+      'threads': 6
+  - 'dag_re': 'codex_cytokit'
+    'lanes': 2
+    'tasks':
+    - 'task_re': '.*cwl_cytokit'
+      'queue': 'gpu000_q1'
+      'threads': 6
+    - 'task_re': '.*'
+      'queue': 'general'
+      'threads': 6
+  - 'dag_re': 'celldive_deepcell'
+    'lanes': 2
+    'tasks':
+    - 'task_re': '.*cwl_segmentation'
+      'queue': 'gpu000_q1'
+      'threads': 6
+    - 'task_re': '.*'
+      'queue': 'general'
+      'threads': 6
+  - 'dag_re': 'ometiff_offset'
+    'lanes': 2
+    'tasks':
+    - 'task_re': '.*'
+      'queue': 'general'
+      'threads': 6
+  - 'dag_re': 'launch_checksums'
+    'lanes': 2
+    'tasks':
+    - 'task_re': '.*'
+      'queue': 'general'
+      'threads': 6
+  - 'dag_re': 'scan_and_begin_processing'
+    'lanes': 2
+    'tasks':
+    - 'task_re': 'run_validation'
+      'queue': 'validate'
+      'threads': 6
+    - 'task_re': '.*'
+      'queue': 'general'
+      'threads': 6
+  - 'dag_re': 'validate_upload'
+    'lanes': 2
+    'tasks':
+    - 'task_re': 'run_validation'
+      'queue': 'validate'
+      'threads': 6
+    - 'task_re': '.*'
+      'queue': 'general'
+      'threads': 6
+  - 'dag_re': 'validation_test'
+    'lanes': 2
+    'tasks':
+    - 'task_re': 'run_validation'
+      'queue': 'validate'
+      'threads': 6
+    - 'task_re': '.*'
+      'queue': 'general'
+      'threads': 6
+  - 'dag_re': 'sc_atac_seq_.*'
+    'lanes': 8
+    'tasks':
+    - 'task_re': '.*'
+      'queue': 'general'
+      'threads': 6
+  - 'dag_re': '.*'
+    'lanes': 2
+    'tasks':
+      - 'task_re': '.*'
+        'queue': 'general'
+        'threads': 6
