@@ -1227,6 +1227,13 @@ def _get_workflow_map() -> List[Tuple[Pattern, Pattern, str]]:
     return COMPILED_WORKFLOW_MAP
 
 
+def get_type_client() -> TypeClient:
+    """
+    Expose the type client instance publicly
+    """
+    return _get_type_client()
+
+
 def _get_type_client() -> TypeClient:
     """
     Lazy initialization of the global TypeClient instance

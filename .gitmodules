@@ -46,3 +46,9 @@
 [submodule "src/ingest-pipeline/airflow/dags/cwl/azimuth-annotate"]
 	path = src/ingest-pipeline/airflow/dags/cwl/azimuth-annotate
 	url = https://github.com/hubmapconsortium/azimuth-annotate
+[submodule "src/ingest-pipeline/airflow/dags/cwl/cfde-bdbag"]
+	path = src/ingest-pipeline/airflow/dags/cwl/cfde-bdbag
+	url = https://github.com/hubmapconsortium/cfde-bdbag.git
+[submodule "src/ingest-pipeline/submodules/py-hubmapbags"]
+	path = src/ingest-pipeline/submodules/py-hubmapbags
+	url = https://github.com/hubmapconsortium/py-hubmapbags.git

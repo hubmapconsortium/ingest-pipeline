@@ -1,0 +1,23 @@
+'$schema': 'http://json-schema.org/schema#'
+'$id': 'http://schemata.hubmapconsortium.org/generate_bdbag_metadata_schema.yml'
+'title': 'generate bdbag metadata schema'
+'description': 'generate bdbag metadata schema'
+
+'allOf': [{'$ref': '#/definitions/generate_bdbag_metadata'}]
+
+'definitions':
+
+  'generate_bdbag_metadata':
+     'type': 'object'
+     'properties':
+        'uuid_list':
+          'type': 'array'
+          'items':
+            'type': 'string'
+            'description': 'a dataset uuid or DOI'
+          'minItems': 1
+        'compute_uuids':
+          'type': 'boolean'
+          'description': 'should uuids be generated for all individual files?'
+     'required': ['uuid_list']
+    
