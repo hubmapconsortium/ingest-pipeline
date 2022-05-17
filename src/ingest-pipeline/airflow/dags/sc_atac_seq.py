@@ -28,11 +28,11 @@ from utils import (
     get_uuid_for_error,
     join_quote_command_str,
     make_send_status_msg_function,
-    get_tmp_dir_path
+    get_tmp_dir_path,
+    HMDAG,
+    get_queue_resource,
+    get_threads_resource,
 )
-
-# to be used by the CWL worker
-THREADS = 6
 
 
 def generate_atac_seq_dag(params: SequencingDagParameters) -> DAG:
@@ -46,16 +46,15 @@ def generate_atac_seq_dag(params: SequencingDagParameters) -> DAG:
         "retries": 1,
         "retry_delay": timedelta(minutes=1),
         "xcom_push": True,
-        "queue": utils.map_queue_name("general"),
+        "queue": get_queue_resource(params.dag_id),
         "on_failure_callback": utils.create_dataset_state_error_callback(get_uuid_for_error),
     }
 
-    with DAG(
+    with HMDAG(
         params.dag_id,
         schedule_interval=None,
         is_paused_upon_creation=False,
         default_args=default_args,
-        max_active_runs=4,
         user_defined_macros={"tmp_dir_path": get_tmp_dir_path},
     ) as dag:
         cwl_workflows = get_absolute_workflows(
@@ -88,7 +87,7 @@ def generate_atac_seq_dag(params: SequencingDagParameters) -> DAG:
                 params.assay,
                 "--exclude_bam",
                 "--threads",
-                THREADS,
+                get_threads_resource(dag.dag_id),
             ]
             for data_dir in data_dirs:
                 command.append("--sequence_directory")

@@ -28,9 +28,10 @@ from utils import (
     join_quote_command_str,
     make_send_status_msg_function,
     get_tmp_dir_path,
+    HMDAG,
+    get_queue_resource,
+    get_threads_resource,
 )
-
-THREADS = 6  # to be used by the CWL worker
 
 default_args = {
     'owner': 'hubmap',
@@ -42,16 +43,15 @@ default_args = {
     'retries': 1,
     'retry_delay': timedelta(minutes=1),
     'xcom_push': True,
-    'queue': utils.map_queue_name('general'),
+    'queue': get_queue_resource('salmon_rnaseq_bulk'),
     'on_failure_callback': utils.create_dataset_state_error_callback(get_uuid_for_error),
 }
 
-with DAG(
+with HMDAG(
         'salmon_rnaseq_bulk',
         schedule_interval=None,
         is_paused_upon_creation=False,
         default_args=default_args,
-        max_active_runs=4,
         user_defined_macros={'tmp_dir_path': get_tmp_dir_path},
 ) as dag:
     pipeline_name = 'salmon-rnaseq-bulk'
@@ -78,7 +78,7 @@ with DAG(
             '--fastq_dir',
             data_dir,
             '--threads',
-            THREADS,
+            get_threads_resource(dag.dag_id),
         ]
 
         return join_quote_command_str(command)

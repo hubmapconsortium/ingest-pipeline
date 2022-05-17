@@ -14,7 +14,9 @@ from airflow.exceptions import AirflowException
 
 import utils
 from utils import (
-    localized_assert_json_matches_schema as assert_json_matches_schema
+    localized_assert_json_matches_schema as assert_json_matches_schema,
+    HMDAG,
+    get_queue_resource,
     )
 
 
@@ -29,15 +31,15 @@ default_args = {
     'retries': 1,
     'retry_delay': timedelta(minutes=1),
     'xcom_push': True,
-    'queue': utils.map_queue_name('general')
+    'queue': get_queue_resource('trigger_downstream_processing'),
 }
 
 
-with DAG('trigger_downstream_processing',
-         schedule_interval=None,
-         is_paused_upon_creation=False,
-         default_args=default_args,
-         ) as dag:
+with HMDAG('trigger_downstream_processing',
+           schedule_interval=None,
+           is_paused_upon_creation=False,
+           default_args=default_args,
+       ) as dag:
 
     def find_uuid(**kwargs):
         try:
