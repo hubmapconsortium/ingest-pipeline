@@ -19,5 +19,8 @@
         'compute_uuids':
           'type': 'boolean'
           'description': 'should uuids be generated for all individual files?'
+        'dbgap_study_id':
+          'type': 'string'
+          'description': 'DBGap study id to use (optional)'
      'required': ['uuid_list']
     

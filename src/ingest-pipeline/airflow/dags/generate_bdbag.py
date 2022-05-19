@@ -3,7 +3,6 @@
 # Import modules
 import sys
 import os
-import shutil
 import re
 import tempfile
 import hubmap_sdk
@@ -13,6 +12,7 @@ import subprocess
 import datetime
 from pprint import pprint
 from pathlib import Path
+from shutil import rmtree, copy, move
 
 from hubmap_sdk import EntitySdk
 
@@ -26,6 +26,7 @@ from hubmap_operators.common_operators import CreateTmpDirOperator, CleanupTmpDi
 
 import utils
 from utils import (
+    localized_assert_json_matches_schema as assert_json_matches_schema,
     HMDAG,
     get_tmp_dir_path,
     get_auth_tok,
@@ -102,96 +103,6 @@ with HMDAG('generate_bdbag',
            user_defined_macros={'tmp_dir_path': get_tmp_dir_path}
            ) as dag:
 
-# def __extract_dataset_info_from_db( id, token=None, instance='test', debug=None ):
-#       '''
-#       Helper function that uses the HuBMAP APIs to get dataset info.
-#       '''
-
-#       j = apis.get_dataset_info( id, token=token, instance=instance )
-#       if j is None:
-#               warnings.warn('Unable to extract data from database.')
-#               return None
-
-#       hmid = j.get('hubmap_id')
-#       hmuuid = j.get('uuid')
-#       status = j.get('status')
-#       data_types = j.get('data_types')[0]
-#       group_name = j.get('group_name')
-#       group_uuid = j.get('group_uuid')
-#       first_sample_id=j.get('direct_ancestors')[0].get('hubmap_id')
-#       first_sample_uuid=j.get('direct_ancestors')[0].get('uuid')
-
-#       j = apis.get_provenance_info( id, instance=instance, token=token )
-#       organ_type=j.get('organ_type')[0]
-#       organ_hmid=j.get('organ_hubmap_id')[0]
-#       organ_uuid=j.get('organ_uuid')[0]
-#       donor_hmid=j.get('donor_hubmap_id')[0]
-#       donor_uuid=j.get('donor_uuid')[0]
-
-#       full_path = os.path.join('/hive/hubmap/data/public',hmuuid)
-#       if not os.path.isdir(full_path):
-#               full_path=os.path.join('/hive/hubmap/data/protected',group_name,hmuuid)
-
-#       headers = ['ds.group_name', 'ds.uuid', \
-#               'ds.hubmap_id', 'dataset_uuid', \
-#               'ds.status', 'ds.data_types', \
-#               'first_sample_id', 'first_sample_uuid', \
-#               'organ_type', 'organ_id', \
-#               'donor_id', 'donor_uuid', \
-#               'full_path']
-
-#       df = pd.DataFrame(columns=headers)
-#       df = df.append({'ds.group_name':group_name, \
-#               'ds.uuid':group_uuid, \
-#               'ds.hubmap_id':hmid, \
-#               'dataset_uuid':hmuuid, \
-#               'ds.data_types':data_types, \
-#               'ds.status':status, \
-#               'ds.data_types':data_types, \
-#               'first_sample_id':first_sample_id, \
-#               'first_sample_uuid':first_sample_uuid, \
-#               'organ_type':organ_type, \
-#               'organ_id':organ_hmid, \
-#               'donor_id':donor_hmid, \
-#               'donor_uuid':donor_uuid, \
-#               'full_path':full_path}, ignore_index=True)
-
-#       return df
-
-    
-#     def check_one_uuid(uuid, **kwargs):
-#         """
-#         Look up information on the given uuid or HuBMAP identifier.
-#         Returns:
-#         - the uuid, translated from an identifier if necessary
-#         - data type(s) of the dataset
-#         - local directory full path of the dataset
-#         """
-#         print(f'Starting uuid {uuid}')
-#         my_callable = lambda **kwargs: uuid
-#         ds_rslt=utils.pythonop_get_dataset_state(
-#             dataset_uuid_callable=my_callable,
-#             **kwargs
-#         )
-#         if not ds_rslt:
-#             raise AirflowException(f'Invalid uuid/doi for group: {uuid}')
-#         print('ds_rslt:')
-#         pprint(ds_rslt)
-
-#         for key in ['status', 'uuid', 'data_types', 'local_directory_full_path',
-#                     'metadata']:
-#             assert key in ds_rslt, f"Dataset status for {uuid} has no {key}"
-
-#         if not ds_rslt['status'] in ['New', 'Error', 'QA', 'Published']:
-#             raise AirflowException(f'Dataset {uuid} is not QA or better')
-
-#         dt = ds_rslt['data_types']
-#         if isinstance(dt, str) and dt.startswith('[') and dt.endswith(']'):
-#             dt = ast.literal_eval(dt)
-#             print(f'parsed dt: {dt}')
-
-#         return (ds_rslt['uuid'], dt, ds_rslt['local_directory_full_path'],
-#                 ds_rslt['metadata'])
 
     def get_dataset_full_path(uuid, auth_token):
         """
@@ -247,13 +158,13 @@ with HMDAG('generate_bdbag',
             if isinstance(ancestor, hubmap_sdk.donor.Donor):
                 donor = ancestor
             elif ancestor not in organs:  # meaning it is cut from an organ
-                largest_sample = sample
+                largest_sample = ancestor
         if not donor:
             raise RuntimeError(f'No donor found for {uuid}')
         if not largest_sample:
             largest_sample = organs[-1]
         return {
-            'ds.group.name': entity.group_name,
+            'ds.group_name': entity.group_name,
             'ds.uuid': entity.uuid,
             'ds.hubmap_id': entity.hubmap_id,
             'dataset_uuid': entity.uuid,
@@ -264,16 +175,20 @@ with HMDAG('generate_bdbag',
             'organ_type': organs[0].organ,
             'organ_id': organs[0].hubmap_id,
             'donor_id': donor.hubmap_id,
+            'donor_uuid': donor.uuid,
             'full_path': get_dataset_full_path(uuid, entity_sdk.token)
             }
         
     
     def generate_bdbag(**kwargs):
         entity_token = get_auth_tok(**kwargs)
-        usage_csv = '/hive/hubmap/data/usage-reports/Globus_Usage_Transfer_Detail.csv'
-        log_directory = '/hive/users/backups/app001/var/log/gridftp-audit/'
-        entity_url = HttpHook.get_connection('entity_api_connection').base_url
-        entity_sdk = EntitySdk(token=entity_token, url=entity_url)
+        entity_connection = HttpHook.get_connection('entity_api_connection')
+        entity_url = entity_connection.get_uri()
+        entity_url = entity_url.replace('http://https%3a%2f%2f','https://')
+        entity_url = entity_url.replace('http://https%3A%2F%2F','https://')
+        entity_host = entity_connection.host
+        print(f"entity_url as used by EntitySdk: <{entity_url}>")
+        entity_sdk = EntitySdk(token=entity_token, service_url=entity_url)
         instance_identifier = find_matching_endpoint(entity_host)
         # This is intended to throw an error if the instance is unknown or not listed
         output_dir = {'PROD' :  '/hive/hubmap/bdbags/auto',
@@ -297,6 +212,7 @@ with HMDAG('generate_bdbag',
         
         compute_uuids = kwargs['dag_run'].conf.get('compute_uuids', False)
         uuid_l = kwargs['dag_run'].conf['uuid_list']
+        dbgap_study_id = kwargs['dag_run'].conf.get('dbgap_study_id', None)
         rec_l = [generate_record(uuid, entity_sdk) for uuid in uuid_l]
         columns = ['ds.group_name', 'ds.uuid',
                    'ds.hubmap_id', 'dataset_uuid',
@@ -306,6 +222,9 @@ with HMDAG('generate_bdbag',
                    'donor_id', 'donor_uuid',
                    'full_path']
         assert rec_l, 'no records?'
+        for col in columns:
+            if col not in rec_l[0]:
+                print(f'missing {col}')
         assert all([col in rec_l[0] for col in columns]), 'records are missing expected column?'
         df = pd.DataFrame(rec_l, columns=columns)
 
@@ -314,7 +233,7 @@ with HMDAG('generate_bdbag',
 
         for idx, row in df.iterrows():
             status = row['ds.status'].lower()
-            data_type = row['ds.data_types'].replace('[','').replace(']','').replace('\'','').lower()
+            data_type = str(row['ds.data_types']).replace('[','').replace(']','').replace('\'','').lower()
             data_provider = row['ds.group_name']
             hubmap_id = row['ds.hubmap_id']
             hubmap_uuid = row['dataset_uuid']
@@ -331,7 +250,10 @@ with HMDAG('generate_bdbag',
             if status != 'published':
                 print(f'Ignoring {hubmap_uuid} because it is {status} rather than published')
                 continue
-            if not get_type_client(row['ds.data_types']).primary:
+            type_for_lookup = row['ds.data_types']
+            if isinstance(type_for_lookup, list) and len(type_for_lookup) == 1:
+                type_for_lookup = type_for_lookup[0]
+            if not get_type_client().getAssayType(type_for_lookup).primary:
                 print(f'Ignoring {hubmap_uuid} because type {data_type} is not primary')
 
             # Create the marker that this dataset's summary is being computed
@@ -340,10 +262,13 @@ with HMDAG('generate_bdbag',
                 pass
                 
             print('Checking if output directory exists.')
-            output_directory = data_type + '-' + status + '-' + dataset['dataset_uuid']
+            output_directory = data_type + '-' + status + '-' + hubmap_uuid
 
             print('Creating output directory ' + output_directory + '.' )
-            os.mkdir(output_directory)
+            try:
+                os.mkdir(output_directory)
+            except FileExistsError:
+                pass
                     
             print('Making file.tsv')
             temp_file = data_directory.replace('/','_').replace(' ','_') + '.pkl'
@@ -353,12 +278,13 @@ with HMDAG('generate_bdbag',
                                             directory=data_directory,
                                             output_directory=output_directory,
                                             dbgap_study_id=dbgap_study_id,
-                                            token=token,
+                                            token=entity_token,
                                             dataset_hmid=hubmap_id,
                                             dataset_uuid=hubmap_uuid )
 
             print('Making biosample.tsv')
-            biosample.create_manifest( biosample_id, data_provider, organ_shortcode, output_directory )
+            organ_name= {'LK': 'left kidney'}[organ_shortcode]
+            biosample.create_manifest( biosample_id, data_provider, organ_name, output_directory )
 
             print('Making biosample_in_collection.tsv')
             biosample_in_collection.create_manifest( biosample_id, hubmap_id, output_directory )
@@ -486,7 +412,7 @@ with HMDAG('generate_bdbag',
 
     (dag
      >> t_create_tmpdir
-     >> t_build_report
+     >> t_generate_bdbag
      >> t_cleanup_tmpdir
      )
 
