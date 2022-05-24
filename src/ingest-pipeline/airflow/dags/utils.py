@@ -11,6 +11,7 @@ from pathlib import Path
 from pprint import pprint
 import re
 import shlex
+import sys
 import uuid
 from subprocess import check_output, CalledProcessError
 from typing import (
@@ -35,6 +36,15 @@ from hubmap_commons.schema_tools import (
 from hubmap_commons.type_client import TypeClient
 
 import cwltool  # used to find its path
+
+
+try:
+    sys.path.append(airflow_conf.as_dict()['connections']['SRC_PATH']
+                    .strip("'").strip('"'))
+    from misc.tools.survey import ENDPOINTS
+    sys.path.pop()
+except KeyError:
+    ENDPOINTS = {}
 
 
 JSONType = Union[str, int, float, bool, None, Dict[str, Any], List[Any]]
@@ -1348,7 +1358,6 @@ def get_lanes_resource(dag_id: str) -> int:
     resource map.
     """
     rec = _lookup_resource_record(dag_id)
-    pprint(rec)
     assert 'lanes' in rec, 'schema should guarantee "lanes" is present?'
     return int(rec['lanes'])
 
@@ -1365,6 +1374,13 @@ def get_threads_resource(dag_id: str, task_id: Optional[str] = None) -> int:
     rec = _lookup_resource_record(dag_id, task_id)
     assert 'threads' in rec, 'schema should guarantee "threads" is present?'
     return int(rec['threads'])
+
+
+def get_type_client() -> TypeClient:
+    """
+    Expose the type client instance publicly
+    """
+    return _get_type_client()
 
 
 def _get_type_client() -> TypeClient:
@@ -1432,6 +1448,30 @@ def join_quote_command_str(pieces: List[Any]):
     command_str = ' '.join(shlex.quote(str(piece)) for piece in pieces)
     print('final command_str:', command_str)
     return command_str
+
+
+def _strip_url(url):
+    return url.split(':')[1].strip('/')
+
+
+def find_matching_endpoint(host_url: str)-> str:
+    """
+    Find the identity of the 'instance' of Airflow infrastructure based
+    on environment information.
+    
+    host_url: the URL of entity-api in the current context
+
+    returns: an instance string, for example 'PROD' or 'DEV'
+    """
+    assert ENDPOINTS, "Context information is unavailable"
+    stripped_url = _strip_url(host_url)
+    print(f'stripped_url: {stripped_url}')
+    candidates = [ep for ep in ENDPOINTS
+                  if stripped_url == _strip_url(ENDPOINTS[ep]['entity_url'])]
+    assert len(candidates) == 1, f'Found {candidates}, expected 1 match'
+    return candidates[0]
+
+
 
 def main():
     """
