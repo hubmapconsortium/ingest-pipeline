@@ -283,8 +283,8 @@ with HMDAG('generate_bdbag',
                                             dataset_uuid=hubmap_uuid )
 
             print('Making biosample.tsv')
-            organ_name= {'LK': 'left kidney'}[organ_shortcode]
-            biosample.create_manifest( biosample_id, data_provider, organ_name, output_directory )
+            biosample.create_manifest( biosample_id, data_provider, organ_shortcode,
+                                       output_directory )
 
             print('Making biosample_in_collection.tsv')
             biosample_in_collection.create_manifest( biosample_id, hubmap_id, output_directory )
