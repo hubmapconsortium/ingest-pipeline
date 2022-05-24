@@ -1376,6 +1376,13 @@ def get_threads_resource(dag_id: str, task_id: Optional[str] = None) -> int:
     return int(rec['threads'])
 
 
+def get_type_client() -> TypeClient:
+    """
+    Expose the type client instance publicly
+    """
+    return _get_type_client()
+
+
 def _get_type_client() -> TypeClient:
     """
     Lazy initialization of the global TypeClient instance
