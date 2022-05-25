@@ -97,7 +97,7 @@ def main():
                         default=DEFAULT_NWORKERS)
     parser.add_argument('-o', '--out', dest='ofile', type=str,
                         help=f'Name for output .tsv file '
-                        '(default {DEFAULT_OFILE})',
+                        f'(default {DEFAULT_OFILE})',
                         default=DEFAULT_OFILE)
     results = parser.parse_args()
     if results.debug:
