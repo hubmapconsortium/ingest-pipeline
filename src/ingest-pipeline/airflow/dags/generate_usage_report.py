@@ -31,7 +31,7 @@ from utils import (
 default_args = {
     'owner': 'hubmap',
     'depends_on_past': False,
-    'start_date': datetime.datetime(2019, 1, 1),
+    'start_date': datetime.datetime(2022, 5, 1),
     'email': ['joel.welling@gmail.com'],
     'email_on_failure': False,
     'email_on_retry': False,
