@@ -83,16 +83,14 @@ with HMDAG('launch_checksums',
             raise AirflowException(f'Invalid uuid/doi: {uuid}')
         print('rslt:')
         pprint(rslt)
-        assert 'dataset' in rslt, f"Status for {uuid} has no dataset entry"
-        ds_rslt = rslt['dataset']
 
         for key in ['status', 'uuid', 'data_types', 'local_directory_full_path']:
-            assert key in ds_rslt, f"Dataset status for {uuid} has no {key}"
+            assert key in rslt, f"Dataset status for {uuid} has no {key}"
 
-#         if not ds_rslt['status'] in ['Published']:
+#         if not rslt['status'] in ['Published']:
 #             raise AirflowException(f'Dataset {uuid} is not QA or better')
 
-        data_types = ds_rslt['data_types']
+        data_types = rslt['data_types']
         if isinstance(data_types, str) and data_types.startswith('[') and data_types.endswith(']'):
             data_types = ast.literal_eval(data_types)
         print(f'parsed data_types: {data_types}')
@@ -107,9 +105,9 @@ with HMDAG('launch_checksums',
         else:
             filtered_data_type = data_types
 
-        lz_path = ds_rslt['local_directory_full_path']
+        lz_path = rslt['local_directory_full_path']
         filtered_path = lz_path
-        filtered_uuid = ds_rslt['uuid']
+        filtered_uuid = rslt['uuid']
         print(f'Finished uuid {filtered_uuid}')
         print(f'filtered data types: {filtered_data_type}')
         print(f'filtered path: {filtered_path}')
@@ -148,7 +146,7 @@ with HMDAG('launch_checksums',
             'X-Hubmap-Application' : 'ingest-pipeline'
         }
         rec_l = []
-        for idx, row in block_df:  # pylint: disable=unused-variable
+        for idx, row in block_df.iterrows():  # pylint: disable=unused-variable
             this_path = Path(row['path'])
             rec_l.append({
                 'path':str(this_path.relative_to(parent_path.parent)),
