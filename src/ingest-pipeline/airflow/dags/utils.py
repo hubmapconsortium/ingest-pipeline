@@ -38,6 +38,7 @@ from hubmap_commons.type_client import TypeClient
 import cwltool  # used to find its path
 
 
+airflow_conf.read(join(environ['AIRFLOW_HOME'], 'instance', 'app.cfg'))
 try:
     sys.path.append(airflow_conf.as_dict()['connections']['SRC_PATH']
                     .strip("'").strip('"'))
