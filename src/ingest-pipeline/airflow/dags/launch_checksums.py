@@ -29,7 +29,7 @@ from utils import (
 
 
 # How many records to send to uuid-api in each block
-RECS_PER_BLOCK = 5
+RECS_PER_BLOCK = 100
 
 
 default_args = {
