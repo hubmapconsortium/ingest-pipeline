@@ -132,7 +132,7 @@ with HMDAG('launch_checksums',
         tmp_dir="{{tmp_dir_path(run_id)}}" ; \
         ds_dir="{{ti.xcom_pull(task_ids='check_uuid', key='lz_path')}}" ; \
         src_path="{{src_path}}" ; \
-        python "$src_path"/misc/tools/checksum_md5.py \
+        python "$src_path"/misc/tools/checksum_sha256.py \
             -i "${ds_dir}" -o "${tmp_dir}"/cksums.tsv \
             -n "{{THREADS}}"
         """
@@ -150,7 +150,7 @@ with HMDAG('launch_checksums',
             this_path = Path(row['path'])
             rec_l.append({
                 'path':str(this_path.relative_to(parent_path.parent)),
-                'checksum':row['md5'],
+                'checksum':row['sha256'],
                 'size':row['size'],
                 'base_dir':'DATA_UPLOAD'
             })
