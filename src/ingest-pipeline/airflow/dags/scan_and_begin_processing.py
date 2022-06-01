@@ -24,6 +24,7 @@ from utils import (
     make_send_status_msg_function,
     HMDAG,
     get_queue_resource,
+    pythonop_maybe_keep,
     )
 
 sys.path.append(airflow_conf.as_dict()['connections']['SRC_PATH']
@@ -116,7 +117,6 @@ with HMDAG('scan_and_begin_processing',
         }
     )
 
-
     send_status_msg = make_send_status_msg_function(
         dag_file=__file__,
         retcode_ops=['run_validation', 'run_md_extract', 'md_consistency_tests'],
@@ -143,6 +143,17 @@ with HMDAG('scan_and_begin_processing',
             kwargs['ti'].xcom_push(key='assay_type', value=assay_type)
         else:
             kwargs['ti'].xcom_push(key='collectiontype', value=None)
+
+    t_maybe_continue - BranchPythonOperator(
+        task_id='maybe_continue',
+        python_callcable=pythonop_maybe_keep,
+        provide_context=True,
+        op_kwargs={
+            'next_op': 'run_md_extract',
+            'bail_op': 'send_status_msg',
+            'test_op': 'run_validation',
+            }
+        )
 
     t_run_md_extract = BashOperator(
         task_id='run_md_extract',
@@ -233,6 +244,7 @@ with HMDAG('scan_and_begin_processing',
         )
 
     (dag >> t_create_tmpdir >> t_run_validation >>
+     t_maybe_continue >>
      t_run_md_extract >> t_md_consistency_tests >>
      t_send_status >> t_maybe_spawn >> t_cleanup_tmpdir)
 
