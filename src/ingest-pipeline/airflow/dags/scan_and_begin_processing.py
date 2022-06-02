@@ -144,9 +144,9 @@ with HMDAG('scan_and_begin_processing',
         else:
             kwargs['ti'].xcom_push(key='collectiontype', value=None)
 
-    t_maybe_continue - BranchPythonOperator(
+    t_maybe_continue = BranchPythonOperator(
         task_id='maybe_continue',
-        python_callcable=pythonop_maybe_keep,
+        python_callable=pythonop_maybe_keep,
         provide_context=True,
         op_kwargs={
             'next_op': 'run_md_extract',
@@ -247,4 +247,4 @@ with HMDAG('scan_and_begin_processing',
      t_maybe_continue >>
      t_run_md_extract >> t_md_consistency_tests >>
      t_send_status >> t_maybe_spawn >> t_cleanup_tmpdir)
-
+    t_maybe_continue >> t_send_status
