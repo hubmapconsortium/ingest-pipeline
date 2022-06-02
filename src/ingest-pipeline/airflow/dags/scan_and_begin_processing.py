@@ -184,7 +184,8 @@ with HMDAG('scan_and_begin_processing',
     t_send_status = PythonOperator(
         task_id='send_status_msg',
         python_callable=wrapped_send_status_msg,
-        provide_context=True
+        provide_context=True,
+        trigger_rule='all_done'
     )
 
     t_create_tmpdir = BashOperator(
@@ -192,13 +193,11 @@ with HMDAG('scan_and_begin_processing',
         bash_command='mkdir {{tmp_dir_path(run_id)}}'
         )
 
-
     t_cleanup_tmpdir = BashOperator(
         task_id='cleanup_temp_dir',
         bash_command='echo rm -r {{tmp_dir_path(run_id)}}',
         trigger_rule='all_success'
         )
-
 
     def flex_maybe_spawn(**kwargs):
         """
@@ -210,8 +209,10 @@ with HMDAG('scan_and_begin_processing',
         ctx = kwargs['dag_run'].conf
         pprint(ctx)
         run_validation_retcode = int(kwargs['ti'].xcom_pull(task_ids="run_validation"))
-        md_extract_retcode = int(kwargs['ti'].xcom_pull(task_ids="run_md_extract"))
-        md_consistency_retcode = int(kwargs['ti'].xcom_pull(task_ids="md_consistency_tests"))
+        md_extract_retcode = kwargs['ti'].xcom_pull(task_ids="run_md_extract")
+        md_extract_retcode = int(md_extract_retcode or '0')
+        md_consistency_retcode = kwargs['ti'].xcom_pull(task_ids="md_consistency_tests")
+        md_consistency_retcode = int(md_consistency_retcode or '0')
         if (run_validation_retcode == 0
             and md_extract_retcode == 0
             and md_consistency_retcode == 0):
