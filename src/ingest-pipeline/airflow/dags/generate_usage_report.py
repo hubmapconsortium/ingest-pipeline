@@ -62,18 +62,33 @@ with HMDAG('generate_usage_report',
         usage_output = f'{output_dir}/usage_report.json'
 
         temp_name = get_tmp_dir_path(kwargs['run_id'])
+
+        # If this is a retry of this operation, there may be files in temp_name left
+        # over from the previous pass.  Clear them.
+        for filename in os.listdir(temp_name):
+            os.remove(os.path.join(temp_name, filename))
+
         for filename in os.listdir(log_directory):
             f = os.path.join(log_directory, filename)
             destination = os.path.join(temp_name, filename)
             if filename.endswith(".gz"):
                 shutil.copyfile(f, destination)
-        subprocess.run(["gunzip", "-r", temp_name])
+        try:
+            subprocess.run(["gunzip", "-r", temp_name])
+        except subprocess.CalledProcessError as e:
+            print(f'gunzip of logs failed with {e}')
+            raise
 
         # Settings pandas options, initializing dataframe "usage" from csv file,
         # and choosing endpoint/collection ids to track
         pandas.options.display.max_rows = 999999
         pandas.options.display.max_columns = 999999
-        usage = pandas.read_csv(usage_csv)
+        try:
+            usage = pandas.read_csv(usage_csv)
+        except (FileNotFoundError, ValueError) as e:
+            print(f'Read usage csv failed: {e}')
+            raise
+        print(f'Read {len(usage)} recs from {usage_csv}')
         endpoint_ids = ["24c2ee95-146d-4513-a1b3-ac0bfdb7856f",
                         "af603d86-eab9-4eec-bb1d-9d26556741bb"]
         specific_usage_array = []
@@ -110,6 +125,7 @@ with HMDAG('generate_usage_report',
                 }
                 specific_usage_array.append(new_series)
         specific_usage = pandas.DataFrame(specific_usage_array)
+        print(f'specific_usage array has {len(specific_usage)} records')
 
         # Initializing empty lists. hubmap_id_column and data_types_column will be
         # converted into columns for specific_usage
@@ -120,12 +136,19 @@ with HMDAG('generate_usage_report',
         full_contents = []
 
         # read each of the files inside temp and keep them in memory:
+        file_count = 0
         for filename in os.listdir(temp_name):
-            f = os.path.join(temp_name, filename)
-            with open(f, "r") as file:
-                lines = file.readlines()
-                for each in lines:
-                    full_contents.append(each)
+            try:
+                f = os.path.join(temp_name, filename)
+                with open(f, "r", encoding="utf8") as file:
+                    lines = file.readlines()
+                    for each in lines:
+                        full_contents.append(each)
+                file_count += 1
+            except IOError as e:
+                print(f'Error reading {filename}: {e}')
+                raise
+        print(f'full_contents list has {len(full_contents)} entries from {file_count} files')
 
         # For every record in the data frame, do:
         count = 0
@@ -197,9 +220,11 @@ with HMDAG('generate_usage_report',
 
         # Records that aren't found in entity api are likely removed, so they get
         # dropped from the data frame
+        print(f'removing {len(rows_to_remove)} entries')
         rows_to_remove.reverse()
         for each in rows_to_remove:
             specific_usage.drop(specific_usage.index[each], inplace=True)
+        print(f'specific_usage array has {len(specific_usage)} records after deletions')
 
         # Add these 3 columns to the data frame specific_usage
         specific_usage['data_type'] = data_types_column
@@ -208,6 +233,7 @@ with HMDAG('generate_usage_report',
 
         # Convert dataframe to json and output with the selected path/name
         specific_usage.to_json(path_or_buf=usage_output, orient='records')
+        print(f'wrote {len(specific_usage)} records of usage data to {usage_output}')
 
     t_build_report = PythonOperator(
         task_id='build_report',
