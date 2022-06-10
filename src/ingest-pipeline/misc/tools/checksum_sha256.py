@@ -15,14 +15,14 @@ LOGGER = log_to_stderr()
 
 DEFAULT_NWORKERS = 10
 DEFAULT_OFILE = 'checksum_out.tsv'
-FIELDS_TO_KEEP = ['path', 'created', 'scantime', 'created', 'size', 'md5']
+FIELDS_TO_KEEP = ['path', 'created', 'scantime', 'created', 'size', 'sha256']
 
 
-def compute_md5sum(file: Path) -> str:
+def compute_sha256sum(file: Path) -> str:
     # BUF_SIZE is totally arbitrary, change for your app!
     BUF_SIZE = 65536  # lets read stuff in 64kb chunks!
 
-    md5 = hashlib.md5()
+    sha256 = hashlib.sha256()
 
     if Path(file).is_file():
         with open(file.absolute(), 'rb') as f:
@@ -30,9 +30,9 @@ def compute_md5sum(file: Path) -> str:
                 data = f.read(BUF_SIZE)
                 if not data:
                     break
-                md5.update(data)
+                sha256.update(data)
 
-    return md5.hexdigest()
+    return sha256.hexdigest()
 
 
 def get_file_creation_date(filename: Path) -> str:
@@ -56,7 +56,7 @@ def build_rec(file: Path) -> dict:
                   'scantime': date.today().strftime("%d-%m-%Y"),
                   'size': get_file_size(file),
                   'created': get_file_creation_date(file),
-                  'md5': compute_md5sum(file)
+                  'sha256': compute_sha256sum(file)
                   }
     else:
         record = None

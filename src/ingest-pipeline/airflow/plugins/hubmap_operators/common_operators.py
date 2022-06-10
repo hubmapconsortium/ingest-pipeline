@@ -46,7 +46,7 @@ class CleanupTmpDirOperator(BashOperator):
             tmp_dir="{{tmp_dir_path(run_id)}}" ; \
             if [ -e "$tmp_dir/session.log" ] ; then
               ds_dir="{{ti.xcom_pull(task_ids="send_create_dataset")}}" ; \
-              mv "$tmp_dir/session.log" "$ds_dir"  && echo rm -r "$tmp_dir" ; \
+              cp "$tmp_dir/session.log" "$ds_dir"  && echo rm -r "$tmp_dir" ; \
             else \
               echo rm -r "$tmp_dir" ; \
             fi
