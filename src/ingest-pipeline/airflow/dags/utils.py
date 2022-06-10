@@ -1112,9 +1112,10 @@ def make_send_status_msg_function(
     """
     def send_status_msg(**kwargs) -> bool:
         retcodes = [
-            int(kwargs['ti'].xcom_pull(task_ids=op))
+            kwargs['ti'].xcom_pull(task_ids=op)
             for op in retcode_ops
         ]
+        retcodes = [int(rc or '0') for rc in retcodes]
         print('retcodes: ', {k: v for k, v in zip(retcode_ops, retcodes)})
         success = all(rc == 0 for rc in retcodes)
         if dataset_uuid_fun is None:
