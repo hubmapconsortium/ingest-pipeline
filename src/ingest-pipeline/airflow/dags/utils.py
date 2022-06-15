@@ -1363,6 +1363,16 @@ def get_lanes_resource(dag_id: str) -> int:
     return int(rec['lanes'])
 
 
+def get_preserve_scratch_resource(dag_id: str) -> bool:
+    """
+    Look up the number of lanes defined for this dag_id in the current
+    resource map.
+    """
+    rec = _lookup_resource_record(dag_id)
+    assert 'preserve_scratch' in rec, 'schema should guarantee "preserve_scratch" is present?'
+    return bool(rec['preserve_scratch'])
+
+
 def get_threads_resource(dag_id: str, task_id: Optional[str] = None) -> int:
     """
     Look up the number of threads defined for this dag_id and task_id in
