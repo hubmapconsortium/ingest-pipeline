@@ -3,7 +3,7 @@
 # by wildcards for last.
 resource_map:
   - 'dag_re': 'test_workflow'
-    'preserve_scratch': true
+    'preserve_scratch': false
     'lanes': 1
     'tasks':
     - 'task_re': '.*'

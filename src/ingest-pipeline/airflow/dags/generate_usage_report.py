@@ -25,7 +25,9 @@ from utils import (
     HMDAG,
     get_tmp_dir_path,
     get_auth_tok,
-    find_matching_endpoint
+    find_matching_endpoint,
+    get_queue_resource,
+    get_preserve_scratch_resource,
     )
 
 default_args = {
@@ -38,15 +40,18 @@ default_args = {
     'retries': 1,
     'retry_delay': datetime.timedelta(minutes=1),
     'xcom_push': True,
-    'queue': utils.map_queue_name('general')
+    'queue': get_queue_resource('generate_usage_report')
 }
 
 with HMDAG('generate_usage_report',
            schedule_interval='@weekly',
            is_paused_upon_creation=False,
            default_args=default_args,
-           user_defined_macros={'tmp_dir_path': get_tmp_dir_path}
-           ) as dag:
+           user_defined_macros={
+               'tmp_dir_path': get_tmp_dir_path,
+               'preserve_scratch': get_preserve_scratch_resource('generate_usage_report'),
+           }
+       ) as dag:
 
     def build_report(**kwargs):
         entity_token = get_auth_tok(**kwargs)

@@ -21,6 +21,7 @@ from utils import (
     get_tmp_dir_path,
     HMDAG,
     get_queue_resource,
+    get_preserve_scratch_resource,
 )
 from hubmap_operators.common_operators import (
     CleanupTmpDirOperator,
@@ -52,7 +53,10 @@ with HMDAG(
         schedule_interval=None,
         is_paused_upon_creation=False,
         default_args=default_args,
-        user_defined_macros={"tmp_dir_path": get_tmp_dir_path},
+        user_defined_macros={
+            "tmp_dir_path": get_tmp_dir_path,
+             'preserve_scratch': get_preserve_scratch_resource('celldive_deepcell'),
+        },
 ) as dag:
 
     pipeline_name = "celldive-pipeline"

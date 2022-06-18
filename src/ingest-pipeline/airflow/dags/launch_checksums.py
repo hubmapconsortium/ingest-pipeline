@@ -25,6 +25,7 @@ from utils import (
     get_threads_resource,
     get_auth_tok,
     get_tmp_dir_path,
+    get_preserve_scratch_resource,
 )
 
 
@@ -54,7 +55,8 @@ with HMDAG('launch_checksums',
                'tmp_dir_path' : utils.get_tmp_dir_path,
                'src_path' : (airflow_conf.as_dict()['connections']['SRC_PATH']
                              .strip('"').strip("'")),
-               'THREADS' : get_threads_resource('launch_checksums')
+               'THREADS' : get_threads_resource('launch_checksums'),
+               'preserve_scratch' : get_preserve_scratch_resource('launch_checksums')
            }
            ) as dag:
 

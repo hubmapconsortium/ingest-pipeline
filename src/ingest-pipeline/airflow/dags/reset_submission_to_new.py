@@ -20,6 +20,7 @@ from utils import (
     localized_assert_json_matches_schema as assert_json_matches_schema,
     HMDAG,
     get_queue_resource,
+    get_preserve_scratch_resource,
 )
 
 UUIDS_TO_RESET = [
@@ -68,7 +69,10 @@ with HMDAG('reset_submission_to_new',
            schedule_interval=None, 
            is_paused_upon_creation=False, 
            default_args=default_args,
-           user_defined_macros={'tmp_dir_path' : utils.get_tmp_dir_path}
+           user_defined_macros={
+               'tmp_dir_path' : utils.get_tmp_dir_path,
+               'preserve_scratch' : get_preserve_scratch_resource('reset_submission_to_new'),
+           }
        ) as dag:
 
     prev = dag

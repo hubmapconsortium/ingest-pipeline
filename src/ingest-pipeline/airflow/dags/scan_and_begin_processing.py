@@ -17,6 +17,11 @@ from airflow.operators.multi_dagrun import TriggerMultiDagRunOperator
 from airflow.hooks.http_hook import HttpHook
 
 from hubmap_operators.flex_multi_dag_run import FlexMultiDagRunOperator
+from hubmap_operators.common_operators import (
+    CreateTmpDirOperator,
+    CleanupTmpDirOperator,
+)
+
 import utils
 
 from utils import (
@@ -24,6 +29,7 @@ from utils import (
     make_send_status_msg_function,
     HMDAG,
     get_queue_resource,
+    get_preserve_scratch_resource,
     pythonop_maybe_keep,
     )
 
@@ -64,7 +70,10 @@ with HMDAG('scan_and_begin_processing',
            schedule_interval=None, 
            is_paused_upon_creation=False, 
            default_args=default_args,
-           user_defined_macros={'tmp_dir_path' : utils.get_tmp_dir_path}         
+           user_defined_macros={
+               'tmp_dir_path' : utils.get_tmp_dir_path,
+               'preserve_scratch' : get_preserve_scratch_resource('scan_and_begin_processing')
+           }
        ) as dag:
 
     def read_metadata_file(**kwargs):
@@ -188,16 +197,8 @@ with HMDAG('scan_and_begin_processing',
         trigger_rule='all_done'
     )
 
-    t_create_tmpdir = BashOperator(
-        task_id='create_temp_dir',
-        bash_command='mkdir {{tmp_dir_path(run_id)}}'
-        )
-
-    t_cleanup_tmpdir = BashOperator(
-        task_id='cleanup_temp_dir',
-        bash_command='echo rm -r {{tmp_dir_path(run_id)}}',
-        trigger_rule='all_success'
-        )
+    t_create_tmpdir = CreateTmpDirOperator(task_id='create_temp_dir')
+    t_cleanup_tmpdir = CleanupTmpDirOperator(task_id='cleanup_temp_dir')
 
     def flex_maybe_spawn(**kwargs):
         """

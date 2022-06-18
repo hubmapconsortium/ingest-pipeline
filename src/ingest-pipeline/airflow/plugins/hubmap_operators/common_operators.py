@@ -42,8 +42,6 @@ class CreateTmpDirOperator(BashOperator):
 class CleanupTmpDirOperator(BashOperator):
     @apply_defaults
     def __init__(self, **kwargs):
-        #kwargs['params']['message'] = str(kwargs)
-        # I managed to access this from within the bash cmd with 'echo {{params.message}}'
         super().__init__(
             bash_command="""
             tmp_dir="{{tmp_dir_path(run_id)}}" ; \
