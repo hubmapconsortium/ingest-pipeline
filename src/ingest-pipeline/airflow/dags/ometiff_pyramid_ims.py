@@ -63,8 +63,7 @@ with HMDAG('ometiff_pyramid_ims',
            user_defined_macros={
                'tmp_dir_path' : get_tmp_dir_path,
                'preserve_scratch' : get_preserve_scratch_resource('ometiff_pyramid_ims'),
-           },
-       ) as dag:
+           }) as dag:
 
     # does the name need to match the filename?
     pipeline_name = 'ometiff_pyramid_ims'

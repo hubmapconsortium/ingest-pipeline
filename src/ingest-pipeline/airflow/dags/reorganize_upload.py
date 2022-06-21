@@ -71,8 +71,7 @@ with HMDAG('reorganize_upload',
                'frozen_df_wildcard': _get_frozen_df_wildcard,
                'preserve_scratch' : get_preserve_scratch_resource('reorganize_upload'),
            },
-           default_args=default_args,
-       ) as dag:
+           default_args=default_args) as dag:
 
     def find_uuid(**kwargs):
         uuid = kwargs['dag_run'].conf['uuid']

@@ -73,8 +73,7 @@ with HMDAG('scan_and_begin_processing',
            user_defined_macros={
                'tmp_dir_path' : utils.get_tmp_dir_path,
                'preserve_scratch' : get_preserve_scratch_resource('scan_and_begin_processing')
-           },
-       ) as dag:
+           }) as dag:
 
     def read_metadata_file(**kwargs):
         md_fname = os.path.join(utils.get_tmp_dir_path(kwargs['run_id']),
