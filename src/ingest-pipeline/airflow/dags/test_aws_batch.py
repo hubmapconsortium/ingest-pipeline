@@ -74,7 +74,7 @@ with HMDAG('test_aws_batch',
            user_defined_macros={
                'tmp_dir_path' : utils.get_tmp_dir_path,
                'preserve_scratch' : get_preserve_scratch_resource('test_aws_batch'),
-           }
+           },
        ) as dag:
 
     # def check_uuids(**kwargs):

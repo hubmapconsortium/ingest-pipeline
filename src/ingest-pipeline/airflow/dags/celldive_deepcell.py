@@ -55,7 +55,7 @@ with HMDAG(
         default_args=default_args,
         user_defined_macros={
             "tmp_dir_path": get_tmp_dir_path,
-             'preserve_scratch': get_preserve_scratch_resource('celldive_deepcell'),
+            'preserve_scratch': get_preserve_scratch_resource('celldive_deepcell'),
         },
 ) as dag:
 

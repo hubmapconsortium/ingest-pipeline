@@ -57,7 +57,7 @@ with HMDAG('launch_multi_analysis',
            user_defined_macros={
                'tmp_dir_path' : utils.get_tmp_dir_path,
                'preserve_scratch' : get_preserve_scratch_resource('launch_multi_analysis')
-           }
+           },
        ) as dag:
 
 

@@ -105,7 +105,7 @@ with HMDAG('generate_bdbag',
            user_defined_macros={
                'tmp_dir_path': get_tmp_dir_path,
                'preserve_scratch': get_preserve_scratch_resource('generate_bdbag'),
-           }
+           },
        ) as dag:
 
 
@@ -419,7 +419,7 @@ with HMDAG('generate_bdbag',
      >> t_create_tmpdir
      >> t_generate_bdbag
      >> t_cleanup_tmpdir
-     )
+    )
 
 
 

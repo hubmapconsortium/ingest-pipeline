@@ -72,7 +72,7 @@ with HMDAG('reset_submission_to_new',
            user_defined_macros={
                'tmp_dir_path' : utils.get_tmp_dir_path,
                'preserve_scratch' : get_preserve_scratch_resource('reset_submission_to_new'),
-           }
+           },
        ) as dag:
 
     prev = dag

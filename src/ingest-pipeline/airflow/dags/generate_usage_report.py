@@ -50,7 +50,7 @@ with HMDAG('generate_usage_report',
            user_defined_macros={
                'tmp_dir_path': get_tmp_dir_path,
                'preserve_scratch': get_preserve_scratch_resource('generate_usage_report'),
-           }
+           },
        ) as dag:
 
     def build_report(**kwargs):
@@ -257,5 +257,5 @@ with HMDAG('generate_usage_report',
      >> t_create_tmpdir
      >> t_build_report
      >> t_cleanup_tmpdir
-     )
+    )
 

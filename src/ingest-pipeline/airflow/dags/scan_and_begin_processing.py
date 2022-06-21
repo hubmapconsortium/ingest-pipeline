@@ -73,7 +73,7 @@ with HMDAG('scan_and_begin_processing',
            user_defined_macros={
                'tmp_dir_path' : utils.get_tmp_dir_path,
                'preserve_scratch' : get_preserve_scratch_resource('scan_and_begin_processing')
-           }
+           },
        ) as dag:
 
     def read_metadata_file(**kwargs):
@@ -248,5 +248,6 @@ with HMDAG('scan_and_begin_processing',
     (dag >> t_create_tmpdir >> t_run_validation >>
      t_maybe_continue >>
      t_run_md_extract >> t_md_consistency_tests >>
-     t_send_status >> t_maybe_spawn >> t_cleanup_tmpdir)
+     t_send_status >> t_maybe_spawn >> t_cleanup_tmpdir
+    )
     t_maybe_continue >> t_send_status

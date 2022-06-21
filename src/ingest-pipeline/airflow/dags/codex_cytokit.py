@@ -56,7 +56,7 @@ with HMDAG("codex_cytokit",
            user_defined_macros={
                'tmp_dir_path' : get_tmp_dir_path,
                'preserve_scratch': get_preserve_scratch_resource('codex_cytokit'),
-           }
+           },
 ) as dag:
 
     pipeline_name = 'codex-pipeline'

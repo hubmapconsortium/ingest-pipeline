@@ -50,7 +50,7 @@ default_args = {
     'retry_delay': timedelta(minutes=1),
     'xcom_push': True,
     'queue': get_queue_resource('ometiff_pyramid'),
-    'on_failure_callback': utils.create_dataset_state_error_callback(get_uuid_for_error)
+    'on_failure_callback': utils.create_dataset_state_error_callback(get_uuid_for_error),
 }
 
 with HMDAG('ometiff_pyramid',

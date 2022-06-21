@@ -11,7 +11,6 @@ from utils import (
     get_dataset_uuid,
     pythonop_set_dataset_state,
     pythonop_trigger_target,
-    get_preserve_scratch_resource,
 )
 
 class LogInfoOperator(PythonOperator):
@@ -46,14 +45,14 @@ class CleanupTmpDirOperator(BashOperator):
             bash_command="""
             tmp_dir="{{tmp_dir_path(run_id)}}" ; \
             if [ -e "$tmp_dir/session.log" ] ; then \
-              ds_dir="{{ti.xcom_pull(task_ids="send_create_dataset")}}" ; \
-              cp "$tmp_dir/session.log" "$ds_dir"  && echo copied session.log ; \
+              ds_dir="{{ti.xcom_pull(task_ids='send_create_dataset')}}" ; \
+              cp "$tmp_dir/session.log" "$ds_dir"  && echo "copied session.log" ; \
             fi ; \
             echo rmscratch is $rmscratch ; \
             if [ "$rmscratch" = true ] ; then \
               rm -r "$tmp_dir" ; \
             else \
-              echo scratch directory was preserved ; \
+              echo "scratch directory was preserved" ; \
             fi
             """,
             env={'rmscratch':'{{"true" if preserve_scratch is defined and not preserve_scratch else "false"}}'},

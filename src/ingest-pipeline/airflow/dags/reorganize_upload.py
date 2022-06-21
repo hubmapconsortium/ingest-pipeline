@@ -232,7 +232,8 @@ with HMDAG('reorganize_upload',
      >> t_maybe_keep_2
      >> t_join
      >> t_preserve_info
-     >> t_cleanup_tmpdir)
+     >> t_cleanup_tmpdir
+    )
 
     t_maybe_keep_1 >> t_set_dataset_error
     t_maybe_keep_2 >> t_set_dataset_error
