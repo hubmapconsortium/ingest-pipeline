@@ -32,6 +32,7 @@ from utils import (
     get_tmp_dir_path,
     HMDAG,
     get_queue_resource,
+    get_preserve_scratch_resource,
 )
 
 # after running this DAG you should have on disk
@@ -49,15 +50,17 @@ default_args = {
     'retry_delay': timedelta(minutes=1),
     'xcom_push': True,
     'queue': get_queue_resource('ometiff_pyramid'),
-    'on_failure_callback': utils.create_dataset_state_error_callback(get_uuid_for_error)
+    'on_failure_callback': utils.create_dataset_state_error_callback(get_uuid_for_error),
 }
 
 with HMDAG('ometiff_pyramid',
            schedule_interval=None,
            is_paused_upon_creation=False,
            default_args=default_args,
-           user_defined_macros={'tmp_dir_path' : get_tmp_dir_path}
-       ) as dag:
+           user_defined_macros={
+               'tmp_dir_path' : get_tmp_dir_path,
+               'preserve_scratch' : get_preserve_scratch_resource('ometiff_pyramid'),
+           }) as dag:
 
     # does the name need to match the filename?
     pipeline_name = 'ometiff_pyramid'

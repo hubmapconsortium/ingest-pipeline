@@ -1,4 +1,7 @@
 workflow_map:
+  - 'collection_type': 'test_only'
+    'assay_type': '.*'
+    'workflow': 'test_workflow'
   - 'collection_type': 'devtest'
     'assay_type': '.*'
     'workflow': 'devtest_step2'

@@ -31,10 +31,13 @@
       'lanes':
         'type': 'integer'
         'description': 'Number of instances of this DAG to run simultaneously'
+      'preserve_scratch':
+        'type': 'boolean'
+        'description': 'True means do not delete scratch space at the end of execution'
       'tasks':
         'type': 'array'
         'items': {'$ref': '#/definitions/resource_map_task_record'}
-    'required': ['dag_re', 'lanes', 'tasks']
+    'required': ['dag_re', 'lanes', 'tasks', 'preserve_scratch']
 
   'resource_map':
     'type': 'array'

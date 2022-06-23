@@ -26,6 +26,7 @@ from utils import (
     find_matching_endpoint,
     HMDAG,
     get_queue_resource,
+    get_preserve_scratch_resource,
     )
 
 sys.path.append(airflow_conf.as_dict()['connections']['SRC_PATH']
@@ -67,10 +68,10 @@ with HMDAG('reorganize_upload',
            user_defined_macros={
                'tmp_dir_path' : get_tmp_dir_path,
                'frozen_df_path' : _get_frozen_df_path,
-               'frozen_df_wildcard': _get_frozen_df_wildcard
+               'frozen_df_wildcard': _get_frozen_df_wildcard,
+               'preserve_scratch' : get_preserve_scratch_resource('reorganize_upload'),
            },
-           default_args=default_args,
-       ) as dag:
+           default_args=default_args) as dag:
 
     def find_uuid(**kwargs):
         uuid = kwargs['dag_run'].conf['uuid']
@@ -230,7 +231,8 @@ with HMDAG('reorganize_upload',
      >> t_maybe_keep_2
      >> t_join
      >> t_preserve_info
-     >> t_cleanup_tmpdir)
+     >> t_cleanup_tmpdir
+    )
 
     t_maybe_keep_1 >> t_set_dataset_error
     t_maybe_keep_2 >> t_set_dataset_error
