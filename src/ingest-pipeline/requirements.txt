@@ -15,7 +15,9 @@ PyYAML>=5.3.1
 rdflib==4.2.2
 rdflib-jsonld==0.4.0
 Flask-OAuthlib==0.9.6
+dataclasses
 git+https://github.com/hubmapconsortium/cwltool.git@docker-gpu#egg=cwltool
+git+https://github.com/hubmapconsortium/fastq-utils@v0.2.5#egg=hubmap-fastq-utils
 # We need the dependencies of ingest-validation tools, but relative paths don't work
 # -r ${CWD}/submodules/ingest-validation-tools/requirements.txt
 #jsonschema==3.2.0

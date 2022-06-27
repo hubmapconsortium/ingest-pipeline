@@ -17,6 +17,11 @@ from airflow.operators.multi_dagrun import TriggerMultiDagRunOperator
 from airflow.hooks.http_hook import HttpHook
 
 from hubmap_operators.flex_multi_dag_run import FlexMultiDagRunOperator
+from hubmap_operators.common_operators import (
+    CreateTmpDirOperator,
+    CleanupTmpDirOperator,
+)
+
 import utils
 
 from utils import (
@@ -24,6 +29,8 @@ from utils import (
     make_send_status_msg_function,
     HMDAG,
     get_queue_resource,
+    get_preserve_scratch_resource,
+    pythonop_maybe_keep,
     )
 
 sys.path.append(airflow_conf.as_dict()['connections']['SRC_PATH']
@@ -63,8 +70,10 @@ with HMDAG('scan_and_begin_processing',
            schedule_interval=None, 
            is_paused_upon_creation=False, 
            default_args=default_args,
-           user_defined_macros={'tmp_dir_path' : utils.get_tmp_dir_path}         
-       ) as dag:
+           user_defined_macros={
+               'tmp_dir_path' : utils.get_tmp_dir_path,
+               'preserve_scratch' : get_preserve_scratch_resource('scan_and_begin_processing')
+           }) as dag:
 
     def read_metadata_file(**kwargs):
         md_fname = os.path.join(utils.get_tmp_dir_path(kwargs['run_id']),
@@ -116,7 +125,6 @@ with HMDAG('scan_and_begin_processing',
         }
     )
 
-
     send_status_msg = make_send_status_msg_function(
         dag_file=__file__,
         retcode_ops=['run_validation', 'run_md_extract', 'md_consistency_tests'],
@@ -143,6 +151,17 @@ with HMDAG('scan_and_begin_processing',
             kwargs['ti'].xcom_push(key='assay_type', value=assay_type)
         else:
             kwargs['ti'].xcom_push(key='collectiontype', value=None)
+
+    t_maybe_continue = BranchPythonOperator(
+        task_id='maybe_continue',
+        python_callable=pythonop_maybe_keep,
+        provide_context=True,
+        op_kwargs={
+            'next_op': 'run_md_extract',
+            'bail_op': 'send_status_msg',
+            'test_op': 'run_validation',
+            }
+        )
 
     t_run_md_extract = BashOperator(
         task_id='run_md_extract',
@@ -173,21 +192,12 @@ with HMDAG('scan_and_begin_processing',
     t_send_status = PythonOperator(
         task_id='send_status_msg',
         python_callable=wrapped_send_status_msg,
-        provide_context=True
+        provide_context=True,
+        trigger_rule='all_done'
     )
 
-    t_create_tmpdir = BashOperator(
-        task_id='create_temp_dir',
-        bash_command='mkdir {{tmp_dir_path(run_id)}}'
-        )
-
-
-    t_cleanup_tmpdir = BashOperator(
-        task_id='cleanup_temp_dir',
-        bash_command='echo rm -r {{tmp_dir_path(run_id)}}',
-        trigger_rule='all_success'
-        )
-
+    t_create_tmpdir = CreateTmpDirOperator(task_id='create_temp_dir')
+    t_cleanup_tmpdir = CleanupTmpDirOperator(task_id='cleanup_temp_dir')
 
     def flex_maybe_spawn(**kwargs):
         """
@@ -199,8 +209,10 @@ with HMDAG('scan_and_begin_processing',
         ctx = kwargs['dag_run'].conf
         pprint(ctx)
         run_validation_retcode = int(kwargs['ti'].xcom_pull(task_ids="run_validation"))
-        md_extract_retcode = int(kwargs['ti'].xcom_pull(task_ids="run_md_extract"))
-        md_consistency_retcode = int(kwargs['ti'].xcom_pull(task_ids="md_consistency_tests"))
+        md_extract_retcode = kwargs['ti'].xcom_pull(task_ids="run_md_extract")
+        md_extract_retcode = int(md_extract_retcode or '0')
+        md_consistency_retcode = kwargs['ti'].xcom_pull(task_ids="md_consistency_tests")
+        md_consistency_retcode = int(md_consistency_retcode or '0')
         if (run_validation_retcode == 0
             and md_extract_retcode == 0
             and md_consistency_retcode == 0):
@@ -233,6 +245,8 @@ with HMDAG('scan_and_begin_processing',
         )
 
     (dag >> t_create_tmpdir >> t_run_validation >>
+     t_maybe_continue >>
      t_run_md_extract >> t_md_consistency_tests >>
-     t_send_status >> t_maybe_spawn >> t_cleanup_tmpdir)
-
+     t_send_status >> t_maybe_spawn >> t_cleanup_tmpdir
+    )
+    t_maybe_continue >> t_send_status

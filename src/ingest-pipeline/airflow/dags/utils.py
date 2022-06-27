@@ -38,6 +38,7 @@ from hubmap_commons.type_client import TypeClient
 import cwltool  # used to find its path
 
 
+airflow_conf.read(join(environ['AIRFLOW_HOME'], 'instance', 'app.cfg'))
 try:
     sys.path.append(airflow_conf.as_dict()['connections']['SRC_PATH']
                     .strip("'").strip('"'))
@@ -1111,9 +1112,10 @@ def make_send_status_msg_function(
     """
     def send_status_msg(**kwargs) -> bool:
         retcodes = [
-            int(kwargs['ti'].xcom_pull(task_ids=op))
+            kwargs['ti'].xcom_pull(task_ids=op)
             for op in retcode_ops
         ]
+        retcodes = [int(rc or '0') for rc in retcodes]
         print('retcodes: ', {k: v for k, v in zip(retcode_ops, retcodes)})
         success = all(rc == 0 for rc in retcodes)
         if dataset_uuid_fun is None:
@@ -1300,15 +1302,17 @@ def _get_resource_map() -> List[Tuple[Pattern, Pattern, Dict[str, str]]]:
         cmp_map = []
         for dct in map['resource_map']:
             dag_re = re.compile(dct['dag_re'])
-            lanes = dct['lanes']
+            dag_dct = {key: dct[key] for key in dct
+                       if key not in ['dag_re', 'tasks']}
             tasks = []
-            for task_dct in dct['tasks']:
-                tasks.append({
-                    'task_re': re.compile(task_dct['task_re']),
-                    'queue': task_dct['queue'],
-                    'threads': task_dct['threads']
-                })
-            cmp_map.append((dag_re, lanes, tasks))
+            for inner_dct in dct['tasks']:
+                assert 'task_re' in inner_dct, ('schema should guarantee'
+                                                ' "task_re" is present?')
+                task_re = re.compile(inner_dct['task_re'])
+                task_dct = {key: inner_dct[key] for key in inner_dct
+                            if key not in ['task_re']}
+                tasks.append((task_re, task_dct))
+            cmp_map.append((dag_re, dag_dct, tasks))
         COMPILED_RESOURCE_MAP = cmp_map
     return COMPILED_RESOURCE_MAP
 
@@ -1321,19 +1325,18 @@ def _lookup_resource_record(dag_id: str,
     the dag_id is returned and only the information which is not task_id-specific
     is included.
     """
-    for dag_re, num_lanes, attr_dict_list in _get_resource_map():
+    for dag_re, dag_dict, task_list in _get_resource_map():
         if dag_re.match(dag_id):
-            if task_id is None:
-                return {'lanes': num_lanes}
-            else:
-                for attr_dict in attr_dict_list:
-                    assert 'task_re' in attr_dict, ('schema should guarantee'
-                                                    ' "task_re" is present?')
-                    if attr_dict['task_re'].match(task_id):
-                        rslt = {'lanes': num_lanes}
-                        rslt.update(attr_dict)
-                        del rslt['task_re']
-                        return rslt
+            rslt = dag_dict.copy()
+            if task_id is not None:
+                for task_re, task_dict in task_list:
+                    if task_re.match(task_id):
+                        rslt.update(task_dict)
+                        break
+                else:
+                    raise ValueError(f'Resource map entry for dag_id <{dag_id}>'
+                                     f' has no match for task_id <{task_id}>')
+            return rslt
     else:
         raise ValueError('No resource map entry found for'
                          f' dag_id <{dag_id}> task_id <{task_id}>')
@@ -1360,6 +1363,17 @@ def get_lanes_resource(dag_id: str) -> int:
     rec = _lookup_resource_record(dag_id)
     assert 'lanes' in rec, 'schema should guarantee "lanes" is present?'
     return int(rec['lanes'])
+
+
+def get_preserve_scratch_resource(dag_id: str) -> bool:
+    """
+    Look up the number of lanes defined for this dag_id in the current
+    resource map.
+    """
+    rec = _lookup_resource_record(dag_id)
+    assert 'preserve_scratch' in rec, ('schema should guarantee'
+                                       ' "preserve_scratch" is present?')
+    return bool(rec['preserve_scratch'])
 
 
 def get_threads_resource(dag_id: str, task_id: Optional[str] = None) -> int:

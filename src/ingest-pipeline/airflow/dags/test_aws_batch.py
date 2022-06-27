@@ -28,6 +28,7 @@ from utils import (
     localized_assert_json_matches_schema as assert_json_matches_schema,
     HMDAG,
     get_queue_resource,
+    get_preserve_scratch_resource,
 )
 
 
@@ -70,8 +71,10 @@ with HMDAG('test_aws_batch',
            schedule_interval=None, 
            is_paused_upon_creation=False, 
            default_args=default_args,
-           user_defined_macros={'tmp_dir_path' : utils.get_tmp_dir_path}
-       ) as dag:
+           user_defined_macros={
+               'tmp_dir_path' : utils.get_tmp_dir_path,
+               'preserve_scratch' : get_preserve_scratch_resource('test_aws_batch'),
+           }) as dag:
 
     # def check_uuids(**kwargs):
     #     print('dag_run conf follows:')

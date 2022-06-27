@@ -31,6 +31,7 @@ from utils import (
     HMDAG,
     get_queue_resource,
     get_threads_resource,
+    get_preserve_scratch_resource,
 )
 
 default_args = {
@@ -52,7 +53,10 @@ with HMDAG(
         schedule_interval=None,
         is_paused_upon_creation=False,
         default_args=default_args,
-        user_defined_macros={'tmp_dir_path': get_tmp_dir_path},
+        user_defined_macros={
+            'tmp_dir_path': get_tmp_dir_path,
+            'preserve_scratch': get_preserve_scratch_resource('salmon_rnaseq_bulk'),
+        },
 ) as dag:
     pipeline_name = 'salmon-rnaseq-bulk'
     cwl_workflows = get_absolute_workflows(

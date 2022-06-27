@@ -13,6 +13,11 @@ from airflow.operators.bash_operator import BashOperator
 from airflow.exceptions import AirflowException
 from airflow.hooks.http_hook import HttpHook
 
+from hubmap_operators.common_operators import (
+    CreateTmpDirOperator,
+    CleanupTmpDirOperator,
+)
+
 import utils
 from utils import (
     get_tmp_dir_path, get_auth_tok,
@@ -20,6 +25,7 @@ from utils import (
     localized_assert_json_matches_schema as assert_json_matches_schema,
     HMDAG,
     get_queue_resource,
+    get_preserve_scratch_resource,
     )
 
 sys.path.append(airflow_conf.as_dict()['connections']['SRC_PATH']
@@ -47,7 +53,10 @@ default_args = {
 with HMDAG('validate_upload',
          schedule_interval=None,
          is_paused_upon_creation=False,
-         user_defined_macros={'tmp_dir_path' : get_tmp_dir_path},
+         user_defined_macros={
+             'tmp_dir_path' : get_tmp_dir_path,
+             'preserve_scratch' : get_preserve_scratch_resource('validate_upload'),
+         },
          default_args=default_args,
          ) as dag:
 
@@ -170,16 +179,8 @@ with HMDAG('validate_upload',
         }        
     )
 
-    t_create_tmpdir = BashOperator(
-        task_id='create_temp_dir',
-        bash_command='mkdir {{tmp_dir_path(run_id)}}'
-        )
-
-    t_cleanup_tmpdir = BashOperator(
-        task_id='cleanup_temp_dir',
-        bash_command='rm -r {{tmp_dir_path(run_id)}}',
-        trigger_rule='all_success'
-        )
+    t_create_tmpdir = CreateTmpDirOperator(task_id='create_temp_dir')
+    t_cleanup_tmpdir = CleanupTmpDirOperator(task_id='cleanup_temp_dir')
 
     (dag >> t_create_tmpdir >> t_find_uuid >> t_run_validation 
      >> t_send_status >> t_cleanup_tmpdir)

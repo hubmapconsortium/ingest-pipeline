@@ -23,7 +23,8 @@ import utils
 from utils import (
     localized_assert_json_matches_schema as assert_json_matches_schema,
     HMDAG,
-    get_queue_resource
+    get_queue_resource,
+    get_preserve_scratch_resource,
 )
 
 
@@ -50,11 +51,13 @@ default_args = {
 
 
 with HMDAG('launch_multi_analysis', 
-         schedule_interval=None, 
-         is_paused_upon_creation=False, 
-         default_args=default_args,
-         user_defined_macros={'tmp_dir_path' : utils.get_tmp_dir_path}
-         ) as dag:
+           schedule_interval=None, 
+           is_paused_upon_creation=False, 
+           default_args=default_args,
+           user_defined_macros={
+               'tmp_dir_path' : utils.get_tmp_dir_path,
+               'preserve_scratch' : get_preserve_scratch_resource('launch_multi_analysis')
+           }) as dag:
 
 
     def check_one_uuid(uuid, **kwargs):
