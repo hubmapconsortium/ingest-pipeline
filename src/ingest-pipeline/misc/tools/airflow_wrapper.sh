@@ -58,19 +58,23 @@ else
     exit -1
 fi
 
-echo "Check for required variables here!"
-envvars=( AIRFLOW_CONFIG \
-	      AIRFLOW_HOME \
-	      AIRFLOW_CONN_INGEST_API_CONNECTION \
-	      AIRFLOW_CONN_UUID_API_CONNECTION \
-	      AIRFLOW_CONN_CELLS_API_CONNECTION \
-	      AIRFLOW_CONN_SEARCH_API_CONNECTION \
-	      AIRFLOW_CONN_ENTITY_API_CONNECTION \
+
+
+envvars=( CONFIG HOME \
+	  CONN_INGEST_API_CONNECTION \
+	  CONN_UUID_API_CONNECTION \
+	  CONN_CELLS_API_CONNECTION \
+	  CONN_SEARCH_API_CONNECTION \
+	  CONN_ENTITY_API_CONNECTION \
 	)
 for varname in "${envvars[@]}" ; do
-    echo ${!varname}
-    if [[ -z "${!varname}" ]] ; then
-	echo "${varname} is not set"
+    full_varname="AIRFLOW_${varname}"
+    cfg_varname="HM_AF_${varname}"
+    if [[ -z "${!full_varname}" ]] ; then
+	export ${full_varname}=${!cfg_varname}
+    fi 
+    if [[ -z "${!full_varname}" ]] ; then
+	echo "${full_varname} is not set"
 	exit -1
     fi 
 done
