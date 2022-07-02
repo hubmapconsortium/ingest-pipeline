@@ -59,7 +59,11 @@ else
 fi
 
 
-
+# Handle setting of environment variables.
+#
+# The goal is to let values from the environment (prefix HUBMAP_) override
+# those from the config files (prefix HM_AF_).  We also check that all
+# required variables are set at some level.
 envvars=( CONFIG HOME \
 	  CONN_INGEST_API_CONNECTION \
 	  CONN_UUID_API_CONNECTION \
@@ -97,7 +101,6 @@ echo $PATH
 echo 'PYTHONPATH follows'
 echo $PYTHONPATH
 
-
 cd $AIRFLOW_HOME ; \
 env AIRFLOW__HUBMAP_API_PLUGIN__BUILD_NUMBER="$(cat ${top_level_dir}/build_number)" \
-    echo ./airflow_exe $*
+    airflow $*
