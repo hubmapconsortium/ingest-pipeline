@@ -42,16 +42,16 @@ def main():
                 for parent_uuid, _dataset in dataset.parents.items():
                     data = {'derived_dataset_uuid': dataset.uuid,
                             'derived_hubmap_id': dataset.hubmap_id,
-                            'derived_portal_url': 'https://portal.hubmapconsortium.org/browse/dataset/%s' % dataset.uuid,
+                            'derived_portal_url': f"https://portal.hubmapconsortium.org/browse/dataset/{dataset.uuid}",
                             'primary_dataset_uuid': parent_uuid,
                             'primary_hubmap_id': _dataset.hubmap_id,
                             'primary_dataset_uscs/name': _dataset.prop_dct.get('lab_dataset_id', None),
-                            'primary_portal_url': 'https://portal.hubmapconsortium.org/browse/dataset/%s' % parent_uuid}
+                            'primary_portal_url': f"https://portal.hubmapconsortium.org/browse/dataset/{parent_uuid}"}
                     result_list.append(data)
         except SurveyException as e:
             print(f"dropping {uuid} because {e}")
             result_list.append({'derived_dataset_uuid': uuid,
-                                'derived_hubmap_id': f'not in survey because {e}',
+                                'derived_hubmap_id': f"not in survey because {e}",
                                 'derived_portal_url': 'N/A',
                                 'primary_dataset_id': 'N/A',
                                 'primary_hubmap_id': 'N/A',
