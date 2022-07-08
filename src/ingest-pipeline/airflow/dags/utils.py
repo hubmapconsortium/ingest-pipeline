@@ -1,3 +1,4 @@
+import urllib.parse
 from abc import ABC, abstractmethod
 from collections import namedtuple
 from functools import lru_cache
@@ -723,7 +724,7 @@ def pythonop_send_create_dataset(**kwargs) -> str:
             endpoint='datasets',
             data=json.dumps(data),
             headers=headers,
-            extra_options=[]
+            extra_options={}
         )
         response.raise_for_status()
         response_json = response.json()
@@ -786,7 +787,7 @@ def pythonop_set_dataset_state(**kwargs) -> None:
         'authorization': 'Bearer ' + get_auth_tok(**kwargs),
         'content-type': 'application/json',
         'X-Hubmap-Application': 'ingest-pipeline'}
-    extra_options = []
+    extra_options = {}
 
     http_hook = HttpHook('PUT',
                          http_conn_id=http_conn_id)
@@ -941,7 +942,7 @@ def _uuid_lookup(uuid, **kwargs):
     headers = {'authorization': 'Bearer ' + get_auth_tok(**kwargs)}
 #     print('headers:')
 #     pprint(headers)
-    extra_options = []
+    extra_options = {}
 
     http_hook = HttpHook(method,
                          http_conn_id=http_conn_id)
@@ -1005,9 +1006,9 @@ def pythonop_md_consistency_tests(**kwargs) -> int:
         else:
             return 0
     else:
-            kwargs['ti'].xcom_push(key='err_msg',
-                                   value='Expected metadata file is missing')
-            return 1
+        kwargs['ti'].xcom_push(key='err_msg',
+                               value='Expected metadata file is missing')
+        return 1
         
 
 def _get_scratch_base_path() -> Path:
@@ -1139,7 +1140,7 @@ def make_send_status_msg_function(
             'authorization': 'Bearer ' + get_auth_tok(**kwargs),
             'content-type': 'application/json',
         }
-        extra_options = []
+        extra_options = {}
         return_status = True  # mark false on failure
 
         http_hook = HttpHook(method, http_conn_id=http_conn_id)
@@ -1410,6 +1411,9 @@ def _get_type_client() -> TypeClient:
     global TYPE_CLIENT
     if TYPE_CLIENT is None:
         conn = HttpHook.get_connection('search_api_connection')
+        if conn.host.startswith('https'):
+            conn.host = urllib.parse.unquote(conn.host).split('https://')[1]
+            conn.conn_type = 'https'
         if conn.port is None:
             url = f'{conn.conn_type}://{conn.host}'
         else:
