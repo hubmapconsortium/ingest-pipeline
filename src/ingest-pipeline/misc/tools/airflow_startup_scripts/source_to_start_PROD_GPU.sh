@@ -1,14 +1,18 @@
 #!/bin/bash
-
-      
-logdir=$HOME/bridges2
-#queue=general_prod,gpu000_q1_prod
-queue=gpu000_q1_prod
+#
+# Source this file from the parent directory containing airflow_wrapper.sh
+#
+instance=prod
+logdir=$HOME/logs
+#queue=general_${instance},gpu000_q1_${instance}
+queue=gpu000_q1_${instance}
 host=`hostname`
-name=celery-prod
+name=celery-${instance}
 n=8
+logfile=${logdir}/${host}_${instance}
+nohup_file=${logdir}/nohup_${host}_${instance}.out
 
-nohup env HUBMAP_INSTANCE=prod \
+nohup env HUBMAP_INSTANCE=${instance} \
       ./airflow_wrapper.sh worker --queues $queue --concurrency $n \
       --celery_hostname $name@$host \
-      --stdout $logdir/$host.out --stderr $logdir/$host.err --log-file $logdir/$host.log
+      --stdout ${logfile}.out --stderr ${logfile}.err --log-file ${logfile}.log > ${nohup_file}
