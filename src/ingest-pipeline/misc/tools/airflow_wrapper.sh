@@ -100,6 +100,8 @@ echo 'PATH follows'
 echo $PATH
 echo 'PYTHONPATH follows'
 echo $PYTHONPATH
+echo 'Environment follows'
+printenv
 
 cd $AIRFLOW_HOME ; \
 env AIRFLOW__HUBMAP_API_PLUGIN__BUILD_NUMBER="$(cat ${top_level_dir}/build_number)" \
