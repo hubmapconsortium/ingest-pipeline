@@ -1,6 +1,6 @@
 #! /bin/bash
 
-set -x
+# set -x  # for logging and debugging
 
 # allowed values of HUBMAP_INSTANCE
 hubmap_instance_strings=" prod test dev proto stage "
