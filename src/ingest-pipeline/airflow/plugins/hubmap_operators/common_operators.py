@@ -83,10 +83,7 @@ class MoveDataOperator(BashOperator):
             bash_command="""
             tmp_dir="{{tmp_dir_path(run_id)}}" ; \
             ds_dir="{{ti.xcom_pull(task_ids="send_create_dataset")}}" ; \
-            groupname="{{conf.as_dict()['connections']['OUTPUT_GROUP_NAME']}}" ; \
             pushd "$ds_dir" ; \
-            sudo chown airflow . ; \
-            sudo chgrp $groupname . ; \
             popd ; \
             mv "$tmp_dir"/cwl_out/* "$ds_dir" >> "$tmp_dir/session.log" 2>&1 ; \
             echo $?
