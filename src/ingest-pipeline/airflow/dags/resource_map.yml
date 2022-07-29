@@ -13,6 +13,9 @@ resource_map:
     'preserve_scratch': true
     'lanes': 2
     'tasks':
+    - 'task_re': '.*segmentation'
+      'queue': 'gpu000_q1'
+      'threads': 6
     - 'task_re': '.*'
       'queue': 'general'
       'threads': 6
