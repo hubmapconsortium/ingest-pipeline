@@ -43,7 +43,17 @@ def main():
                     dataset_name = ''
                     if _dataset.prop_dct.get('lab_dataset_id'):
                         dataset_name = _dataset.prop_dct.get('lab_dataset_id')
-                    if dataset.prop_dct.get('provider_info'):
+                    elif _dataset.prop_dct.get('provider_info'):
+                        if dataset_name == '':
+                            dataset_name = _dataset.prop_dct.get('provider_info')
+                        else:
+                            dataset_name += '/' + _dataset.prop_dct.get('provider_info')
+                    if dataset.prop_dct.get('lab_dataset_id'):
+                        if dataset_name == '':
+                            dataset_name = dataset.prop_dct.get('lab_dataset_id')
+                        else:
+                            dataset_name += '/' + dataset.prop_dct.get('lab_dataset_id')
+                    elif dataset.prop_dct.get('provider_info'):
                         if dataset_name == '':
                             dataset_name = dataset.prop_dct.get('provider_info')
                         else:
