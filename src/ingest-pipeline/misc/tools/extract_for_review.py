@@ -39,20 +39,23 @@ def main():
         try:
             dataset = entity_factory.get(uuid)
             if dataset.parents is not None:
-                for parent_uuid, _dataset in dataset.parents.items():
-                    dataset_name = ''
-                    if _dataset.prop_dct.get('lab_dataset_id'):
-                        dataset_name = _dataset.prop_dct.get('lab_dataset_id')
-                    if dataset.prop_dct.get('provider_info'):
-                        if dataset_name == '':
-                            dataset_name = dataset.prop_dct.get('provider_info')
-                        else:
-                            dataset_name += ' / ' + dataset.prop_dct.get('provider_info')
+                for parent_uuid, parent_dataset in dataset.parents.items():
+                    parent_component = (
+                            parent_dataset.prop_dct.get('lab_dataset_id')
+                            or parent_dataset.prop_dct.get('provider_info')
+                    )
+                    child_component = (
+                            dataset.prop_dct.get('lab_dataset_id')
+                            or dataset.prop_dct.get('provider_info')
+                    )
+                    dataset_name = ' / '.join(c for c in [parent_component,
+                                                          child_component] if c)
+
                     data = {'derived_dataset_uuid': dataset.uuid,
                             'derived_hubmap_id': dataset.hubmap_id,
                             'derived_portal_url': f"https://portal.hubmapconsortium.org/browse/dataset/{dataset.uuid}",
                             'primary_dataset_uuid': parent_uuid,
-                            'primary_hubmap_id': _dataset.hubmap_id,
+                            'primary_hubmap_id': parent_dataset.hubmap_id,
                             'primary_dataset_uscs/name': dataset_name,
                             'primary_portal_url': f"https://portal.hubmapconsortium.org/browse/dataset/{parent_uuid}"}
                     result_list.append(data)
