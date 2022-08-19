@@ -598,6 +598,24 @@ class EntityFactory:
         self.instance = instance or 'PROD'
         self.type_client = TypeClient(ENDPOINTS[self.instance]['assay_info_url'])
 
+    def fetch_new_dataset_table(self):
+        """
+        Fetches the records provided by the datasets/unpublished endpoint of
+        search-api for the current instance, and returns it as a Pandas DataFrame.
+        """
+        entity_url = ENDPOINTS[self.instance]['entity_url']
+        r = requests.get(f'{entity_url}/datasets/unpublished?format=json',
+                         headers={
+                             'Authorization': f'Bearer {self.auth_tok}',
+                             'Content-Type': 'application/json',
+                             'X-Hubmap-Application': 'ingest-pipeline'
+                              })
+        if r.status_code >= 300:
+            r.raise_for_status()
+        df = pd.DataFrame(r.json())  # that's all there is to it!
+        return df
+
+
     def get(self, uuid):
         """
         Returns an entity of some kind
