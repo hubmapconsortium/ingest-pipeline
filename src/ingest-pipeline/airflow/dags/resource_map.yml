@@ -13,6 +13,15 @@ resource_map:
     'preserve_scratch': true
     'lanes': 2
     'tasks':
+    - 'task_re': '.*segmentation'
+      'queue': 'gpu000_q1'
+      'threads': 6
+    - 'task_re': '.*'
+      'queue': 'general'
+      'threads': 6
+    - 'task_re': '.*cwl_segmentation'
+      'queue': 'gpu000_q1'
+      'threads': 6
     - 'task_re': '.*'
       'queue': 'general'
       'threads': 6
@@ -44,16 +53,6 @@ resource_map:
     # 'lanes': 6
     'tasks':
     - 'task_re': '.*cwl_cytokit'
-      'queue': 'gpu000_q1'
-      'threads': 6
-    - 'task_re': '.*'
-      'queue': 'general'
-      'threads': 6
-  - 'dag_re': 'celldive_deepcell'
-    'preserve_scratch': true
-    'lanes': 2
-    'tasks':
-    - 'task_re': '.*cwl_segmentation'
       'queue': 'gpu000_q1'
       'threads': 6
     - 'task_re': '.*'
