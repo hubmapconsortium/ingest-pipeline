@@ -144,6 +144,7 @@ def create_new_uuid(row, source_entity, entity_factory, dryrun=False):
         sample_uuid = entity_factory.id_to_uuid(sample_id)
         print(f"including tissue_id {sample_id} ({sample_uuid})")
         direct_ancestor_uuids.append(sample_uuid)
+    direct_ancestor_uuids = list(set(direct_ancestor_uuids))  # remove any duplicates
     assert direct_ancestor_uuids, "No tissue ids found?"
 
     if dryrun:
