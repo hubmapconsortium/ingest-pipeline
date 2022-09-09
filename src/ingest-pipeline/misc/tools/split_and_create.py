@@ -137,11 +137,15 @@ def create_new_uuid(row, source_entity, entity_factory, dryrun=False):
         description = source_entity.prop_dct['lab_dataset_id'] + ' : ' + rec_identifier
     else:
         description = ': ' + rec_identifier
-    sample_id = row['tissue_id']
-    print(f"tissue_id is {sample_id}")
-    sample_uuid = entity_factory.id_to_uuid(sample_id)
-    print(f"tissue uuid is {sample_uuid}")
-    direct_ancestor_uuids = [sample_uuid]
+    sample_id_list = row['tissue_id']
+    direct_ancestor_uuids = []
+    for sample_id in sample_id_list.split(','):
+        sample_id = sample_id.strip()
+        sample_uuid = entity_factory.id_to_uuid(sample_id)
+        print(f"including tissue_id {sample_id} ({sample_uuid})")
+        direct_ancestor_uuids.append(sample_uuid)
+    direct_ancestor_uuids = list(set(direct_ancestor_uuids))  # remove any duplicates
+    assert direct_ancestor_uuids, "No tissue ids found?"
 
     if dryrun:
         if FAKE_UUID_GENERATOR is None:
