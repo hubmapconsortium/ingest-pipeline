@@ -8,7 +8,7 @@ import pandas as pd
 
 from airflow.operators.bash_operator import BashOperator
 from airflow.operators.python_operator import PythonOperator
-from airflow.hooks.http_hook import HttpHook
+from airflow.providers.http.hooks.http import HttpHook
 from airflow.exceptions import AirflowException
 from airflow.configuration import conf as airflow_conf
 from hubmap_operators.common_operators import (

@@ -1,4 +1,4 @@
-git+https://github.com/hubmapconsortium/commons@${COMMONS_BRANCH}#egg=hubmap-commons
+git+https://github.com/hubmapconsortium/commons@main#egg=hubmap-commons
 prov==1.5.1
 #pylibczi>=1.1.1
 #tifffile==2020.12.8
@@ -30,6 +30,6 @@ frictionless==4.0.0
 sqlalchemy==1.3
 xmlschema>=1.6
 WTForms<=2.3.3
-hubmap_sdk
+#hubmap_sdk
 pandas
 

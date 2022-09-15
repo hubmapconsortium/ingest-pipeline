@@ -11,7 +11,6 @@ from airflow.operators.bash_operator import BashOperator
 from airflow.operators.python_operator import PythonOperator
 from airflow.operators.python_operator import BranchPythonOperator
 from airflow.operators.dummy_operator import DummyOperator
-from airflow.hooks.http_hook import HttpHook
 from airflow.configuration import conf as airflow_conf
 
 import utils

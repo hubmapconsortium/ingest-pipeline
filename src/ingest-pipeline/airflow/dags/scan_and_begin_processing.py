@@ -14,7 +14,6 @@ from airflow.operators.python_operator import BranchPythonOperator
 from airflow.operators.dummy_operator import DummyOperator
 from airflow.operators.dagrun_operator import TriggerDagRunOperator, DagRunOrder
 from airflow.operators.multi_dagrun import TriggerMultiDagRunOperator
-from airflow.hooks.http_hook import HttpHook
 
 from hubmap_operators.flex_multi_dag_run import FlexMultiDagRunOperator
 from hubmap_operators.common_operators import (

@@ -11,7 +11,6 @@ from airflow.configuration import conf as airflow_conf
 from airflow.operators.python_operator import PythonOperator
 from airflow.operators.bash_operator import BashOperator
 from airflow.exceptions import AirflowException
-from airflow.hooks.http_hook import HttpHook
 
 from hubmap_operators.common_operators import (
     CreateTmpDirOperator,

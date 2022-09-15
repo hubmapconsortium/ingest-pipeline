@@ -16,7 +16,6 @@ from airflow.operators.dagrun_operator import TriggerDagRunOperator, DagRunOrder
 from airflow.contrib.operators.awsbatch_operator import AWSBatchOperator
 from airflow.contrib.hooks.aws_hook import AwsHook
 
-from airflow.hooks.http_hook import HttpHook
 from airflow.exceptions import AirflowException
 from airflow.configuration import conf as airflow_conf
 from hubmap_operators.flex_multi_dag_run import FlexMultiDagRunOperator

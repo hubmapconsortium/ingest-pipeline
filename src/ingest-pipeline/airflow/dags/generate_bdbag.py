@@ -18,7 +18,7 @@ from hubmap_sdk import EntitySdk
 
 from airflow import DAG
 from airflow.operators.python_operator import PythonOperator
-from airflow.hooks.http_hook import HttpHook
+from airflow.providers.http.hooks.http import HttpHook
 from airflow.exceptions import AirflowException
 from airflow.configuration import conf as airflow_conf
 
