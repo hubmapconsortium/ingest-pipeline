@@ -13,8 +13,7 @@ from airflow.operators.python_operator import PythonOperator
 from airflow.operators.python_operator import BranchPythonOperator
 from airflow.operators.dummy_operator import DummyOperator
 from airflow.operators.dagrun_operator import TriggerDagRunOperator, DagRunOrder
-from airflow.contrib.operators.awsbatch_operator import AWSBatchOperator
-from airflow.contrib.hooks.aws_hook import AwsHook
+from airflow.providers.amazon.aws.operators.batch import AwsBatchOperator as AWSBatchOperator
 
 from airflow.exceptions import AirflowException
 from airflow.configuration import conf as airflow_conf

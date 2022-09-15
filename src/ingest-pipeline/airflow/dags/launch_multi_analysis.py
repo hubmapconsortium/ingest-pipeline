@@ -13,7 +13,6 @@ from airflow.operators.python_operator import PythonOperator
 from airflow.operators.python_operator import BranchPythonOperator
 from airflow.operators.dummy_operator import DummyOperator
 from airflow.operators.dagrun_operator import TriggerDagRunOperator, DagRunOrder
-from airflow.hooks.http_hook import HttpHook
 from airflow.exceptions import AirflowException
 from airflow.configuration import conf as airflow_conf
 from hubmap_operators.flex_multi_dag_run import FlexMultiDagRunOperator

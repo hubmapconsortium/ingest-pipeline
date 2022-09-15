@@ -32,4 +32,6 @@ xmlschema>=1.6
 WTForms<=2.3.3
 #hubmap_sdk
 pandas
+apache-airflow-backport-providers-http
+apache-airflow-backport-providers-amazon
 
