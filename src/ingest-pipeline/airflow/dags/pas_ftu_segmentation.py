@@ -127,62 +127,12 @@ with HMDAG(
         python_callable=utils.pythonop_maybe_keep,
         provide_context=True,
         op_kwargs={
-            "next_op": "prepare_cwl_create_vis_symlink_archive",
+            "next_op": "prepare_cwl_ome_tiff_pyramid",
             "bail_op": "set_dataset_error",
             "test_op": "pipeline_exec_cwl_segmentation",
         },
     )
 
-    prepare_cwl_create_vis_symlink_archive = DummyOperator(
-        task_id="prepare_cwl_create_vis_symlink_archive",
-    )
-
-    def build_cwltool_cmd_create_vis_symlink_archive(**kwargs):
-        run_id = kwargs["run_id"]
-        tmpdir = get_tmp_dir_path(run_id)
-        print("tmpdir: ", tmpdir)
-        parent_data_dir = get_parent_data_dir(**kwargs)
-        print("parent_data_dir: ", parent_data_dir)
-        data_dir = tmpdir / "cwl_out"
-        print("data_dir: ", data_dir)
-
-        command = [
-            *get_cwltool_base_cmd(tmpdir),
-            cwl_workflows["create_vis_symlink_archive"],
-            "--ometiff_dir",
-            data_dir / "pipeline_output",
-            "--sprm_output",
-            data_dir / "sprm_outputs",
-        ]
-
-        return join_quote_command_str(command)
-
-    t_build_cmd_create_vis_symlink_archive = PythonOperator(
-        task_id="build_cmd_create_vis_symlink_archive",
-        python_callable=build_cwltool_cmd_create_vis_symlink_archive,
-        provide_context=True,
-    )
-
-    t_pipeline_exec_cwl_create_vis_symlink_archive = BashOperator(
-        task_id="pipeline_exec_cwl_create_vis_symlink_archive",
-        bash_command=""" \
-        tmp_dir={{tmp_dir_path(run_id)}} ; \
-        cd ${tmp_dir}/cwl_out ; \
-        {{ti.xcom_pull(task_ids='build_cmd_create_vis_symlink_archive')}} >> ${tmp_dir}/session.log 2>&1 ; \
-        echo $?
-        """,
-    )
-
-    t_maybe_keep_cwl_create_vis_symlink_archive = BranchPythonOperator(
-        task_id="maybe_keep_cwl_create_vis_symlink_archive",
-        python_callable=utils.pythonop_maybe_keep,
-        provide_context=True,
-        op_kwargs={
-            "next_op": "prepare_cwl_ome_tiff_pyramid",
-            "bail_op": "set_dataset_error",
-            "test_op": "pipeline_exec_cwl_create_vis_symlink_archive",
-        },
-    )
 
     prepare_cwl_ome_tiff_pyramid = DummyOperator(task_id="prepare_cwl_ome_tiff_pyramid")
 
@@ -350,10 +300,6 @@ with HMDAG(
         >> t_build_cwl_segmentation
         >> t_pipeline_exec_cwl_segmentation
         >> t_maybe_keep_cwl_segmentation
-        >> prepare_cwl_create_vis_symlink_archive
-        >> t_build_cmd_create_vis_symlink_archive
-        >> t_pipeline_exec_cwl_create_vis_symlink_archive
-        >> t_maybe_keep_cwl_create_vis_symlink_archive
         >> prepare_cwl_ome_tiff_pyramid
         >> t_build_cmd_ome_tiff_pyramid
         >> t_pipeline_exec_cwl_ome_tiff_pyramid
@@ -368,7 +314,6 @@ with HMDAG(
         >> t_join
     )
     t_maybe_keep_cwl_segmentation >> t_set_dataset_error
-    t_maybe_keep_cwl_create_vis_symlink_archive >> t_set_dataset_error
     t_maybe_keep_cwl_ome_tiff_pyramid >> t_set_dataset_error
     t_maybe_keep_cwl_ome_tiff_offsets >> t_set_dataset_error
     t_set_dataset_error >> t_join
