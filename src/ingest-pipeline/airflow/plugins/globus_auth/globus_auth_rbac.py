@@ -18,19 +18,21 @@
 # under the License.
 """Default configuration for the Airflow webserver"""
 import os
+import re
 
 import globus_sdk
 from airflow.configuration import conf
 from airflow import configuration, LoggingMixin, models
 from airflow.www_rbac.security import AirflowSecurityManager
+from flask import flash, g, url_for, request
 from flask_appbuilder import expose
-from flask_appbuilder.const import AUTH_REMOTE_USER
-from flask_appbuilder.security.forms import LoginForm_db
-from flask_appbuilder.security.views import AuthRemoteUserView
-from flask import redirect, g, url_for, request
+from flask_appbuilder._compat import as_unicode
+from flask_appbuilder.const import AUTH_OAUTH
+from flask_appbuilder.security.views import AuthOAuthView
+from flask_login import login_user
+from hubmap_commons.hm_auth import AuthHelper
+from werkzeug.utils import redirect
 from flask import session as f_session
-from flask_babel import lazy_gettext
-from flask_login import logout_user, login_user
 
 log = LoggingMixin().log
 
@@ -71,64 +73,99 @@ class GlobusUser(models.User):
         return True
 
 
-class CustomAuthRemoteUserView(AuthRemoteUserView):
-    login_template = "appbuilder/general/security/login_db.html"
-    route_base = ""
-    invalid_login_message = lazy_gettext("Invalid login. Please try again.")
-    title = lazy_gettext("Sign In")
-    globus_oauth = globus_sdk.ConfidentialAppAuthClient(get_config_param('APP_CLIENT_ID'),
-                                                        get_config_param('APP_CLIENT_SECRET'))
-    group_uuids = []
-    authHelper = None
+class CustomOAuthView(AuthOAuthView):
+
+    def __init__(self):
+        super().__init__()
+        self.group_uuids = []
+        client_id = get_config_param('APP_CLIENT_ID')
+        client_secret = get_config_param('APP_CLIENT_SECRET')
+
+        self.globus_oauth = globus_sdk.ConfidentialAppAuthClient(get_config_param('APP_CLIENT_ID'),
+                                                                 get_config_param('APP_CLIENT_SECRET'))
+
+        if not AuthHelper.isInitialized():
+            self.authHelper = AuthHelper.create(clientId=client_id, clientSecret=client_secret)
+        else:
+            self.authHelper = AuthHelper.instance()
+
+        groups_with_permission_by_name = [group.strip().lower() for group in
+                                          get_config_param('hubmap_groups').split(',')]
+
+        groups_by_name = AuthHelper.getHuBMAPGroupInfo()
+
+        for group_with_permission in groups_with_permission_by_name:
+            if group_with_permission in groups_by_name and groups_by_name[group_with_permission][
+                'uuid'] not in self.group_uuids:
+                self.group_uuids.append(groups_by_name[group_with_permission]['uuid'])
+            else:
+                log.error('Invalid group name provided in configuration: ' + group_with_permission)
 
     @expose("/login/", methods=["GET", "POST"])
     def login(self):
-        log.debug('Redirecting user to Globus login')
+        if g.user is not None and g.user.is_authenticated:
+            return redirect(self.appbuilder.get_url_for_index)
+        redirect_url = url_for('.login', _external=True, _scheme=get_config_param('scheme'))
 
-        redirect_url = url_for('Airflow.index', _external=True, _scheme=get_config_param('scheme'))
+        self.globus_oauth.oauth2_start_flow("https://hivevm202.psc.edu:5555/login")
 
-        self.globus_oauth.oauth2_start_flow(redirect_url)
+        if 'code' not in request.args:
+            auth_uri = self.globus_oauth.oauth2_get_authorize_url(additional_params={
+                "scope": "openid profile email urn:globus:auth:scope:transfer.api.globus.org:all "
+                         "urn:globus:auth:scope:auth.globus.org:view_identities "
+                         "urn:globus:auth:scope:groups.api.globus.org:all"})
+            return redirect(auth_uri)
+        else:
+            code = request.args.get('code')
+            tokens = self.globus_oauth.oauth2_exchange_code_for_tokens(code)
+            f_session['tokens'] = tokens.by_resource_server
 
-        try:
-            if 'code' not in request.args:
-                auth_uri = self.globus_oauth.oauth2_get_authorize_url(additional_params={
-                    "scope": "openid profile email urn:globus:auth:scope:transfer.api.globus.org:all "
-                             "urn:globus:auth:scope:auth.globus.org:view_identities "
-                             "urn:globus:auth:scope:groups.api.globus.org:all"})
-                return redirect(auth_uri)
+            user_info = self.get_globus_user_profile_info(
+                tokens.by_resource_server['groups.api.globus.org']['access_token'])
+            username = user_info['name']
+            email = user_info['email']
+            group_ids = user_info['hmgroupids']
+
+            if not (group_ids and list(set(group_ids) & set(self.group_uuids))):
+                raise Exception('User does not have correct group assignments')
+
+            user = self.appbuilder.sm.auth_user_oauth(user_info)
+
+            # resp = self.appbuilder.sm.oauth_remotes[provider].authorized_response()
+            # if resp is None:
+            #     flash(u"You denied the request to sign in.", "warning")
+            #     return redirect(self.appbuilder.get_url_for_login)
+            # log.debug("OAUTH Authorized resp: {0}".format(resp))
+            # # Retrieves specific user info from the provider
+            # try:
+            #     self.appbuilder.sm.set_oauth_session(provider, resp)
+            #     userinfo = self.appbuilder.sm.oauth_user_info(provider, resp)
+            # except Exception as e:
+            #     log.error("Error returning OAuth user info: {0}".format(e))
+            #     user = None
+            # else:
+            #     log.debug("User info retrieved from {0}: {1}".format(provider, userinfo))
+            #     # User email is not whitelisted
+            #     if provider in self.appbuilder.sm.oauth_whitelists:
+            #         whitelist = self.appbuilder.sm.oauth_whitelists[provider]
+            #         allow = False
+            #         for e in whitelist:
+            #             if re.search(e, userinfo["email"]):
+            #                 allow = True
+            #                 break
+            #         if not allow:
+            #             flash(u"You are not authorized.", "warning")
+            #             return redirect(self.appbuilder.get_url_for_login)
+            #     else:
+            #         log.debug("No whitelist for OAuth provider")
+            #     user = self.appbuilder.sm.auth_user_oauth(userinfo)
+            #
+            if user is None:
+                flash(as_unicode(self.invalid_login_message), "warning")
+                return redirect(self.appbuilder.get_url_for_login)
             else:
-                code = request.args.get('code')
-                tokens = self.globus_oauth.oauth2_exchange_code_for_tokens(code)
-                f_session['tokens'] = tokens.by_resource_server
-
-                user_info = self.get_globus_user_profile_info(
-                    tokens.by_resource_server['groups.api.globus.org']['access_token'])
-                username = user_info['name']
-                email = user_info['email']
-                group_ids = user_info['hmgroupids']
-
-                if not (group_ids and list(set(group_ids) & set(self.group_uuids))):
-                    raise Exception('User does not have correct group assignments')
-
-                if not g.user:
-                    user = models.User(
-                        username=username,
-                        email=email,
-                        is_superuser=False)
-                else:
-                    user = g.user
-                login_user(GlobusUser(user))
-
-                next_url = url_for('admin.index')
-                return redirect(next_url)
-        except Exception as e:
-            log.error(e)
-            return redirect(url_for('airflow.noaccess'))
-
-    @expose("/logout/")
-    def logout(self):
-        logout_user()
-        return redirect(self.appbuilder.get_url_for_index)
+                login_user(user)
+                return redirect(self.appbuilder.get_url_for_index)
 
     def get_globus_user_profile_info(self, token):
         return self.authHelper.getUserInfo(token, True)
@@ -141,11 +178,12 @@ class OIDCSecurityManager(AirflowSecurityManager):
 
     def __init__(self, appbuilder):
         super(OIDCSecurityManager, self).__init__(appbuilder)
-        self.authremoteuserview = CustomAuthRemoteUserView
+        self.authoauthview = CustomOAuthView
 
 
-AUTH_TYPE = AUTH_REMOTE_USER
+AUTH_TYPE = AUTH_OAUTH
 SECURITY_MANAGER_CLASS = OIDCSecurityManager
+
 basedir = os.path.abspath(os.path.dirname(__file__))
 
 # The SQLAlchemy connection string.
@@ -153,3 +191,20 @@ SQLALCHEMY_DATABASE_URI = conf.get('core', 'SQL_ALCHEMY_CONN')
 
 # Flask-WTF flag for CSRF
 WTF_CSRF_ENABLED = True
+
+OAUTH_PROVIDERS = [{
+    'name': 'Globus',
+    'token_key': 'access_token',
+    'icon': 'fa-Twitter',
+    'remote_app': {
+        'base_url': 'https://auth.globus.org/',
+        'request_token_params': {
+            'scope': 'email profile'
+        },
+        'access_token_url': 'https://auth.globus.org/p',
+        'authorize_url': 'https://auth.globus.org/p/login',
+        'request_token_url': None,
+        'consumer_key': "21f293b0-5fa5-4ee1-9e0e-3cf88bd70114",
+        'consumer_secret': "gimzYEgm/jMtPmNJ0qoV11gdicAK8dgu+yigj2m3MTE=",
+    }
+}]
