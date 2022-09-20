@@ -140,7 +140,7 @@ class CustomOAuthView(AuthOAuthView):
                 flash(as_unicode(self.invalid_login_message), "warning")
                 return redirect(self.appbuilder.get_url_for_login)
             else:
-                login_user(user)
+                login_user(GlobusUser(user))
                 return redirect(self.appbuilder.get_url_for_index)
 
     def get_globus_user_profile_info(self, token):
