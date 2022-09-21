@@ -23,13 +23,14 @@ import re
 import globus_sdk
 from airflow.configuration import conf
 from airflow import configuration, LoggingMixin, models
+from airflow.utils.db import provide_session
 from airflow.www_rbac.security import AirflowSecurityManager
 from flask import flash, g, url_for, request
 from flask_appbuilder import expose
 from flask_appbuilder._compat import as_unicode
 from flask_appbuilder.const import AUTH_OAUTH
 from flask_appbuilder.security.views import AuthOAuthView
-from flask_login import login_user
+from flask_login import login_user, logout_user
 from hubmap_commons.hm_auth import AuthHelper
 from werkzeug.utils import redirect
 from flask import session as f_session
@@ -143,6 +144,34 @@ class CustomOAuthView(AuthOAuthView):
                 login_user(GlobusUser(user))
                 return redirect(self.appbuilder.get_url_for_index)
 
+    @provide_session
+    def logout(self):
+        # Revoke the tokens with Globus Auth
+        log.error('In the logout routine')
+        if 'tokens' in f_session:
+            for token in (token_info['access_token']
+                          for token_info in f_session['tokens'].values()):
+                self.globus_oauth.oauth2_revoke_token(token)
+
+        # Destroy the session state
+        f_session.clear()
+
+        # the return redirection location to give to Globus Auth
+        redirect_uri = url_for('admin.index', _external=True, _scheme=get_config_param('scheme'))
+
+        # build the logout URI with query params
+        # there is no tool to help build this (yet!)
+        globus_logout_url = (
+                'https://auth.globus.org/v2/web/logout' +
+                '?client={}'.format(
+                    get_config_param('APP_CLIENT_ID')) +
+                '&redirect_uri={}'.format(redirect_uri) +
+                '&redirect_name=Airflow Home')
+
+        # Redirect the user to the Globus Auth logout page
+        logout_user()
+        return redirect(globus_logout_url)
+
     def get_globus_user_profile_info(self, token):
         return self.authHelper.getUserInfo(token, True)
 
@@ -156,8 +185,20 @@ class OIDCSecurityManager(AirflowSecurityManager):
         super(OIDCSecurityManager, self).__init__(appbuilder)
         self.authoauthview = CustomOAuthView
 
+    @provide_session
+    def load_user(self, userid, session=None):
+        if not userid or userid == 'None':
+            return None
+
+        user = session.query(models.User).filter(
+            models.User.id == int(userid)).first()
+        return GlobusUser(user)
+
 
 AUTH_TYPE = AUTH_OAUTH
+AUTH_ROLE_ADMIN = 'Admin'
+AUTH_ROLE_PUBLIC = 'Public'
+
 SECURITY_MANAGER_CLASS = OIDCSecurityManager
 
 basedir = os.path.abspath(os.path.dirname(__file__))
