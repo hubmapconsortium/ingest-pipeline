@@ -120,8 +120,11 @@ def main():
     main
     """
     parser = argparse.ArgumentParser()
-    parser.add_argument("uuid_txt",
-                        help="input .txt file containing uuids or .csv or .tsv file with uuid column")
+    parser.add_argument("uuid_txt", nargs="?",
+                        help=("Optional input .txt file containing uuids"
+                              " or .csv or .tsv file with uuid column."
+                              " The default is to get this data from entity-api."
+                          ))
     parser.add_argument("--out", help="name of the output .tsv file", required=True)
     parser.add_argument("--notes", action="append",
                         help=("merge dataset notes from this csv/tsv file"
@@ -131,7 +134,14 @@ def main():
     entity_factory = EntityFactory(auth_tok)
 
     uuid_l = []
-    if args.uuid_txt.endswith((".csv", ".tsv")):
+    if not args.uuid_txt:
+        in_df = entity_factory.fetch_new_dataset_table()
+        assert 'uuid' in in_df.columns, ('"uuid" column is missing from table'
+                                         ' provided by entity-api?')
+        uuid_key = 'uuid'
+        for elt in in_df['uuid']:
+            uuid_l.append(str(elt))
+    elif args.uuid_txt.endswith((".csv", ".tsv")):
         in_df = pd.read_csv(args.uuid_txt, engine="python", sep=None, 
                                dtype={'note': np.str}, encoding='utf-8-sig')
         if 'uuid' in in_df.columns:
