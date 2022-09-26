@@ -24,11 +24,18 @@ def get_config_param(param):
     return str(configuration.conf.get('globus', param))
 
 
+class roles:
+    def __init__(self):
+        self.id = 1
+        self.name = 'Admin'
+
+
 class GlobusUser(models.User):
     def __init__(self, user):
         self.user = user
         self.login_count = 0
         self.fail_login_count = 0
+        self.roles = [roles(), ]
 
     @property
     def is_active(self):
@@ -56,6 +63,7 @@ class GlobusUser(models.User):
     def is_superuser(self):
         """Access all the things"""
         return True
+
 
 
 class CustomOAuthView(AuthOAuthView):
@@ -129,6 +137,7 @@ class CustomOAuthView(AuthOAuthView):
                 return redirect(self.appbuilder.get_url_for_index)
 
     @provide_session
+    @expose("/logout/", methods=["GET", "POST"])
     def logout(self):
         # Revoke the tokens with Globus Auth
         log.error('In the logout routine')
