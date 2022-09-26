@@ -27,6 +27,8 @@ def get_config_param(param):
 class GlobusUser(models.User):
     def __init__(self, user):
         self.user = user
+        self.login_count = 0
+        self.fail_login_count = 0
 
     @property
     def is_active(self):
@@ -54,10 +56,6 @@ class GlobusUser(models.User):
     def is_superuser(self):
         """Access all the things"""
         return True
-
-    def login_count(self):
-        """Counting logins for new model"""
-        return 1
 
 
 class CustomOAuthView(AuthOAuthView):
