@@ -13,6 +13,7 @@ from utils import (
     pythonop_trigger_target,
 )
 
+
 class LogInfoOperator(PythonOperator):
     @apply_defaults
     def __init__(self, **kwargs):
@@ -55,7 +56,7 @@ class CleanupTmpDirOperator(BashOperator):
               echo "scratch directory was preserved" ; \
             fi
             """,
-            env={'rmscratch':'{{"true" if preserve_scratch is defined and not preserve_scratch else "false"}}'},
+            env={'rmscratch': '{{"true" if preserve_scratch is defined and not preserve_scratch else "false"}}'},
             trigger_rule='all_success',
             **kwargs
             )
