@@ -129,7 +129,6 @@ class CustomOAuthView(AuthOAuthView):
                 self.appbuilder.sm.update_user_auth_stat(GlobusUser(user))
                 return redirect(self.appbuilder.get_url_for_index)
 
-    @provide_session
     @expose("/logout/", methods=["GET", "POST"])
     def logout(self, seesion=None):
         # Revoke the tokens with Globus Auth
