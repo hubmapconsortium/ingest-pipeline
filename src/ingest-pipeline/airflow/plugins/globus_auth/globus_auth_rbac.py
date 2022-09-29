@@ -45,11 +45,6 @@ class GlobusUser(models.User):
         return True
 
     @property
-    def is_authenticated(self):
-        """Required by flask_login"""
-        return True
-
-    @property
     def is_anonymous(self):
         """Required by flask_login"""
         return False
@@ -57,14 +52,6 @@ class GlobusUser(models.User):
     def get_id(self):
         """Returns the current user id as required by flask_login"""
         return self.user.get_id()
-
-    def data_profiling(self):
-        """Provides access to data profiling tools"""
-        return True
-
-    def is_superuser(self):
-        """Access all the things"""
-        return True
 
     def get_full_name(self):
         return self.username
@@ -102,9 +89,9 @@ class CustomOAuthView(AuthOAuthView):
     def login(self):
         if g.user is not None and g.user.is_authenticated:
             return redirect(self.appbuilder.get_url_for_index)
-        redirect_url = url_for('.login', _external=True, _scheme=get_config_param('scheme'))
+        redirect_url = url_for('.login', _external=True, _scheme=get_config_param('scheme')).rstrip('/')
 
-        self.globus_oauth.oauth2_start_flow("https://hivevm202.psc.edu:5555/login")
+        self.globus_oauth.oauth2_start_flow(redirect_url)
 
         if 'code' not in request.args:
             auth_uri = self.globus_oauth.oauth2_get_authorize_url(additional_params={
@@ -146,7 +133,6 @@ class CustomOAuthView(AuthOAuthView):
     @expose("/logout/", methods=["GET", "POST"])
     def logout(self, seesion=None):
         # Revoke the tokens with Globus Auth
-        log.error('In the logout routine')
         if 'tokens' in f_session:
             for token in (token_info['access_token']
                           for token_info in f_session['tokens'].values()):
@@ -156,7 +142,7 @@ class CustomOAuthView(AuthOAuthView):
         f_session.clear()
 
         # the return redirection location to give to Globus Auth
-        redirect_uri = url_for('admin.index', _external=True, _scheme=get_config_param('scheme'))
+        redirect_url = url_for('Airflow.index', _external=True, _scheme=get_config_param('scheme'))
 
         # build the logout URI with query params
         # there is no tool to help build this (yet!)
@@ -164,7 +150,7 @@ class CustomOAuthView(AuthOAuthView):
                 'https://auth.globus.org/v2/web/logout' +
                 '?client={}'.format(
                     get_config_param('APP_CLIENT_ID')) +
-                '&redirect_uri={}'.format(redirect_uri) +
+                '&redirect_uri={}'.format(redirect_url) +
                 '&redirect_name=Airflow Home')
 
         # Redirect the user to the Globus Auth logout page
@@ -218,17 +204,10 @@ WTF_CSRF_ENABLED = True
 
 OAUTH_PROVIDERS = [{
     'name': 'Globus',
-    'token_key': 'access_token',
     'icon': 'fa-Twitter',
     'remote_app': {
         'base_url': 'https://auth.globus.org/',
-        'request_token_params': {
-            'scope': 'email profile'
-        },
-        'access_token_url': 'https://auth.globus.org/p',
-        'authorize_url': 'https://auth.globus.org/p/login',
-        'request_token_url': None,
-        'consumer_key': "21f293b0-5fa5-4ee1-9e0e-3cf88bd70114",
-        'consumer_secret': "gimzYEgm/jMtPmNJ0qoV11gdicAK8dgu+yigj2m3MTE=",
+        'consumer_key': "dummy",
+        'consumer_secret': "dummy",
     }
 }]
