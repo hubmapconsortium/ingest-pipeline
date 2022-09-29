@@ -36,6 +36,8 @@ class GlobusUser(models.User):
         self.login_count = 0
         self.fail_login_count = 0
         self.roles = [roles(), ]
+        self.username = user.username
+        self.email = user.email
 
     @property
     def is_active(self):
@@ -64,6 +66,8 @@ class GlobusUser(models.User):
         """Access all the things"""
         return True
 
+    def get_full_name(self):
+        return self.username
 
 
 class CustomOAuthView(AuthOAuthView):
@@ -115,6 +119,7 @@ class CustomOAuthView(AuthOAuthView):
 
             user_info = self.get_globus_user_profile_info(
                 tokens.by_resource_server['groups.api.globus.org']['access_token'])
+            user_info.pop('username', None)
             username = user_info['name']
             email = user_info['email']
             group_ids = user_info['hmgroupids']
@@ -134,11 +139,12 @@ class CustomOAuthView(AuthOAuthView):
                 return redirect(self.appbuilder.get_url_for_login)
             else:
                 login_user(GlobusUser(user))
+                self.appbuilder.sm.update_user_auth_stat(GlobusUser(user))
                 return redirect(self.appbuilder.get_url_for_index)
 
     @provide_session
     @expose("/logout/", methods=["GET", "POST"])
-    def logout(self):
+    def logout(self, seesion=None):
         # Revoke the tokens with Globus Auth
         log.error('In the logout routine')
         if 'tokens' in f_session:
@@ -189,9 +195,11 @@ class OIDCSecurityManager(AirflowSecurityManager):
     def find_user(self, username=None, email=None):
         if username:
             user = self.get_session.query(models.User).filter(models.User.username == username).first()
+        elif email:
+            user = self.get_session.query(models.User).filter(models.User.email == email).first()
         else:
             return None
-        return GlobusUser(user)
+        return GlobusUser(user) if user else None
 
 
 AUTH_TYPE = AUTH_OAUTH
