@@ -1,3 +1,4 @@
+import urllib.parse
 from abc import ABC, abstractmethod
 from collections import namedtuple
 from functools import lru_cache
@@ -467,7 +468,7 @@ def get_git_provenance_dict(file_list: PathStrOrList) -> Mapping[str, str]:
     """
     if isinstance(file_list, (str, Path)):  # sadly, a str is an Iterable[str]
         file_list = [file_list]
-    return {basename(fname) : get_git_commits(realpath(fname))
+    return {basename(fname): get_git_commits(realpath(fname))
             for fname in file_list}
 
 
@@ -494,7 +495,7 @@ def get_git_provenance_list(file_list: Iterable[str]) -> List[Mapping[str, Any]]
         if not dct['name'].endswith('cwl'):
             del dct['name']  # include explicit names for workflows only
         rslt.append(dct)
-    #pprint(rslt)
+    # pprint(rslt)
     return rslt
 
 
@@ -509,7 +510,7 @@ def _get_file_type(path: Path) -> str:
             lst.append((re.compile(regex), tpnm))
         COMPILED_TYPE_MATCHERS = lst
     for regex, tpnm in COMPILED_TYPE_MATCHERS:
-        #print('testing ', regex, tpnm)
+        # print('testing ', regex, tpnm)
         if regex.match(fspath(path)):
             return tpnm
     return 'unknown'
@@ -543,9 +544,9 @@ def get_file_metadata(root_dir: str, matcher: FileMatcher) -> List[Mapping[str, 
             add_to_index, description, ontology_term, is_qa_qc = matcher.get_file_metadata(relative_path)
             if add_to_index:
                 # sha1sum disabled because of run time issues on large data collections
-                #line = check_output([word.format(fname=full_path)
+                # line = check_output([word.format(fname=full_path)
                 #                     for word in SHA1SUM_COMMAND])
-                #cs = line.split()[0].strip().decode('utf-8')
+                # cs = line.split()[0].strip().decode('utf-8')
                 rslt.append(
                     {
                         'rel_path': fspath(relative_path),
@@ -554,10 +555,11 @@ def get_file_metadata(root_dir: str, matcher: FileMatcher) -> List[Mapping[str, 
                         'description': description,
                         'edam_term': ontology_term,
                         'is_qa_qc': is_qa_qc,
-                        #'sha1sum': cs,
+                        # 'sha1sum': cs,
                     }
                 )
     return rslt
+
 
 def get_file_metadata_dict(
         root_dir: str,
@@ -581,9 +583,10 @@ def get_file_metadata_dict(
         fpath = join(alt_file_dir, '{}.json'.format(uuid.uuid4()))
         with open(fpath, 'w') as f:
             json.dump({'files': file_info}, f)
-        return {'files_info_alt_path' : relpath(fpath, _get_scratch_base_path())}
+        return {'files_info_alt_path': relpath(fpath, _get_scratch_base_path())}
     else:
-        return {'files' : file_info}
+        return {'files': file_info}
+
 
 def pythonop_trigger_target(**kwargs) -> None:
     """
@@ -664,9 +667,9 @@ def pythonop_send_create_dataset(**kwargs) -> str:
     http_conn_id = kwargs['http_conn_id']
     ctx = kwargs['dag_run'].conf
     headers = {
-        'authorization' : 'Bearer ' + get_auth_tok(**kwargs),
-        'content-type' : 'application/json',
-        'X-Hubmap-Application' : 'ingest-pipeline'
+        'authorization': 'Bearer ' + get_auth_tok(**kwargs),
+        'content-type': 'application/json',
+        'X-Hubmap-Application': 'ingest-pipeline'
     }
 
     if 'dataset_types' in kwargs:
@@ -711,7 +714,7 @@ def pythonop_send_create_dataset(**kwargs) -> str:
             "contains_human_genetic_sequences": contains_seq
         }
         if 'previous_revision_uuid_callable' in kwargs:
-            previous_revision_uuid = kwargs['previous_revision_uuid_callable'](**kwargs);
+            previous_revision_uuid = kwargs['previous_revision_uuid_callable'](**kwargs)
             if previous_revision_uuid is not None:
                 data['previous_revision_uuid'] = previous_revision_uuid
         print('data for dataset creation:')
@@ -720,7 +723,7 @@ def pythonop_send_create_dataset(**kwargs) -> str:
             endpoint='datasets',
             data=json.dumps(data),
             headers=headers,
-            extra_options=[]
+            extra_options={}
         )
         response.raise_for_status()
         response_json = response.json()
@@ -780,15 +783,15 @@ def pythonop_set_dataset_state(**kwargs) -> None:
     ds_state = kwargs['ds_state'] if 'ds_state' in kwargs else 'Processing'
     message = kwargs.get('message', None)
     headers = {
-        'authorization' : 'Bearer ' + get_auth_tok(**kwargs),
-        'content-type' : 'application/json',
+        'authorization': 'Bearer ' + get_auth_tok(**kwargs),
+        'content-type': 'application/json',
         'X-Hubmap-Application': 'ingest-pipeline'}
-    extra_options = []
+    extra_options = {}
 
     http_hook = HttpHook('PUT',
                          http_conn_id=http_conn_id)
 
-    data = {'status' : ds_state}
+    data = {'status': ds_state}
     if message is not None:
         data['pipeline_message'] = message
     print('data: ')
@@ -797,7 +800,7 @@ def pythonop_set_dataset_state(**kwargs) -> None:
     response = http_hook.run(endpoint,
                              json.dumps(data),
                              headers,
-                        extra_options)
+                             extra_options)
     print('response: ')
     pprint(response.json())
 
@@ -823,8 +826,8 @@ def restructure_entity_metadata(raw_metadata: JSONType) -> JSONType:
         md['contributors'] = deepcopy(raw_metadata['contributors'])
     if 'antibodies' in raw_metadata:
         md['antibodies'] = deepcopy(raw_metadata['antibodies'])
-    #print('reconstructed metadata follows')
-    #pprint(md)
+    # print('reconstructed metadata follows')
+    # pprint(md)
     return md
 
 
@@ -843,9 +846,9 @@ def pythonop_get_dataset_state(**kwargs) -> JSONType:
     method = 'GET'
     auth_tok = get_auth_tok(**kwargs)
     headers = {
-        'authorization' : f'Bearer {auth_tok}',
-        'content-type' : 'application/json',
-        'X-Hubmap-Application' : 'ingest-pipeline',
+        'authorization': f'Bearer {auth_tok}',
+        'content-type': 'application/json',
+        'X-Hubmap-Application': 'ingest-pipeline',
         }
     http_hook = HttpHook(method, http_conn_id='ingest_api_connection')
 
@@ -935,10 +938,10 @@ def _uuid_lookup(uuid, **kwargs):
     http_conn_id = 'uuid_api_connection'
     endpoint = 'hmuuid/{}'.format(uuid)
     method = 'GET'
-    headers = {'authorization' : 'Bearer ' + get_auth_tok(**kwargs)}
+    headers = {'authorization': 'Bearer ' + get_auth_tok(**kwargs)}
 #     print('headers:')
 #     pprint(headers)
-    extra_options = []
+    extra_options = {}
 
     http_hook = HttpHook(method,
                          http_conn_id=http_conn_id)
@@ -1002,9 +1005,9 @@ def pythonop_md_consistency_tests(**kwargs) -> int:
         else:
             return 0
     else:
-            kwargs['ti'].xcom_push(key='err_msg',
-                                   value='Expected metadata file is missing')
-            return 1
+        kwargs['ti'].xcom_push(key='err_msg',
+                               value='Expected metadata file is missing')
+        return 1
         
 
 def _get_scratch_base_path() -> Path:
@@ -1060,6 +1063,7 @@ def get_cwltool_base_cmd(tmpdir: Path) -> List[str]:
         '--tmpdir-prefix={}/'.format(tmpdir / 'cwl-tmp'),
         '--tmp-outdir-prefix={}/'.format(tmpdir / 'cwl-out-tmp'),
     ]
+
 
 def make_send_status_msg_function(
         dag_file: str,
@@ -1135,7 +1139,7 @@ def make_send_status_msg_function(
             'authorization': 'Bearer ' + get_auth_tok(**kwargs),
             'content-type': 'application/json',
         }
-        extra_options = []
+        extra_options = {}
         return_status = True  # mark false on failure
 
         http_hook = HttpHook(method, http_conn_id=http_conn_id)
@@ -1238,6 +1242,7 @@ def map_queue_name(raw_queue_name: str) -> str:
     else:
         return raw_queue_name
 
+
 def create_dataset_state_error_callback(dataset_uuid_callable: Callable[[Any], str]) -> Callable[[Mapping, Any],
                                                                                                  None]:
     def set_dataset_state_error(contextDict: Mapping, **kwargs) -> None:
@@ -1248,16 +1253,17 @@ def create_dataset_state_error_callback(dataset_uuid_callable: Callable[[Any], s
                                                                              contextDict['task'].task_id)
         new_kwargs = kwargs.copy()
         new_kwargs.update(contextDict)
-        new_kwargs.update({'dataset_uuid_callable' : dataset_uuid_callable,
-                           'http_conn_id' : 'ingest_api_connection',
-                           'ds_state' : 'Error',
-                           'message' : msg
+        new_kwargs.update({'dataset_uuid_callable': dataset_uuid_callable,
+                           'http_conn_id': 'ingest_api_connection',
+                           'ds_state': 'Error',
+                           'message': msg
                            })
         pythonop_set_dataset_state(**new_kwargs)
     return set_dataset_state_error
 
 
 set_schema_base_path(SCHEMA_BASE_PATH, SCHEMA_BASE_URI)
+
 
 def localized_assert_json_matches_schema(jsn: JSONType, schemafile: str) -> None:
     """
@@ -1404,6 +1410,9 @@ def _get_type_client() -> TypeClient:
     global TYPE_CLIENT
     if TYPE_CLIENT is None:
         conn = HttpHook.get_connection('search_api_connection')
+        if conn.host.startswith('https'):
+            conn.host = urllib.parse.unquote(conn.host).split('https://')[1]
+            conn.conn_type = 'https'
         if conn.port is None:
             url = f'{conn.conn_type}://{conn.host}'
         else:
@@ -1414,7 +1423,7 @@ def _get_type_client() -> TypeClient:
 
 def _canonicalize_assay_type_if_possible(assay_type: StrOrListStr) -> StrOrListStr:
     """
-    Attempt to look up the the assay type (or each element if it is a list) and
+    Attempt to look up the assay type (or each element if it is a list) and
     return the canonical version.
     """
     if isinstance(assay_type, list):
@@ -1468,7 +1477,7 @@ def _strip_url(url):
     return url.split(':')[1].strip('/')
 
 
-def find_matching_endpoint(host_url: str)-> str:
+def find_matching_endpoint(host_url: str) -> str:
     """
     Find the identity of the 'instance' of Airflow infrastructure based
     on environment information.
@@ -1484,7 +1493,6 @@ def find_matching_endpoint(host_url: str)-> str:
                   if stripped_url == _strip_url(ENDPOINTS[ep]['entity_url'])]
     assert len(candidates) == 1, f'Found {candidates}, expected 1 match'
     return candidates[0]
-
 
 
 def main():
@@ -1506,9 +1514,9 @@ def main():
     for elt in get_file_metadata(dirnm, DummyFileMatcher()):
         print(elt)
     pprint(get_git_provenance_list(__file__))
-    md = {'metadata' : {'my_string' : 'hello world'},
-          'files' : get_file_metadata(dirnm, DummyFileMatcher()),
-          'dag_provenance_list' : get_git_provenance_list(__file__)}
+    md = {'metadata': {'my_string': 'hello world'},
+          'files': get_file_metadata(dirnm, DummyFileMatcher()),
+          'dag_provenance_list': get_git_provenance_list(__file__)}
     try:
         localized_assert_json_matches_schema(md, 'dataset_metadata_schema.yml')
         print('ASSERT passed')

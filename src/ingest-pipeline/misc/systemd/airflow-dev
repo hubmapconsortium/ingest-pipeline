@@ -19,14 +19,6 @@
 # This file is the environment file for Airflow. Put this file in /etc/sysconfig/airflow per default
 # configuration of the systemd unit files.
 #
-AIRFLOW_CONFIG=/hive/users/hive/hubmap/hivevm191-dev/ingest-pipeline/src/ingest-pipeline/airflow/airflow.cfg
-AIRFLOW_HOME=/hive/users/hive/hubmap/hivevm191-dev/ingest-pipeline/src/ingest-pipeline/airflow
-AIRFLOW_CONN_INGEST_API_CONNECTION=http://hivevm191.psc.edu:7777/
-AIRFLOW_CONN_UUID_API_CONNECTION=http://https%3a%2f%2fuuid-api.dev.hubmapconsortium.org/
-AIRFLOW_CONN_CELLS_API_CONNECTION=http://https%3a%2f%2fcells.api.hubmapconsortium.org/
-AIRFLOW_CONN_SEARCH_API_CONNECTION=http://https%3a%2f%2fsearch.api.hubmapconsortium.org/
-AIRFLOW_CONN_ENTITY_API_CONNECTION=http://https%3a%2f%2fentity-api.dev.hubmapconsortium.org/
-PATH=/hive/users/hive/hubmap/hivevm191-dev/venv/bin:/opt/rh/rh-python36/root/usr/bin:/usr/local/bin:/usr/bin:/usr/local/sbin:/usr/sbin
-PYTHONPATH=/hive/users/hive/hubmap/hivevm191-dev/venv/lib/python3.6/site-packages:$PYTHONPATH
+HUBMAP_INSTANCE=dev
 
 
