@@ -4,9 +4,10 @@ import os
 
 import globus_sdk
 from airflow.configuration import conf
-from airflow import configuration, LoggingMixin, models
+from airflow import configuration
+from airflow.utils.log.logging_mixin import LoggingMixin
 from airflow.utils.db import provide_session
-from airflow.www_rbac.security import AirflowSecurityManager
+from airflow.www.security import AirflowSecurityManager
 from flask import flash, g, url_for, request
 from flask_appbuilder import expose
 from flask_appbuilder._compat import as_unicode
@@ -16,6 +17,7 @@ from flask_login import login_user, logout_user
 from hubmap_commons.hm_auth import AuthHelper
 from werkzeug.utils import redirect
 from flask import session as f_session
+from flask_appbuilder.security.sqla import models
 
 log = LoggingMixin().log
 
@@ -24,37 +26,35 @@ def get_config_param(param):
     return str(configuration.conf.get('globus', param))
 
 
-class roles:
-    def __init__(self):
-        self.id = 1
-        self.name = 'Admin'
-
-
-class GlobusUser(models.User):
-    def __init__(self, user):
-        self.user = user
-        self.login_count = 0
-        self.fail_login_count = 0
-        self.roles = [roles(), ]
-        self.username = user.username
-        self.email = user.email
-
-    @property
-    def is_active(self):
-        """Required by flask_login"""
-        return True
-
-    @property
-    def is_anonymous(self):
-        """Required by flask_login"""
-        return False
-
-    def get_id(self):
-        """Returns the current user id as required by flask_login"""
-        return self.user.get_id()
-
-    def get_full_name(self):
-        return self.username
+# class GlobusUser(models.User):
+#     __tablename__ = 'ab_user'
+#
+#     def __init__(self, user):
+#         self.user = user
+#         self.login_count = 0
+#         self.fail_login_count = 0
+#         self.roles = user.roles
+#         self.username = user.username
+#         self.email = user.email
+#         self.first_name = user.first_name
+#         self.last_name = user.last_name
+#
+#     @property
+#     def is_active(self):
+#         """Required by flask_login"""
+#         return True
+#
+#     @property
+#     def is_anonymous(self):
+#         """Required by flask_login"""
+#         return False
+#
+#     def get_id(self):
+#         """Returns the current user id as required by flask_login"""
+#         return self.user.get_id()
+#
+#     def get_full_name(self):
+#         return self.username
 
 
 class CustomOAuthView(AuthOAuthView):
@@ -117,16 +117,22 @@ class CustomOAuthView(AuthOAuthView):
             user = self.appbuilder.sm.auth_user_oauth(user_info)
             if not user:
                 user = models.User(
-                    username=username,
-                    email=email,
-                    is_superuser=False)
+                    username=email,
+                    first_name=username.split()[0],
+                    last_name=username.split()[1],
+                    email=email)
+                role = self.appbuilder.sm.find_role('Admin')
+                user.roles = [role, ]
+                log.info(f'User created {user.id} {user}  Role {user.roles[0].name}')
+            log.info(f'User on sm {user} {user.id} {user.first_name} {user.email}')
 
             if user is None:
                 flash(as_unicode(self.invalid_login_message), "warning")
                 return redirect(self.appbuilder.get_url_for_login)
             else:
-                login_user(GlobusUser(user))
-                self.appbuilder.sm.update_user_auth_stat(GlobusUser(user))
+                log.info(f'User to login {user.id} name {user.first_name} email {user.email}')
+                login_user(user)
+                self.appbuilder.sm.update_user_auth_stat(user)
                 return redirect(self.appbuilder.get_url_for_index)
 
     @expose("/logout/", methods=["GET", "POST"])
@@ -171,20 +177,39 @@ class OIDCSecurityManager(AirflowSecurityManager):
 
     @provide_session
     def load_user(self, userid, session=None):
+        log.info(f'User to load {userid}')
         if not userid or userid == 'None':
             return None
 
         user = session.query(models.User).filter(models.User.id == int(userid)).first()
-        return GlobusUser(user)
+        return user
 
     def find_user(self, username=None, email=None):
+        log.info(f'User to find {username} email {email}')
         if username:
             user = self.get_session.query(models.User).filter(models.User.username == username).first()
+            if not user:
+                users = self.get_session.query(models.User).all()
+                for user_l in users:
+                    log.info(f'User file {user_l} {user_l.id} {user_l.email}')
+            else:
+                log.info(f'User found {user} {user.id} {user.email}')
         elif email:
             user = self.get_session.query(models.User).filter(models.User.email == email).first()
         else:
             return None
-        return GlobusUser(user) if user else None
+        return user if user else None
+
+    def update_user(self, user):
+        log.info(f'User to update/insert {user.id} {user.first_name} {user.email} {user.roles[0].name}')
+        try:
+            self.get_session.merge(user)
+            self.get_session.commit()
+            log.info(f'User logged in {user}')
+        except Exception as e:
+            log.error(f'Error updating user {user} {e}')
+            self.get_session.rollback()
+            return False
 
 
 AUTH_TYPE = AUTH_OAUTH
