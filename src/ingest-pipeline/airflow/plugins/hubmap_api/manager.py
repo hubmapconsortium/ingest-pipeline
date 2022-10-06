@@ -11,7 +11,7 @@ from flask import session as f_session
 
 from airflow.configuration import conf as airflow_conf
 from airflow import models, settings
-from airflow.settings import STORE_SERIALIZED_DAGS
+# from airflow.settings import STORE_SERIALIZED_DAGS
 from airflow.utils.state import State
 from airflow.utils import timezone
 
@@ -75,7 +75,8 @@ class APIAdminView5(BaseView):
 
         dag_id = 'globus_transfer'
 
-        dagbag = models.DagBag(settings.DAGS_FOLDER, store_serialized_dags=STORE_SERIALIZED_DAGS)
+        dagbag = models.DagBag(settings.DAGS_FOLDER)
+        # dagbag = models.DagBag(settings.DAGS_FOLDER, store_serialized_dags=STORE_SERIALIZED_DAGS)
 
         execution_date = timezone.utcnow()
         run_id = "manual__{0}".format(execution_date.isoformat())
