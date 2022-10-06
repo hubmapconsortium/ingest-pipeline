@@ -24,7 +24,8 @@ from copy import deepcopy
 
 import yaml
 from airflow import DAG
-from airflow.operators import BaseOperator
+# from airflow.operators import BaseOperator
+from airflow.models.baseoperator import BaseOperator
 from airflow.configuration import conf as airflow_conf
 from airflow.hooks.http_hook import HttpHook
 from cryptography.fernet import Fernet
