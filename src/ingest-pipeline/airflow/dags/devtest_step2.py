@@ -2,10 +2,8 @@
 from datetime import datetime, timedelta
 from pprint import pprint
 
-from airflow import DAG
-from airflow.operators.bash_operator import BashOperator
-from airflow.operators.python_operator import PythonOperator
-from airflow.operators.python_operator import BranchPythonOperator
+from airflow.operators.bash import BashOperator
+from airflow.operators.python import PythonOperator, BranchPythonOperator
 from hubmap_operators.common_operators import (
     LogInfoOperator,
     JoinOperator,
@@ -70,8 +68,8 @@ with HMDAG(
         try:
             delay_sec = int(ctx['metadata']['delay_sec'])
         except ValueError:
-            print("Could not parse delay_sec "
-                  "{} ; defaulting to 30 sec".format(ctx['metadata']['delay_sec']))
+            print('Could not parse delay_sec '
+                  '{} ; defaulting to 30 sec'.format(ctx['metadata']['delay_sec']))
             delay_sec = 30
         for fname in ctx['metadata']['files_to_copy']:
             print(fname)
@@ -91,7 +89,7 @@ with HMDAG(
 
         command_strs = [join_quote_command_str(command) for command in commands]
         command_str = ' ; '.join(command_strs)
-        print('overall command_str:', command_str)
+        print('overall command_str: ', command_str)
         return command_str
 
     t_build_cmd1 = PythonOperator(
@@ -129,7 +127,7 @@ with HMDAG(
             'previous_revision_uuid_callable': get_previous_revision_uuid,
             'http_conn_id': 'ingest_api_connection',
             'dataset_name_callable': build_dataset_name,
-            'dataset_types': ["devtest"],
+            'dataset_types': ['devtest'],
         },
     )
 
@@ -148,14 +146,14 @@ with HMDAG(
     t_move_data = BashOperator(
         task_id='move_data',
         bash_command="""
-        tmp_dir="{{tmp_dir_path(run_id)}}" ; \
-        ds_dir="{{ti.xcom_pull(task_ids="send_create_dataset")}}" ; \
-        groupname="{{conf.as_dict()['connections']['OUTPUT_GROUP_NAME']}}" ; \
-        pushd "$ds_dir" ; \
+        tmp_dir='{{tmp_dir_path(run_id)}}' ; \
+        ds_dir='{{ti.xcom_pull(task_ids='send_create_dataset')}}' ; \
+        groupname='{{conf.as_dict()['connections']['OUTPUT_GROUP_NAME']}}' ; \
+        pushd '$ds_dir' ; \
         sudo chown airflow . ; \
         sudo chgrp $groupname . ; \
         popd ; \
-        mv "$tmp_dir"/cwl_out/* "$ds_dir" >> "$tmp_dir/session.log" 2>&1 ; \
+        mv '$tmp_dir'/cwl_out/* '$ds_dir' >> '$tmp_dir/session.log' 2>&1 ; \
         echo $?
         """,
     )
@@ -165,6 +163,7 @@ with HMDAG(
         retcode_ops=['pipeline_exec', 'move_data'],
         cwl_workflows=[],
     )
+
     t_send_status = PythonOperator(
         task_id='send_status_msg',
         python_callable=send_status_msg,
@@ -177,9 +176,11 @@ with HMDAG(
     t_cleanup_tmpdir = CleanupTmpDirOperator(task_id='cleanup_tmpdir')
     t_set_dataset_processing = SetDatasetProcessingOperator(task_id='set_dataset_processing')
 
-    (dag >> t_log_info >> t_create_tmpdir
-     >> t_send_create_dataset >> t_set_dataset_processing
-     >> t_build_cmd1 >> t_pipeline_exec >> t_maybe_keep_cwl1
-     >> t_move_data >> t_send_status >> t_join)
+    (
+        t_log_info >> t_create_tmpdir
+        >> t_send_create_dataset >> t_set_dataset_processing
+        >> t_build_cmd1 >> t_pipeline_exec >> t_maybe_keep_cwl1
+        >> t_move_data >> t_send_status >> t_join
+    )
     t_maybe_keep_cwl1 >> t_set_dataset_error >> t_join
     t_join >> t_cleanup_tmpdir

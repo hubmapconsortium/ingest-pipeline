@@ -4,18 +4,14 @@
 import os
 import shutil
 import re
-import tempfile
 import hubmap_sdk
 import pandas
-import sys
 import subprocess
 import datetime
 from hubmap_sdk import EntitySdk
 
-from airflow import DAG
-from airflow.operators.python_operator import PythonOperator
+from airflow.operators.python import PythonOperator
 from airflow.providers.http.hooks.http import HttpHook
-from airflow.exceptions import AirflowException
 from airflow.configuration import conf as airflow_conf
 
 from hubmap_operators.common_operators import CreateTmpDirOperator, CleanupTmpDirOperator
@@ -51,7 +47,7 @@ with HMDAG('generate_usage_report',
                'tmp_dir_path': get_tmp_dir_path,
                'preserve_scratch': get_preserve_scratch_resource('generate_usage_report'),
            },
-       ) as dag:
+           ) as dag:
 
     def build_report(**kwargs):
         entity_token = get_auth_tok(**kwargs)
@@ -60,10 +56,10 @@ with HMDAG('generate_usage_report',
         entity_host = HttpHook.get_connection('entity_api_connection').host
         instance_identifier = find_matching_endpoint(entity_host)
         # This is intended to throw an error if the instance is unknown or not listed
-        output_dir = {'PROD' :  '/hive/hubmap/assets/status',
-                      'STAGE' : '/hive/hubmap-stage/assets/status',
-                      'TEST' :  '/hive/hubmap-test/assets/status',
-                      'DEV' :   '/hive/hubmap-dev/assets/status'}[instance_identifier]
+        output_dir = {'PROD':  '/hive/hubmap/assets/status',
+                      'STAGE': '/hive/hubmap-stage/assets/status',
+                      'TEST':  '/hive/hubmap-test/assets/status',
+                      'DEV':   '/hive/hubmap-dev/assets/status'}[instance_identifier]
         usage_output = f'{output_dir}/usage_report.json'
 
         temp_name = get_tmp_dir_path(kwargs['run_id'])
@@ -167,10 +163,10 @@ with HMDAG('generate_usage_report',
                 if index != -1:
                     lines_with_tid.append(line)
 
-             # for every line that contained the task id we are looking for, we now
+            # for every line that contained the task id we are looking for, we now
             # look for the reference number
             for line in lines_with_tid:
-                log_entry = line.replace("-","")
+                log_entry = line.replace("-", "")
                 ref_index = log_entry.find("ref=") + 4
                 reference_number = log_entry[ref_index: ref_index + 32]
                 pattern = 'c_path=.*(\\w{32})'
@@ -206,6 +202,7 @@ with HMDAG('generate_usage_report',
                         data_type = "N/A Upload"
                     hubmap_id = dataset.hubmap_id
                 except hubmap_sdk.sdk_helper.HTTPException as e:
+                    print(f'Error {e}')
                     remove_record = True
 
             # hubmap public does not record dataset id, so for these transfers we
@@ -245,17 +242,16 @@ with HMDAG('generate_usage_report',
         python_callable=build_report,
         provide_context=True,
         op_kwargs={
-            'crypt_auth_tok' : utils.encrypt_tok(airflow_conf.as_dict()
-                                                 ['connections']['APP_CLIENT_SECRET']).decode(),
+            'crypt_auth_tok': utils.encrypt_tok(airflow_conf.as_dict()
+                                                ['connections']['APP_CLIENT_SECRET']).decode(),
             }
         )
     
     t_create_tmpdir = CreateTmpDirOperator(task_id='create_tmpdir')
     t_cleanup_tmpdir = CleanupTmpDirOperator(task_id='cleanup_tmpdir')
 
-    (dag
-     >> t_create_tmpdir
-     >> t_build_report
-     >> t_cleanup_tmpdir
+    (
+        t_create_tmpdir
+        >> t_build_report
+        >> t_cleanup_tmpdir
     )
-

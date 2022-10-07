@@ -1,11 +1,9 @@
 from pathlib import Path
 from datetime import datetime, timedelta
 
-from airflow import DAG
-from airflow.operators.bash_operator import BashOperator
-from airflow.operators.python_operator import PythonOperator
-from airflow.operators.python_operator import BranchPythonOperator
-from airflow.operators.dummy_operator import DummyOperator
+from airflow.operators.bash import BashOperator
+from airflow.operators.python import PythonOperator, BranchPythonOperator
+from airflow.operators.dummy import DummyOperator
 from hubmap_operators.common_operators import (
     LogInfoOperator,
     JoinOperator,
@@ -44,19 +42,19 @@ default_args = {
     'retries': 1,
     'retry_delay': timedelta(minutes=1),
     'xcom_push': True,
-    'queue': get_queue_resource("codex_cytokit"),
+    'queue': get_queue_resource('codex_cytokit'),
     'on_failure_callback': utils.create_dataset_state_error_callback(get_uuid_for_error)
 }
 
-
-with HMDAG("codex_cytokit",
-           schedule_interval=None,
-           is_paused_upon_creation=False,
-           default_args=default_args,
-           user_defined_macros={
-               'tmp_dir_path' : get_tmp_dir_path,
-               'preserve_scratch': get_preserve_scratch_resource('codex_cytokit'),
-           },
+with HMDAG(
+        'codex_cytokit',
+        schedule_interval=None,
+        is_paused_upon_creation=False,
+        default_args=default_args,
+        user_defined_macros={
+            'tmp_dir_path': get_tmp_dir_path,
+            'preserve_scratch': get_preserve_scratch_resource('codex_cytokit'),
+        },
 ) as dag:
 
     pipeline_name = 'codex-pipeline'
@@ -264,7 +262,6 @@ with HMDAG("codex_cytokit",
         provide_context=True,
         )
 
-
     t_pipeline_exec_cwl_sprm = BashOperator(
         task_id='pipeline_exec_cwl_sprm',
         bash_command=""" \
@@ -279,9 +276,9 @@ with HMDAG("codex_cytokit",
         task_id='maybe_keep_cwl_sprm',
         python_callable=utils.pythonop_maybe_keep,
         provide_context=True,
-        op_kwargs = {'next_op' : 'prepare_cwl_create_vis_symlink_archive',
-                     'bail_op' : 'set_dataset_error',
-                     'test_op' : 'pipeline_exec_cwl_sprm'}
+        op_kwargs={'next_op': 'prepare_cwl_create_vis_symlink_archive',
+                   'bail_op': 'set_dataset_error',
+                   'test_op': 'pipeline_exec_cwl_sprm'}
         )
 
     prepare_cwl_create_vis_symlink_archive = DummyOperator(
@@ -315,7 +312,6 @@ with HMDAG("codex_cytokit",
         provide_context=True,
         )
 
-
     t_pipeline_exec_cwl_create_vis_symlink_archive = BashOperator(
         task_id='pipeline_exec_cwl_create_vis_symlink_archive',
         bash_command=""" \
@@ -326,14 +322,13 @@ with HMDAG("codex_cytokit",
         """
     )
 
-
     t_maybe_keep_cwl_create_vis_symlink_archive = BranchPythonOperator(
         task_id='maybe_keep_cwl_create_vis_symlink_archive',
         python_callable=utils.pythonop_maybe_keep,
         provide_context=True,
-        op_kwargs = {'next_op' : 'prepare_cwl_ome_tiff_pyramid',
-                     'bail_op' : 'set_dataset_error',
-                     'test_op' : 'pipeline_exec_cwl_create_vis_symlink_archive'}
+        op_kwargs={'next_op': 'prepare_cwl_ome_tiff_pyramid',
+                   'bail_op': 'set_dataset_error',
+                   'test_op': 'pipeline_exec_cwl_create_vis_symlink_archive'}
         )
 
     prepare_cwl_ome_tiff_pyramid = DummyOperator(task_id='prepare_cwl_ome_tiff_pyramid')
@@ -341,18 +336,18 @@ with HMDAG("codex_cytokit",
     def build_cwltool_cwl_ome_tiff_pyramid(**kwargs):
         run_id = kwargs['run_id']
 
-        #tmpdir is temp directory in /hubmap-tmp
+        # tmpdir is temp directory in /hubmap-tmp
         tmpdir = get_tmp_dir_path(run_id)
         print('tmpdir: ', tmpdir)
 
-        #data directory is the stitched images, which are found in tmpdir
+        # data directory is the stitched images, which are found in tmpdir
         data_dir = get_parent_data_dir(**kwargs)
         print('data_dir: ', data_dir)
 
-        #this is the call to the CWL
+        # this is the call to the CWL
         command = [
             *get_cwltool_base_cmd(tmpdir),
-            "--relax-path-checks",
+            '--relax-path-checks',
             cwl_workflows['ome_tiff_pyramid'],
             '--ometiff_directory',
             '.',
@@ -380,11 +375,10 @@ with HMDAG("codex_cytokit",
         task_id='maybe_keep_cwl_ome_tiff_pyramid',
         python_callable=utils.pythonop_maybe_keep,
         provide_context=True,
-        op_kwargs = {'next_op' : 'prepare_cwl_ome_tiff_offsets',
-                     'bail_op' : 'set_dataset_error',
-                     'test_op' : 'pipeline_exec_cwl_ome_tiff_pyramid'}
+        op_kwargs={'next_op': 'prepare_cwl_ome_tiff_offsets',
+                   'bail_op': 'set_dataset_error',
+                   'test_op': 'pipeline_exec_cwl_ome_tiff_pyramid'}
         )
-
 
     prepare_cwl_ome_tiff_offsets = DummyOperator(task_id='prepare_cwl_ome_tiff_offsets')
 
@@ -413,7 +407,6 @@ with HMDAG("codex_cytokit",
         provide_context=True,
         )
 
-
     t_pipeline_exec_cwl_ome_tiff_offsets = BashOperator(
         task_id='pipeline_exec_cwl_ome_tiff_offsets',
         bash_command=""" \
@@ -424,16 +417,14 @@ with HMDAG("codex_cytokit",
         """
     )
 
-
     t_maybe_keep_cwl_ome_tiff_offsets = BranchPythonOperator(
         task_id='maybe_keep_cwl_ome_tiff_offsets',
         python_callable=utils.pythonop_maybe_keep,
         provide_context=True,
-        op_kwargs = {'next_op' : 'prepare_cwl_sprm_to_json',
-                     'bail_op' : 'set_dataset_error',
-                     'test_op' : 'pipeline_exec_cwl_ome_tiff_offsets'}
+        op_kwargs={'next_op': 'prepare_cwl_sprm_to_json',
+                   'bail_op': 'set_dataset_error',
+                   'test_op': 'pipeline_exec_cwl_ome_tiff_offsets'}
         )
-
 
     prepare_cwl_sprm_to_json = DummyOperator(
         task_id='prepare_cwl_sprm_to_json'
@@ -464,7 +455,6 @@ with HMDAG("codex_cytokit",
         provide_context=True,
         )
 
-
     t_pipeline_exec_cwl_sprm_to_json = BashOperator(
         task_id='pipeline_exec_cwl_sprm_to_json',
         bash_command=""" \
@@ -475,14 +465,13 @@ with HMDAG("codex_cytokit",
         """
     )
 
-
     t_maybe_keep_cwl_sprm_to_json = BranchPythonOperator(
         task_id='maybe_keep_cwl_sprm_to_json',
         python_callable=utils.pythonop_maybe_keep,
         provide_context=True,
-        op_kwargs = {'next_op' : 'prepare_cwl_sprm_to_anndata',
-                     'bail_op' : 'set_dataset_error',
-                     'test_op' : 'pipeline_exec_cwl_sprm_to_json'}
+        op_kwargs={'next_op': 'prepare_cwl_sprm_to_anndata',
+                   'bail_op': 'set_dataset_error',
+                   'test_op': 'pipeline_exec_cwl_sprm_to_json'}
         )
 
     prepare_cwl_sprm_to_anndata = DummyOperator(
@@ -514,7 +503,6 @@ with HMDAG("codex_cytokit",
         provide_context=True,
         )
 
-
     t_pipeline_exec_cwl_sprm_to_anndata = BashOperator(
         task_id='pipeline_exec_cwl_sprm_to_anndata',
         bash_command=""" \
@@ -529,44 +517,41 @@ with HMDAG("codex_cytokit",
         task_id='maybe_keep_cwl_sprm_to_anndata',
         python_callable=utils.pythonop_maybe_keep,
         provide_context=True,
-        op_kwargs = {'next_op' : 'move_data',
-                     'bail_op' : 'set_dataset_error',
-                     'test_op' : 'pipeline_exec_cwl_sprm_to_anndata'}
+        op_kwargs={'next_op': 'move_data',
+                   'bail_op': 'set_dataset_error',
+                   'test_op': 'pipeline_exec_cwl_sprm_to_anndata'}
         )
-
 
     t_send_create_dataset = PythonOperator(
         task_id='send_create_dataset',
         python_callable=utils.pythonop_send_create_dataset,
         provide_context=True,
-        op_kwargs = {'parent_dataset_uuid_callable' : get_parent_dataset_uuids_list,
-                     'previous_revision_uuid_callable' : get_previous_revision_uuid,
-                     'http_conn_id' : 'ingest_api_connection',
-                     'dataset_name_callable' : build_dataset_name,
-                     "dataset_types":["codex_cytokit"]
-                     }
+        op_kwargs={'parent_dataset_uuid_callable': get_parent_dataset_uuids_list,
+                   'previous_revision_uuid_callable': get_previous_revision_uuid,
+                   'http_conn_id': 'ingest_api_connection',
+                   'dataset_name_callable': build_dataset_name,
+                   'dataset_types': ['codex_cytokit']
+                   }
     )
-
 
     t_set_dataset_error = PythonOperator(
         task_id='set_dataset_error',
         python_callable=utils.pythonop_set_dataset_state,
         provide_context=True,
         trigger_rule='all_done',
-        op_kwargs = {'dataset_uuid_callable' : get_dataset_uuid,
-                     'ds_state' : 'Error',
-                     'message' : 'An error occurred in {}'.format(pipeline_name)
-                     }
+        op_kwargs={'dataset_uuid_callable': get_dataset_uuid,
+                   'ds_state': 'Error',
+                   'message': 'An error occurred in {}'.format(pipeline_name)
+                   }
     )
-
 
     t_expand_symlinks = BashOperator(
         task_id='expand_symlinks',
         bash_command="""
-        tmp_dir="{{tmp_dir_path(run_id)}}" ; \
-        ds_dir="{{ti.xcom_pull(task_ids="send_create_dataset")}}" ; \
-        groupname="{{conf.as_dict()['connections']['OUTPUT_GROUP_NAME']}}" ; \
-        cd "$ds_dir" ; \
+        tmp_dir='{{tmp_dir_path(run_id)}}' ; \
+        ds_dir='{{ti.xcom_pull(task_ids='send_create_dataset')}}' ; \
+        groupname='{{conf.as_dict()['connections']['OUTPUT_GROUP_NAME']}}' ; \
+        cd '$ds_dir' ; \
         tar -xf symlinks.tar ; \
         echo $?
         """
@@ -587,6 +572,7 @@ with HMDAG("codex_cytokit",
         ],
         cwl_workflows=list(cwl_workflows.values()),
     )
+
     t_send_status = PythonOperator(
         task_id='send_status_msg',
         python_callable=send_status_msg,
@@ -601,61 +587,60 @@ with HMDAG("codex_cytokit",
     t_move_data = MoveDataOperator(task_id='move_data')
 
     (
-            dag
-            >> t_log_info
-            >> t_create_tmpdir
-            >> t_send_create_dataset
-            >> t_set_dataset_processing
+        t_log_info
+        >> t_create_tmpdir
+        >> t_send_create_dataset
+        >> t_set_dataset_processing
 
-            >> prepare_cwl_illumination_first_stitching
-            >> t_build_cwl_illumination_first_stitching
-            >> t_pipeline_exec_cwl_illumination_first_stitching
-            >> t_maybe_keep_cwl_illumination_first_stitching
+        >> prepare_cwl_illumination_first_stitching
+        >> t_build_cwl_illumination_first_stitching
+        >> t_pipeline_exec_cwl_illumination_first_stitching
+        >> t_maybe_keep_cwl_illumination_first_stitching
 
-            >> prepare_cwl_cytokit
-            >> t_build_cwl_cytokit
-            >> t_pipeline_exec_cwl_cytokit
-            >> t_maybe_keep_cwl_cytokit
+        >> prepare_cwl_cytokit
+        >> t_build_cwl_cytokit
+        >> t_pipeline_exec_cwl_cytokit
+        >> t_maybe_keep_cwl_cytokit
 
-            >> prepare_cwl_ometiff_second_stitching
-            >> t_build_cwl_ometiff_second_stitching
-            >> t_pipeline_exec_cwl_ometiff_second_stitching
-            >> t_maybe_keep_cwl_ometiff_second_stitching
+        >> prepare_cwl_ometiff_second_stitching
+        >> t_build_cwl_ometiff_second_stitching
+        >> t_pipeline_exec_cwl_ometiff_second_stitching
+        >> t_maybe_keep_cwl_ometiff_second_stitching
 
-            >> prepare_cwl_sprm
-            >> t_build_cmd_sprm
-            >> t_pipeline_exec_cwl_sprm
-            >> t_maybe_keep_cwl_sprm
+        >> prepare_cwl_sprm
+        >> t_build_cmd_sprm
+        >> t_pipeline_exec_cwl_sprm
+        >> t_maybe_keep_cwl_sprm
 
-            >> prepare_cwl_create_vis_symlink_archive
-            >> t_build_cmd_create_vis_symlink_archive
-            >> t_pipeline_exec_cwl_create_vis_symlink_archive
-            >> t_maybe_keep_cwl_create_vis_symlink_archive
+        >> prepare_cwl_create_vis_symlink_archive
+        >> t_build_cmd_create_vis_symlink_archive
+        >> t_pipeline_exec_cwl_create_vis_symlink_archive
+        >> t_maybe_keep_cwl_create_vis_symlink_archive
 
-            >> prepare_cwl_ome_tiff_pyramid
-            >> t_build_cmd_ome_tiff_pyramid
-            >> t_pipeline_exec_cwl_ome_tiff_pyramid
-            >> t_maybe_keep_cwl_ome_tiff_pyramid
+        >> prepare_cwl_ome_tiff_pyramid
+        >> t_build_cmd_ome_tiff_pyramid
+        >> t_pipeline_exec_cwl_ome_tiff_pyramid
+        >> t_maybe_keep_cwl_ome_tiff_pyramid
 
-            >> prepare_cwl_ome_tiff_offsets
-            >> t_build_cmd_ome_tiff_offsets
-            >> t_pipeline_exec_cwl_ome_tiff_offsets
-            >> t_maybe_keep_cwl_ome_tiff_offsets
+        >> prepare_cwl_ome_tiff_offsets
+        >> t_build_cmd_ome_tiff_offsets
+        >> t_pipeline_exec_cwl_ome_tiff_offsets
+        >> t_maybe_keep_cwl_ome_tiff_offsets
 
-            >> prepare_cwl_sprm_to_json
-            >> t_build_cmd_sprm_to_json
-            >> t_pipeline_exec_cwl_sprm_to_json
-            >> t_maybe_keep_cwl_sprm_to_json
+        >> prepare_cwl_sprm_to_json
+        >> t_build_cmd_sprm_to_json
+        >> t_pipeline_exec_cwl_sprm_to_json
+        >> t_maybe_keep_cwl_sprm_to_json
 
-            >> prepare_cwl_sprm_to_anndata
-            >> t_build_cmd_sprm_to_anndata
-            >> t_pipeline_exec_cwl_sprm_to_anndata
-            >> t_maybe_keep_cwl_sprm_to_anndata
+        >> prepare_cwl_sprm_to_anndata
+        >> t_build_cmd_sprm_to_anndata
+        >> t_pipeline_exec_cwl_sprm_to_anndata
+        >> t_maybe_keep_cwl_sprm_to_anndata
 
-            >> t_move_data
-            >> t_expand_symlinks
-            >> t_send_status
-            >> t_join
+        >> t_move_data
+        >> t_expand_symlinks
+        >> t_send_status
+        >> t_join
     )
     t_pipeline_exec_cwl_ometiff_second_stitching >> t_delete_internal_pipeline_files
     t_maybe_keep_cwl_illumination_first_stitching >> t_set_dataset_error
@@ -669,4 +654,3 @@ with HMDAG("codex_cytokit",
     t_maybe_keep_cwl_sprm_to_anndata >> t_set_dataset_error
     t_set_dataset_error >> t_join
     t_join >> t_cleanup_tmpdir
-

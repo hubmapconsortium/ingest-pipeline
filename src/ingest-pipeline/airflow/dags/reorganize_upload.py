@@ -3,11 +3,10 @@ from pathlib import Path
 from pprint import pprint
 from datetime import datetime, timedelta
 
-from airflow import DAG
 from airflow.configuration import conf as airflow_conf
-from airflow.operators.python_operator import PythonOperator
-from airflow.operators.python_operator import BranchPythonOperator
-from airflow.operators.bash_operator import BashOperator
+from airflow.operators.python import PythonOperator
+from airflow.operators.python import BranchPythonOperator
+from airflow.operators.bash import BashOperator
 from airflow.exceptions import AirflowException
 from airflow.providers.http.hooks.http import HttpHook
 
@@ -21,7 +20,7 @@ from hubmap_operators.common_operators import (
 from utils import (
     pythonop_maybe_keep,
     get_tmp_dir_path, get_auth_tok,
-    map_queue_name, pythonop_get_dataset_state,
+    pythonop_get_dataset_state,
     pythonop_set_dataset_state,
     find_matching_endpoint,
     HMDAG,
@@ -29,10 +28,10 @@ from utils import (
     get_preserve_scratch_resource,
 )
 
-sys.path.append(airflow_conf.as_dict()['connections']['SRC_PATH']
-                .strip("'").strip('"'))
 from misc.tools.split_and_create import reorganize
 
+sys.path.append(airflow_conf.as_dict()['connections']['SRC_PATH']
+                .strip("'").strip('"'))
 sys.path.pop()
 
 # Following are defaults which can be overridden later on
@@ -227,17 +226,17 @@ with HMDAG('reorganize_upload',
         }
     )
 
-    (dag
-     >> t_log_info
-     >> t_find_uuid
-     >> t_create_tmpdir
-     >> t_split_stage_1
-     >> t_maybe_keep_1
-     >> t_split_stage_2
-     >> t_maybe_keep_2
-     >> t_join
-     >> t_preserve_info
-     >> t_cleanup_tmpdir
+    (
+        t_log_info
+        >> t_find_uuid
+        >> t_create_tmpdir
+        >> t_split_stage_1
+        >> t_maybe_keep_1
+        >> t_split_stage_2
+        >> t_maybe_keep_2
+        >> t_join
+        >> t_preserve_info
+        >> t_cleanup_tmpdir
      )
 
     t_maybe_keep_1 >> t_set_dataset_error

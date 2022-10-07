@@ -1,14 +1,9 @@
-import sys
-import os
 import ast
-from pathlib import Path
 from pprint import pprint
 from datetime import datetime, timedelta
 
-from airflow import DAG
 from airflow.configuration import conf as airflow_conf
-from airflow.operators.python_operator import PythonOperator
-from airflow.operators.dagrun_operator import DagRunOrder
+from airflow.operators.python import PythonOperator
 from hubmap_operators.flex_multi_dag_run import FlexMultiDagRunOperator
 from airflow.exceptions import AirflowException
 
@@ -61,8 +56,7 @@ with HMDAG('trigger_downstream_processing',
         )
         if not ds_rslt:
             raise AirflowException(f'Invalid uuid/doi for group: {uuid}')
-        print('ds_rslt:')
-        pprint(ds_rslt)
+        print(f'ds_rslt: {ds_rslt}')
 
         for key in ['uuid', 'data_types', 'local_directory_full_path']:
             assert key in ds_rslt, f"Dataset status for {uuid} has no {key}"
@@ -109,27 +103,25 @@ with HMDAG('trigger_downstream_processing',
         """
         This is a generator which returns appropriate DagRunOrders
         """
-        print('kwargs:')
-        pprint(kwargs)
-        print('dag_run conf:')
+        print(f'kwargs: {kwargs}')
         ctx = kwargs['dag_run'].conf
-        pprint(ctx)
+        print(f'dag_run conf: {ctx}')
         collectiontype = 'generic_metadatatsv'  # always the case now
         assay_type = kwargs['ti'].xcom_pull(key='assay_type',
                                             task_ids="find_uuid")
         assay_type = assay_type[0]
         print('collectiontype: <{}>, assay_type: <{}>'.format(collectiontype, assay_type))
-        payload = {k:kwargs['dag_run'].conf[k] for k in kwargs['dag_run'].conf}
-        payload = {'ingest_id' : kwargs['run_id'],
-                   'crypt_auth_tok' : kwargs['crypt_auth_tok'],
-                   'parent_lz_path' : kwargs['ti'].xcom_pull(key='lz_path',
-                                                             task_ids="find_uuid"),
-                   'parent_submission_id' : kwargs['ti'].xcom_pull(key='uuid',
-                                                                   task_ids="find_uuid"),
-                   'dag_provenance_list' : utils.get_git_provenance_list(__file__)
-        }
+        # payload = {k: kwargs['dag_run'].conf[k] for k in kwargs['dag_run'].conf}
+        payload = {'ingest_id': kwargs['run_id'],
+                   'crypt_auth_tok': kwargs['crypt_auth_tok'],
+                   'parent_lz_path': kwargs['ti'].xcom_pull(key='lz_path',
+                                                            task_ids="find_uuid"),
+                   'parent_submission_id': kwargs['ti'].xcom_pull(key='uuid',
+                                                                  task_ids="find_uuid"),
+                   'dag_provenance_list': utils.get_git_provenance_list(__file__)
+                   }
         for next_dag in utils.downstream_workflow_iter(collectiontype, assay_type):
-            yield next_dag, DagRunOrder(payload=payload)
+            yield next_dag, {payload}
 
 
     t_maybe_spawn = FlexMultiDagRunOperator(
@@ -146,4 +138,4 @@ with HMDAG('trigger_downstream_processing',
         )
 
 
-    (dag >> t_find_uuid >> t_maybe_spawn)
+    t_find_uuid >> t_maybe_spawn

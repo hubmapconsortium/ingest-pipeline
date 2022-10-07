@@ -1,19 +1,12 @@
 import sys
 import os
 import yaml
-import json
 from pathlib import Path
-from pprint import pprint
 from datetime import datetime, timedelta
 
-from airflow import DAG
 from airflow.configuration import conf as airflow_conf
-from airflow.operators.bash_operator import BashOperator
-from airflow.operators.python_operator import PythonOperator
-from airflow.operators.python_operator import BranchPythonOperator
-from airflow.operators.dummy_operator import DummyOperator
-from airflow.operators.dagrun_operator import TriggerDagRunOperator, DagRunOrder
-from airflow.operators.multi_dagrun import TriggerMultiDagRunOperator
+from airflow.operators.bash import BashOperator
+from airflow.operators.python import PythonOperator, BranchPythonOperator
 
 from hubmap_operators.flex_multi_dag_run import FlexMultiDagRunOperator
 from hubmap_operators.common_operators import (
@@ -24,7 +17,6 @@ from hubmap_operators.common_operators import (
 import utils
 
 from utils import (
-    localized_assert_json_matches_schema as assert_json_matches_schema,
     make_send_status_msg_function,
     HMDAG,
     get_queue_resource,
@@ -43,6 +35,7 @@ sys.path.pop()
 def get_dataset_uuid(**kwargs):
     ctx = kwargs['dag_run'].conf
     return ctx['submission_id']
+
 
 def get_dataset_lz_path(**kwargs):
     ctx = kwargs['dag_run'].conf
@@ -70,8 +63,8 @@ with HMDAG('scan_and_begin_processing',
            is_paused_upon_creation=False, 
            default_args=default_args,
            user_defined_macros={
-               'tmp_dir_path' : utils.get_tmp_dir_path,
-               'preserve_scratch' : get_preserve_scratch_resource('scan_and_begin_processing')
+               'tmp_dir_path': utils.get_tmp_dir_path,
+               'preserve_scratch': get_preserve_scratch_resource('scan_and_begin_processing')
            }) as dag:
 
     def read_metadata_file(**kwargs):
@@ -97,7 +90,7 @@ with HMDAG('scan_and_begin_processing',
             dataset_ignore_globs=ignore_globs,
             upload_ignore_globs='*',
             plugin_directory=plugin_path,
-            #offline=True,  # noqa E265
+            # offline=True,  # noqa E265
             add_notes=False,
             ignore_deprecation=True
         )
@@ -185,7 +178,7 @@ with HMDAG('scan_and_begin_processing',
         task_id='md_consistency_tests',
         python_callable=utils.pythonop_md_consistency_tests,
         provide_context=True,
-        op_kwargs = {'metadata_fname' : 'rslt.yml'}
+        op_kwargs={'metadata_fname': 'rslt.yml'}
         )
 
     t_send_status = PythonOperator(
@@ -202,19 +195,15 @@ with HMDAG('scan_and_begin_processing',
         """
         This is a generator which returns appropriate DagRunOrders
         """
-        print('kwargs:')
-        pprint(kwargs)
-        print('dag_run conf:')
+        print(f'kwargs: {kwargs}')
         ctx = kwargs['dag_run'].conf
-        pprint(ctx)
+        print(f'dag_run conf: {ctx}')
         run_validation_retcode = int(kwargs['ti'].xcom_pull(task_ids="run_validation"))
         md_extract_retcode = kwargs['ti'].xcom_pull(task_ids="run_md_extract")
         md_extract_retcode = int(md_extract_retcode or '0')
         md_consistency_retcode = kwargs['ti'].xcom_pull(task_ids="md_consistency_tests")
         md_consistency_retcode = int(md_consistency_retcode or '0')
-        if (run_validation_retcode == 0
-            and md_extract_retcode == 0
-            and md_consistency_retcode == 0):
+        if run_validation_retcode == 0 and md_extract_retcode == 0 and md_consistency_retcode == 0:
             collectiontype = kwargs['ti'].xcom_pull(key='collectiontype',
                                                     task_ids="send_status_msg")
             assay_type = kwargs['ti'].xcom_pull(key='assay_type',
@@ -223,16 +212,16 @@ with HMDAG('scan_and_begin_processing',
             md_fname = os.path.join(utils.get_tmp_dir_path(kwargs['run_id']), 'rslt.yml')
             with open(md_fname, 'r') as f:
                 md = yaml.safe_load(f)
-            payload = {k:kwargs['dag_run'].conf[k] for k in kwargs['dag_run'].conf}
-            payload = {'ingest_id' : ctx['run_id'],
-                       'crypt_auth_tok' : ctx['crypt_auth_tok'],
-                       'parent_lz_path' : ctx['lz_path'],
-                       'parent_submission_id' : ctx['submission_id'],
+            # payload = {k:kwargs['dag_run'].conf[k] for k in kwargs['dag_run'].conf}
+            payload = {'ingest_id': ctx['run_id'],
+                       'crypt_auth_tok': ctx['crypt_auth_tok'],
+                       'parent_lz_path': ctx['lz_path'],
+                       'parent_submission_id': ctx['submission_id'],
                        'metadata': md,
-                       'dag_provenance_list' : utils.get_git_provenance_list(__file__)
+                       'dag_provenance_list': utils.get_git_provenance_list(__file__)
                        }
             for next_dag in utils.downstream_workflow_iter(collectiontype, assay_type):
-                yield next_dag, DagRunOrder(payload=payload)
+                yield next_dag, {payload}
         else:
             return None
 
@@ -243,9 +232,10 @@ with HMDAG('scan_and_begin_processing',
         python_callable=flex_maybe_spawn
         )
 
-    (dag >> t_create_tmpdir >> t_run_validation >>
-     t_maybe_continue >>
-     t_run_md_extract >> t_md_consistency_tests >>
-     t_send_status >> t_maybe_spawn >> t_cleanup_tmpdir
-    )
+    (
+        t_create_tmpdir >> t_run_validation >>
+        t_maybe_continue >>
+        t_run_md_extract >> t_md_consistency_tests >>
+        t_send_status >> t_maybe_spawn >> t_cleanup_tmpdir
+     )
     t_maybe_continue >> t_send_status

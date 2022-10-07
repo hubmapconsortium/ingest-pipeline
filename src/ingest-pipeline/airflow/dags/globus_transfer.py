@@ -1,5 +1,4 @@
-from airflow import DAG, models
-from airflow.operators.python_operator import PythonOperator
+from airflow.operators.python import PythonOperator
 from datetime import datetime, timedelta
 import globus_sdk
 from utils import HMDAG, get_queue_resource
@@ -31,7 +30,8 @@ with HMDAG('globus_transfer', schedule_interval=None, is_paused_upon_creation=Fa
 
         for transfer_item in dag_run_conf['conf']['transfer_items']:
             try:
-                td.add_item(transfer_item['src'], transfer_item['dest'], recursive=transfer_item.get('recursive', False))
+                td.add_item(transfer_item['src'], transfer_item['dest'],
+                            recursive=transfer_item.get('recursive', False))
             except Exception as e:
                 print(e)
                 continue
@@ -44,6 +44,4 @@ with HMDAG('globus_transfer', schedule_interval=None, is_paused_upon_creation=Fa
         provide_context=True
     )
 
-
-
-    dag >> t0
+    t0
