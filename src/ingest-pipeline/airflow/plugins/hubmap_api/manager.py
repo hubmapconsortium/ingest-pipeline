@@ -1,7 +1,6 @@
 import os
 import logging
 import json
-import airflow
 
 from werkzeug.exceptions import NotFound
 
