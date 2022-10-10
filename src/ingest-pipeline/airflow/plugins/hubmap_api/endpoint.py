@@ -29,7 +29,7 @@ from hubmap_api.manager import blueprint as api_bp
 from hubmap_api.manager import show_template
 
 from hubmap_commons.hm_auth import AuthHelper, AuthCache, secured
-#from hubmap_api.hm_auth import AuthHelper, AuthCache, secured
+# from hubmap_api.hm_auth import AuthHelper, AuthCache, secured
 
 API_VERSION = 4
 
@@ -108,7 +108,7 @@ if not AuthHelper.isInitialized():
     AUTH_HELPER = AuthHelper.create(clientId=config('connections', 'app_client_id'), 
                                     clientSecret=config('connections', 'app_client_secret'))
 else:
-    AUTH_HELPER = authHelper.instance()
+    AUTH_HELPER = AuthHelper.instance()
 
 
 class HubmapApiInputException(Exception):
@@ -269,7 +269,7 @@ def _auth_tok_from_request():
     assert authorization[:len('BEARER')].lower() == 'bearer', 'authorization is not BEARER'
     substr = authorization[len('BEARER'):].strip()
     auth_tok = substr
-    #LOGGER.info('auth_tok: %s', auth_tok)  # reduce visibility of auth_tok
+    # LOGGER.info('auth_tok: %s', auth_tok)  # reduce visibility of auth_tok
     return auth_tok
 
 
