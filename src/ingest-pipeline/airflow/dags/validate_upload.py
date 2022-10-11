@@ -132,11 +132,11 @@ with HMDAG('validate_upload',
         endpoint = f'/entities/{uuid}'
         headers = {
             'authorization': 'Bearer ' + get_auth_tok(**kwargs),
-            'X-Hubmap-Application':'ingest-pipeline',
+            'X-Hubmap-Application': 'ingest-pipeline',
             'content-type': 'application/json',
         }
         extra_options = []
-        http_conn_id ='entity_api_connection'
+        http_conn_id = 'entity_api_connection'
         http_hook = HttpHook('PUT', http_conn_id=http_conn_id)
         with open(validation_file_path) as f:
             report_txt = f.read()
@@ -146,8 +146,8 @@ with HMDAG('validate_upload',
             }       
         else:
             data = {
-                "status":"Invalid",
-                "validation_message" : report_txt
+                "status": "Invalid",
+                "validation_message": report_txt
             }       
         print(f'data: {data}')
         response = http_hook.run(

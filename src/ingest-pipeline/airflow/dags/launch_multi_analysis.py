@@ -117,7 +117,7 @@ with HMDAG('launch_multi_analysis',
             filtered_md_l.append(metadata)
         if prev_version_uuid is not None:
             prev_version_uuid = check_one_uuid(prev_version_uuid, **kwargs)[0]
-        print(f'Finished uuid {uuid}')
+        # print(f'Finished uuid {uuid}')
         print(f'filtered data types: {filtered_data_types}')
         print(f'filtered paths: {filtered_path_l}')
         print(f'filtered uuids: {filtered_uuid_l}')
@@ -158,13 +158,14 @@ with HMDAG('launch_multi_analysis',
         print(f'uuids: {uuids}')
         print(f'lz_paths: {lz_paths}')
         print(f'previous version uuid: {prev_version_uuid}')
-        payload = {'ingest_id': kwargs['run_id'],
-                   'crypt_auth_tok': kwargs['crypt_auth_tok'],
-                   'parent_lz_path': lz_paths,
-                   'parent_submission_id': uuids,
-                   'previous_version_uuid': prev_version_uuid,
-                   'metadata': metadata_list,
-                   'dag_provenance_list': utils.get_git_provenance_list(__file__)
+        payload = {
+                    'ingest_id': kwargs['run_id'],
+                    'crypt_auth_tok': kwargs['crypt_auth_tok'],
+                    'parent_lz_path': lz_paths,
+                    'parent_submission_id': uuids,
+                    'previous_version_uuid': prev_version_uuid,
+                    'metadata': metadata_list,
+                    'dag_provenance_list': utils.get_git_provenance_list(__file__)
         }
         for next_dag in utils.downstream_workflow_iter(collectiontype, assay_type):
             yield next_dag, {payload}

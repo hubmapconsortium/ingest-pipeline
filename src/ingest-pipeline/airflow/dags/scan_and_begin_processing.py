@@ -129,7 +129,7 @@ with HMDAG('scan_and_begin_processing',
 
     def wrapped_send_status_msg(**kwargs):
         if send_status_msg(**kwargs):
-            scanned_md = read_metadata_file(**kwargs) # Yes, it's getting re-read
+            scanned_md = read_metadata_file(**kwargs)  # Yes, it's getting re-read
             kwargs['ti'].xcom_push(key='collectiontype',
                                    value=(scanned_md['collectiontype']
                                           if 'collectiontype' in scanned_md

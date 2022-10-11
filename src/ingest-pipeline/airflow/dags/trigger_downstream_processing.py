@@ -30,10 +30,11 @@ default_args = {
 }
 
 
-with HMDAG('trigger_downstream_processing',
-           schedule_interval=None,
-           is_paused_upon_creation=False,
-           default_args=default_args,
+with HMDAG(
+            'trigger_downstream_processing',
+            schedule_interval=None,
+            is_paused_upon_creation=False,
+            default_args=default_args,
        ) as dag:
 
     def find_uuid(**kwargs):
@@ -136,6 +137,5 @@ with HMDAG('trigger_downstream_processing',
                 ),
             }
         )
-
 
     t_find_uuid >> t_maybe_spawn
