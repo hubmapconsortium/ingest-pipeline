@@ -3,7 +3,7 @@
 # This becomes the prompt of the created venv
 label=dev
 
-com_br=${COMMONS_BRANCH:-master}
+com_br=${COMMONS_BRANCH:-main}
 export COMMONS_BRANCH=${com_br}
 
 function get_dir_of_this_script () {

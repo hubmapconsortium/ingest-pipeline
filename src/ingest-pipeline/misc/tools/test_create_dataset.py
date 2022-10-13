@@ -7,8 +7,6 @@ from datetime import date
 import pandas as pd
 import numpy as np
 
-from hubmap_commons.globus_groups import get_globus_groups_info
-
 from survey import (Entity, Dataset, Sample, EntityFactory,
                     ROW_SORT_KEYS, column_sorter, is_uuid,
                     parse_text_list)
@@ -38,9 +36,6 @@ def main():
     direct_ancestors = ['HBM245.ZWNT.288']
     group_uuid = "5bd084c8-edc2-11e8-802f-0e368f3075e8"
     description = "This could in principle be a very long description"
-
-    globus_groups_info = get_globus_groups_info()
-
 
     direct_ancestor_uuids = [entity_factory.id_to_uuid(id) for id in direct_ancestors]
 
