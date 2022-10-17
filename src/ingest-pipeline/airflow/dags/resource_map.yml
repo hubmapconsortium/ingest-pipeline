@@ -9,6 +9,7 @@ resource_map:
     - 'task_re': '.*'
       'queue': 'general'
       'threads': 1
+      'coreuse': 60
   - 'dag_re': 'celldive_deepcell'
     'preserve_scratch': true
     'lanes': 2
@@ -16,12 +17,15 @@ resource_map:
     - 'task_re': '.*segmentation'
       'queue': 'gpu000_q1'
       'threads': 6
+      'coreuse': 60
     - 'task_re': '.*'
       'queue': 'general'
       'threads': 6
+      'coreuse': 60
     - 'task_re': '.*cwl_segmentation'
       'queue': 'gpu000_q1'
       'threads': 6
+      'coreuse': 60
   - 'dag_re': 'salmon_rnaseq_.*'
     'preserve_scratch': true
     'lanes': 2
@@ -30,6 +34,7 @@ resource_map:
     - 'task_re': '.*'
       'queue': 'general'
       'threads': 6
+      'coreuse': 60
   - 'dag_re': 'generate_bdbag'
     'preserve_scratch': true
     'lanes': 1
@@ -37,6 +42,7 @@ resource_map:
     - 'task_re': '.*'
       'queue': 'general'
       'threads': 6
+      'coreuse': 60
   - 'dag_re': 'generate_usage_report'
     'preserve_scratch': true
     'lanes': 1
@@ -44,6 +50,7 @@ resource_map:
     - 'task_re': '.*'
       'queue': 'general'
       'threads': 6
+      'coreuse': 60
   - 'dag_re': 'codex_cytokit'
     'preserve_scratch': true
     'lanes': 2
@@ -52,9 +59,11 @@ resource_map:
     - 'task_re': '.*cwl_cytokit'
       'queue': 'gpu000_q1'
       'threads': 6
+      'coreuse': 60
     - 'task_re': '.*'
       'queue': 'general'
       'threads': 6
+      'coreuse': 60
   - 'dag_re': 'ometiff_offset'
     'preserve_scratch': true
     'lanes': 2
@@ -63,6 +72,7 @@ resource_map:
     - 'task_re': '.*'
       'queue': 'general'
       'threads': 6
+      'coreuse': 60
   - 'dag_re': 'launch_checksums'
     'preserve_scratch': true
     'lanes': 2
@@ -70,6 +80,7 @@ resource_map:
     - 'task_re': '.*'
       'queue': 'general'
       'threads': 6
+      'coreuse': 60
   - 'dag_re': 'scan_and_begin_processing'
     'preserve_scratch': true
     'lanes': 2
@@ -77,9 +88,11 @@ resource_map:
     - 'task_re': 'run_validation'
       'queue': 'validate'
       'threads': 6
+      'coreuse': 60
     - 'task_re': '.*'
       'queue': 'general'
       'threads': 6
+      'coreuse': 60
   - 'dag_re': 'validate_upload'
     'preserve_scratch': true
     'lanes': 2
@@ -87,9 +100,11 @@ resource_map:
     - 'task_re': 'run_validation'
       'queue': 'validate'
       'threads': 6
+      'coreuse': 60
     - 'task_re': '.*'
       'queue': 'general'
       'threads': 6
+      'coreuse': 60
   - 'dag_re': 'validation_test'
     'preserve_scratch': true
     'lanes': 2
@@ -97,9 +112,11 @@ resource_map:
     - 'task_re': 'run_validation'
       'queue': 'validate'
       'threads': 6
+      'coreuse': 60
     - 'task_re': '.*'
       'queue': 'general'
       'threads': 6
+      'coreuse': 60
   - 'dag_re': 'sc_atac_seq_.*'
     'preserve_scratch': true
     'lanes': 8
@@ -108,6 +125,7 @@ resource_map:
     - 'task_re': '.*'
       'queue': 'general'
       'threads': 6
+      'coreuse': 60
   - 'dag_re': '.*'
     'preserve_scratch': true
     'lanes': 2
@@ -115,3 +133,4 @@ resource_map:
       - 'task_re': '.*'
         'queue': 'general'
         'threads': 6
+        'coreuse': 60
