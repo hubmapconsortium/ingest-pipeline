@@ -7,7 +7,6 @@ from shutil import copytree, copy2
 from typing import TypeVar, List
 from pprint import pprint
 import time
-import requests
 import json
 import requests
 import pandas as pd
@@ -31,9 +30,9 @@ StrOrListStr = TypeVar('StrOrListStr', str, List[str])
 # deployed to PROD.
 #
 FALLBACK_ASSAY_TYPE_TRANSLATIONS = {
-    #'SNARE-Seq2-AC': 'SNARE-ATACseq2',
+    # 'SNARE-Seq2-AC': 'SNARE-ATACseq2',
     'SNARE-Seq2-AC': 'SNAREseq',
-    #'SNARE2-RNAseq': 'SNARE-RNAseq2',
+    # 'SNARE2-RNAseq': 'SNARE-RNAseq2',
     'SNARE2-RNAseq': 'sciRNAseq',
     'scRNAseq-10xGenomics-v2': 'scRNA-Seq-10x',
 }
@@ -52,13 +51,17 @@ def _remove_na(row: pd.Series, parent_assay_type: StrOrListStr) -> pd.Series:
         new_row[key] = ''
     return new_row
 
+
 SEQ_RD_FMT_TEST_RX = re.compile(r'\d+\+\d+\+\d+\+\d+')
+
+
 def _reformat_seq_read(row: pd.Series, parent_assay_type: StrOrListStr) -> pd.Series:
     new_row = row.copy()
     key = 'sequencing_read_format'
     if key in row and SEQ_RD_FMT_TEST_RX.match(row[key]):
         new_row[key] = row[key].replace('+', '/')
     return new_row
+
 
 def _fix_snare_atac_assay_type(row: pd.Series, parent_assay_type: StrOrListStr) -> pd.Series:
     new_row = row.copy()
@@ -68,6 +71,7 @@ def _fix_snare_atac_assay_type(row: pd.Series, parent_assay_type: StrOrListStr) 
             and row[key1] == 'SNARE-seq2' and row[key2] == 'SNAREseq'):
         new_row[key2] = 'SNARE-seq2'
     return new_row
+
 
 SPECIAL_CASE_TRANSFORMATIONS = [
     (re.compile('SNAREseq'), [_remove_na, _reformat_seq_read, _fix_snare_atac_assay_type])
@@ -372,7 +376,6 @@ def reorganize(source_uuid, **kwargs) -> None:
                     while entity_factory.get(uuid).status not in ['QA', 'Invalid', 'Error']:
                         time.sleep(30)
 
-
     print(json.dumps(dag_config))
 
 
@@ -437,13 +440,14 @@ def main():
     )
     auth_tok = input('auth_tok: ')
 
-    reorganize(source_uuid,
-               auth_tok=auth_tok,
-               mode=mode,
-               ingest=ingest,
-               dryrun=dryrun,
-               instance=instance,
-               frozen_df_fname=DEFAULT_FROZEN_DF_FNAME
+    reorganize(
+                source_uuid,
+                auth_tok=auth_tok,
+                mode=mode,
+                ingest=ingest,
+                dryrun=dryrun,
+                instance=instance,
+                frozen_df_fname=DEFAULT_FROZEN_DF_FNAME
     )
 
 

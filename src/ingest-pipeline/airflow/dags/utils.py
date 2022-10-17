@@ -1396,6 +1396,15 @@ def get_threads_resource(dag_id: str, task_id: Optional[str] = None) -> int:
     return int(rec['threads'])
 
 
+def get_core_use_resource(dag_id: str, task_id: Optional[str] = None) -> int:
+    """
+    Look up the number of cores percentage to use as thread for parallel processing
+    """
+    rec = _lookup_resource_record(dag_id, task_id)
+    assert 'coreuse' in rec, 'schema should guarantee "coreuse" is present?'
+    return int(rec['coreuse'])
+
+
 def get_type_client() -> TypeClient:
     """
     Expose the type client instance publicly
