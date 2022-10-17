@@ -26,6 +26,7 @@ from utils import (
     HMDAG,
     get_queue_resource,
     get_preserve_scratch_resource,
+    get_core_use_resource
     )
 
 sys.path.append(airflow_conf.as_dict()['connections']['SRC_PATH']
@@ -114,8 +115,9 @@ with HMDAG('validate_upload',
             dataset_ignore_globs=ignore_globs,
             upload_ignore_globs='*',
             plugin_directory=plugin_path,
-            #offline=True,  # noqa E265
-            add_notes=False
+            # offline=True,  # noqa E265
+            add_notes=False,
+            extra_parameters={'coreuse': get_core_use_resource('validate_upload')}
         )
         # Scan reports an error result
         report = ingest_validation_tools_error_report.ErrorReport(
