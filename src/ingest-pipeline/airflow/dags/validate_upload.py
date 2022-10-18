@@ -109,7 +109,7 @@ with HMDAG('validate_upload',
             plugin_directory=plugin_path,
             # offline=True,  # noqa E265
             add_notes=False,
-            extra_parameters={'coreuse': get_core_use_resource('validate_upload')}
+            extra_parameters={'coreuse': get_core_use_resource('validate_upload', 'run_validation')}
         )
         # Scan reports an error result
         report = ingest_validation_tools_error_report.ErrorReport(
