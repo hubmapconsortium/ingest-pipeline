@@ -122,7 +122,8 @@ with HMDAG('validation_test',
         )
         # Scan reports an error result
         report = ingest_validation_tools_error_report.ErrorReport(
-            upload.get_errors(plugin_kwargs=kwargs)
+            errors=upload.get_errors(plugin_kwargs=kwargs),
+            info=upload.get_info()
         )
         with open(os.path.join(lz_path, 'validation_report.txt'), 'w') as f:
             f.write(report.as_text())
