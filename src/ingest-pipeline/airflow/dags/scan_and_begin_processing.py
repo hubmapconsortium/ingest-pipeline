@@ -97,7 +97,9 @@ with HMDAG('scan_and_begin_processing',
         # Scan reports an error result
         errors = upload.get_errors(plugin_kwargs=kwargs)
         if errors:
-            report = ingest_validation_tools_error_report.ErrorReport(errors)
+            info = upload.get_info()
+            report = ingest_validation_tools_error_report.ErrorReport(errors=errors,
+                                                                      info=info)
             sys.stdout.write('Directory validation failed! Errors follow:\n')
             sys.stdout.write(report.as_text())
             log_fname = os.path.join(utils.get_tmp_dir_path(kwargs['run_id']),
