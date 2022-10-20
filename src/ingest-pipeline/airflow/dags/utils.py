@@ -1,3 +1,5 @@
+import math
+import os
 import urllib.parse
 from abc import ABC, abstractmethod
 from collections import namedtuple
@@ -1392,8 +1394,13 @@ def get_threads_resource(dag_id: str, task_id: Optional[str] = None) -> int:
     if task_id is None:
         task_id = '__default__'
     rec = _lookup_resource_record(dag_id, task_id)
-    assert 'threads' in rec, 'schema should guarantee "threads" is present?'
-    return int(rec['threads'])
+    assert any(['threads' in rec, 'coreuse' in rec]), 'schema should guarantee "threads" or "coreuse" is present?'
+    if rec.get('coreuse'):
+        return math.ceil(os.cpu_count() * (int(rec.get('coreuse')) / 100)) \
+            if int(rec.get('coreuse')) > 0 \
+            else math.ceil(os.cpu_count() / 4)
+    else:
+        return int(rec.get('threads'))
 
 
 def get_type_client() -> TypeClient:
