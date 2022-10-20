@@ -20,7 +20,15 @@
         'type': 'integer'
         'description': |
           available number of threads, e.g. 6 . May not be respected by the task.
-    'required': ['task_re', 'queue', 'threads']
+      'coreuse':
+        'type': 'integer'
+        'description': |
+          percentage of cores to be used on tasks.
+    'required': ['task_re', 'queue']
+    'oneOf': [
+      {'required': ['threads']},
+      {'required': ['coreuse']}
+    ]
   
   'resource_map_record':
     'type': 'object'

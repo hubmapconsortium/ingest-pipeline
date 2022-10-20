@@ -1393,17 +1393,8 @@ def get_threads_resource(dag_id: str, task_id: Optional[str] = None) -> int:
     if task_id is None:
         task_id = '__default__'
     rec = _lookup_resource_record(dag_id, task_id)
-    assert 'threads' in rec, 'schema should guarantee "threads" is present?'
-    return int(rec['threads'])
-
-
-def get_core_use_resource(dag_id: str, task_id: Optional[str] = None) -> int:
-    """
-    Look up the number of cores percentage to use as thread for parallel processing
-    """
-    rec = _lookup_resource_record(dag_id, task_id)
-    assert 'coreuse' in rec, 'schema should guarantee "coreuse" is present?'
-    return int(rec['coreuse'])
+    assert any(['threads' in rec, 'coreuse' in rec]), 'schema should guarantee "threads" or "coreuse" is present?'
+    return int(rec.get('coreuse') if rec.get('coreuse') else rec.get('threads'))
 
 
 def get_type_client() -> TypeClient:
