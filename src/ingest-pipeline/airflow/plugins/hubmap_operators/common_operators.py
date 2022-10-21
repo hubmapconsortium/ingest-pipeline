@@ -13,6 +13,7 @@ from utils import (
     pythonop_trigger_target,
 )
 
+
 class LogInfoOperator(PythonOperator):
     @apply_defaults
     def __init__(self, **kwargs):
@@ -55,7 +56,7 @@ class CleanupTmpDirOperator(BashOperator):
               echo "scratch directory was preserved" ; \
             fi
             """,
-            env={'rmscratch':'{{"true" if preserve_scratch is defined and not preserve_scratch else "false"}}'},
+            env={'rmscratch': '{{"true" if preserve_scratch is defined and not preserve_scratch else "false"}}'},
             trigger_rule='all_success',
             **kwargs
             )
@@ -79,10 +80,7 @@ class MoveDataOperator(BashOperator):
             bash_command="""
             tmp_dir="{{tmp_dir_path(run_id)}}" ; \
             ds_dir="{{ti.xcom_pull(task_ids="send_create_dataset")}}" ; \
-            groupname="{{conf.as_dict()['connections']['OUTPUT_GROUP_NAME']}}" ; \
             pushd "$ds_dir" ; \
-            sudo chown airflow . ; \
-            sudo chgrp $groupname . ; \
             popd ; \
             mv "$tmp_dir"/cwl_out/* "$ds_dir" >> "$tmp_dir/session.log" 2>&1 ; \
             echo $?
