@@ -121,7 +121,8 @@ with HMDAG('validate_upload',
         )
         # Scan reports an error result
         report = ingest_validation_tools_error_report.ErrorReport(
-            upload.get_errors(plugin_kwargs=kwargs)
+            errors=upload.get_errors(plugin_kwargs=kwargs),
+            info=upload.get_info()
         )
         validation_file_path = Path(get_tmp_dir_path(kwargs['run_id'])) / 'validation_report.txt'
         with open(validation_file_path, 'w') as f:
