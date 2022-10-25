@@ -1,15 +1,18 @@
 #! /usr/bin/env python
+import os
 
-import sys
+from googleapiclient.discovery import build
+from google.auth.transport.requests import Request
+from google_auth_oauthlib.flow import InstalledAppFlow
+from google.oauth2.credentials import Credentials
+from googleapiclient.errors import HttpError
+
 import argparse
-from pprint import pprint
 from datetime import date
 import pandas as pd
 import numpy as np
 
-from survey import (Entity, Dataset, Sample, EntityFactory,
-                    ROW_SORT_KEYS, column_sorter, is_uuid,
-                    parse_text_list, SurveyException)
+from survey import (EntityFactory, ROW_SORT_KEYS, column_sorter, is_uuid, parse_text_list, SurveyException)
 
 
 """
@@ -21,6 +24,15 @@ VOLATILE_NOTES = set(['BAD TYPE NAME',
                       'Multiple QA derived datasets',
                       'BAD UUID: No parents?',
                   ])
+
+# If modifying these scopes, delete the file token.json.
+SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
+API_SERVICE_NAME = 'sheets'
+API_VERSION = 'v4'
+
+# The ID and range of a sample spreadsheet.
+# SPREADSHEET_ID = '1-CF0R-rgfmeHMUjLkii7Qv6QbPqMscShJJtLIXB4-74'
+SPREADSHEET_ID = '1xTzQRtG841d1ulSM9k-7m3ss1ms4uXPjCtZnEP2QMKA'
 
 
 def detect_otherdata(ds):
@@ -42,8 +54,8 @@ def detect_metadatatsv(ds):
     for path in ds.full_path.glob('*metadata.tsv'):
         md_df = pd.read_csv(path, sep='\t')
         if 'assay_type' in md_df.columns:
-            return (True, len(md_df))
-    return (False, 0)
+            return True, len(md_df)
+    return False, 0
 
 
 def detect_clean_validation_report(ds):
@@ -75,10 +87,8 @@ def get_most_recent_touch(ds):
 def data_type_resolver(row):
     dt_x = parse_text_list(row["data_types_x"])
     dt_y = parse_text_list(row["data_types_y"])
-    if ((isinstance(dt_x, str) and dt_x.lower() == 'nan')
-        or (isinstance(dt_x, float) and dt_x == np.nan)):
-        if ((isinstance(dt_y, str) and dt_y.lower() == 'nan')
-            or (isinstance(dt_y, float) and dt_y == np.nan)):
+    if (isinstance(dt_x, str) and dt_x.lower() == 'nan') or (isinstance(dt_x, float) and dt_x == np.nan):
+        if (isinstance(dt_y, str) and dt_y.lower() == 'nan') or (isinstance(dt_y, float) and dt_y == np.nan):
             return '????'
         else:
             return f'{dt_y}'
@@ -115,6 +125,113 @@ def join_notes(df, notes_df):
     return df.drop(columns=['note_x', 'note_y'])
 
 
+def get_google_service():
+    creds = None
+    # The file token.json stores the user's access and refresh tokens, and is
+    # created automatically when the authorization flow completes for the first
+    # time.
+    if os.path.exists('token.json'):
+        creds = Credentials.from_authorized_user_file('token.json', SCOPES)
+    # If there are no (valid) credentials available, let the user log in.
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+        else:
+            flow = InstalledAppFlow.from_client_secrets_file(
+                'sheetreader_key.json', SCOPES)
+            creds = flow.run_local_server(port=0)
+        # Save the credentials for the next run
+        with open('token.json', 'w') as token:
+            token.write(creds.to_json())
+    try:
+        service = build(API_SERVICE_NAME, API_VERSION, credentials=creds)
+        return service
+    except Exception as e:
+        print(f'Error {e}')
+    return None
+
+
+def get_google_last_sheet(notes_sheet):
+    service = get_google_service()
+    if service:
+        try:
+            # Call the Sheets API
+            sheet = service.spreadsheets()
+            result = sheet.values().get(spreadsheetId=SPREADSHEET_ID,
+                                        range=notes_sheet[0]).execute()
+            header = result.get('values', [])[0]
+            values = result.get('values', [])[1:]
+
+            if not values:
+                print('No data found.')
+                return
+            else:
+                df = pd.DataFrame(data=values, columns=header)
+                df.fillna("", inplace=True)
+                return df
+        except HttpError as e:
+            print(f'Error {e}')
+    return
+
+
+def insert_google_sheet(df, outfile):
+    service = get_google_service()
+    if service:
+        try:
+            sheet = service.spreadsheets()
+            body = {
+                'requests': [
+                    {
+                        'addSheet': {
+                            'properties': {
+                                'title': outfile,
+                                'index': 1
+                            }
+                        }
+                    }
+                ]
+            }
+            response = sheet.batchUpdate(spreadsheetId=SPREADSHEET_ID, body=body).execute()
+            sheet_id = response.get('replies')[0].get('addSheet').get('properties').get('sheetId')
+            body = {
+                'requests': [
+                    {
+                        'pasteData': {
+                            'coordinate': {
+                                'sheetId': sheet_id,
+                                'rowIndex': 0,
+                                'columnIndex': 0,
+                            },
+                            'data': df.to_csv(sep='\t', columns=column_sorter([elt for elt in df.columns])),
+                            'delimiter': '\t'
+                        }
+                    }
+                ]
+            }
+            # Pandas create a new column for row indices which needs to be removed from the actual sheet
+            sheet.batchUpdate(spreadsheetId=SPREADSHEET_ID, body=body).execute()
+            body = {
+                'requests': [
+                    {
+                        'deleteRange': {
+                            'range': {
+                                'sheetId': sheet_id,
+                                'startColumnIndex': 0,
+                                'endColumnIndex': 1
+                            },
+                            'shiftDimension': 'COLUMNS'
+                        }
+                    }
+                ]
+            }
+            sheet.batchUpdate(spreadsheetId=SPREADSHEET_ID, body=body).execute()
+            return
+        except HttpError as e:
+            print(f'Error {e}')
+    else:
+        return
+
+
 def main():
     """
     main
@@ -124,11 +241,10 @@ def main():
                         help=("Optional input .txt file containing uuids"
                               " or .csv or .tsv file with uuid column."
                               " The default is to get this data from entity-api."
-                          ))
-    parser.add_argument("--out", help="name of the output .tsv file", required=True)
-    parser.add_argument("--notes", action="append",
-                        help=("merge dataset notes from this csv/tsv file"
-                              " (may be repeated)."))
+                              ))
+    parser.add_argument("--out", help="name of the sheet to create", required=True)
+    parser.add_argument("--sheet_name", action="append",
+                        help="name of the sheet currently on the Google Drive to take the notes from")
     args = parser.parse_args()
     auth_tok = input('auth_tok: ')
     entity_factory = EntityFactory(auth_tok)
@@ -143,7 +259,7 @@ def main():
             uuid_l.append(str(elt))
     elif args.uuid_txt.endswith((".csv", ".tsv")):
         in_df = pd.read_csv(args.uuid_txt, engine="python", sep=None, 
-                               dtype={'note': np.str}, encoding='utf-8-sig')
+                            dtype={'note': np.str}, encoding='utf-8-sig')
         if 'uuid' in in_df.columns:
             uuid_key = 'uuid'
         elif 'e.uuid' in in_df.columns:
@@ -204,10 +320,10 @@ def main():
             rec['note'] = f'not in survey because {e}'
         if rec:
             out_recs.append(rec)
-    out_df = pd.DataFrame(out_recs).rename(columns={'qa_child_uuid':'derived_uuid',
-                                                    'qa_child_hubmap_id':'derived_hubmap_id',
-                                                    'qa_child_data_type':'derived_data_type',
-                                                    'qa_child_status':'derived_status'})
+    out_df = pd.DataFrame(out_recs).rename(columns={'qa_child_uuid': 'derived_uuid',
+                                                    'qa_child_hubmap_id': 'derived_hubmap_id',
+                                                    'qa_child_data_type': 'derived_data_type',
+                                                    'qa_child_status': 'derived_status'})
     if in_df is not None:
         out_df = out_df.drop_duplicates().merge(in_df.drop_duplicates(), left_on='uuid', right_on=uuid_key)
 
@@ -228,7 +344,6 @@ def main():
             out_df.to_csv('/tmp/debug_out_df.tsv', sep='\t')
             drop_list.append('hubmap_id_y')
             rename_d['hubmap_id_x'] = 'hubmap_id'
-            #raise AssertionError('hubmap_id and hubmap_id do not match?')
     if 'data_types_x' in out_df.columns and 'data_types_y' in out_df.columns:
         out_df['data_types'] = out_df[['data_types_x', 'data_types_y']].apply(data_type_resolver, axis=1)
         drop_list.extend(['data_types_x', 'data_types_y'])
@@ -236,11 +351,10 @@ def main():
     if rename_d:
         out_df = out_df.rename(columns=rename_d)
     
-    for notes_file in args.notes or []:
-        notes_df = pd.read_csv(notes_file, engine='python', sep=None, 
-                               dtype={'note': np.str}, encoding='utf-8-sig')
+    for _ in args.sheet_name or []:
+        notes_df = get_google_last_sheet(args.sheet_name)
         for elt in ['uuid', 'note']:
-            if not elt in notes_df.columns:
+            if elt not in notes_df.columns:
                 print(f'ERROR: notes file does not contain {elt}, so notes were not merged')
                 break
         else:
@@ -249,11 +363,8 @@ def main():
     out_df = out_df.sort_values([key for key in ROW_SORT_KEYS if key in out_df.columns],
                                 axis=0)
 
-    out_df.to_csv(args.out, sep='\t', index=False,
-                  columns=column_sorter([elt for elt in out_df.columns])
-                  )
+    insert_google_sheet(out_df, args.out)
 
 
 if __name__ == '__main__':
     main()
-
