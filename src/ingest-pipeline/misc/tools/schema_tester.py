@@ -43,7 +43,6 @@ def file_to_json(fname):
             "File type of %s is not understood" % fname
         with open(fname, "r") as f:
             tjson = yaml.safe_load(f)
-            # print tjson
     return tjson
 
 
