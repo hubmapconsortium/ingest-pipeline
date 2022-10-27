@@ -30,9 +30,10 @@ SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
 API_SERVICE_NAME = 'sheets'
 API_VERSION = 'v4'
 
-# The ID and range of a sample spreadsheet.
-# SPREADSHEET_ID = '1-CF0R-rgfmeHMUjLkii7Qv6QbPqMscShJJtLIXB4-74'
-SPREADSHEET_ID = '1xTzQRtG841d1ulSM9k-7m3ss1ms4uXPjCtZnEP2QMKA'
+# The ID of the official Spreadsheet
+SPREADSHEET_ID = '1-CF0R-rgfmeHMUjLkii7Qv6QbPqMscShJJtLIXB4-74'
+# The ID of a test Spreadsheet
+# SPREADSHEET_ID = '1xTzQRtG841d1ulSM9k-7m3ss1ms4uXPjCtZnEP2QMKA'
 
 
 def detect_otherdata(ds):
@@ -130,18 +131,19 @@ def get_google_service():
     # The file token.json stores the user's access and refresh tokens, and is
     # created automatically when the authorization flow completes for the first
     # time.
-    if os.path.exists('token.json'):
-        creds = Credentials.from_authorized_user_file('token.json', SCOPES)
+    if os.path.exists('.token.json'):
+        creds = Credentials.from_authorized_user_file('.token.json', SCOPES)
     # If there are no (valid) credentials available, let the user log in.
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
         else:
             flow = InstalledAppFlow.from_client_secrets_file(
-                'sheetreader_key.json', SCOPES)
+                '.sheetreader_key.json', SCOPES)
             creds = flow.run_local_server(port=0)
         # Save the credentials for the next run
-        with open('token.json', 'w') as token:
+        os.umask(0)
+        with open(os.open('.token.json', os.O_CREAT | os.O_WRONLY, 0o200), 'w') as token:
             token.write(creds.to_json())
     try:
         service = build(API_SERVICE_NAME, API_VERSION, credentials=creds)
