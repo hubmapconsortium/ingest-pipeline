@@ -1508,7 +1508,7 @@ def main():
     'search_api_connection' connection ID and the Fernet key.  The easiest way
     to do that is with something like:
     
-      export AIRFLOW_CONN_SEARCH_API_CONNECTION='https://search.api.hubmapconsortium.org/
+      export AIRFLOW_CONN_SEARCH_API_CONNECTION='https://search.api.hubmapconsortium.org/v3/
       fernet_key=`python -c 'from cryptography.fernet import Fernet ; print(Fernet.generate_key().decode())'`
       export AIRFLOW__CORE__FERNET_KEY=${fernet_key}
     """
