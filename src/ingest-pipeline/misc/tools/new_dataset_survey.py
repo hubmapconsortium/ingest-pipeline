@@ -31,9 +31,9 @@ API_SERVICE_NAME = 'sheets'
 API_VERSION = 'v4'
 
 # The ID of the official Spreadsheet
-SPREADSHEET_ID = '1-CF0R-rgfmeHMUjLkii7Qv6QbPqMscShJJtLIXB4-74'
+# SPREADSHEET_ID = '1-CF0R-rgfmeHMUjLkii7Qv6QbPqMscShJJtLIXB4-74'
 # The ID of a test Spreadsheet
-# SPREADSHEET_ID = '1xTzQRtG841d1ulSM9k-7m3ss1ms4uXPjCtZnEP2QMKA'
+SPREADSHEET_ID = '1xTzQRtG841d1ulSM9k-7m3ss1ms4uXPjCtZnEP2QMKA'
 
 
 def detect_otherdata(ds):
@@ -239,15 +239,24 @@ def main():
     main
     """
     parser = argparse.ArgumentParser()
-    parser.add_argument("uuid_txt", nargs="?",
+    parser.add_argument('uuid_txt', nargs='?',
                         help=("Optional input .txt file containing uuids"
                               " or .csv or .tsv file with uuid column."
                               " The default is to get this data from entity-api."
                               ))
-    parser.add_argument("--out", help="name of the sheet to create", required=True)
-    parser.add_argument("--sheet_name", action="append",
+    parser.add_argument('--out_sheet', help="name of the sheet to create")
+    parser.add_argument('--notes_sheet', action='store',
                         help="name of the sheet currently on the Google Drive to take the notes from")
+    parser.add_argument('--to_tsv', action='store_true')
+    parser.add_argument('--out_file', help="path of the file to create")
+    parser.add_argument('--notes_file', action='store',
+                        help="path to the file to take the notes from")
     args = parser.parse_args()
+    if args.to_tsv and not args.out_file:
+        raise RuntimeError(f"If you want to generate a tsv file you need to indicate the output path with --out_file")
+    if not args.to_tsv and not args.out_sheet:
+        raise RuntimeError(f"If you want to generate a new sheet on Google Drive you need to indicate the output sheet "
+                           f"name with --out_sheet")
     auth_tok = input('auth_tok: ')
     entity_factory = EntityFactory(auth_tok)
 
@@ -260,7 +269,7 @@ def main():
         for elt in in_df['uuid']:
             uuid_l.append(str(elt))
     elif args.uuid_txt.endswith((".csv", ".tsv")):
-        in_df = pd.read_csv(args.uuid_txt, engine="python", sep=None, 
+        in_df = pd.read_csv(args.uuid_txt, engine="python", sep=None,
                             dtype={'note': np.str}, encoding='utf-8-sig')
         if 'uuid' in in_df.columns:
             uuid_key = 'uuid'
@@ -291,7 +300,7 @@ def main():
                     print(f'cannot find uuid in {line.strip()}')
 
     out_recs = []
-    
+
     known_uuids = set()
     for uuid in uuid_l:
         rec = {}
@@ -352,9 +361,18 @@ def main():
     out_df = out_df.drop(drop_list, axis=1)
     if rename_d:
         out_df = out_df.rename(columns=rename_d)
-    
-    for _ in args.sheet_name or []:
-        notes_df = get_google_last_sheet(args.sheet_name)
+
+    if args.to_tsv and args.notes_file:
+        notes_df = pd.read_csv(args.notes_file, engine='python', sep=None,
+                               dtype={'note': np.str}, encoding='utf-8-sig')
+        notes = True
+    elif not args.to_tsv and hasattr(args, "notes_sheet"):
+        notes_df = get_google_last_sheet(args.notes_sheet)
+        notes = True
+    else:
+        print('No notes')
+        notes = False
+    if notes:
         for elt in ['uuid', 'note']:
             if elt not in notes_df.columns:
                 print(f'ERROR: notes file does not contain {elt}, so notes were not merged')
@@ -365,7 +383,12 @@ def main():
     out_df = out_df.sort_values([key for key in ROW_SORT_KEYS if key in out_df.columns],
                                 axis=0)
 
-    insert_google_sheet(out_df, args.out)
+    if args.to_tsv:
+        out_df.to_csv(args.out_file, sep='\t', index=False,
+                      columns=column_sorter([elt for elt in out_df.columns])
+                      )
+    else:
+        insert_google_sheet(out_df, args.out_sheet)
 
 
 if __name__ == '__main__':
