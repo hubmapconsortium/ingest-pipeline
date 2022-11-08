@@ -1,17 +1,15 @@
 import os
 import logging
 import json
-import airflow
 
 from werkzeug.exceptions import NotFound
 
-from flask import Blueprint, current_app, send_from_directory, abort, escape, render_template, request, redirect, url_for
-from flask_admin import BaseView, expose
+from flask import Blueprint, current_app, send_from_directory, abort, render_template, request, redirect, url_for
 from flask import session as f_session
 
 from airflow.configuration import conf as airflow_conf
 from airflow import models, settings
-from airflow.settings import STORE_SERIALIZED_DAGS
+from flask_appbuilder import expose, BaseView as AppBuilderBaseView
 from airflow.utils.state import State
 from airflow.utils import timezone
 
@@ -26,56 +24,77 @@ def map_to_list(map):
     return lst
 
 
-class APIAdminView1(BaseView):
+class APIAdminView1(AppBuilderBaseView):
+    default_view = "api_admin_view1"
+
     @expose('/')
     def api_admin_view1(self):
         LOGGER.info('In APIAdminView1.api_admin_view1')
         return show_template('generic.html',
-                             title='Known Routes', 
+                             title='Known Routes',
                              content_lst=map_to_list(current_app.url_map))
-aav1 = APIAdminView1(category='HuBMAP API', name="Known Routes")
+aav1 = APIAdminView1()
+aav1_package = {'category': 'HuBMAP API',
+                'name': 'Known Routes',
+                'view': aav1}
 
 
-class APIAdminView2(BaseView):
+class APIAdminView2(AppBuilderBaseView):
+    default_view = "api_admin_view2"
+
     @expose('/')
     def api_admin_view2(self):
         LOGGER.info('In APIAdminView1.api_admin_view2')
         return show_template('generic.html',
-                             title='Flask Config', 
+                             title='Flask Config',
                              content_lst=["{0} = {1}".format(k, v) for k, v in current_app.config.items()])
-aav2 = APIAdminView2(category='HuBMAP API', name="Flask Config")
+aav2 = APIAdminView2()
+aav2_package = {'category': 'HuBMAP API',
+                'name': 'Flask Config',
+                'view': aav2}
 
 
-class APIAdminView3(BaseView):
+class APIAdminView3(AppBuilderBaseView):
+    default_view = "api_admin_view3"
+
     @expose('/')
     def api_admin_view3(self):
         LOGGER.info('In APIAdminView1.api_admin_view3')
         return show_template('show_config.html',
-                             title='Airflow Config', 
+                             title='Airflow Config',
                              dict_of_dicts=airflow_conf.as_dict())
-aav3 = APIAdminView3(category='HuBMAP API', name="Airflow Config")
+aav3 = APIAdminView3()
+aav3_package = {'category': 'HuBMAP API',
+                'name': 'Airflow Config',
+                'view': aav3}
 
 
-class APIAdminView4(BaseView):
+class APIAdminView4(AppBuilderBaseView):
+    default_view = "api_admin_view4"
+
     @expose('/')
     def api_admin_view4(self):
         LOGGER.info('In APIAdminView1.api_admin_view4')
         eltL = ["{0} = {1}".format(k, v) for k, v in os.environ.items()]
         eltL.sort()
         return show_template('generic.html',
-                             title='Environment Variables', 
+                             title='Environment Variables',
                              content_lst=eltL)
-aav4 = APIAdminView4(category='HuBMAP API', name="Environment Variables")
+aav4 = APIAdminView4()
+aav4_package = {'category': 'HuBMAP API',
+                'name': 'Environment Variables',
+                'view': aav4}
 
 
-class APIAdminView5(BaseView):
-    @expose('/', methods=['GET','POST'])
+class APIAdminView5(AppBuilderBaseView):
+    default_view = "api_admin_view5"
+
+    @expose('/', methods=['GET', 'POST'])
     def api_admin_view5(self):
         LOGGER.info('Triggering Globus Transfer DAG')
-
         dag_id = 'globus_transfer'
 
-        dagbag = models.DagBag(settings.DAGS_FOLDER, store_serialized_dags=STORE_SERIALIZED_DAGS)
+        dagbag = models.DagBag(settings.DAGS_FOLDER)
 
         execution_date = timezone.utcnow()
         run_id = "manual__{0}".format(execution_date.isoformat())
@@ -83,7 +102,7 @@ class APIAdminView5(BaseView):
         dag = dagbag.get_dag(dag_id)
         if request.method == 'GET':
             return show_template(
-                'trigger.html', dag_id=dag_id, origin='/admin', conf=''
+                'trigger.html', dag_id=dag_id, origin='/home', conf=''
             )
 
         request_conf = request.values.get('conf')
@@ -98,15 +117,26 @@ class APIAdminView5(BaseView):
             external_trigger=True
         )
         return redirect(url_for('admin.index'))
-aav5 = APIAdminView5(category='HuBMAP API', name="Trigger Test Globus Transfer")
+
+aav5 = APIAdminView5()
+aav5_package = {'category': 'HuBMAP API',
+                'name': 'Trigger Test Globus Transfer',
+                'view': aav5}
 
 
-class APIAdminView6(BaseView):
+class APIAdminView6(AppBuilderBaseView):
+    default_view = "api_admin_view6"
+
     @expose('/', methods=['GET'])
-    def api_admin_view5(self):
+    def api_admin_view6(self):
         LOGGER.info('Triggering Globus Logout routine')
-        return airflow.login.logout()
-aav6 = APIAdminView6(category='HuBMAP API', name="Globus Logout")
+        return redirect(self.appbuilder.get_url_for_logout)
+
+
+aav6 = APIAdminView6()
+aav6_package = {'category': 'HuBMAP API',
+                'name': 'Globus Logout',
+                'view': aav6}
 
 
 # Create a Flask blueprint to hold the HuBMAP API

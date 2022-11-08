@@ -12,12 +12,18 @@ allows that to change between iterations.
 
 from airflow import settings
 from airflow.models import DagBag
-from airflow.operators.dagrun_operator import DagRunOrder
-from airflow.utils.decorators import apply_defaults
+# from airflow.operators.dagrun_operator import DagRunOrder
+# from airflow.utils.decorators import apply_defaults
 from airflow.utils.state import State
-from airflow.api.common.experimental.trigger_dag import trigger_dag
+# from airflow.api.common.experimental.trigger_dag import trigger_dag
 from airflow.models import BaseOperator
 import datetime as dt
+
+
+class DagRunOrder(object):
+    def __init__(self, run_id=None, payload=None):
+        self.run_id = run_id
+        self.payload = payload
 
 
 class FlexMultiDagRunOperator(BaseOperator):
@@ -35,7 +41,7 @@ class FlexMultiDagRunOperator(BaseOperator):
 
     CREATED_DAGRUN_KEY = 'created_dagrun_key'
 
-    @apply_defaults
+    # @apply_defaults
     def __init__(self, python_callable,
                  conf=None, execution_date=None,
                  op_args=None, op_kwargs=None,

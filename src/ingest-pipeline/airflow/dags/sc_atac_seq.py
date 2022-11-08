@@ -1,11 +1,11 @@
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import List, Tuple
+from typing import List
 
 from airflow import DAG
-from airflow.operators.bash_operator import BashOperator
-from airflow.operators.dummy_operator import DummyOperator
-from airflow.operators.python_operator import BranchPythonOperator, PythonOperator
+from airflow.operators.bash import BashOperator
+from airflow.operators.dummy import DummyOperator
+from airflow.operators.python import BranchPythonOperator, PythonOperator
 from hubmap_operators.common_operators import (
     CleanupTmpDirOperator,
     CreateTmpDirOperator,
@@ -197,6 +197,7 @@ def generate_atac_seq_dag(params: SequencingDagParameters) -> DAG:
             retcode_ops=["pipeline_exec", "move_data", "make_arrow1"],
             cwl_workflows=cwl_workflows,
         )
+
         t_send_status = PythonOperator(
             task_id="send_status_msg",
             python_callable=send_status_msg,
@@ -211,8 +212,7 @@ def generate_atac_seq_dag(params: SequencingDagParameters) -> DAG:
         t_move_data = MoveDataOperator(task_id="move_data")
 
         (
-            dag
-            >> t_log_info
+            t_log_info
             >> t_create_tmpdir
             >> t_send_create_dataset
             >> t_set_dataset_processing

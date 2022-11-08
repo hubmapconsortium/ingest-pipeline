@@ -1,28 +1,22 @@
 import sys
-import os
-import ast
+
 import json
 from pathlib import Path
-from pprint import pprint
 from datetime import datetime, timedelta
 
-from airflow import DAG
 from airflow.configuration import conf as airflow_conf
-from airflow.operators.python_operator import PythonOperator
-from airflow.operators.bash_operator import BashOperator
+from airflow.operators.python import PythonOperator
 from airflow.exceptions import AirflowException
-from airflow.hooks.http_hook import HttpHook
+from airflow.providers.http.hooks.http import HttpHook
 
 from hubmap_operators.common_operators import (
     CreateTmpDirOperator,
     CleanupTmpDirOperator,
 )
 
-import utils
 from utils import (
     get_tmp_dir_path, get_auth_tok,
-    map_queue_name, pythonop_get_dataset_state,
-    localized_assert_json_matches_schema as assert_json_matches_schema,
+    pythonop_get_dataset_state,
     HMDAG,
     get_queue_resource,
     get_preserve_scratch_resource,
@@ -50,16 +44,15 @@ default_args = {
     'queue': get_queue_resource('validate_upload')
 }
 
-
 with HMDAG('validate_upload',
-         schedule_interval=None,
-         is_paused_upon_creation=False,
-         user_defined_macros={
-             'tmp_dir_path' : get_tmp_dir_path,
-             'preserve_scratch' : get_preserve_scratch_resource('validate_upload'),
-         },
-         default_args=default_args,
-         ) as dag:
+           schedule_interval=None,
+           is_paused_upon_creation=False,
+           user_defined_macros={
+               'tmp_dir_path': get_tmp_dir_path,
+               'preserve_scratch': get_preserve_scratch_resource('validate_upload'),
+           },
+           default_args=default_args,
+           ) as dag:
 
     def find_uuid(**kwargs):
         uuid = kwargs['dag_run'].conf['uuid']
@@ -73,8 +66,7 @@ with HMDAG('validate_upload',
         )
         if not ds_rslt:
             raise AirflowException(f'Invalid uuid/doi for group: {uuid}')
-        print('ds_rslt:')
-        pprint(ds_rslt)
+        print(f'ds_rslt: {ds_rslt}')
 
         for key in ['entity_type', 'status', 'uuid', 'data_types',
                     'local_directory_full_path']:
@@ -140,38 +132,34 @@ with HMDAG('validate_upload',
     def send_status_msg(**kwargs):
         validation_file_path = Path(kwargs['ti'].xcom_pull(key='validation_file_path'))
         uuid = kwargs['ti'].xcom_pull(key='uuid')
-        conn_id = ''
         endpoint = f'/entities/{uuid}'
         headers = {
             'authorization': 'Bearer ' + get_auth_tok(**kwargs),
-            'X-Hubmap-Application':'ingest-pipeline',
+            'X-Hubmap-Application': 'ingest-pipeline',
             'content-type': 'application/json',
         }
         extra_options = []
-        http_conn_id='entity_api_connection'
+        http_conn_id = 'entity_api_connection'
         http_hook = HttpHook('PUT', http_conn_id=http_conn_id)
         with open(validation_file_path) as f:
             report_txt = f.read()
         if report_txt.startswith('No errors!'):
             data = {
-                "status":"Valid",
+                "status": "Valid",
             }       
         else:
             data = {
-                "status":"Invalid",
-                "validation_message" : report_txt
+                "status": "Invalid",
+                "validation_message": report_txt
             }       
-        print('data: ')
-        pprint(data)
+        print(f'data: {data}')
         response = http_hook.run(
             endpoint,
             json.dumps(data),
             headers,
             extra_options,
         )
-        print('response: ')
-        pprint(response.json())
-
+        print(f'response: {response.json()}')
 
     
     t_send_status = PythonOperator(
@@ -185,5 +173,4 @@ with HMDAG('validate_upload',
     t_create_tmpdir = CreateTmpDirOperator(task_id='create_temp_dir')
     t_cleanup_tmpdir = CleanupTmpDirOperator(task_id='cleanup_temp_dir')
 
-    (dag >> t_create_tmpdir >> t_find_uuid >> t_run_validation 
-     >> t_send_status >> t_cleanup_tmpdir)
+    t_create_tmpdir >> t_find_uuid >> t_run_validation >> t_send_status >> t_cleanup_tmpdir

@@ -6,9 +6,9 @@ from datetime import datetime, timedelta
 
 import pandas as pd
 
-from airflow.operators.bash_operator import BashOperator
-from airflow.operators.python_operator import PythonOperator
-from airflow.hooks.http_hook import HttpHook
+from airflow.operators.bash import BashOperator
+from airflow.operators.python import PythonOperator
+from airflow.providers.http.hooks.http import HttpHook
 from airflow.exceptions import AirflowException
 from airflow.configuration import conf as airflow_conf
 from hubmap_operators.common_operators import (
@@ -52,11 +52,11 @@ with HMDAG('launch_checksums',
            is_paused_upon_creation=False,
            default_args=default_args,
            user_defined_macros={
-               'tmp_dir_path' : utils.get_tmp_dir_path,
-               'src_path' : (airflow_conf.as_dict()['connections']['SRC_PATH']
-                             .strip('"').strip("'")),
-               'THREADS' : get_threads_resource('launch_checksums'),
-               'preserve_scratch' : get_preserve_scratch_resource('launch_checksums')
+               'tmp_dir_path': utils.get_tmp_dir_path,
+               'src_path': (airflow_conf.as_dict()['connections']['SRC_PATH']
+                            .strip('"').strip("'")),
+               'THREADS': get_threads_resource('launch_checksums'),
+               'preserve_scratch': get_preserve_scratch_resource('launch_checksums')
            }
            ) as dag:
 
@@ -73,9 +73,6 @@ with HMDAG('launch_checksums',
             raise
 
         uuid = kwargs['dag_run'].conf['uuid']
-        filtered_uuid = None
-        filtered_path = None
-        filtered_data_type = None
         print(f'Starting uuid {uuid}')
         my_callable = lambda **kwargs: uuid
         rslt = utils.pythonop_get_dataset_state(dataset_uuid_callable=my_callable,
@@ -83,14 +80,10 @@ with HMDAG('launch_checksums',
                                                 )
         if not rslt:
             raise AirflowException(f'Invalid uuid/doi: {uuid}')
-        print('rslt:')
-        pprint(rslt)
+        print(f'rslt: {rslt}')
 
         for key in ['status', 'uuid', 'data_types', 'local_directory_full_path']:
             assert key in rslt, f"Dataset status for {uuid} has no {key}"
-
-#         if not rslt['status'] in ['Published']:
-#             raise AirflowException(f'Dataset {uuid} is not QA or better')
 
         data_types = rslt['data_types']
         if isinstance(data_types, str) and data_types.startswith('[') and data_types.endswith(']'):
@@ -122,11 +115,10 @@ with HMDAG('launch_checksums',
         python_callable=check_uuid,
         provide_context=True,
         op_kwargs={
-            'crypt_auth_tok' : utils.encrypt_tok(airflow_conf.as_dict()
-                                                 ['connections']['APP_CLIENT_SECRET']).decode(),
+            'crypt_auth_tok': utils.encrypt_tok(airflow_conf.as_dict()
+                                                ['connections']['APP_CLIENT_SECRET']).decode(),
             }
         )
-
 
     t_gen_cksum_table = BashOperator(
         task_id='gen_cksum_table',
@@ -143,26 +135,25 @@ with HMDAG('launch_checksums',
 
     def send_block(parent_uuid, parent_path, block_df, **kwargs):
         headers = {
-            'authorization' : 'Bearer ' + get_auth_tok(**kwargs),
-            'content-type' : 'application/json',
-            'X-Hubmap-Application' : 'ingest-pipeline'
+            'authorization': 'Bearer ' + get_auth_tok(**kwargs),
+            'content-type': 'application/json',
+            'X-Hubmap-Application': 'ingest-pipeline'
         }
         rec_l = []
         for idx, row in block_df.iterrows():  # pylint: disable=unused-variable
             this_path = Path(row['path'])
             rec_l.append({
-                'path':str(this_path.relative_to(parent_path.parent)),
-                'checksum':row['sha256'],
-                'size':row['size'],
-                'base_dir':'DATA_UPLOAD'
+                'path': str(this_path.relative_to(parent_path.parent)),
+                'checksum': row['sha256'],
+                'size': row['size'],
+                'base_dir': 'DATA_UPLOAD'
             })
         data = {
-            'entity_type':'FILE',
-            'parent_ids':[parent_uuid],
-            'file_info':rec_l
+            'entity_type': 'FILE',
+            'parent_ids': [parent_uuid],
+            'file_info': rec_l
             }
-        print('sending the following payload:')
-        pprint(data)
+        print(f'sending the following payload: {data}')
         response = HttpHook('POST', http_conn_id='uuid_api_connection').run(
             endpoint=f'hmuuid?entity_count={len(rec_l)}',
             data=json.dumps(data),
@@ -184,7 +175,7 @@ with HMDAG('launch_checksums',
         tot_recs = len(full_df)
         low_rec = 0
         while low_rec < tot_recs:
-            block_df = full_df.iloc[low_rec : low_rec + RECS_PER_BLOCK]
+            block_df = full_df.iloc[low_rec: low_rec + RECS_PER_BLOCK]
             send_block(parent_uuid, parent_path, block_df, **kwargs)
             low_rec += RECS_PER_BLOCK
 
@@ -194,17 +185,18 @@ with HMDAG('launch_checksums',
         python_callable=send_checksums,
         provide_context=True,
         op_kwargs={
-            'crypt_auth_tok' : utils.encrypt_tok(airflow_conf.as_dict()
-                                                 ['connections']['APP_CLIENT_SECRET']).decode(),
+            'crypt_auth_tok': utils.encrypt_tok(airflow_conf.as_dict()
+                                                ['connections']['APP_CLIENT_SECRET']).decode(),
             }
         )
 
     t_create_tmpdir = CreateTmpDirOperator(task_id='create_tmpdir')
     t_cleanup_tmpdir = CleanupTmpDirOperator(task_id='cleanup_tmpdir')
 
-    (dag >> t_create_tmpdir
-     >> check_uuid_t
-     >> t_gen_cksum_table
-     >> t_send_checksums
-     >> t_cleanup_tmpdir
+    (
+        t_create_tmpdir
+        >> check_uuid_t
+        >> t_gen_cksum_table
+        >> t_send_checksums
+        >> t_cleanup_tmpdir
      )

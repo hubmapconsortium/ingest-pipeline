@@ -27,7 +27,7 @@ from copy import deepcopy
 
 import yaml
 from airflow import DAG
-from airflow.operators import BaseOperator
+from airflow.models.baseoperator import BaseOperator
 from airflow.configuration import conf as airflow_conf
 from airflow.hooks.http_hook import HttpHook
 from cryptography.fernet import Fernet
@@ -60,7 +60,7 @@ PathStrOrList = Union[str, Path, Iterable[Union[str, Path]]]
 
 SCHEMA_BASE_PATH = join(dirname(dirname(dirname(realpath(__file__)))),
                         'schemata')
-SCHEMA_BASE_URI = 'http://schemata.hubmapconsortium.org/'
+SCHEMA_BASE_URI = 'https://schemata.hubmapconsortium.org/'
 
 # Some constants
 PIPELINE_BASE_DIR = Path(__file__).resolve().parent / 'cwl'
@@ -454,6 +454,7 @@ def get_git_root_paths(file_list: Iterable[str]) -> Union[str, List[str]]:
                 dirnm = '.'
             root_path = check_output(command, cwd=dirnm)
         except CalledProcessError as e:
+            print(f'Exception {e}')
             root_path = dirname(fname).encode('utf-8')
         rslt.append(root_path.strip().decode('utf-8'))
     if unroll:
@@ -667,7 +668,7 @@ def pythonop_send_create_dataset(**kwargs) -> str:
         assert any([arg in kwargs for arg in arg_options])
 
     http_conn_id = kwargs['http_conn_id']
-    ctx = kwargs['dag_run'].conf
+    # ctx = kwargs['dag_run'].conf
     headers = {
         'authorization': 'Bearer ' + get_auth_tok(**kwargs),
         'content-type': 'application/json',
@@ -686,7 +687,7 @@ def pythonop_send_create_dataset(**kwargs) -> str:
         type_info = _get_type_client().getAssayType(assay_type)
         canonical_types.add(type_info.name)
         contains_seq |= type_info.contains_pii
-    canonical_types = list(canonical_types)
+    # canonical_types = list(canonical_types)
 
     source_uuids = kwargs['parent_dataset_uuid_callable'](**kwargs)
     if not isinstance(source_uuids, list):
@@ -1528,7 +1529,7 @@ def main():
         localized_assert_json_matches_schema(md, 'dataset_metadata_schema.yml')
         print('ASSERT passed')
     except AssertionError as e:
-        print('ASSERT failed')
+        print(f'ASSERT failed {e}')
 
     assay_pairs = [('devtest', 'devtest'), ('codex', 'CODEX'),
                    ('codex', 'SOMEOTHER'), ('someother', 'CODEX'),

@@ -1,11 +1,14 @@
 #! /usr/bin/env python
 
-from pprint import pprint
+# from pprint import pprint
 
-from airflow.operators.bash_operator import BashOperator
-from airflow.operators.dummy_operator import DummyOperator
-from airflow.operators.python_operator import PythonOperator
-from airflow.utils.decorators import apply_defaults
+# from airflow.operators.bash_operator import BashOperator
+from airflow.operators.bash import BashOperator
+# from airflow.operators.dummy_operator import DummyOperator
+from airflow.operators.dummy import DummyOperator
+# from airflow.operators.python_operator import PythonOperator
+from airflow.operators.python import PythonOperator
+# from airflow.utils.decorators import apply_defaults
 
 from utils import (
     get_dataset_uuid,
@@ -15,23 +18,23 @@ from utils import (
 
 
 class LogInfoOperator(PythonOperator):
-    @apply_defaults
+    # @apply_defaults
     def __init__(self, **kwargs):
-        #print('kwargs follow')
-        #pprint(kwargs)
+        # print('kwargs follow')
+        # pprint(kwargs)
         super().__init__(python_callable=pythonop_trigger_target,
                          provide_context=True,
                          **kwargs)
     
 
 class JoinOperator(DummyOperator):
-    @apply_defaults
+    # @apply_defaults
     def __init__(self, **kwargs):
         super().__init__(trigger_rule='one_success', **kwargs)
 
 
 class CreateTmpDirOperator(BashOperator):
-    @apply_defaults
+    # @apply_defaults
     def __init__(self, **kwargs):
         super().__init__(
             bash_command='mkdir -p {{tmp_dir_path(run_id)}}',
@@ -40,7 +43,7 @@ class CreateTmpDirOperator(BashOperator):
 
 
 class CleanupTmpDirOperator(BashOperator):
-    @apply_defaults
+    # @apply_defaults
     def __init__(self, **kwargs):
         super().__init__(
             bash_command="""
@@ -63,7 +66,7 @@ class CleanupTmpDirOperator(BashOperator):
 
 
 class SetDatasetProcessingOperator(PythonOperator):
-    @apply_defaults
+    # @apply_defaults
     def __init__(self, **kwargs):
         super().__init__(python_callable=pythonop_set_dataset_state, 
                          provide_context=True,
@@ -74,7 +77,7 @@ class SetDatasetProcessingOperator(PythonOperator):
     
 
 class MoveDataOperator(BashOperator):
-    @apply_defaults
+    # @apply_defaults
     def __init__(self, **kwargs):
         super().__init__(
             bash_command="""
