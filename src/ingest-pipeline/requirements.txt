@@ -1,37 +1,34 @@
-git+https://github.com/hubmapconsortium/commons@main#egg=hubmap-commons
+# git+https://github.com/hubmapconsortium/commons@main#egg=hubmap-commons==2.0.11
+hubmap-commons==2.0.14
 prov==1.5.1
-#pylibczi>=1.1.1
-#tifffile==2020.12.8
-tifffile
-xmltodict>=0.12.0
-pyimzml>=1.2.6
-apache-airflow[celery,crypto,postgres,redis,ssh]==1.10.15
-airflow-multi-dagrun>=1.2,<2.0
+# pylibczi>=1.1.1
+# tifffile==2020.12.8
+tifffile==2020.09.3
+xmltodict==0.13.0
+pyimzml==1.5.2
+apache-airflow[celery,crypto,postgres,redis,ssh]==2.2.5
+airflow-multi-dagrun==2.3.1
 jsonschema==3.2.0
-fastjsonschema==2.14.2
-requests>=1.2
+fastjsonschema==2.16.2
+requests==2.27.1
 jsonref-ap==0.3.dev0
-PyYAML>=5.3.1
-rdflib==4.2.2
-rdflib-jsonld==0.4.0
+PyYAML==6.0
+rdflib==5.0.0
+rdflib-jsonld==0.6.2
 Flask-OAuthlib==0.9.6
-dataclasses
+dataclasses==0.8
 git+https://github.com/hubmapconsortium/cwltool.git@docker-gpu#egg=cwltool
 git+https://github.com/hubmapconsortium/fastq-utils@v0.2.5#egg=hubmap-fastq-utils
 # We need the dependencies of ingest-validation tools, but relative paths don't work
 # -r ${CWD}/submodules/ingest-validation-tools/requirements.txt
-#jsonschema==3.2.0
-#pyyaml>=5.3.1
-tableschema==1.15.0
-goodtables==2.4.9
+tableschema==1.20.2
+goodtables==2.5.4
 globus-cli==1.12.0
 yattag==1.14.0
-frictionless==4.0.0
-sqlalchemy==1.3
-xmlschema>=1.6
-WTForms<=2.3.3
-#hubmap_sdk
-pandas
-apache-airflow-backport-providers-http
-apache-airflow-backport-providers-amazon
+frictionless==4.40.8
+sqlalchemy==1.3.24
+xmlschema==1.9.2
+WTForms==2.3.3
+hubmap_sdk==1.0.2
+pandas==1.1.5
 
