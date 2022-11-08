@@ -67,7 +67,8 @@ with HMDAG('validate_upload',
         )
         if not ds_rslt:
             raise AirflowException(f'Invalid uuid/doi for group: {uuid}')
-        print(f'ds_rslt: {ds_rslt}')
+        print('ds_rslt:')
+        pprint(ds_rslt)
 
         for key in ['entity_type', 'status', 'uuid', 'data_types',
                     'local_directory_full_path']:
@@ -161,7 +162,9 @@ with HMDAG('validate_upload',
             headers,
             extra_options,
         )
-        print(f'response: {response.json()}')
+        print('response: ')
+        pprint(response.json())
+
 
     
     t_send_status = PythonOperator(
