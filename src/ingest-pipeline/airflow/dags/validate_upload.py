@@ -3,6 +3,7 @@ import sys
 import json
 from pathlib import Path
 from datetime import datetime, timedelta
+from pprint import pprint
 
 from airflow.configuration import conf as airflow_conf
 from airflow.operators.python import PythonOperator
@@ -152,7 +153,8 @@ with HMDAG('validate_upload',
                 "status": "Invalid",
                 "validation_message": report_txt
             }       
-        print(f'data: {data}')
+        print('data: ')
+        pprint(data)
         response = http_hook.run(
             endpoint,
             json.dumps(data),
