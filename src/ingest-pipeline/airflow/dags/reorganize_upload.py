@@ -141,10 +141,10 @@ with HMDAG('reorganize_upload',
                 auth_tok=get_auth_tok(**kwargs),
                 frozen_df_fname=_get_frozen_df_path(kwargs['run_id'])
             )
-            kwargs['ti'].xcom_push(key=None, value='0')  # signal success
+            kwargs['ti'].xcom_push(key='split_stage_1', value='0')  # signal success
         except Exception as e:
             print(f'Encountered {e}')
-            kwargs['ti'].xcom_push(key=None, value='1')  # signal failure
+            kwargs['ti'].xcom_push(key='split_stage_1', value='1')  # signal failure
 
 
     t_split_stage_1 = PythonOperator(
@@ -181,10 +181,10 @@ with HMDAG('reorganize_upload',
                 auth_tok=get_auth_tok(**kwargs),
                 frozen_df_fname=_get_frozen_df_path(kwargs['run_id'])
             )
-            kwargs['ti'].xcom_push(key=None, value='0')  # signal success
+            kwargs['ti'].xcom_push(key='split_stage_2', value='0')  # signal success
         except Exception as e:
             print(f'Encountered {e}')
-            kwargs['ti'].xcom_push(key=None, value='1')  # signal failure
+            kwargs['ti'].xcom_push(key='split_stage_2', value='1')  # signal failure
 
 
     t_split_stage_2 = PythonOperator(
