@@ -32,12 +32,11 @@ default_args = {
 with HMDAG('test_workflow',
            schedule_interval=None,
            is_paused_upon_creation=False,
+           default_args=default_args,
            user_defined_macros={
                'tmp_dir_path': get_tmp_dir_path,
                'preserve_scratch': get_preserve_scratch_resource('test_workflow'),
-           },
-           default_args=default_args,
-           ) as dag:
+           }) as dag:
 
     def test_task_func(**kwargs):
         pprint(kwargs)

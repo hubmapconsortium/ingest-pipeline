@@ -48,12 +48,11 @@ default_args = {
 with HMDAG('validate_upload',
            schedule_interval=None,
            is_paused_upon_creation=False,
+           default_args=default_args,
            user_defined_macros={
                'tmp_dir_path': get_tmp_dir_path,
                'preserve_scratch': get_preserve_scratch_resource('validate_upload'),
-           },
-           default_args=default_args,
-           ) as dag:
+           }) as dag:
 
     def find_uuid(**kwargs):
         uuid = kwargs['dag_run'].conf['uuid']

@@ -46,8 +46,7 @@ with HMDAG('generate_usage_report',
            user_defined_macros={
                'tmp_dir_path': get_tmp_dir_path,
                'preserve_scratch': get_preserve_scratch_resource('generate_usage_report'),
-           },
-           ) as dag:
+           }) as dag:
 
     def build_report(**kwargs):
         entity_token = get_auth_tok(**kwargs)

@@ -46,19 +46,16 @@ default_args = {
     'queue': get_queue_resource('launch_checksums'),
 }
 
-
 with HMDAG('launch_checksums',
            schedule_interval=None,
            is_paused_upon_creation=False,
            default_args=default_args,
            user_defined_macros={
                'tmp_dir_path': utils.get_tmp_dir_path,
-               'src_path': (airflow_conf.as_dict()['connections']['SRC_PATH']
-                            .strip('"').strip("'")),
+               'src_path': (airflow_conf.as_dict()['connections']['SRC_PATH'].strip('"').strip("'")),
                'THREADS': get_threads_resource('launch_checksums'),
                'preserve_scratch': get_preserve_scratch_resource('launch_checksums')
-           }
-           ) as dag:
+           }) as dag:
 
     def check_uuid(**kwargs):
         print('dag_run conf follows:')
@@ -80,7 +77,8 @@ with HMDAG('launch_checksums',
                                                 )
         if not rslt:
             raise AirflowException(f'Invalid uuid/doi: {uuid}')
-        print(f'rslt: {rslt}')
+        print('rslt:')
+        pprint(rslt)
 
         for key in ['status', 'uuid', 'data_types', 'local_directory_full_path']:
             assert key in rslt, f"Dataset status for {uuid} has no {key}"
@@ -153,7 +151,8 @@ with HMDAG('launch_checksums',
             'parent_ids': [parent_uuid],
             'file_info': rec_l
             }
-        print(f'sending the following payload: {data}')
+        print('sending the following payload:')
+        pprint(data)
         response = HttpHook('POST', http_conn_id='uuid_api_connection').run(
             endpoint=f'hmuuid?entity_count={len(rec_l)}',
             data=json.dumps(data),

@@ -61,7 +61,8 @@ with HMDAG('launch_multi_analysis',
         ds_rslt = utils.pythonop_get_dataset_state(dataset_uuid_callable=my_callable, **kwargs)
         if not ds_rslt:
             raise AirflowException(f'Invalid uuid/doi for group: {uuid}')
-        print(f'ds_rslt: {ds_rslt}')
+        print('ds_rslt:')
+        pprint(ds_rslt)
 
         for key in ['status', 'uuid', 'data_types', 'local_directory_full_path',
                     'metadata']:
@@ -156,7 +157,8 @@ with HMDAG('launch_multi_analysis',
                                                    task_ids="check_uuids")
         print('collectiontype: <{}>, assay_type: <{}>'.format(collectiontype, assay_type))
         print(f'uuids: {uuids}')
-        print(f'lz_paths: {lz_paths}')
+        print('lz_paths:')
+        pprint(lz_paths)
         print(f'previous version uuid: {prev_version_uuid}')
         payload = {
                     'ingest_id': kwargs['run_id'],

@@ -65,13 +65,13 @@ def _get_frozen_df_wildcard(run_id):
 with HMDAG('reorganize_upload',
            schedule_interval=None,
            is_paused_upon_creation=False,
+           default_args=default_args,
            user_defined_macros={
                'tmp_dir_path': get_tmp_dir_path,
                'frozen_df_path': _get_frozen_df_path,
                'frozen_df_wildcard': _get_frozen_df_wildcard,
                'preserve_scratch': get_preserve_scratch_resource('reorganize_upload'),
-           },
-           default_args=default_args) as dag:
+           }) as dag:
     def find_uuid(**kwargs):
         uuid = kwargs['dag_run'].conf['uuid']
 

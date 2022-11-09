@@ -43,16 +43,14 @@ default_args = {
     'on_failure_callback': utils.create_dataset_state_error_callback(get_uuid_for_error),
 }
 
-with HMDAG(
-        'devtest_step2',
-        schedule_interval=None,
-        is_paused_upon_creation=False,
-        default_args=default_args,
-        user_defined_macros={
-            'tmp_dir_path': get_tmp_dir_path,
-            'preserve_scratch': get_preserve_scratch_resource('devtest_step2'),
-        },
-) as dag:
+with HMDAG('devtest_step2',
+           schedule_interval=None,
+           is_paused_upon_creation=False,
+           default_args=default_args,
+           user_defined_macros={
+               'tmp_dir_path': get_tmp_dir_path,
+               'preserve_scratch': get_preserve_scratch_resource('devtest_step2'),
+           }) as dag:
     pipeline_name = 'devtest-step2-pipeline'
 
     def build_dataset_name(**kwargs):

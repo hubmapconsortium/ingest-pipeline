@@ -91,16 +91,14 @@ default_args = {
     'queue': get_queue_resource('generate_bdbag'),
 }
 
-with HMDAG(
-        'generate_bdbag',
-        schedule_interval=None,
-        is_paused_upon_creation=False,
-        default_args=default_args,
-        user_defined_macros={
-            'tmp_dir_path': get_tmp_dir_path,
-            'preserve_scratch': get_preserve_scratch_resource('generate_bdbag'),
-        },
-) as dag:
+with HMDAG('generate_bdbag',
+           schedule_interval=None,
+           is_paused_upon_creation=False,
+           default_args=default_args,
+           user_defined_macros={
+               'tmp_dir_path': get_tmp_dir_path,
+               'preserve_scratch': get_preserve_scratch_resource('generate_bdbag'),
+           }) as dag:
 
     def get_dataset_full_path(uuid, auth_token):
         """

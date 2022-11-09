@@ -46,16 +46,14 @@ default_args = {
     'on_failure_callback': utils.create_dataset_state_error_callback(get_uuid_for_error)
 }
 
-with HMDAG(
-        'codex_cytokit',
-        schedule_interval=None,
-        is_paused_upon_creation=False,
-        default_args=default_args,
-        user_defined_macros={
-            'tmp_dir_path': get_tmp_dir_path,
-            'preserve_scratch': get_preserve_scratch_resource('codex_cytokit'),
-        },
-) as dag:
+with HMDAG('codex_cytokit',
+           schedule_interval=None,
+           is_paused_upon_creation=False,
+           default_args=default_args,
+           user_defined_macros={
+               'tmp_dir_path': get_tmp_dir_path,
+               'preserve_scratch': get_preserve_scratch_resource('codex_cytokit'),
+           }) as dag:
 
     pipeline_name = 'codex-pipeline'
     steps_dir = Path(pipeline_name) / 'steps'

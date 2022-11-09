@@ -62,7 +62,8 @@ with HMDAG('validation_test',
         )
         if not ds_rslt:
             raise AirflowException(f'Invalid uuid/doi for group: {uuid}')
-        print(f'ds_rslt: {ds_rslt}')
+        print('ds_rslt:')
+        pprint(ds_rslt)
 
         for key in ['entity_type', 'status', 'uuid', 'data_types',
                     'local_directory_full_path']:

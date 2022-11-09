@@ -52,16 +52,14 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
         "on_failure_callback": utils.create_dataset_state_error_callback(get_uuid_for_error),
     }
 
-    with HMDAG(
-        params.dag_id,
-        schedule_interval=None,
-        is_paused_upon_creation=False,
-        default_args=default_args,
-        user_defined_macros={
-            "tmp_dir_path": get_tmp_dir_path,
-            "preserve_scratch": get_preserve_scratch_resource(params.dag_id),
-        },
-    ) as dag:
+    with HMDAG(params.dag_id,
+               schedule_interval=None,
+               is_paused_upon_creation=False,
+               default_args=default_args,
+               user_defined_macros={
+                   "tmp_dir_path": get_tmp_dir_path,
+                   "preserve_scratch": get_preserve_scratch_resource(params.dag_id),
+               }) as dag:
 
         cwl_workflows = get_absolute_workflows(
             Path("salmon-rnaseq", "pipeline.cwl"),

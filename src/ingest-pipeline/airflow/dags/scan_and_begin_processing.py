@@ -1,5 +1,7 @@
 import sys
 import os
+from pprint import pprint
+
 import yaml
 from pathlib import Path
 from datetime import datetime, timedelta
@@ -197,9 +199,11 @@ with HMDAG('scan_and_begin_processing',
         """
         This is a generator which returns appropriate DagRunOrders
         """
-        print(f'kwargs: {kwargs}')
+        print('kwargs:')
+        pprint(kwargs)
+        print('dag_run conf:')
         ctx = kwargs['dag_run'].conf
-        print(f'dag_run conf: {ctx}')
+        pprint(ctx)
         run_validation_retcode = int(kwargs['ti'].xcom_pull(task_ids="run_validation"))
         md_extract_retcode = kwargs['ti'].xcom_pull(task_ids="run_md_extract")
         md_extract_retcode = int(md_extract_retcode or '0')

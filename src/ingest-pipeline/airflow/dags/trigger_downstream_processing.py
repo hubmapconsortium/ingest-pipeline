@@ -30,12 +30,11 @@ default_args = {
 }
 
 
-with HMDAG(
-            'trigger_downstream_processing',
-            schedule_interval=None,
-            is_paused_upon_creation=False,
-            default_args=default_args,
-       ) as dag:
+with HMDAG('trigger_downstream_processing',
+           schedule_interval=None,
+           is_paused_upon_creation=False,
+           default_args=default_args,
+           ) as dag:
 
     def find_uuid(**kwargs):
         try:
@@ -57,7 +56,8 @@ with HMDAG(
         )
         if not ds_rslt:
             raise AirflowException(f'Invalid uuid/doi for group: {uuid}')
-        print(f'ds_rslt: {ds_rslt}')
+        print('ds_rslt:')
+        pprint(ds_rslt)
 
         for key in ['uuid', 'data_types', 'local_directory_full_path']:
             assert key in ds_rslt, f"Dataset status for {uuid} has no {key}"
@@ -104,9 +104,11 @@ with HMDAG(
         """
         This is a generator which returns appropriate DagRunOrders
         """
-        print(f'kwargs: {kwargs}')
+        print('kwargs:')
+        pprint(kwargs)
+        print('dag_run conf:')
         ctx = kwargs['dag_run'].conf
-        print(f'dag_run conf: {ctx}')
+        pprint(ctx)
         collectiontype = 'generic_metadatatsv'  # always the case now
         assay_type = kwargs['ti'].xcom_pull(key='assay_type',
                                             task_ids="find_uuid")
