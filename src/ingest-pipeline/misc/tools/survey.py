@@ -16,27 +16,27 @@ from hubmap_commons.hm_auth import AuthHelper
 ENDPOINTS = {
     'PROD': {
         'entity_url': 'https://entity.api.hubmapconsortium.org',
-        'search_url': 'https://search.api.hubmapconsortium.org',
+        'search_url': 'https://search.api.hubmapconsortium.org/v3',
         'ingest_url': 'http://hivevm193.psc.edu:7777',
-        'assay_info_url': 'https://search.api.hubmapconsortium.org'
+        'assay_info_url': 'https://search.api.hubmapconsortium.org/v3'
         },
     'STAGE': {
         'entity_url': 'https://entity-api.stage.hubmapconsortium.org',
-        'search_url': 'https://search-api.stage.hubmapconsortium.org',
+        'search_url': 'https://search-api.stage.hubmapconsortium.org/v3',
         'ingest_url': 'http://hivevm195.psc.edu:7777',
-        'assay_info_url': 'https://search-api.stage.hubmapconsortium.org'
+        'assay_info_url': 'https://search-api.stage.hubmapconsortium.org/v3'
         },
     'TEST': {
         'entity_url': 'https://entity-api.test.hubmapconsortium.org',
-        'search_url': 'https://search-api.test.hubmapconsortium.org',
+        'search_url': 'https://search-api.test.hubmapconsortium.org/v3',
         'ingest_url': 'http://hivevm192.psc.edu:7777',
-        'assay_info_url': 'https://search-api.test.hubmapconsortium.org'
+        'assay_info_url': 'https://search-api.test.hubmapconsortium.org/v3'
         },
     'DEV': {
         'entity_url': 'https://entity-api.dev.hubmapconsortium.org',
-        'search_url': 'https://search-api.dev.hubmapconsortium.org',
+        'search_url': 'https://search-api.dev.hubmapconsortium.org/v3',
         'ingest_url': 'http://hivevm191.psc.edu:7777',
-        'assay_info_url': 'https://search-api.dev.hubmapconsortium.org'
+        'assay_info_url': 'https://search-api.dev.hubmapconsortium.org/v3'
         },
     }
 

@@ -60,7 +60,7 @@ PathStrOrList = Union[str, Path, Iterable[Union[str, Path]]]
 
 SCHEMA_BASE_PATH = join(dirname(dirname(dirname(realpath(__file__)))),
                         'schemata')
-SCHEMA_BASE_URI = 'https://schemata.hubmapconsortium.org/'
+SCHEMA_BASE_URI = 'http://schemata.hubmapconsortium.org/'
 
 # Some constants
 PIPELINE_BASE_DIR = Path(__file__).resolve().parent / 'cwl'
