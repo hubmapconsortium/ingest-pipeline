@@ -124,7 +124,7 @@ with HMDAG('trigger_downstream_processing',
                    'dag_provenance_list': utils.get_git_provenance_list(__file__)
                    }
         for next_dag in utils.downstream_workflow_iter(collectiontype, assay_type):
-            yield next_dag, {payload}
+            yield next_dag, payload
 
 
     t_maybe_spawn = FlexMultiDagRunOperator(

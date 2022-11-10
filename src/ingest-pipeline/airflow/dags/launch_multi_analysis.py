@@ -39,9 +39,9 @@ default_args = {
 }
 
 
-with HMDAG('launch_multi_analysis', 
-           schedule_interval=None, 
-           is_paused_upon_creation=False, 
+with HMDAG('launch_multi_analysis',
+           schedule_interval=None,
+           is_paused_upon_creation=False,
            default_args=default_args,
            user_defined_macros={
                'tmp_dir_path': utils.get_tmp_dir_path,
@@ -170,7 +170,7 @@ with HMDAG('launch_multi_analysis',
                     'dag_provenance_list': utils.get_git_provenance_list(__file__)
         }
         for next_dag in utils.downstream_workflow_iter(collectiontype, assay_type):
-            yield next_dag, {payload}
+            yield next_dag, payload
 
     t_maybe_spawn = FlexMultiDagRunOperator(
         task_id='flex_maybe_spawn',
