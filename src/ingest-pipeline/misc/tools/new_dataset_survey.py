@@ -160,7 +160,7 @@ def get_google_last_sheet(notes_sheet):
             # Call the Sheets API
             sheet = service.spreadsheets()
             result = sheet.values().get(spreadsheetId=SPREADSHEET_ID,
-                                        range=notes_sheet[0]).execute()
+                                        range=notes_sheet).execute()
             header = result.get('values', [])[0]
             values = result.get('values', [])[1:]
 
