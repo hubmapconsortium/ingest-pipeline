@@ -85,6 +85,8 @@ done
 
 if [ "${HM_AF_METHOD}" == 'conda' ] ; then
     export PATH=/hive/users/hive/anaconda3/bin:%PATH
+    export LANG=C.UTF-8
+    export LC_ALL=C.UTF-8
     eval "$(conda shell.bash hook)"
     conda activate "${HM_AF_ENV_NAME}"
 elif [ "${HM_AF_METHOD}" == 'module_conda' ] ; then
