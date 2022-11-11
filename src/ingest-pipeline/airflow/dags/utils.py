@@ -27,7 +27,7 @@ from copy import deepcopy
 
 import yaml
 from airflow import DAG
-from airflow.operators import BaseOperator
+from airflow.models.baseoperator import BaseOperator
 from airflow.configuration import conf as airflow_conf
 from airflow.hooks.http_hook import HttpHook
 from cryptography.fernet import Fernet
@@ -454,6 +454,7 @@ def get_git_root_paths(file_list: Iterable[str]) -> Union[str, List[str]]:
                 dirnm = '.'
             root_path = check_output(command, cwd=dirnm)
         except CalledProcessError as e:
+            print(f'Exception {e}')
             root_path = dirname(fname).encode('utf-8')
         rslt.append(root_path.strip().decode('utf-8'))
     if unroll:
@@ -667,7 +668,7 @@ def pythonop_send_create_dataset(**kwargs) -> str:
         assert any([arg in kwargs for arg in arg_options])
 
     http_conn_id = kwargs['http_conn_id']
-    ctx = kwargs['dag_run'].conf
+    # ctx = kwargs['dag_run'].conf
     headers = {
         'authorization': 'Bearer ' + get_auth_tok(**kwargs),
         'content-type': 'application/json',
@@ -686,7 +687,7 @@ def pythonop_send_create_dataset(**kwargs) -> str:
         type_info = _get_type_client().getAssayType(assay_type)
         canonical_types.add(type_info.name)
         contains_seq |= type_info.contains_pii
-    canonical_types = list(canonical_types)
+    # canonical_types = list(canonical_types)
 
     source_uuids = kwargs['parent_dataset_uuid_callable'](**kwargs)
     if not isinstance(source_uuids, list):
@@ -1508,7 +1509,7 @@ def main():
     'search_api_connection' connection ID and the Fernet key.  The easiest way
     to do that is with something like:
     
-      export AIRFLOW_CONN_SEARCH_API_CONNECTION='https://search.api.hubmapconsortium.org/
+      export AIRFLOW_CONN_SEARCH_API_CONNECTION='https://search.api.hubmapconsortium.org/v3/
       fernet_key=`python -c 'from cryptography.fernet import Fernet ; print(Fernet.generate_key().decode())'`
       export AIRFLOW__CORE__FERNET_KEY=${fernet_key}
     """
@@ -1528,7 +1529,7 @@ def main():
         localized_assert_json_matches_schema(md, 'dataset_metadata_schema.yml')
         print('ASSERT passed')
     except AssertionError as e:
-        print('ASSERT failed')
+        print(f'ASSERT failed {e}')
 
     assay_pairs = [('devtest', 'devtest'), ('codex', 'CODEX'),
                    ('codex', 'SOMEOTHER'), ('someother', 'CODEX'),

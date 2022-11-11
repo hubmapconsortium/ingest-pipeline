@@ -1,11 +1,10 @@
 from pathlib import Path
 from datetime import datetime, timedelta
 
-from airflow import DAG
-from airflow.operators.bash_operator import BashOperator
-from airflow.operators.python_operator import PythonOperator
-from airflow.operators.python_operator import BranchPythonOperator
-from airflow.operators.dummy_operator import DummyOperator
+from airflow.operators.bash import BashOperator
+from airflow.operators.python import PythonOperator
+from airflow.operators.python import BranchPythonOperator
+from airflow.operators.dummy import DummyOperator
 from hubmap_operators.common_operators import (
     LogInfoOperator,
     JoinOperator,
@@ -48,16 +47,14 @@ default_args = {
     'on_failure_callback': utils.create_dataset_state_error_callback(get_uuid_for_error),
 }
 
-with HMDAG(
-        'salmon_rnaseq_bulk',
-        schedule_interval=None,
-        is_paused_upon_creation=False,
-        default_args=default_args,
-        user_defined_macros={
-            'tmp_dir_path': get_tmp_dir_path,
-            'preserve_scratch': get_preserve_scratch_resource('salmon_rnaseq_bulk'),
-        },
-) as dag:
+with HMDAG('salmon_rnaseq_bulk',
+           schedule_interval=None,
+           is_paused_upon_creation=False,
+           default_args=default_args,
+           user_defined_macros={
+               'tmp_dir_path': get_tmp_dir_path,
+               'preserve_scratch': get_preserve_scratch_resource('salmon_rnaseq_bulk'),
+           }) as dag:
     pipeline_name = 'salmon-rnaseq-bulk'
     cwl_workflows = get_absolute_workflows(
         Path('salmon-rnaseq', 'bulk-pipeline.cwl'),
@@ -143,6 +140,7 @@ with HMDAG(
         retcode_ops=['pipeline_exec', 'move_data'],
         cwl_workflows=cwl_workflows,
     )
+
     t_send_status = PythonOperator(
         task_id='send_status_msg',
         python_callable=send_status_msg,
@@ -156,10 +154,12 @@ with HMDAG(
     t_set_dataset_processing = SetDatasetProcessingOperator(task_id='set_dataset_processing')
     t_move_data = MoveDataOperator(task_id='move_data')
 
-    (dag >> t_log_info >> t_create_tmpdir
-     >> t_send_create_dataset >> t_set_dataset_processing
-     >> prepare_cwl1 >> t_build_cmd1 >> t_pipeline_exec >> t_maybe_keep_cwl1
-     >> t_move_data >> t_send_status >> t_join)
+    (
+        t_log_info >> t_create_tmpdir
+        >> t_send_create_dataset >> t_set_dataset_processing
+        >> prepare_cwl1 >> t_build_cmd1 >> t_pipeline_exec >> t_maybe_keep_cwl1
+        >> t_move_data >> t_send_status >> t_join
+    )
     t_maybe_keep_cwl1 >> t_set_dataset_error
     t_set_dataset_error >> t_join
     t_join >> t_cleanup_tmpdir

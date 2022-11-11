@@ -3,13 +3,12 @@ from pathlib import Path
 from pprint import pprint
 from datetime import datetime, timedelta
 
-from airflow import DAG
 from airflow.configuration import conf as airflow_conf
-from airflow.operators.python_operator import PythonOperator
-from airflow.operators.python_operator import BranchPythonOperator
-from airflow.operators.bash_operator import BashOperator
+from airflow.operators.python import PythonOperator
+from airflow.operators.python import BranchPythonOperator
+from airflow.operators.bash import BashOperator
 from airflow.exceptions import AirflowException
-from airflow.hooks.http_hook import HttpHook
+from airflow.providers.http.hooks.http import HttpHook
 
 from hubmap_operators.common_operators import (
     LogInfoOperator,
@@ -21,7 +20,7 @@ from hubmap_operators.common_operators import (
 from utils import (
     pythonop_maybe_keep,
     get_tmp_dir_path, get_auth_tok,
-    map_queue_name, pythonop_get_dataset_state,
+    pythonop_get_dataset_state,
     pythonop_set_dataset_state,
     find_matching_endpoint,
     HMDAG,
@@ -29,10 +28,10 @@ from utils import (
     get_preserve_scratch_resource,
 )
 
-sys.path.append(airflow_conf.as_dict()['connections']['SRC_PATH']
-                .strip("'").strip('"'))
 from misc.tools.split_and_create import reorganize
 
+sys.path.append(airflow_conf.as_dict()['connections']['SRC_PATH']
+                .strip("'").strip('"'))
 sys.path.pop()
 
 # Following are defaults which can be overridden later on
@@ -66,13 +65,13 @@ def _get_frozen_df_wildcard(run_id):
 with HMDAG('reorganize_upload',
            schedule_interval=None,
            is_paused_upon_creation=False,
+           default_args=default_args,
            user_defined_macros={
                'tmp_dir_path': get_tmp_dir_path,
                'frozen_df_path': _get_frozen_df_path,
                'frozen_df_wildcard': _get_frozen_df_wildcard,
                'preserve_scratch': get_preserve_scratch_resource('reorganize_upload'),
-           },
-           default_args=default_args) as dag:
+           }) as dag:
     def find_uuid(**kwargs):
         uuid = kwargs['dag_run'].conf['uuid']
 
@@ -142,10 +141,10 @@ with HMDAG('reorganize_upload',
                 auth_tok=get_auth_tok(**kwargs),
                 frozen_df_fname=_get_frozen_df_path(kwargs['run_id'])
             )
-            kwargs['ti'].xcom_push(key=None, value='0')  # signal success
+            kwargs['ti'].xcom_push(key='split_stage_1', value='0')  # signal success
         except Exception as e:
             print(f'Encountered {e}')
-            kwargs['ti'].xcom_push(key=None, value='1')  # signal failure
+            kwargs['ti'].xcom_push(key='split_stage_1', value='1')  # signal failure
 
 
     t_split_stage_1 = PythonOperator(
@@ -182,10 +181,10 @@ with HMDAG('reorganize_upload',
                 auth_tok=get_auth_tok(**kwargs),
                 frozen_df_fname=_get_frozen_df_path(kwargs['run_id'])
             )
-            kwargs['ti'].xcom_push(key=None, value='0')  # signal success
+            kwargs['ti'].xcom_push(key='split_stage_2', value='0')  # signal success
         except Exception as e:
             print(f'Encountered {e}')
-            kwargs['ti'].xcom_push(key=None, value='1')  # signal failure
+            kwargs['ti'].xcom_push(key='split_stage_2', value='1')  # signal failure
 
 
     t_split_stage_2 = PythonOperator(
@@ -227,17 +226,17 @@ with HMDAG('reorganize_upload',
         }
     )
 
-    (dag
-     >> t_log_info
-     >> t_find_uuid
-     >> t_create_tmpdir
-     >> t_split_stage_1
-     >> t_maybe_keep_1
-     >> t_split_stage_2
-     >> t_maybe_keep_2
-     >> t_join
-     >> t_preserve_info
-     >> t_cleanup_tmpdir
+    (
+        t_log_info
+        >> t_find_uuid
+        >> t_create_tmpdir
+        >> t_split_stage_1
+        >> t_maybe_keep_1
+        >> t_split_stage_2
+        >> t_maybe_keep_2
+        >> t_join
+        >> t_preserve_info
+        >> t_cleanup_tmpdir
      )
 
     t_maybe_keep_1 >> t_set_dataset_error

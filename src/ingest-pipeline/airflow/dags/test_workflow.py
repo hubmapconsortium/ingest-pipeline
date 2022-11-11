@@ -1,28 +1,14 @@
-import sys
-import os
-import ast
-import json
-from pathlib import Path
 from pprint import pprint
 from datetime import datetime, timedelta
 
-from airflow import DAG
-from airflow.configuration import conf as airflow_conf
-from airflow.operators.python_operator import PythonOperator
-from airflow.operators.bash_operator import BashOperator
-from airflow.exceptions import AirflowException
-from airflow.hooks.http_hook import HttpHook
-
+from airflow.operators.python import PythonOperator
 from hubmap_operators.common_operators import (
     CreateTmpDirOperator,
     CleanupTmpDirOperator,
 )
 
-import utils
 from utils import (
-    get_tmp_dir_path, get_auth_tok,
-    map_queue_name, pythonop_get_dataset_state,
-    localized_assert_json_matches_schema as assert_json_matches_schema,
+    get_tmp_dir_path,
     HMDAG,
     get_queue_resource,
     get_preserve_scratch_resource,
@@ -46,12 +32,11 @@ default_args = {
 with HMDAG('test_workflow',
            schedule_interval=None,
            is_paused_upon_creation=False,
-           user_defined_macros={
-               'tmp_dir_path' : get_tmp_dir_path,
-               'preserve_scratch': get_preserve_scratch_resource('test_workflow'),
-           },
            default_args=default_args,
-       ) as dag:
+           user_defined_macros={
+               'tmp_dir_path': get_tmp_dir_path,
+               'preserve_scratch': get_preserve_scratch_resource('test_workflow'),
+           }) as dag:
 
     def test_task_func(**kwargs):
         pprint(kwargs)
@@ -65,4 +50,4 @@ with HMDAG('test_workflow',
     t_create_tmpdir = CreateTmpDirOperator(task_id='create_tmp_dir')
     t_cleanup_tmpdir = CleanupTmpDirOperator(task_id='cleanup_tmp_dir')
 
-    (dag >> t_create_tmpdir >> t_test >> t_cleanup_tmpdir)
+    t_create_tmpdir >> t_test >> t_cleanup_tmpdir

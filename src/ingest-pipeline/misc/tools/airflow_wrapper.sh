@@ -76,14 +76,17 @@ for varname in "${envvars[@]}" ; do
     cfg_varname="HM_AF_${varname}"
     if [[ -z "${!full_varname}" ]] ; then
 	export ${full_varname}=${!cfg_varname}
-    fi 
+    fi
     if [[ -z "${!full_varname}" ]] ; then
 	echo "${full_varname} is not set"
 	exit -1
-    fi 
+    fi
 done
 
 if [ "${HM_AF_METHOD}" == 'conda' ] ; then
+    export PATH=/hive/users/hive/anaconda3/bin:%PATH
+    export LANG=C.UTF-8
+    export LC_ALL=C.UTF-8
     eval "$(conda shell.bash hook)"
     conda activate "${HM_AF_ENV_NAME}"
 elif [ "${HM_AF_METHOD}" == 'module_conda' ] ; then

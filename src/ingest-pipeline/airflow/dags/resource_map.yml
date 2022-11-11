@@ -19,7 +19,6 @@ resource_map:
     - 'task_re': '.*'
       'queue': 'general'
       'threads': 6
-      'coreuse': 60
     - 'task_re': '.*cwl_segmentation'
       'queue': 'gpu000_q1'
       'threads': 6
