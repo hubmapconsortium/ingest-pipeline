@@ -1,4 +1,5 @@
 # git+https://github.com/hubmapconsortium/commons@main#egg=hubmap-commons==2.0.11
+jsonref>=0.2,<1.0
 hubmap-commons==2.0.14
 prov==1.5.1
 # pylibczi>=1.1.1

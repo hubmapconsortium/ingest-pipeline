@@ -5,10 +5,6 @@
 # allowed values of HUBMAP_INSTANCE
 hubmap_instance_strings=" prod test dev proto stage "
 
-# Path from top level to the airflow environments directory
-airflow_env_rel_path=src/ingest-pipeline/misc/tools/airflow_environments
-
-
 # function to find the path to this script
 function get_dir_of_this_script () {
     # This function sets DIR to the directory in which this script itself is found.
@@ -41,23 +37,13 @@ if [ $(contains "${hubmap_instance_strings}" "${instance}") == 0 ] ; then
    exit -1
 fi
 
-
 # set DIR to the directory of the current script, and find the source tree top level
 get_dir_of_this_script
 cd "$DIR"
 top_level_dir="$(git rev-parse --show-toplevel)"
 
 # establish OS context
-source /etc/os-release
-platform_string="${ID}_${VERSION_ID}_${instance}"
-platform_file="${top_level_dir}/${airflow_env_rel_path}/env_${platform_string}.sh"
-if [[ -e "${platform_file}" ]] ; then
-    source "${platform_file}"
-else
-    echo "Platform configuration file ${platform_file} does not exist"
-    exit -1
-fi
-
+source source_platform_file.sh
 
 # Handle setting of environment variables.
 #
@@ -84,13 +70,13 @@ for varname in "${envvars[@]}" ; do
 done
 
 if [ "${HM_AF_METHOD}" == 'conda' ] ; then
-    export PATH=/hive/users/hive/anaconda3/bin:%PATH
-    export LANG=C.UTF-8
-    export LC_ALL=C.UTF-8
+    which conda || export PATH=/hive/users/hive/anaconda3/bin:$PATH
     eval "$(conda shell.bash hook)"
     conda activate "${HM_AF_ENV_NAME}"
 elif [ "${HM_AF_METHOD}" == 'module_conda' ] ; then
-    module load anaconda3
+    source /etc/profile.d/modules.sh
+    module use /hive/modulefiles
+    module load anaconda
     eval "$(conda shell.bash hook)"
     conda activate "${HM_AF_ENV_NAME}"
 elif [ "${HM_AF_METHOD}" == 'venv' ] ; then
