@@ -35,8 +35,6 @@ source source_platform_file.sh
 echo $HM_AF_METHOD $HM_AF_ENV_NAME
 if [ "${HM_AF_METHOD}" == 'conda' ] ; then
     which conda || export PATH=/hive/users/hive/anaconda3/bin:$PATH
-    #export LANG=C.UTF-8
-    #export LC_ALL=C.UTF-8
     eval "$(conda shell.bash hook)"
 elif [ "${HM_AF_METHOD}" == 'module_conda' ] ; then
     source /etc/profile.d/modules.sh
