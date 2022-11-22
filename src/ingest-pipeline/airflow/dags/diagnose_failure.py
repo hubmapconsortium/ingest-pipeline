@@ -83,7 +83,7 @@ with HMDAG('diagnose_failure',
         uuid = ds_rslt['uuid']  # original 'uuid' may  actually be a DOI
         print(f'Finished uuid {uuid}')
         print(f'lz path: {lz_path}')
-        kwargs['ti'].xcom_push(value=ds_rslt)
+        return ds_rslt  # causing it to be put into xcom
 
     t_find_uuid = PythonOperator(
         task_id='find_uuid',
@@ -99,7 +99,7 @@ with HMDAG('diagnose_failure',
         )
 
     def find_scratch(**kwargs):
-        info_dict = kwargs['ti'].xcom_pull().copy()
+        info_dict = kwargs['ti'].xcom_pull(task_ids="find_uuid").copy()
         dir_path = Path(info_dict['local_directory_full_path'])
         session_log_path = dir_path / 'session.log'
         assert session_log_path.exists(), 'session.log is not in the dataset directory'
@@ -112,7 +112,7 @@ with HMDAG('diagnose_failure',
                 break
         if scratch_path:
             info_dict['scratch_path'] = scratch_path
-        kwargs['ti'].xcom_push(value=info_dict)
+        return info_dict  # causing it to be put into xcom
 
     t_find_scratch = PythonOperator(
         task_id='find_scratch',
@@ -128,14 +128,14 @@ with HMDAG('diagnose_failure',
     )
 
     def run_diagnostics(**kwargs):
-        info_dict = kwargs['ti'].xcom_pull().copy()
+        info_dict = kwargs['ti'].xcom_pull(task_ids="find_scratch").copy()
         for key in info_dict:
             logging.info(f'{key.upper()}: {info_dict[key]}')
-        kwargs['ti'].xcom_push(value=info_dict)
+        return info_dict  # causing it to be put into xcom
 
     t_run_diagnostics = PythonOperator(
-        task_id='run_plugin_diagnostics',
-        python_callable=run_plugin_diagnostics,
+        task_id='run_diagnostics',
+        python_callable=run_diagnostics,
         provide_context=True,
         op_kwargs={
             'crypt_auth_tok': (
