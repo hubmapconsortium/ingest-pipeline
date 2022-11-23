@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 from airflow.configuration import conf as airflow_conf
 from airflow.operators.bash import BashOperator
 from airflow.operators.python import PythonOperator, BranchPythonOperator
+from airflow.exceptions import AirflowException
 
 from hubmap_operators.flex_multi_dag_run import FlexMultiDagRunOperator
 from hubmap_operators.common_operators import (
@@ -24,6 +25,7 @@ from utils import (
     get_queue_resource,
     get_preserve_scratch_resource,
     pythonop_maybe_keep,
+    pythonop_get_dataset_state,
     )
 
 sys.path.append(airflow_conf.as_dict()['connections']['SRC_PATH']
@@ -78,8 +80,31 @@ with HMDAG('scan_and_begin_processing',
 
     
     def run_validation(**kwargs):
-        lz_path = kwargs['dag_run'].conf['lz_path']
-        uuid = kwargs['dag_run'].conf['submission_id']
+        if ('lz_path' in kwargs['dag_run'].conf
+            and 'submission_id' in kwargs['dag_run'].conf):
+            # These conditions are set by the hubap_api plugin when this DAG
+            # is invoked from the ingest user interface
+            lz_path = kwargs['dag_run'].conf['lz_path']
+            uuid = kwargs['dag_run'].conf['submission_id']
+        elif 'parent_submission_id' in kwargs['dag_run'].conf:
+            # These conditions are met when this DAG is triggered via
+            # the launch_multi_analysis DAG.
+            uuid_list = kwargs['dag_run'].conf['parent_submission_id']
+            assert len(uuid_list) == 1, f"{dag.dag_id} can only handle one uuid at a time"
+            def my_callable(**kwargs):
+                return uuid_list[0]
+            ds_rslt = pythonop_get_dataset_state(
+                dataset_uuid_callable=my_callable,
+                **kwargs
+            )
+            if not ds_rslt:
+                raise AirflowException(f'Invalid uuid/doi for group: {uuid}')
+            if not 'local_directory_full_path' in ds_rslt:
+                raise AirflowException(f'Dataset status for {uuid_list[0]} has no full path')
+            lz_path = ds_rslt['local_directory_full_path']
+            uuid = uuid_list[0]  # possibly translating a HuBMAP ID
+        else:
+            raise AirflowException("The dag_run does not contain enough information")
         plugin_path = [path for path in ingest_validation_tests.__path__][0]
 
         ignore_globs = [uuid, 'extras', '*metadata.tsv',
