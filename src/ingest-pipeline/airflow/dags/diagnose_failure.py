@@ -17,12 +17,7 @@ from utils import (
     get_queue_resource,
     )
 
-sys.path.append(airflow_conf.as_dict()['connections']['SRC_PATH']
-                .strip("'").strip('"'))
-from submodules import (ingest_validation_tools_upload,  # noqa E402
-                        ingest_validation_tools_error_report,
-                        ingest_validation_tests)
-sys.path.pop()
+import diagnostics.diagnostic_plugin as diagnostic_plugin
 
 FIND_SCRATCH_REGEX = r'/.+/scratch/[^/]+/'
 
@@ -131,6 +126,15 @@ with HMDAG('diagnose_failure',
         info_dict = kwargs['ti'].xcom_pull(task_ids="find_scratch").copy()
         for key in info_dict:
             logging.info(f'{key.upper()}: {info_dict[key]}')
+        plugin_path = Path(diagnostic_plugin.__file__).parent / 'plugins'
+        for plugin in diagnostic_plugin.diagnostic_result_iter(plugin_dir, **info_dict):
+            diagnostic_result = plugin.diagnose()
+            if diagnostic_result.pass_fail():
+                logging.info(f'Plugin {plugin.description} passed without error')
+            else:
+                logging.info(f'Plugin {plugin.description} found errors:')
+                for err_str in diagnostic_result.to_strings():
+                    logging.info(err_str)
         return info_dict  # causing it to be put into xcom
 
     t_run_diagnostics = PythonOperator(
