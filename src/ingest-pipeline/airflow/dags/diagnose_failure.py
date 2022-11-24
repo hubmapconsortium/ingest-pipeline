@@ -74,10 +74,24 @@ with HMDAG('diagnose_failure',
         if not ds_rslt['status'] in ['Error']:
             raise AirflowException(f'Dataset {uuid} is not in Error state')
 
-        lz_path = ds_rslt['local_directory_full_path']
-        uuid = ds_rslt['uuid']  # original 'uuid' may  actually be a DOI
-        print(f'Finished uuid {uuid}')
-        print(f'lz path: {lz_path}')
+        if ('parent_dataset_uuid_list' in ds_rslt
+            and ds_rslt['parent_dataset_uuid_list'] is not None):
+            parent_dataset_full_path_list = []
+            for parent_uuid in ds_rslt['parent_dataset_uuid_list']:
+                def parent_callable(**kwargs):
+                    return parent_uuid
+                parent_ds_rslt = utils.pythonop_get_dataset_state(
+                    dataset_uuid_callable=parent_callable,
+                    **kwargs
+                )
+                if not parent_ds_rslt:
+                    raise AirflowException(f'Invalid uuid for parent: {parent_uuid}')
+                parent_dataset_full_path_list.append(
+                    parent_ds_rslt['local_directory_full_path']
+                )
+            ds_rslt['parent_dataset_full_path_list'] = parent_dataset_full_path_list
+            
+        print(f"Finished uuid {ds_rslt['uuid']}")
         return ds_rslt  # causing it to be put into xcom
 
     t_find_uuid = PythonOperator(
@@ -127,14 +141,14 @@ with HMDAG('diagnose_failure',
         for key in info_dict:
             logging.info(f'{key.upper()}: {info_dict[key]}')
         plugin_path = Path(diagnostic_plugin.__file__).parent / 'plugins'
-        for plugin in diagnostic_plugin.diagnostic_result_iter(plugin_dir, **info_dict):
+        for plugin in diagnostic_plugin.diagnostic_result_iter(plugin_path, **info_dict):
             diagnostic_result = plugin.diagnose()
             if diagnostic_result.pass_fail():
-                logging.info(f'Plugin {plugin.description} passed without error')
+                logging.info(f'Plugin "{plugin.description}" found no problem')
             else:
-                logging.info(f'Plugin {plugin.description} found errors:')
+                logging.info(f'Plugin "{plugin.description}" found problems:')
                 for err_str in diagnostic_result.to_strings():
-                    logging.info(err_str)
+                    logging.info("    " + err_str)
         return info_dict  # causing it to be put into xcom
 
     t_run_diagnostics = PythonOperator(

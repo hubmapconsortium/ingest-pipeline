@@ -2,7 +2,9 @@
 This test always passes.  It exists for development purposes.
 """
 
-from diagnostic_plugin import DiagnosticPlugin, DiagnosticResult, DiagnosticError
+from diagnostics.diagnostic_plugin import (
+    DiagnosticPlugin, DiagnosticResult, DiagnosticError
+)
 
 class AlwaysPassesDiagnosticResult(DiagnosticResult):
     def pass_fail(self):
@@ -12,8 +14,11 @@ class AlwaysPassesDiagnosticResult(DiagnosticResult):
         return ["nothing to see here"]
 
 class AlwaysPassesDiagnosticPlugin(DiagnosticPlugin):
+    description = "This test always passes"
+    order_of_application = 1.0
+
     def __init__(self, **kwargs):
-        super.__init__(**kwargs)
+        super().__init__(**kwargs)
 
     def diagnose(self):
         return AlwaysPassesDiagnosticResult([])

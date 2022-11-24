@@ -53,7 +53,7 @@ class DiagnosticPlugin(object):
 
     order_of_application = 1.0
     """
-    A floating point value which determines the order in which tests are
+    float: A floating point value which determines the order in which tests are
     applied.  Low values are carried out sooner.
     """
 
@@ -96,6 +96,7 @@ def diagnostic_result_iter(plugin_dir: PathOrStr, **kwargs) -> Iterator[Diagnost
         raise DiagnosticError(f'{plugin_dir}/*.py does not match any diagnostic plugins')
 
     sort_me = []
+    this_dir = Path(__file__).parent
     with add_path(str(plugin_dir)):
         for fpath in plugin_dir.glob('*.py'):
             mod_nm = fpath.stem
@@ -112,7 +113,7 @@ def diagnostic_result_iter(plugin_dir: PathOrStr, **kwargs) -> Iterator[Diagnost
                 if (inspect.isclass(obj) and obj != DiagnosticPlugin
                     and issubclass(obj, DiagnosticPlugin)):
                     sort_me.append((obj.order_of_application, obj.description, obj))
-    sort_me.sort()
-    for order_of_application, description, cls in sort_me:
-        diagnostic_plugin = cls(**kwargs)
-        yield diagnostic_plugin
+        sort_me.sort()
+        for order_of_application, description, cls in sort_me:
+            diagnostic_plugin = cls(**kwargs)
+            yield diagnostic_plugin
