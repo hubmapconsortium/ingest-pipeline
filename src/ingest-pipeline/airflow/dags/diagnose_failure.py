@@ -1,5 +1,3 @@
-import sys
-import os
 import re
 from pathlib import Path
 from pprint import pprint
@@ -75,7 +73,7 @@ with HMDAG('diagnose_failure',
             raise AirflowException(f'Dataset {uuid} is not in Error state')
 
         if ('parent_dataset_uuid_list' in ds_rslt
-            and ds_rslt['parent_dataset_uuid_list'] is not None):
+                and ds_rslt['parent_dataset_uuid_list'] is not None):
             parent_dataset_full_path_list = []
             for parent_uuid in ds_rslt['parent_dataset_uuid_list']:
                 def parent_callable(**kwargs):
@@ -90,7 +88,7 @@ with HMDAG('diagnose_failure',
                     parent_ds_rslt['local_directory_full_path']
                 )
             ds_rslt['parent_dataset_full_path_list'] = parent_dataset_full_path_list
-            
+
         print(f"Finished uuid {ds_rslt['uuid']}")
         return ds_rslt  # causing it to be put into xcom
 

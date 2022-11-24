@@ -31,7 +31,7 @@ class DiagnosticError(Exception):
     pass
 
 
-class DiagnosticResult(object):
+class DiagnosticResult():
     def __init__(self, string_list: List[str], **kwargs):
         self.string_list = string_list
 
@@ -41,12 +41,12 @@ class DiagnosticResult(object):
         diagnostic did not detect a problem.
         """
         return not self.string_list
-        
+
     def to_strings(self) -> List[str]:
         return self.string_list
 
 
-class DiagnosticPlugin(object):
+class DiagnosticPlugin():
     description = "This is a human-readable description"
     """str: human-readable description of the thing this plugin tests
     """
@@ -96,7 +96,6 @@ def diagnostic_result_iter(plugin_dir: PathOrStr, **kwargs) -> Iterator[Diagnost
         raise DiagnosticError(f'{plugin_dir}/*.py does not match any diagnostic plugins')
 
     sort_me = []
-    this_dir = Path(__file__).parent
     with add_path(str(plugin_dir)):
         for fpath in plugin_dir.glob('*.py'):
             mod_nm = fpath.stem
@@ -109,11 +108,11 @@ def diagnostic_result_iter(plugin_dir: PathOrStr, **kwargs) -> Iterator[Diagnost
                 mod = util.module_from_spec(spec)
                 sys.modules[mod_nm] = mod
                 spec.loader.exec_module(mod)  # type: ignore
-            for name, obj in inspect.getmembers(mod):
+            for _, obj in inspect.getmembers(mod):
                 if (inspect.isclass(obj) and obj != DiagnosticPlugin
-                    and issubclass(obj, DiagnosticPlugin)):
+                        and issubclass(obj, DiagnosticPlugin)):
                     sort_me.append((obj.order_of_application, obj.description, obj))
         sort_me.sort()
-        for order_of_application, description, cls in sort_me:
+        for _, _, cls in sort_me:
             diagnostic_plugin = cls(**kwargs)
             yield diagnostic_plugin
