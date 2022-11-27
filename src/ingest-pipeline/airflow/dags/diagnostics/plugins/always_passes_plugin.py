@@ -7,8 +7,8 @@ from diagnostics.diagnostic_plugin import (
 )
 
 class AlwaysPassesDiagnosticResult(DiagnosticResult):
-    def pass_fail(self):
-        return True  # passes
+    def problem_found(self):
+        return False  # passes
 
     def to_strings(self):
         return ["nothing to see here"]

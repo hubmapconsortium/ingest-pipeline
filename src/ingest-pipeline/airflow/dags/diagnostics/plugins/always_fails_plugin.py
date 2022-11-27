@@ -7,8 +7,8 @@ from diagnostics.diagnostic_plugin import (
 )
 
 class AlwaysFailsDiagnosticResult(DiagnosticResult):
-    def pass_fail(self):
-        return False  # passes
+    def problem_found(self):
+        return True  # passes
 
     def to_strings(self):
         return ["This test failed because it always fails"]

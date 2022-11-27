@@ -35,12 +35,12 @@ class DiagnosticResult():
     def __init__(self, string_list: List[str], **kwargs):
         self.string_list = string_list
 
-    def pass_fail(self) -> bool:
+    def problem_found(self) -> bool:
         """
-        a True return value means that the test was passed and the
+        a False return value means that the test was passed and the
         diagnostic did not detect a problem.
         """
-        return not self.string_list
+        return len(self.string_list) == 0
 
     def to_strings(self) -> List[str]:
         return self.string_list
@@ -71,12 +71,8 @@ class DiagnosticPlugin():
     def diagnose(self) -> DiagnosticResult:
         """
         Carries out the diagnostic test and returns a result.  "No Error" is
-        returned by returning a DiagnosticResult instance the pass_fail()
-        of which returns True.
-
-        "No error" is represented by returning an empty list.
-        If the assay_type is not one for which this validator is intended,
-        just return an empty list.
+        returned by returning a DiagnosticResult instance the problem_found()
+        of which returns False.
         """
         raise NotImplementedError()
 

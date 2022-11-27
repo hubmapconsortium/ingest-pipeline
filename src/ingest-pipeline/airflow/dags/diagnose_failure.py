@@ -141,12 +141,12 @@ with HMDAG('diagnose_failure',
         plugin_path = Path(diagnostic_plugin.__file__).parent / 'plugins'
         for plugin in diagnostic_plugin.diagnostic_result_iter(plugin_path, **info_dict):
             diagnostic_result = plugin.diagnose()
-            if diagnostic_result.pass_fail():
-                logging.info(f'Plugin "{plugin.description}" found no problem')
-            else:
+            if diagnostic_result.problem_found():
                 logging.info(f'Plugin "{plugin.description}" found problems:')
                 for err_str in diagnostic_result.to_strings():
                     logging.info("    " + err_str)
+            else:
+                logging.info(f'Plugin "{plugin.description}" found no problem')
         return info_dict  # causing it to be put into xcom
 
     t_run_diagnostics = PythonOperator(
