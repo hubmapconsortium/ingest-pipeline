@@ -8,7 +8,6 @@ from pathlib import Path
 from diagnostics.diagnostic_plugin import (
     DiagnosticPlugin,
     DiagnosticResult,
-    DiagnosticError,
 )
 
 
@@ -27,10 +26,6 @@ class FindErrorsDiagnosticResult(DiagnosticResult):
             return True
         return False
 
-    def to_strings(self):
-        print("Errors:", len(self.string_list))
-        return self.string_list
-
 
 class FindErrorsDiagnosticPlugin(DiagnosticPlugin):
     description = "This test should locate instances of the string 'Error'"
@@ -42,7 +37,7 @@ class FindErrorsDiagnosticPlugin(DiagnosticPlugin):
     def diagnose(self):
         session_log_path = self.dir_path / "session.log"
         assert session_log_path.exists(), "session.log is not in the dataset directory"
-        regex = re.compile(FIND_OS_ERROR_REGEX, re.I)
+        regex = re.compile(FIND_ERROR_REGEX, re.I)
         errors = []
         for line in open(session_log_path):
             match = regex.search(line)
