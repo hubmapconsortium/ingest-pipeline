@@ -40,7 +40,7 @@ class DiagnosticResult():
         a False return value means that the test was passed and the
         diagnostic did not detect a problem.
         """
-        return len(self.string_list) == 0
+        return len(self.string_list) != 0
 
     def to_strings(self) -> List[str]:
         return self.string_list
