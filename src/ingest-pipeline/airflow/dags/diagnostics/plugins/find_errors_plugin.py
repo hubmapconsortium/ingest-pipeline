@@ -12,19 +12,12 @@ from diagnostics.diagnostic_plugin import (
 
 
 # TODO: maybe there's a way to encode case insensitivity directly into the regex string
-# rather than doing it in the combine method?
+# rather than doing it in the combine method? That is, if we want case insensitivity
 
 # Finds all instances of the word "error"
 FIND_ERROR_REGEX = r"(\S+)?error(\S+)?"
 # Finds OSError and BrokenPipeError (test--TODO: needs better modularizing)
 FIND_OS_ERROR_REGEX = r"(oserror)|(brokenpipeerror)"
-
-
-class FindErrorsDiagnosticResult(DiagnosticResult):
-    def problem_found(self):
-        if len(self.string_list) > 0:
-            return True
-        return False
 
 
 class FindErrorsDiagnosticPlugin(DiagnosticPlugin):
@@ -45,4 +38,4 @@ class FindErrorsDiagnosticPlugin(DiagnosticPlugin):
                 # TODO: Currently adds the entire line, could instead return just error name
                 # and/or do more parsing to separate error name and contextual info
                 errors.append(line)
-        return FindErrorsDiagnosticResult(errors)
+        return DiagnosticResult(errors)
