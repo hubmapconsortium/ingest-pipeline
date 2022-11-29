@@ -18,7 +18,7 @@ from diagnostics.diagnostic_plugin import (
 # Finds all instances of the word "error"
 FIND_ERROR_REGEX = r"(\S+)?error(\S+)?"
 # Finds OSError and BrokenPipeError (test--TODO: needs better modularizing)
-FIND_IO_ERROR_REGEX = r"(oserror)|(brokenpipeerror)"
+FIND_OS_ERROR_REGEX = r"(oserror)|(brokenpipeerror)"
 
 
 class FindErrorsDiagnosticResult(DiagnosticResult):
@@ -28,11 +28,7 @@ class FindErrorsDiagnosticResult(DiagnosticResult):
         return False
 
     def to_strings(self):
-        print("Errors:")
-        for index, string in enumerate(self.string_list):
-            if index == 10:
-                break
-            print(string)
+        print("Errors:", len(self.string_list))
         return self.string_list
 
 
@@ -46,7 +42,7 @@ class FindErrorsDiagnosticPlugin(DiagnosticPlugin):
     def diagnose(self):
         session_log_path = self.dir_path / "session.log"
         assert session_log_path.exists(), "session.log is not in the dataset directory"
-        regex = re.compile(FIND_IO_ERROR_REGEX, re.I)
+        regex = re.compile(FIND_OS_ERROR_REGEX, re.I)
         errors = []
         for line in open(session_log_path):
             match = regex.search(line)
