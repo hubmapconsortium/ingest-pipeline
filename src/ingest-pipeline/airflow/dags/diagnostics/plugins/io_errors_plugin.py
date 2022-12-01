@@ -28,7 +28,6 @@ class FindErrorsDiagnosticPlugin(DiagnosticPlugin):
         for line in open(session_log_path):
             match = regex.search(line)
             if match:
-                # TODO: Currently adds the entire line, could instead return just error name
-                # and/or do more parsing to separate error name and contextual info
                 errors.append(line)
+        print("Input/output error found!")
         return DiagnosticResult(errors)
