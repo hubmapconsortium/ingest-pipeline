@@ -16,7 +16,7 @@ ERROR_REGEX = r"(?i)(\w+)?error(\w+)?"
 OS_ERROR_REGEX = r"(OSError)|(BrokenPipeError)"
 
 
-class FindErrorsDiagnosticPlugin(DiagnosticPlugin):
+class ErrorsDiagnosticPlugin(DiagnosticPlugin):
     description = "This test should locate instances of the string 'Error'"
     order_of_application = 1.0
 

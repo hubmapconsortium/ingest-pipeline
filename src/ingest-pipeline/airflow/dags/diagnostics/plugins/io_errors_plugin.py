@@ -13,8 +13,8 @@ from diagnostics.diagnostic_plugin import (
 IO_ERROR_REGEX = r"(?=.*(OSError))(?=.*(Input\/output error))"
 
 
-class FindErrorsDiagnosticPlugin(DiagnosticPlugin):
-    description = "This test should locate instances of the string 'Error'"
+class IOErrorsDiagnosticPlugin(DiagnosticPlugin):
+    description = "Detects input/output OSErrors"
     order_of_application = 1.0
 
     def __init__(self, **kwargs):
