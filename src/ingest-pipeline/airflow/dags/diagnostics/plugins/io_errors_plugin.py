@@ -1,5 +1,5 @@
 """
-This plugin uses regex to search for errors in session.log
+This plugin uses regex to search for IO errors in session.log
 """
 
 import re
@@ -10,14 +10,11 @@ from diagnostics.diagnostic_plugin import (
     DiagnosticResult,
 )
 
-# Finds all instances of the word "error"
-ERROR_REGEX = r"(?i)(\w+)?error(\w+)?"
-# Finds OSError or BrokenPipeError (TODO: needs better modularizing)
-OS_ERROR_REGEX = r"(OSError)|(BrokenPipeError)"
+IO_ERROR_REGEX = r"(?=.*(OSError))(?=.*(Input\/output error))"
 
 
-class ErrorsDiagnosticPlugin(DiagnosticPlugin):
-    description = "This test should locate instances of the string 'Error'"
+class IOErrorsDiagnosticPlugin(DiagnosticPlugin):
+    description = "Detects input/output OSErrors"
     order_of_application = 1.0
 
     def __init__(self, **kwargs):
@@ -26,12 +23,11 @@ class ErrorsDiagnosticPlugin(DiagnosticPlugin):
     def diagnose(self):
         session_log_path = self.dir_path / "session.log"
         assert session_log_path.exists(), "session.log is not in the dataset directory"
-        regex = re.compile(ERROR_REGEX)
+        regex = re.compile(IO_ERROR_REGEX)
         errors = []
         for line in open(session_log_path):
             match = regex.search(line)
             if match:
-                # TODO: Currently adds the entire line, could instead return just error name
-                # and/or do more parsing to separate error name and contextual info
+                errors.append("Input/output error found!")
                 errors.append(line)
         return DiagnosticResult(errors)
