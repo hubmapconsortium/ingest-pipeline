@@ -5,6 +5,8 @@ the dataset being diagnosed and reporting an error if a validation
 test fails.
 """
 
+from pathlib import Path
+
 from diagnostics.diagnostic_plugin import (
     DiagnosticPlugin, DiagnosticResult, DiagnosticError, add_path
 )
@@ -45,8 +47,11 @@ class ValidationPluginDiagnosticPlugin(DiagnosticPlugin):
                         self.parent_dataset_data_types_list,
                         self.parent_dataset_data_path_list
                 ):
-                    assert len(data_types) == 1, f"Expected one assay type, found {data_types}"
-                    assert parent_data_path is not None, f"Parent dataset {parent_uuid} has no data_path"
+                    if len(data_types) != 1:
+                        raise DiagnosticError(f"Expected one assay type for {parent_uuid}"
+                                              f", found {data_types}")
+                    if parent_data_path is None:
+                        raise DiagnosticError(f"Parent dataset {parent_uuid} has no data_path")
                     validator = cls(Path(parent_path) / parent_data_path,
                                     data_types[0])
                     err_strings = [err for err in validator.collect_errors()]
@@ -56,5 +61,5 @@ class ValidationPluginDiagnosticPlugin(DiagnosticPlugin):
                         string_list.append(f'Applying {cls.description} to {parent_uuid} produced:')
                         for err_s in err_strings:
                             string_list.append(err_s)
-                    
+
         return DiagnosticResult(string_list)
