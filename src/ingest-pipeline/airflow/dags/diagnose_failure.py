@@ -76,6 +76,7 @@ with HMDAG('diagnose_failure',
                 and ds_rslt['parent_dataset_uuid_list'] is not None):
             parent_dataset_full_path_list = []
             parent_dataset_data_types_list = []
+            parent_dataset_data_path_list = []
             for parent_uuid in ds_rslt['parent_dataset_uuid_list']:
                 def parent_callable(**kwargs):
                     return parent_uuid
@@ -91,6 +92,11 @@ with HMDAG('diagnose_failure',
                 parent_dataset_data_types_list.append(
                     parent_ds_rslt['data_types']
                 )
+                if ('metadata' in parent_ds_rslt
+                        and 'data_path' in parent_ds_rslt['metadata']):
+                    parent_dataset_data_path_list.append(parent_ds_rslt['metadata'])
+                else:
+                    parent_dataset_data_path_list.append(None)
             ds_rslt['parent_dataset_full_path_list'] = parent_dataset_full_path_list
             ds_rslt['parent_dataset_data_types_list'] = parent_dataset_data_types_list
 

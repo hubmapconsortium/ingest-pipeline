@@ -28,6 +28,7 @@ class ValidationPluginDiagnosticPlugin(DiagnosticPlugin):
         self.parent_dataset_uuid_list = kwargs['parent_dataset_uuid_list']
         self.parent_dataset_full_path_list = kwargs['parent_dataset_full_path_list']
         self.parent_dataset_data_types_list = kwargs['parent_dataset_data_types_list']
+        self.parent_dataset_data_path_list = kwargs['parent_dataset_data_path_list']
 
     def diagnose(self):
         string_list = []
@@ -38,13 +39,16 @@ class ValidationPluginDiagnosticPlugin(DiagnosticPlugin):
             break
         for cls in plugin_validator.validation_class_iter(vp_path):
             if cls.cost <= PLUGIN_COST_THRESHOLD:
-                for parent_uuid, parent_path, data_types in zip(
+                for parent_uuid, parent_path, data_types, parent_data_path in zip(
                         self.parent_dataset_uuid_list,
                         self.parent_dataset_full_path_list,
-                        self.parent_dataset_data_types_list
+                        self.parent_dataset_data_types_list,
+                        self.parent_dataset_data_path_list
                 ):
                     assert len(data_types) == 1, f"Expected one assay type, found {data_types}"
-                    validator = cls(parent_path, data_types[0])
+                    assert parent_data_path is not None, f"Parent dataset {parent_uuid} has no data_path"
+                    validator = cls(Path(parent_path) / parent_data_path,
+                                    data_types[0])
                     err_strings = [err for err in validator.collect_errors()]
                     # Need kwargs for collect_errors?
                     # Need rel path for cls constructor?
