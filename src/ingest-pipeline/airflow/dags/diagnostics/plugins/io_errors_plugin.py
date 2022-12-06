@@ -28,6 +28,6 @@ class IOErrorsDiagnosticPlugin(DiagnosticPlugin):
         for line in open(session_log_path):
             match = regex.search(line)
             if match:
+                errors.append("Input/output error found!")
                 errors.append(line)
-        print("Input/output error found!")
         return DiagnosticResult(errors)
