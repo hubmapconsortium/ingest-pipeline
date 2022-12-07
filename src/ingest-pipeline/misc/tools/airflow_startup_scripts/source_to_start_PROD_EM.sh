@@ -4,7 +4,6 @@
 #
 instance=prod
 logdir=$HOME/logs
-#queue=general_${instance},gpu000_q1_${instance}
 queue=general_${instance}
 host=`hostname`
 name=celery-${instance}
