@@ -1,5 +1,7 @@
 export_and_backup_map:
-  - 'type': 'type_1'
+  - 'type': 'cell-dive'
     'plugins': ['plugin_type_1']
-  - 'type': 'type_2'
+  - 'type': 'celldive_deepcell'
     'plugins': ['plugin_type_2']
+  - 'type': 'type_3'
+    'plugins': ['plugin_type_3']
