@@ -34,11 +34,7 @@ class ValidationPluginDiagnosticPlugin(DiagnosticPlugin):
 
     def diagnose(self):
         string_list = []
-        # I honestly can't find a better way to get the string out of the
-        # _NamespacePath than this!
-        for elt in ingest_validation_tests.__path__:
-            vp_path = elt
-            break
+        vp_path = ingest_validation_tests.__path__._path[0]
         for cls in plugin_validator.validation_class_iter(vp_path):
             if cls.cost <= PLUGIN_COST_THRESHOLD:
                 for parent_uuid, parent_path, data_types, parent_data_path in zip(
