@@ -109,28 +109,21 @@ with HMDAG(
         },
     )
 
+    """
+    TODO: this currently just runs plugins, needs to only run run_plugins
+    specified for data_types per export_and_backup_map
+    """
+
     def run_plugins(**kwargs):
         info_dict = kwargs["ti"].xcom_pull(task_ids="find_plugins").copy()
         for key in info_dict:
             logging.info(f"{key.upper()}: {info_dict[key]}")
         plugin_path = Path(export_and_backup_plugin.__file__).parent / "plugins"
-        print("Plugin path: ", plugin_path)
-        plugin_list = []
         for plugin in export_and_backup_plugin.export_and_backup_result_iter(
             plugin_path, **info_dict
         ):
             result = plugin.run_plugin()
-            print(result)
         return info_dict
-
-    #         diagnostic_result = plugin.diagnose()
-    #         if diagnostic_result.problem_found():
-    #             logging.info(f'Plugin "{plugin.description}" found problems:')
-    #             for err_str in diagnostic_result.to_strings():
-    #                 logging.info("    " + err_str)
-    #         else:
-    #             logging.info(f'Plugin "{plugin.description}" found no problem')
-    #     return info_dict  # causing it to be put into xcom
 
     t_run_plugins = PythonOperator(
         task_id="run_plugins",
