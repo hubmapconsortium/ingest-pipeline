@@ -114,13 +114,14 @@ with HMDAG(
         for key in info_dict:
             logging.info(f"{key.upper()}: {info_dict[key]}")
         plugin_path = Path(export_and_backup_plugin.__file__).parent / "plugins"
+        print("Plugin path: ", plugin_path)
         plugin_list = []
         for plugin in export_and_backup_plugin.export_and_backup_result_iter(
             plugin_path, **info_dict
         ):
-            # result = plugin.run_plugin()
-            plugin_list.append(plugin)
-            return plugin_list
+            result = plugin.run_plugin()
+            print(result)
+        return info_dict
 
     #         diagnostic_result = plugin.diagnose()
     #         if diagnostic_result.problem_found():
