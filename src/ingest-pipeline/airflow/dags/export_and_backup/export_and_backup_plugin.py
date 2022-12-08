@@ -6,7 +6,7 @@ class ExportAndBackupPlugin:
         raise NotImplementedError()
 
 
-def export_and_backup_result_iter(plugin_dir: Path | str, **kwargs) -> list:
+def export_and_backup_result_iter(plugin_dir, **kwargs) -> list:
     plugin_dir = Path(plugin_dir)
     plugins = list(plugin_dir.glob("*.py"))
     if not plugins:
