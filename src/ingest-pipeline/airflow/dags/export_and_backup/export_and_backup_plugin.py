@@ -28,12 +28,11 @@ class ExportAndBackupPlugin:
 
     order_of_application = 1.0
 
+    data_type = None
+
     def __init__(self, **kwargs):
         """
-        The general context is provided by keyword arguments. The
-        plugin is expected to test for the presence of the values
-        it needs and raise DiagnosticError if the necessary information
-        is not available.
+        data_types may be necessary to provide to plugins
         """
         if "data_types" not in kwargs:
             raise Exception("data_types info was not provided to constructor")
@@ -67,6 +66,7 @@ def export_and_backup_result_iter(plugin_dir, **kwargs):
                     inspect.isclass(obj)
                     and obj != ExportAndBackupPlugin
                     and issubclass(obj, ExportAndBackupPlugin)
+                    and inspect.getattr_static(obj, "data_type") in kwargs["data_types"]
                 ):
                     sort_me.append((obj.order_of_application, obj.description, obj))
         sort_me.sort()
