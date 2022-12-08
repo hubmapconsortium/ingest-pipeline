@@ -16,9 +16,7 @@ from utils import (
     get_queue_resource,
 )
 
-import export_and_backup.export_plugin as export_plugin
-
-FIND_SCRATCH_REGEX = r"/.+/scratch/[^/]+/"
+# import export_and_backup.export_plugin as export_plugin
 
 # Following are defaults which can be overridden later on
 default_args = {
