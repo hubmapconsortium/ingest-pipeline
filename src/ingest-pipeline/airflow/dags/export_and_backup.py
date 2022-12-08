@@ -4,6 +4,7 @@ from pprint import pprint
 from datetime import datetime, timedelta
 import logging
 import yaml
+from os.path import dirname, join
 
 from airflow.configuration import conf as airflow_conf
 from airflow.operators.python import PythonOperator
@@ -15,8 +16,6 @@ from utils import (
     HMDAG,
     get_queue_resource,
 )
-
-# import export_and_backup.export_plugin as export_plugin
 
 # Following are defaults which can be overridden later on
 default_args = {
@@ -104,7 +103,7 @@ with HMDAG(
     # Borrowed from utils
     def find_plugins(**kwargs):
         info_dict = kwargs["ti"].xcom_pull(task_ids="find_uuid").copy()
-        map_path = Path.cwd() / "export_and_backup_map.yml"
+        map_path = join(dirname(__file__), "export_and_backup_map.yml")
         with open(map_path, "r") as f:
             map = yaml.safe_load(f)
         plugins = []
@@ -112,7 +111,7 @@ with HMDAG(
             # TODO: data_types is probably not right
             if record["type"] in info_dict["data_types"]:
                 plugins.extend(record["plugins"])
-        print(plugins)
+        print("plugins: ", plugins)
         return plugins
 
     t_find_plugins = PythonOperator(
