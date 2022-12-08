@@ -93,7 +93,8 @@ with HMDAG(
             # TODO: not sure if we want to base plugin_map on data_types?
             if record["type"] in info_dict["data_types"]:
                 plugins.extend(record["plugins"])
-        return plugins
+        info_dict["plugins"] = plugins
+        return info_dict
 
     t_find_plugins = PythonOperator(
         task_id="find_plugins",
