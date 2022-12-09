@@ -86,7 +86,7 @@ with HMDAG(
 
     def find_plugins(**kwargs):
         info_dict = kwargs["ti"].xcom_pull(task_ids="find_uuid").copy()
-        status = info_dict["status"]
+        status = info_dict["status"].lower()
         map_path = join(dirname(__file__), PLUGIN_MAP_FILENAME)
         with open(map_path, "r") as f:
             map = yaml.safe_load(f)
