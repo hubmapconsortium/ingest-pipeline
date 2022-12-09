@@ -2,6 +2,7 @@ import sys
 import inspect
 from pathlib import Path
 from importlib import util
+from typing import Iterator
 
 
 class add_path:
@@ -28,22 +29,17 @@ class ExportAndBackupPlugin:
 
     order_of_application = 1.0
 
-    data_type = None
-
-    def __init__(self, **kwargs):
-        """
-        data_types may be necessary to provide to plugins
-        """
-        if "data_types" not in kwargs:
-            raise Exception("data_types info was not provided to constructor")
-        self.data_types = kwargs["data_types"]
+    # def __init__(self, **kwargs):
+    #     if "data_types" not in kwargs:
+    #         raise Exception("data_types info was not provided to constructor")
+    #     self.data_types = kwargs["data_types"]
 
     def run_plugin(self):
         raise NotImplementedError()
 
 
 # This is shamelessly stolen from diagnostic_plugin
-def export_and_backup_result_iter(plugin_dir, **kwargs):
+def export_and_backup_result_iter(plugin_dir: Path, **kwargs) -> Iterator[ExportAndBackupPlugin]:
     plugin_dir = Path(plugin_dir)
     plugins = list(plugin_dir.glob("*.py"))
     if not plugins:
