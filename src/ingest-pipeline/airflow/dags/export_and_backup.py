@@ -118,11 +118,13 @@ with HMDAG(
         for key in info_dict:
             logging.info(f"{key.upper()}: {info_dict[key]}")
         plugin_path = Path(export_and_backup_plugin.__file__).parent / "plugins"
+        print("plugin_path: ", plugin_path)
         for plugin in export_and_backup_plugin.export_and_backup_result_iter(
             plugin_path, **info_dict
         ):
 
             result = plugin.run_plugin()
+            print("result: ", result)
         return info_dict
 
     t_run_plugins = PythonOperator(
