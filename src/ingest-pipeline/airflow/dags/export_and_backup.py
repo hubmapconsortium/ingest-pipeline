@@ -18,6 +18,8 @@ from utils import (
 
 import export_and_backup.export_and_backup_plugin as export_and_backup_plugin
 
+PLUGIN_MAP_FILENAME = "export_and_backup_map.yml"
+
 # Following are defaults which can be overridden later on
 default_args = {
     "owner": "hubmap",
@@ -84,14 +86,14 @@ with HMDAG(
 
     def find_plugins(**kwargs):
         info_dict = kwargs["ti"].xcom_pull(task_ids="find_uuid").copy()
-        map_path = join(dirname(__file__), "export_and_backup_map.yml")
+        status = info_dict["status"]
+        map_path = join(dirname(__file__), PLUGIN_MAP_FILENAME)
         with open(map_path, "r") as f:
             map = yaml.safe_load(f)
         plugins = []
-        for record in map["export_and_backup_map"]:
-            # TODO: not sure if we want to base plugin_map on data_types?
-            if record["type"] in info_dict["data_types"]:
-                plugins.extend(record["plugins"])
+        for dct in map["export_and_backup_map"]:
+            if dct["status"] == status:
+                plugins.extend(dct["plugins"])
         info_dict["plugins"] = plugins
         return info_dict
 

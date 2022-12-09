@@ -1,11 +1,7 @@
 import sys
 import inspect
-import yaml
-from os.path import dirname, join
 from pathlib import Path
 from importlib import util
-
-PLUGIN_MAP_FILENAME = "export_and_backup_map.yml"
 
 
 class add_path:
@@ -46,21 +42,8 @@ class ExportAndBackupPlugin:
         raise NotImplementedError()
 
 
-def get_plugins_for_status(status: str) -> list:
-    map_path = join(dirname(__file__), PLUGIN_MAP_FILENAME)
-    with open(map_path, "r") as f:
-        map = yaml.safe_load(f)
-    plugins_for_status = []
-    for dct in map["export_and_backup_map"]:
-        if dct["status"] == status:
-            plugins_for_status.extend(dct["plugins"])
-    return plugins_for_status
-
-
 # This is shamelessly stolen from diagnostic_plugin
 def export_and_backup_result_iter(plugin_dir, **kwargs):
-    status = kwargs["status"]
-    plugins_for_status = get_plugins_for_status(status)
     plugin_dir = Path(plugin_dir)
     plugins = list(plugin_dir.glob("*.py"))
     if not plugins:
@@ -75,7 +58,7 @@ def export_and_backup_result_iter(plugin_dir, **kwargs):
             This means that plugins listed in export_and_backup_map need to match filenames exactly,
             which seems a little fragile?
             """
-            if mod_nm not in plugins_for_status:
+            if mod_nm not in kwargs["plugins"]:
                 continue
             if mod_nm in sys.modules:
                 mod = sys.modules[mod_nm]
