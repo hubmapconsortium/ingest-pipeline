@@ -1059,8 +1059,10 @@ def get_cwltool_base_cmd(tmpdir: Path) -> List[str]:
     return [
         'env',
         'TMPDIR={}'.format(tmpdir),
+        '_JAVA_OPTIONS={}'.format('-XX:ActiveProcessorCount=2'),
         'cwltool',
         '--timestamps',
+        '--preserve-environment', '_JAVA_OPTIONS',
         # The trailing slashes in the next two lines are deliberate.
         # cwltool treats these path prefixes as *strings*, not as
         # directories in which new temporary dirs should be created, so
