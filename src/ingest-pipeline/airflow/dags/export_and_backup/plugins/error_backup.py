@@ -5,4 +5,4 @@ class ErrorBackupPlugin(ExportAndBackupPlugin):
     description = "ErrorBackupPlugin should run for datasets with the status 'error'"
 
     def run_plugin(self):
-        return "error_backup plugin ran successfully"
+        return "ErrorBackupPlugin ran successfully"

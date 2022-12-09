@@ -110,11 +110,6 @@ with HMDAG(
         },
     )
 
-    """
-    TODO: this currently just runs plugins, needs to only run run_plugins
-    specified for data_types per export_and_backup_map
-    """
-
     def run_plugins(**kwargs):
         info_dict = kwargs["ti"].xcom_pull(task_ids="find_plugins").copy()
         for key in info_dict:
