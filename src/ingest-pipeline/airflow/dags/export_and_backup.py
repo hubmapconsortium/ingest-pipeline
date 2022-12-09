@@ -16,7 +16,6 @@ from utils import (
     get_queue_resource,
 )
 
-# import export_and_backup.export_and_backup_plugin as export_and_backup_plugin
 import export_and_backup.export_and_backup_plugin as export_and_backup_plugin
 
 # Following are defaults which can be overridden later on
@@ -122,6 +121,7 @@ with HMDAG(
         for plugin in export_and_backup_plugin.export_and_backup_result_iter(
             plugin_path, **info_dict
         ):
+
             result = plugin.run_plugin()
         return info_dict
 

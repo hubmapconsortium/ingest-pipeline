@@ -28,6 +28,8 @@ class ExportAndBackupPlugin:
 
     order_of_application = 1.0
 
+    data_type = None
+
     def __init__(self, **kwargs):
         """
         data_types may be necessary to provide to plugins
@@ -64,6 +66,7 @@ def export_and_backup_result_iter(plugin_dir, **kwargs):
                     inspect.isclass(obj)
                     and obj != ExportAndBackupPlugin
                     and issubclass(obj, ExportAndBackupPlugin)
+                    and inspect.getattr_static(obj, "data_type") in kwargs["data_types"]
                 ):
                     sort_me.append((obj.order_of_application, obj.description, obj))
         sort_me.sort()
