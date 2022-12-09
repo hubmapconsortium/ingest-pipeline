@@ -7,5 +7,4 @@ class CelldiveDeepcellPlugin(ExportAndBackupPlugin):
     data_type = "celldive_deepcell"
 
     def run_plugin(self):
-        print("celldive_deepcell plugin ran successfully")
         return "celldive_deepcell plugin ran successfully"

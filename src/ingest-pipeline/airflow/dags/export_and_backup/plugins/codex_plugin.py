@@ -7,5 +7,4 @@ class CodexPlugin(ExportAndBackupPlugin):
     data_type = "codex"
 
     def run_plugin(self):
-        print("codex plugin ran successfully")
         return "codex plugin ran successfully"

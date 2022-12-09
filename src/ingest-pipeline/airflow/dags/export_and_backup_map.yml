@@ -1,7 +1,5 @@
 export_and_backup_map:
-  - 'type': 'cell-dive'
-    'plugins': ['plugin_type_1']
-  - 'type': 'celldive_deepcell'
-    'plugins': ['plugin_type_2']
-  - 'type': 'type_3'
-    'plugins': ['plugin_type_3']
+  - 'status': 'error'
+    'plugins': ['error_export', 'error_backup']
+  - 'status': 'published'
+    'plugins': ['published_export_and_backup']
