@@ -61,12 +61,12 @@ with HMDAG(
         print("ds_rslt:")
         pprint(ds_rslt)
 
-        for key in ["data_types"]:
-            assert key in ds_rslt, f"Dataset status for {uuid} has no {key}"
-
         # TODO: do we want to restrict entity_type?
         if not ds_rslt["entity_type"] in ["Dataset"]:
             raise AirflowException(f"Entity {uuid} is not a Dataset")
+
+        if not ds_rslt["status"]:
+            raise AirflowException(f"Entity {uuid} has no status")
 
         print(f"Finished uuid {ds_rslt['uuid']}")
         return ds_rslt  # causing it to be put into xcom

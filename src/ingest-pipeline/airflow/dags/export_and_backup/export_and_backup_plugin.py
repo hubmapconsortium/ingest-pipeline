@@ -37,7 +37,6 @@ class ExportAndBackupPlugin:
 
 
 # This is shamelessly stolen from diagnostic_plugin
-# TODO: remove print statements (testing)
 def export_and_backup_result_iter(plugin_dir: Path, **kwargs) -> Iterator[ExportAndBackupPlugin]:
     plugin_dir = Path(plugin_dir)
     plugins = list(plugin_dir.glob("*.py"))
@@ -46,9 +45,7 @@ def export_and_backup_result_iter(plugin_dir: Path, **kwargs) -> Iterator[Export
     sort_me = []
     with add_path(str(plugin_dir)):
         for fpath in plugin_dir.glob("*.py"):
-            print("fpath: ", fpath)
             mod_nm = fpath.stem
-            print("mod_nm: ", mod_nm)
             """
             This means that plugins listed in export_and_backup_map need to match filenames exactly,
             which seems a little fragile?
@@ -57,26 +54,20 @@ def export_and_backup_result_iter(plugin_dir: Path, **kwargs) -> Iterator[Export
                 continue
             if mod_nm in sys.modules:
                 mod = sys.modules[mod_nm]
-                print("mod1: ", mod)
             else:
                 spec = util.spec_from_file_location(mod_nm, fpath)
                 if spec is None:
                     raise Exception(f"bad plugin {fpath}")
                 mod = util.module_from_spec(spec)
-                print("mod2: ", mod)
                 sys.modules[mod_nm] = mod
                 spec.loader.exec_module(mod)  # type: ignore
             for _, obj in inspect.getmembers(mod):
-                print(obj)
-                print(inspect.getattr_static(obj, "data_type", None))
-                print(kwargs["data_types"])
                 if (
                     inspect.isclass(obj)
                     and obj != ExportAndBackupPlugin
                     and issubclass(obj, ExportAndBackupPlugin)
                 ):
                     sort_me.append((obj.order_of_application, obj.description, obj))
-        print("sort_me: ", sort_me)
         sort_me.sort()
         for _, _, cls in sort_me:
             plugin = cls(**kwargs)
