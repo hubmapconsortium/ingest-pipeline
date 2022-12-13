@@ -1,8 +1,10 @@
 export_and_backup_map:
 # not sure if "error"/"invalid" are comparable, desirable, or if you can OR them;
 # there are also stages when an upload/dataset may be invalid in different ways
-  - 'status': 'error' | 'invalid' 
+  - 'status': 'error'
     'plugins': ['error_export', 'error_backup']
+  - 'status': 'invalid'
+    'plugins': ['upload_invalid', 'dataset_invalid']
 # there might be two different "new" statuses, unsure
   - 'status': 'new'
     'plugins': ['upload_new', 'dataset_new']
