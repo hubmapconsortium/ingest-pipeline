@@ -1,5 +1,25 @@
 export_and_backup_map:
-  - 'status': 'error'
+# not sure if "error"/"invalid" are comparable, desirable, or if you can OR them;
+# there are also stages when an upload/dataset may be invalid in different ways
+  - 'status': 'error' | 'invalid' 
     'plugins': ['error_export', 'error_backup']
+# there might be two different "new" statuses, unsure
+  - 'status': 'new'
+    'plugins': ['upload_new', 'dataset_new']
+  - 'status': 'validated'
+    'plugins': ['upload_validated']
+# "submitted" and "validated" may be the same status
+  - 'status': 'submitted'
+    'plugins': ['upload_submitted']
+  - 'status': 'reorganized'
+    'plugins': ['upload_reorganized']
+  - 'status': 'qa'
+    'plugins': ['dataset_qa']
+  - 'status': 'approved'
+    'plugins': ['dataset_approved']
+# I believe "published" is different from approved, but may be desirable for post-publication changes and/or dbGaP export
   - 'status': 'published'
-    'plugins': ['published_export_and_backup']
+    'plugins': ['published_backup']
+# do we want to backup and/or export "abandoned" datasets?
+  - 'status': 'abandoned'
+    'plugins': ['dataset_abandoned']
