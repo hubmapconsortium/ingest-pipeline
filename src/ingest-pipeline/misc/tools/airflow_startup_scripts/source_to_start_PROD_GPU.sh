@@ -13,6 +13,6 @@ logfile=${logdir}/${host}_${instance}
 nohup_file=${logdir}/nohup_${host}_${instance}.out
 
 nohup env HUBMAP_INSTANCE=${instance} \
-      ./airflow_wrapper.sh worker --queues $queue --concurrency $n \
-      --celery_hostname $name@$host \
+      ./airflow_wrapper.sh celery worker --queues $queue --concurrency $n \
+      -H $name@$host \
       --stdout ${logfile}.out --stderr ${logfile}.err --log-file ${logfile}.log > ${nohup_file}
