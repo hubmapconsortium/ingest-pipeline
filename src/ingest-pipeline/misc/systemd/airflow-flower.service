@@ -27,7 +27,7 @@ EnvironmentFile=/etc/sysconfig/airflow-dev
 User=hive
 Group=hive
 WorkingDirectory=/hive/users/hive/hubmap/hivevm191-dev/ingest-pipeline/src/ingest-pipeline/airflow
-ExecStart=/hive/users/hive/hubmap/hivevm191dev/ingest-pipeline/src/ingest-pipeline/airflow/airflow_wrapper.sh flower
+ExecStart=/hive/users/hive/hubmap/hivevm191dev/ingest-pipeline/src/ingest-pipeline/airflow/airflow_wrapper.sh celery flower
 Restart=on-failure
 RestartSec=5s
 
