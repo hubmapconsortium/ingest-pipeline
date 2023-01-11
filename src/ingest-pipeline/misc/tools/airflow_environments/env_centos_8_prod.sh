@@ -7,6 +7,3 @@ HM_AF_ENV_NAME='condaEnv_centos_8_python_3.6_prod'
 
 PARENTDIR="$(dirname "$(readlink -f "$0")")"
 . "${PARENTDIR}/airflow_environments/env_prod.sh"
-
-
-

@@ -7,6 +7,3 @@ HM_AF_ENV_NAME='condaEnv_rhel_8.5_python_3.6_dev'
 
 PARENTDIR="$(dirname "$(readlink -f "$0")")"
 . "${PARENTDIR}/airflow_environments/env_dev.sh"
-
-
-

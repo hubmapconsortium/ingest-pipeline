@@ -6,7 +6,3 @@ HM_AF_METHOD='conda'
 HM_AF_ENV_NAME='hubmapEnv'
 
 source env_test.sh
-
-
-
-
