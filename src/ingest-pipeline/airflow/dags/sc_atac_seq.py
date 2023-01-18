@@ -253,6 +253,12 @@ atacseq_dag_data: List[SequencingDagParameters] = [
         assay="snseq",
         dataset_type="sn_atac_seq",
     ),
+    SequencingDagParameters(
+        dag_id="sc_atac_seq_multiome_10x",
+        pipeline_name="sn-atac-seq-pipeline",
+        assay="multiome_10x",
+        dataset_type="sn_atac_seq_multiome_10x",
+    ),
 ]
 
 for params in atacseq_dag_data:
