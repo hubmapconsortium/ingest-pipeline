@@ -5,6 +5,9 @@ from pathlib import Path
 from datetime import datetime, timedelta
 from pprint import pprint
 
+from airflow.providers.amazon.aws.operators.ec2 import EC2StartInstanceOperator, EC2StopInstanceOperator
+from airflow.providers.amazon.aws.sensors.ec2 import EC2InstanceStateSensor
+
 from airflow.configuration import conf as airflow_conf
 from airflow.operators.python import PythonOperator
 from airflow.exceptions import AirflowException
@@ -53,6 +56,17 @@ with HMDAG('validate_upload',
                'tmp_dir_path': get_tmp_dir_path,
                'preserve_scratch': get_preserve_scratch_resource('validate_upload'),
            }) as dag:
+    t_start_instance = EC2StartInstanceOperator(
+        task_id='start_instance',
+        instance_id='i-007bbde390bf07819',
+        region_name='us-east-2'
+    )
+
+    t_sense_start_instance = EC2InstanceStateSensor(
+        task_id='await_start_instance',
+        instance_id='i-007bbde390bf07819',
+        target_state='running'
+    )
 
     def find_uuid(**kwargs):
         uuid = kwargs['dag_run'].conf['uuid']
@@ -164,7 +178,6 @@ with HMDAG('validate_upload',
         print('response: ')
         pprint(response.json())
 
-
     
     t_send_status = PythonOperator(
         task_id='send_status',
@@ -174,7 +187,25 @@ with HMDAG('validate_upload',
         }        
     )
 
+    t_stop_instance = EC2StopInstanceOperator(
+        task_id='stop_instance',
+        instance_id='i-007bbde390bf07819',
+        region_name='us-east-2'
+    )
+
+    t_sense_stop_instance = EC2InstanceStateSensor(
+        task_id='await_stop_instance',
+        instance_id='i-007bbde390bf07819',
+        target_state='stopped'
+    )
+
     t_create_tmpdir = CreateTmpDirOperator(task_id='create_temp_dir')
     t_cleanup_tmpdir = CleanupTmpDirOperator(task_id='cleanup_temp_dir')
 
+    (
+        t_start_instance >> t_sense_start_instance
+      )
     t_create_tmpdir >> t_find_uuid >> t_run_validation >> t_send_status >> t_cleanup_tmpdir
+    (
+        t_stop_instance >> t_sense_stop_instance
+      )

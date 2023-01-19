@@ -6,6 +6,9 @@ import yaml
 from pathlib import Path
 from datetime import datetime, timedelta
 
+from airflow.providers.amazon.aws.operators.ec2 import EC2StartInstanceOperator, EC2StopInstanceOperator
+from airflow.providers.amazon.aws.sensors.ec2 import EC2InstanceStateSensor
+
 from airflow.configuration import conf as airflow_conf
 from airflow.operators.bash import BashOperator
 from airflow.operators.python import PythonOperator, BranchPythonOperator
@@ -70,6 +73,18 @@ with HMDAG('scan_and_begin_processing',
                'tmp_dir_path': utils.get_tmp_dir_path,
                'preserve_scratch': get_preserve_scratch_resource('scan_and_begin_processing')
            }) as dag:
+
+    t_start_instance = EC2StartInstanceOperator(
+        task_id='start_instance',
+        instance_id='i-007bbde390bf07819',
+        region_name='us-east-2'
+    )
+
+    t_sense_start_instance = EC2InstanceStateSensor(
+        task_id='await_start_instance',
+        instance_id='i-007bbde390bf07819',
+        target_state='running'
+    )
 
     def read_metadata_file(**kwargs):
         md_fname = os.path.join(utils.get_tmp_dir_path(kwargs['run_id']),
@@ -263,10 +278,31 @@ with HMDAG('scan_and_begin_processing',
         python_callable=flex_maybe_spawn
         )
 
+    t_stop_instance = EC2StopInstanceOperator(
+        task_id='stop_instance',
+        instance_id='i-007bbde390bf07819',
+        region_name='us-east-2'
+    )
+
+    t_sense_stop_instance = EC2InstanceStateSensor(
+        task_id='await_stop_instance',
+        instance_id='i-007bbde390bf07819',
+        target_state='stopped'
+    )
+
+    (
+        t_start_instance >> t_sense_start_instance
+    )
+
     (
         t_create_tmpdir >> t_run_validation >>
         t_maybe_continue >>
         t_run_md_extract >> t_md_consistency_tests >>
         t_send_status >> t_maybe_spawn >> t_cleanup_tmpdir
      )
+
     t_maybe_continue >> t_send_status
+
+    (
+        t_stop_instance >> t_sense_stop_instance
+    )
