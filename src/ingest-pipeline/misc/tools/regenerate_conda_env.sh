@@ -9,7 +9,7 @@ fi
 instance="$HUBMAP_INSTANCE"
 
 # What python version should be used?
-python_version=3.6
+python_version=3.9
 
 # Root directory for newly created conda environments
 conda_env_root="/opt/environments"
@@ -34,7 +34,7 @@ source source_platform_file.sh
 
 echo $HM_AF_METHOD $HM_AF_ENV_NAME
 if [ "${HM_AF_METHOD}" == 'conda' ] ; then
-    which conda || export PATH=/hive/users/hive/anaconda3/bin:$PATH
+    which conda || export PATH=/opt/anaconda3/bin:$PATH
     eval "$(conda shell.bash hook)"
 elif [ "${HM_AF_METHOD}" == 'module_conda' ] ; then
     source /etc/profile.d/modules.sh
