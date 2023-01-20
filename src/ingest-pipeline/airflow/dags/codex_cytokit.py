@@ -29,6 +29,7 @@ from utils import (
     HMDAG,
     get_queue_resource,
     get_preserve_scratch_resource,
+    get_threads_resource,
 )
 
 
@@ -188,7 +189,9 @@ with HMDAG('codex_cytokit',
             '--cytokit_output',
             data_dir / 'cytokit',
             '--slicing_pipeline_config',
-            data_dir / 'pipelineConfig.json'
+            data_dir / 'pipelineConfig.json',
+            '--num_concurrent_tasks",
+            get_threads_resource(dag.dag_id),
         ]
 
         return join_quote_command_str(command)
