@@ -3,6 +3,9 @@ from pathlib import Path
 from pprint import pprint
 from datetime import datetime, timedelta
 
+from airflow.providers.amazon.aws.operators.ec2 import EC2StartInstanceOperator, EC2StopInstanceOperator
+from airflow.providers.amazon.aws.sensors.ec2 import EC2InstanceStateSensor
+
 from airflow.configuration import conf as airflow_conf
 from airflow.operators.python import PythonOperator
 from airflow.operators.python import BranchPythonOperator
@@ -72,6 +75,17 @@ with HMDAG('reorganize_upload',
                'frozen_df_wildcard': _get_frozen_df_wildcard,
                'preserve_scratch': get_preserve_scratch_resource('reorganize_upload'),
            }) as dag:
+    t_start_instance = EC2StartInstanceOperator(
+        task_id='start_instance',
+        instance_id='i-007bbde390bf07819',
+        region_name='us-east-2'
+    )
+
+    t_sense_start_instance = EC2InstanceStateSensor(
+        task_id='await_start_instance',
+        instance_id='i-007bbde390bf07819',
+        target_state='running'
+    )
     def find_uuid(**kwargs):
         uuid = kwargs['dag_run'].conf['uuid']
 
@@ -226,8 +240,22 @@ with HMDAG('reorganize_upload',
         }
     )
 
+    t_stop_instance = EC2StopInstanceOperator(
+        task_id='stop_instance',
+        instance_id='i-007bbde390bf07819',
+        region_name='us-east-2'
+    )
+
+    t_sense_stop_instance = EC2InstanceStateSensor(
+        task_id='await_stop_instance',
+        instance_id='i-007bbde390bf07819',
+        target_state='stopped'
+    )
+
     (
-        t_log_info
+        t_start_instance
+        >> t_sense_start_instance
+        >> t_log_info
         >> t_find_uuid
         >> t_create_tmpdir
         >> t_split_stage_1
@@ -237,8 +265,12 @@ with HMDAG('reorganize_upload',
         >> t_join
         >> t_preserve_info
         >> t_cleanup_tmpdir
+        >> t_stop_instance
+        >> t_sense_stop_instance
      )
 
     t_maybe_keep_1 >> t_set_dataset_error
     t_maybe_keep_2 >> t_set_dataset_error
     t_set_dataset_error >> t_join
+    t_join >> t_stop_instance
+    t_stop_instance >> t_sense_stop_instance

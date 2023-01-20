@@ -291,18 +291,20 @@ with HMDAG('scan_and_begin_processing',
     )
 
     (
-        t_start_instance >> t_sense_start_instance
-    )
-
-    (
-        t_create_tmpdir >> t_run_validation >>
-        t_maybe_continue >>
-        t_run_md_extract >> t_md_consistency_tests >>
-        t_send_status >> t_maybe_spawn >> t_cleanup_tmpdir
+        t_start_instance
+        >> t_sense_start_instance
+        >> t_create_tmpdir
+        >> t_run_validation
+        >> t_maybe_continue
+        >> t_run_md_extract
+        >> t_md_consistency_tests
+        >> t_send_status
+        >> t_maybe_spawn
+        >> t_cleanup_tmpdir
+        >> t_stop_instance
+        >> t_sense_stop_instance
      )
 
     t_maybe_continue >> t_send_status
-
-    (
-        t_stop_instance >> t_sense_stop_instance
-    )
+    t_send_status >> t_stop_instance
+    t_stop_instance >> t_sense_stop_instance
