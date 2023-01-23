@@ -175,7 +175,7 @@ with HMDAG('generate_usage_report',
                 entity_type = "Public: Unknown"
             # for every line that contained the task id we are looking for, we now
             # look for the reference number
-            if is_public is not None:
+            if is_public is True:
                 for line in lines_with_tid:
                     log_entry = line.replace("-", "")
                     ref_index = log_entry.find("ref=") + 4
