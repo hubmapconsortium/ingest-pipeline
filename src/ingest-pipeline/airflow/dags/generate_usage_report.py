@@ -156,40 +156,47 @@ with HMDAG('generate_usage_report',
             count = count + 1
             task_id = specific_usage['taskid'][ind]
             lines_with_tid = []
+            hubmap_id = None
+            data_type = None
+            entity_type = None
+            remove_record = False
             dataset_id = None
             for line in full_contents:
                 index = line.find(task_id)
                 if index != -1:
                     lines_with_tid.append(line)
-
+            # hubmap public does not record dataset id, so for these transfers we indicate these are unknown.
+            public_id = "af603d86-eab9-4eec-bb1d-9d26556741bb"
+            is_public = False
+            if specific_usage["source_endpoint_id"][ind] == public_id or specific_usage["destination_endpoint_id"][ind] == public_id:
+                is_public = True
+                data_type = "Public: Unknown"
+                hubmap_id = "Public: Unknown"
+                entity_type = "Public: Unknown"
             # for every line that contained the task id we are looking for, we now
             # look for the reference number
-            for line in lines_with_tid:
-                log_entry = line.replace("-", "")
-                ref_index = log_entry.find("ref=") + 4
-                reference_number = log_entry[ref_index: ref_index + 32]
-                pattern = 'c_path=.*(\\w{32})'
-                ref_output = None
-                # once we have the reference number, we once again iterate through
-                # the file and look to find where it appears we are looking for the
-                # dataset id, which we locate using the above regex pattern
-                for b in full_contents:
-                    ref_index = b.find(reference_number)
-                    if ref_index == -1:
-                        matches = re.search(pattern, b)
-                        if matches is not None:
-                            ref_output = matches.group(1)
-                            break
-                if ref_output is not None:
-                    dataset_id = ref_output
-                    break
+            if is_public is True:
+                for line in lines_with_tid:
+                    log_entry = line.replace("-", "")
+                    ref_index = log_entry.find("ref=") + 4
+                    reference_number = log_entry[ref_index: ref_index + 32]
+                    pattern = 'c_path=.*(\\w{32})'
+                    ref_output = None
+                    # once we have the reference number, we once again iterate through
+                    # the file and look to find where it appears we are looking for the
+                    # dataset id, which we locate using the above regex pattern
+                    for b in full_contents:
+                        b_entry = b.replace("-", "")
+                        ref_index = b_entry.find(reference_number)
+                        if ref_index != -1:
+                            matches = re.search(pattern, b_entry)
+                            if matches is not None:
+                                ref_output = matches.group(1)
+                                break
+                    if ref_output is not None:
+                        dataset_id = ref_output
+                        break
 
-            # Now that we have the dataset id, we can derive hubmap_id, data_type,
-            # and entity_type via the Entity Sdk
-            hubmap_id = None
-            data_type = None
-            entity_type = None
-            remove_record = False
             if dataset_id is not None:
                 try:
                     entity_instance = EntitySdk(token=entity_token)
@@ -204,14 +211,8 @@ with HMDAG('generate_usage_report',
                     print(f'Error {e}')
                     remove_record = True
 
-            # hubmap public does not record dataset id, so for these transfers we
-            # indicate these are unknown.
-            public_id = "af603d86-eab9-4eec-bb1d-9d26556741bb"
-            if (specific_usage["source_endpoint_id"][ind] == public_id
-                    or specific_usage["destination_endpoint_id"][ind] == public_id):
-                data_type = "Public: Unknown"
-                hubmap_id = "Public: Unknown"
-                entity_type = "Public: Unknown"
+            if dataset_id is None and is_public is False:
+                remove_record = True
             if remove_record is False:
                 data_types_column.append(data_type)
                 hubmap_id_column.append(hubmap_id)
