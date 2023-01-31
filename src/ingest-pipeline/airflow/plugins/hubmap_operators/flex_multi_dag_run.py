@@ -1,3 +1,16 @@
+#! /usr/bin/env python
+
+
+"""
+This module is cloned with modifications from https://pypi.org/project/airflow-multi-dagrun/
+https://github.com/mastak/airflow_multi_dagrun/blob/master/airflow_multi_dagrun/operators.py
+Author Ihor Liubymov infunt@gmail.com
+Maintainer https://pypi.org/user/mastak/
+
+The original iterates over multiple executions of the same trigger_dag_id; this version
+allows that to change between iterations.
+"""
+
 import typing as t
 
 from airflow.api.common.experimental.trigger_dag import trigger_dag
