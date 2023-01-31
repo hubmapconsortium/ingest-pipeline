@@ -3,26 +3,18 @@ This plugin uses regex to search for IO errors in session.log
 """
 
 import re
-from pathlib import Path
 
-from diagnostics.diagnostic_plugin import (
-    DiagnosticPlugin,
-    DiagnosticResult,
-)
+from diagnostics.diagnostic_plugin import DiagnosticResult, RegexDiagnosticPlugin
 
 IO_ERROR_REGEX = r"(?=.*(OSError))(?=.*(Input\/output error))"
 
 
-class IOErrorsDiagnosticPlugin(DiagnosticPlugin):
+class IOErrorsDiagnosticPlugin(RegexDiagnosticPlugin):
     description = "Detects input/output OSErrors"
     order_of_application = 1.0
 
-    def __init__(self, **kwargs):
-        self.dir_path = Path(kwargs["local_directory_full_path"])
-
     def diagnose(self):
-        session_log_path = self.dir_path / "session.log"
-        assert session_log_path.exists(), "session.log is not in the dataset directory"
+        session_log_path = self.get_session_log_path
         regex = re.compile(IO_ERROR_REGEX)
         errors = []
         for line in open(session_log_path):

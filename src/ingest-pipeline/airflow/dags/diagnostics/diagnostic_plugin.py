@@ -1,19 +1,20 @@
+import inspect
 import sys
 from importlib import util
-import inspect
-from typing import List, Union, Tuple, Iterator
 from pathlib import Path
+from typing import Iterator, List, Tuple, Union
 
 PathOrStr = Union[str, Path]
 
 KeyValuePair = Tuple[str, str]
 
 
-class add_path():
+class add_path:
     """
     Add an element to sys.path using a context.
     Thanks to Eugene Yarmash https://stackoverflow.com/a/39855753
     """
+
     def __init__(self, path):
         self.path = path
 
@@ -31,7 +32,7 @@ class DiagnosticError(Exception):
     pass
 
 
-class DiagnosticResult():
+class DiagnosticResult:
     def __init__(self, string_list: List[str], **kwargs):
         self.string_list = string_list
 
@@ -46,7 +47,7 @@ class DiagnosticResult():
         return self.string_list
 
 
-class DiagnosticPlugin():
+class DiagnosticPlugin:
     description = "This is a human-readable description"
     """str: human-readable description of the thing this plugin tests
     """
@@ -64,9 +65,9 @@ class DiagnosticPlugin():
         it needs and raise DiagnosticError if the necessary information
         is not available.
         """
-        if 'data_types' not in kwargs:
-            raise DiagnosticError('data_types info was not provided to constructor')
-        self.data_types = kwargs['data_types']
+        if "data_types" not in kwargs:
+            raise DiagnosticError("data_types info was not provided to constructor")
+        self.data_types = kwargs["data_types"]
 
     def diagnose(self) -> DiagnosticResult:
         """
@@ -75,6 +76,17 @@ class DiagnosticPlugin():
         of which returns False.
         """
         raise NotImplementedError()
+
+
+class RegexDiagnosticPlugin(DiagnosticPlugin):
+    def __init__(self, **kwargs):
+        self.dir_path = Path(kwargs["local_directory_full_path"])
+
+    @property
+    def get_session_log_path(self):
+        session_log_path = self.dir_path / "session.log"
+        assert session_log_path.exists(), "session.log is not in the dataset directory"
+        return session_log_path
 
 
 def diagnostic_result_iter(plugin_dir: PathOrStr, **kwargs) -> Iterator[DiagnosticResult]:
@@ -87,26 +99,29 @@ def diagnostic_result_iter(plugin_dir: PathOrStr, **kwargs) -> Iterator[Diagnost
     returns an iterator the values of which are DiagnosticResult instances
     """
     plugin_dir = Path(plugin_dir)
-    plugins = list(plugin_dir.glob('*.py'))
+    plugins = list(plugin_dir.glob("*.py"))
     if not plugins:
-        raise DiagnosticError(f'{plugin_dir}/*.py does not match any diagnostic plugins')
+        raise DiagnosticError(f"{plugin_dir}/*.py does not match any diagnostic plugins")
 
     sort_me = []
     with add_path(str(plugin_dir)):
-        for fpath in plugin_dir.glob('*.py'):
+        for fpath in plugin_dir.glob("*.py"):
             mod_nm = fpath.stem
             if mod_nm in sys.modules:
                 mod = sys.modules[mod_nm]
             else:
                 spec = util.spec_from_file_location(mod_nm, fpath)
                 if spec is None:
-                    raise DiagnosticError(f'bad plugin diagnostic {fpath}')
+                    raise DiagnosticError(f"bad plugin diagnostic {fpath}")
                 mod = util.module_from_spec(spec)
                 sys.modules[mod_nm] = mod
                 spec.loader.exec_module(mod)  # type: ignore
             for _, obj in inspect.getmembers(mod):
-                if (inspect.isclass(obj) and obj != DiagnosticPlugin
-                        and issubclass(obj, DiagnosticPlugin)):
+                if (
+                    inspect.isclass(obj)
+                    and obj != DiagnosticPlugin
+                    and issubclass(obj, DiagnosticPlugin)
+                ):
                     sort_me.append((obj.order_of_application, obj.description, obj))
         sort_me.sort()
         for _, _, cls in sort_me:
