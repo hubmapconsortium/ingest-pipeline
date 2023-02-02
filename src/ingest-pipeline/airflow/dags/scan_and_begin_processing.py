@@ -259,7 +259,8 @@ with HMDAG('scan_and_begin_processing',
 
     t_maybe_spawn = FlexMultiDagRunOperator(
         task_id='flex_maybe_spawn',
-        provide_context=True,
+        dag=dag,
+        trigger_dag_id='scan_and_begin_processing',
         python_callable=flex_maybe_spawn
         )
 
