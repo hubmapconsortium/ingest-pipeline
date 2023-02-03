@@ -7,10 +7,21 @@
 
 'definitions':
 
-  'export_and_backup':
+  'export_and_backup_record':
      'type': 'object'
      'properties':
-        'uuid':
+        'status':
            'type': 'string'
-           'description': 'a dataset uuid or DOI'
-     'required': ['uuid']
+           'description': 'the status of the dataset or upload'
+        'plugins':
+            'type': 'array'
+            'description': 'array of appropriate plugins for status'
+  'export_and_backup_entity_type':
+      'type': 'string'
+      'description': 'contains associated export_and_backup_records'
+  'export_and_backup_map':
+    'type': 'object'
+    'properties':
+      'export_and_backup_entity_type': {'$ref': #/definitions/export_and_backup_entity_type'}
+
+
