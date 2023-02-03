@@ -1,8 +1,9 @@
 #! /usr/bin/env python
 
+
 """
 This module is cloned with modifications from https://pypi.org/project/airflow-multi-dagrun/
-https://raw.githubusercontent.com/mastak/airflow_multi_dagrun/master/airflow_multi_dagrun/operators/multi_dagrun.py
+https://github.com/mastak/airflow_multi_dagrun/blob/master/airflow_multi_dagrun/operators.py
 Author Ihor Liubymov infunt@gmail.com
 Maintainer https://pypi.org/user/mastak/
 
@@ -10,88 +11,63 @@ The original iterates over multiple executions of the same trigger_dag_id; this 
 allows that to change between iterations.
 """
 
-from airflow import settings
-from airflow.models import DagBag
-# from airflow.operators.dagrun_operator import DagRunOrder
-# from airflow.utils.decorators import apply_defaults
-from airflow.utils.state import State
-# from airflow.api.common.experimental.trigger_dag import trigger_dag
-from airflow.models import BaseOperator
+import typing as t
+
+from airflow.api.common.experimental.trigger_dag import trigger_dag
+from airflow.models import DagRun
+from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 import datetime as dt
+from airflow.utils.operator_helpers import determine_kwargs
+from airflow.utils.session import provide_session
+from airflow.utils.types import DagRunType
+
+from airflow_multi_dagrun.utils import get_multi_dag_run_xcom_key
 
 
-class DagRunOrder(object):
-    def __init__(self, run_id=None, payload=None):
-        self.run_id = run_id
-        self.payload = payload
+class FlexMultiDagRunOperator(TriggerDagRunOperator):
 
-
-class FlexMultiDagRunOperator(BaseOperator):
-    """
-    Triggers zero or more DAG runs based on output of a generator
-
-    :param conf: Configuration for the DAG run
-    :type conf: dict
-    :param execution_date: Execution date for the dag (templated)
-    :type execution_date: str or datetime.datetime
-    """
-
-    template_fields = ("execution_date", "conf")
-    ui_color = "#ffefeb"
-
-    CREATED_DAGRUN_KEY = 'created_dagrun_key'
-
-    # @apply_defaults
-    def __init__(self, python_callable,
-                 conf=None, execution_date=None,
-                 op_args=None, op_kwargs=None,
-                 provide_context=False, *args, **kwargs):
+    def __init__(self, op_args=None, op_kwargs=None, python_callable=None, *args, **kwargs):
         super(FlexMultiDagRunOperator, self).__init__(*args, **kwargs)
-        self.python_callable = python_callable
-        self.conf = conf
-        if not isinstance(execution_date, (str, dt.datetime, type(None))):
-            raise TypeError(
-                "Expected str or datetime.datetime type for execution_date."
-                "Got {}".format(type(execution_date))
-            )
-        self.execution_date = execution_date
         self.op_args = op_args or []
         self.op_kwargs = op_kwargs or {}
-        self.provide_context = provide_context
+        self.python_callable = python_callable
 
-    def execute(self, context):
-        if self.provide_context:
-            context.update(self.op_kwargs)
-            self.op_kwargs = context
+    @provide_session
+    def execute(self, context: t.Dict, session=None):
+        context.update(self.op_kwargs)
+        self.op_kwargs = determine_kwargs(self.python_callable, self.op_args, context)
 
-        session = settings.Session()
         created_dr_ids = []
         for tuple in self.python_callable(*self.op_args, **self.op_kwargs):
             if not tuple:
                 break
-            trigger_dag_id, dro = tuple
-            if not isinstance(dro, DagRunOrder):
-                dro = DagRunOrder(payload=dro)
 
-            now = dt.datetime.now(dt.timezone.utc)
-            if dro.run_id is None:
-                dro.run_id = 'trig__' + now.isoformat()
+            execution_date = dt.datetime.now(dt.timezone.utc)
+            self.trigger_dag_id, conf = tuple
 
-            dbag = DagBag(settings.DAGS_FOLDER)
-            trigger_dag = dbag.get_dag(trigger_dag_id)
-            dr = trigger_dag.create_dagrun(
-                run_id=dro.run_id,
-                execution_date=now,
-                state=State.RUNNING,
-                conf=dro.payload,
-                external_trigger=True,
-            )
-            created_dr_ids.append(dr.id)
-            self.log.info("Created DagRun %s, %s", dr, now)
+            run_id = conf.get('run_id')
+            if not run_id:
+                run_id = DagRun.generate_run_id(DagRunType.MANUAL, execution_date)
+
+            dag_run = DagRun.find(dag_id=self.trigger_dag_id, run_id=run_id)
+            if not dag_run:
+                dag_run = trigger_dag(
+                    dag_id=self.trigger_dag_id,
+                    run_id=run_id,
+                    conf=conf,
+                    execution_date=execution_date,
+                    replace_microseconds=False,
+                )
+                self.log.info("Created DagRun %s, %s - %s", dag_run, self.trigger_dag_id, run_id)
+            else:
+                dag_run = dag_run[0]
+                self.log.warning("Fetched existed DagRun %s, %s - %s", dag_run, self.trigger_dag_id, run_id)
+
+            created_dr_ids.append(dag_run.id)
 
         if created_dr_ids:
-            session.commit()
-            context['ti'].xcom_push(self.CREATED_DAGRUN_KEY, created_dr_ids)
+            xcom_key = get_multi_dag_run_xcom_key(context['execution_date'])
+            context['ti'].xcom_push(xcom_key, created_dr_ids)
+            self.log.info("Pushed %s DagRun's ids with key %s", len(created_dr_ids), xcom_key)
         else:
-            self.log.info("No DagRun created")
-        session.close()
+            self.log.info("No DagRuns created")

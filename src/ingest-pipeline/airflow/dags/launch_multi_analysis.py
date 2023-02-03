@@ -174,8 +174,8 @@ with HMDAG('launch_multi_analysis',
 
     t_maybe_spawn = FlexMultiDagRunOperator(
         task_id='flex_maybe_spawn',
-        provide_context=True,
-        python_callable=flex_maybe_spawn,
+        dag=dag,
+        trigger_dag_id='launch_multi_analysis',
         op_kwargs={
             'crypt_auth_tok': utils.encrypt_tok(airflow_conf.as_dict()
                                                 ['connections']['APP_CLIENT_SECRET']).decode(),

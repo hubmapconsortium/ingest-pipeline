@@ -27,7 +27,7 @@ User=hive
 Group=hive
 Type=simple
 WorkingDirectory=/hive/users/hive/hubmap/%i/ingest-pipeline/src/ingest-pipeline/airflow
-ExecStart=/usr/bin/env /hive/users/hive/hubmap/%i/ingest-pipeline/src/ingest-pipeline/airflow/airflow_wrapper.sh worker -q l002_q1_%i,general_%i -cn celery-%i@%H
+ExecStart=/usr/bin/env /hive/users/hive/hubmap/%i/ingest-pipeline/src/ingest-pipeline/airflow/airflow_wrapper.sh celery worker -q l002_q1_%i,general_%i -H celery-%i@%H
 Restart=always
 RestartSec=5s
 

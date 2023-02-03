@@ -14,29 +14,3 @@
            'type': 'string'
            'description': 'a dataset uuid or DOI'
      'required': ['uuid']
-    
-# 'allOf': [{'$ref': '#/definitions/export_and_backup_wrapper'}]
-
-# 'definitions':
-
-#   'export_and_backup_record':
-#     'type': 'object'
-#     'properties':
-#         'type': {
-#           'type': 'string',
-#           'description': 'type of thing'
-#         }
-#         'plugin': {
-#           'type': 'array',
-#           'description': 'array of appropriate plugins for type of thing'
-#         }
-#   'export_and_backup_map':
-#     'type': 'array'
-#     'items': {'$ref': '#/definitions/export_and_backup_record'}
-#   'export_and_backup_wrapper':  # to avoid exposing array at top level of JSON object
-#     'type': 'object'
-#     'properties':
-#       'export_and_backup_map': {'$ref': '#/definitions/export_and_backup_map'}
-#     'required': ['export_and_backup_map']
-    
-

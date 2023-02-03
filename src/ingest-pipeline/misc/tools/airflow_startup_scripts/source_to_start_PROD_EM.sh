@@ -2,10 +2,9 @@
 #
 # Source this file from the parent directory containing airflow_wrapper.sh
 #
-instance=dev
+instance=prod
 logdir=$HOME/logs
-#queue=general_${instance},gpu000_q1_${instance}
-queue=gpu000_q1_${instance}
+queue=general_${instance}
 host=`hostname`
 name=celery-${instance}
 n=8

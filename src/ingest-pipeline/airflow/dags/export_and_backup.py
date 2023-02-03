@@ -1,19 +1,21 @@
-from pprint import pprint
 from datetime import datetime, timedelta
-import yaml
+import logging
 from os.path import dirname, join
 from pathlib import Path
-import logging
+from pprint import pprint
+import yaml
 
 from airflow.configuration import conf as airflow_conf
-from airflow.operators.python import PythonOperator
 from airflow.exceptions import AirflowException
+from airflow.operators.python import PythonOperator
 
-import utils
 from utils import (
-    localized_assert_json_matches_schema as assert_json_matches_schema,
     HMDAG,
+    encrypt_tok,
     get_queue_resource,
+    localized_assert_json_matches_schema as assert_json_matches_schema,
+    pythonop_get_dataset_state,
+    encrypt_tok,
 )
 
 import export_and_backup.export_and_backup_plugin as export_and_backup_plugin
@@ -55,20 +57,22 @@ with HMDAG(
         def my_callable(**kwargs):
             return uuid
 
-        ds_rslt = utils.pythonop_get_dataset_state(dataset_uuid_callable=my_callable, **kwargs)
+        ds_rslt = pythonop_get_dataset_state(dataset_uuid_callable=my_callable, **kwargs)
         if not ds_rslt:
             raise AirflowException(f"Invalid uuid/doi for group: {uuid}")
+        ds_rslt["crypt_auth_tok"] = kwargs["crypt_auth_tok"]
         print("ds_rslt:")
         pprint(ds_rslt)
 
-        for key in ["data_types"]:
-            assert key in ds_rslt, f"Dataset status for {uuid} has no {key}"
+        if not ds_rslt["entity_type"] in ["Dataset", "Upload"]:
+            raise AirflowException(
+                f"Entity {uuid} is entity_type {ds_rslt['entity_type']}, needs to be type 'Dataset' or 'Upload'"
+            )
 
-        # TODO: do we want to restrict entity_type?
-        if not ds_rslt["entity_type"] in ["Dataset"]:
-            raise AirflowException(f"Entity {uuid} is not a Dataset")
+        if not ds_rslt["status"]:
+            raise AirflowException(f"Entity {uuid} has no status")
 
-        print(f"Finished uuid {ds_rslt['uuid']}")
+        print(f'Finished uuid {ds_rslt["uuid"]}')
         return ds_rslt  # causing it to be put into xcom
 
     t_find_uuid = PythonOperator(
@@ -77,9 +81,7 @@ with HMDAG(
         provide_context=True,
         op_kwargs={
             "crypt_auth_tok": (
-                utils.encrypt_tok(
-                    airflow_conf.as_dict()["connections"]["APP_CLIENT_SECRET"]
-                ).decode()
+                encrypt_tok(airflow_conf.as_dict()["connections"]["APP_CLIENT_SECRET"]).decode()
             ),
         },
     )
@@ -87,13 +89,21 @@ with HMDAG(
     def find_plugins(**kwargs):
         info_dict = kwargs["ti"].xcom_pull(task_ids="find_uuid").copy()
         status = info_dict["status"].lower()
+        entity_type = info_dict["entity_type"].lower()
         map_path = join(dirname(__file__), PLUGIN_MAP_FILENAME)
         with open(map_path, "r") as f:
             map = yaml.safe_load(f)
         plugins = []
         for dct in map["export_and_backup_map"]:
-            if dct["status"] == status:
-                plugins.extend(dct["plugins"])
+            try:
+                if dct[entity_type]["status"] == status:
+                    plugins.extend(dct["plugins"])
+                else:
+                    raise Exception(
+                        f"status {status} for entity_type {entity_type} not in export_and_backup_map"
+                    )
+            except Exception as e:
+                raise Exception(f"entity_type {entity_type} not in export_and_backup_map; '{e}'")
         info_dict["plugins"] = plugins
         return info_dict
 
@@ -103,9 +113,7 @@ with HMDAG(
         provide_context=True,
         op_kwargs={
             "crypt_auth_tok": (
-                utils.encrypt_tok(
-                    airflow_conf.as_dict()["connections"]["APP_CLIENT_SECRET"]
-                ).decode()
+                encrypt_tok(airflow_conf.as_dict()["connections"]["APP_CLIENT_SECRET"]).decode()
             ),
         },
     )
@@ -130,9 +138,7 @@ with HMDAG(
         provide_context=True,
         op_kwargs={
             "crypt_auth_tok": (
-                utils.encrypt_tok(
-                    airflow_conf.as_dict()["connections"]["APP_CLIENT_SECRET"]
-                ).decode()
+                encrypt_tok(airflow_conf.as_dict()["connections"]["APP_CLIENT_SECRET"]).decode()
             ),
         },
     )

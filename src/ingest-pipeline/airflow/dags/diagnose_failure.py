@@ -59,8 +59,6 @@ with HMDAG('diagnose_failure',
         )
         if not ds_rslt:
             raise AirflowException(f'Invalid uuid/doi for group: {uuid}')
-        print('ds_rslt:')
-        pprint(ds_rslt)
 
         for key in ['entity_type', 'status', 'uuid', 'data_types',
                     'local_directory_full_path']:
@@ -75,6 +73,8 @@ with HMDAG('diagnose_failure',
         if ('parent_dataset_uuid_list' in ds_rslt
                 and ds_rslt['parent_dataset_uuid_list'] is not None):
             parent_dataset_full_path_list = []
+            parent_dataset_data_types_list = []
+            parent_dataset_data_path_list = []
             for parent_uuid in ds_rslt['parent_dataset_uuid_list']:
                 def parent_callable(**kwargs):
                     return parent_uuid
@@ -87,9 +87,20 @@ with HMDAG('diagnose_failure',
                 parent_dataset_full_path_list.append(
                     parent_ds_rslt['local_directory_full_path']
                 )
+                parent_dataset_data_types_list.append(
+                    parent_ds_rslt['data_types']
+                )
+                if ('metadata' in parent_ds_rslt
+                        and 'metadata' in parent_ds_rslt['metadata']
+                        and 'data_path' in parent_ds_rslt['metadata']['metadata']):
+                    parent_dataset_data_path_list.append(parent_ds_rslt['metadata']
+                                                         ['metadata']['data_path'])
+                else:
+                    parent_dataset_data_path_list.append(None)
             ds_rslt['parent_dataset_full_path_list'] = parent_dataset_full_path_list
+            ds_rslt['parent_dataset_data_types_list'] = parent_dataset_data_types_list
+            ds_rslt['parent_dataset_data_path_list'] = parent_dataset_data_path_list
 
-        print(f"Finished uuid {ds_rslt['uuid']}")
         return ds_rslt  # causing it to be put into xcom
 
     t_find_uuid = PythonOperator(
