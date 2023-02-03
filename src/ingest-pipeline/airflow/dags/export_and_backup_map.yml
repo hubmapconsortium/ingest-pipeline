@@ -24,13 +24,9 @@ export_and_backup_map:
       'plugins': ['dataset_processing']
     - 'status': 'invalid'
       'plugins': ['dataset_invalid']
-    # currently testing published_dataset_plugins on error status
     - 'status': 'error'
-      # 'plugins': ['dataset_error']
-      'plugins': ['published_dataset_plugins']
-    # left blank to avoid testing on published datasets
+      'plugins': ['dataset_error']
     - 'status': 'published'
-      # 'plugins': ['dataset_published']
-      'plugins': ['']
+      'plugins': ['dataset_published']
     - 'status': 'retracted'
       'plugins': ['dataset_retracted']
