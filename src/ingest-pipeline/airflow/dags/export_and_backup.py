@@ -92,13 +92,13 @@ with HMDAG(
         entity_type = info_dict["entity_type"].lower()
         map_path = join(dirname(__file__), PLUGIN_MAP_FILENAME)
         with open(map_path, "r") as f:
-            map = yaml.safe_load(f)
+            plugin_map = yaml.safe_load(f)
         plugins = []
-        for entity in map["export_and_backup_map"]:
+        for entity, value in plugin_map["export_and_backup_map"].items():
             if not entity == entity_type:
                 continue
-            for status_type in entity["status"]:
-                if status_type == status:
+            for status_type in value:
+                if status_type["status"] == status:
                     plugins.extend(status_type["plugins"])
         info_dict["plugins"] = plugins
         return info_dict

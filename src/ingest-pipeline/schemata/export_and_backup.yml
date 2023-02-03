@@ -3,7 +3,7 @@
 'title': 'export_and_backup schema'
 'description': 'export_and_backup schema'
 
-'allOf': [{'$ref': '#/definitions/export_and_backup'}]
+'allOf': [{'$ref': '#/definitions/export_and_backup_map'}]
 
 'definitions':
 
@@ -22,6 +22,4 @@
   'export_and_backup_map':
     'type': 'object'
     'properties':
-      'export_and_backup_entity_type': {'$ref': #/definitions/export_and_backup_entity_type'}
-
-
+      'export_and_backup_entity_type': {'$ref': '#/definitions/export_and_backup_entity_type'}
