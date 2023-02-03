@@ -11,6 +11,7 @@ from airflow.operators.python import PythonOperator
 
 from utils import (
     HMDAG,
+    encrypt_tok,
     get_queue_resource,
     localized_assert_json_matches_schema as assert_json_matches_schema,
     pythonop_get_dataset_state,
@@ -19,122 +20,127 @@ from utils import (
 
 import export_and_backup.export_and_backup_plugin as export_and_backup_plugin
 
-PLUGIN_MAP_FILENAME = 'export_and_backup_map.yml'
+PLUGIN_MAP_FILENAME = "export_and_backup_map.yml"
 
 # Following are defaults which can be overridden later on
 default_args = {
-    'owner': 'hubmap',
-    'depends_on_past': False,
-    'start_date': datetime(2019, 1, 1),
-    'email': ['joel.welling@gmail.com'],
-    'email_on_failure': False,
-    'email_on_retry': False,
-    'retries': 1,
-    'retry_delay': timedelta(minutes=1),
-    'xcom_push': True,
-    'queue': get_queue_resource('validation_test'),
+    "owner": "hubmap",
+    "depends_on_past": False,
+    "start_date": datetime(2019, 1, 1),
+    "email": ["joel.welling@gmail.com"],
+    "email_on_failure": False,
+    "email_on_retry": False,
+    "retries": 1,
+    "retry_delay": timedelta(minutes=1),
+    "xcom_push": True,
+    "queue": get_queue_resource("validation_test"),
 }
 
-with HMDAG('export_and_backup',
-            schedule_interval=None,
-            is_paused_upon_creation=False,
-            default_args=default_args,
-            ) as dag:
+with HMDAG(
+    "export_and_backup",
+    schedule_interval=None,
+    is_paused_upon_creation=False,
+    default_args=default_args,
+) as dag:
 
     # Pared down and altered copy of find_uuid from diagnose_failure
     def find_uuid(**kwargs):
         try:
-            assert_json_matches_schema(kwargs['dag_run'].conf, 'export_and_backup.yml')
+            assert_json_matches_schema(kwargs["dag_run"].conf, "export_and_backup.yml")
         except AssertionError:
-            print('invalid metadata follows:')
-            pprint(kwargs['dag_run'].conf)
+            print("invalid metadata follows:")
+            pprint(kwargs["dag_run"].conf)
             raise
 
-        uuid = kwargs['dag_run'].conf['uuid']
+        uuid = kwargs["dag_run"].conf["uuid"]
 
         def my_callable(**kwargs):
             return uuid
 
         ds_rslt = pythonop_get_dataset_state(dataset_uuid_callable=my_callable, **kwargs)
         if not ds_rslt:
-            raise AirflowException(f'Invalid uuid/doi for group: {uuid}')
-        print('ds_rslt:')
+            raise AirflowException(f"Invalid uuid/doi for group: {uuid}")
+        ds_rslt["crypt_auth_tok"] = kwargs["crypt_auth_tok"]
+        print("ds_rslt:")
         pprint(ds_rslt)
 
-        # TODO: do we want to restrict entity_type?
-        if not ds_rslt['entity_type'] in ['Dataset']:
-            raise AirflowException(f'Entity {uuid} is not a Dataset')
+        if not ds_rslt["entity_type"] in ["Dataset", "Upload"]:
+            raise AirflowException(
+                f"Entity {uuid} is entity_type {ds_rslt['entity_type']}, needs to be type 'Dataset' or 'Upload'"
+            )
 
-        if not ds_rslt['status']:
-            raise AirflowException(f'Entity {uuid} has no status')
+        if not ds_rslt["status"]:
+            raise AirflowException(f"Entity {uuid} has no status")
 
         print(f'Finished uuid {ds_rslt["uuid"]}')
         return ds_rslt  # causing it to be put into xcom
 
     t_find_uuid = PythonOperator(
-        task_id='find_uuid',
+        task_id="find_uuid",
         python_callable=find_uuid,
         provide_context=True,
         op_kwargs={
-            'crypt_auth_tok': (
-                encrypt_tok(
-                    airflow_conf.as_dict()['connections']['APP_CLIENT_SECRET']
-                ).decode()
-                ),
-            },
-        )
+            "crypt_auth_tok": (
+                encrypt_tok(airflow_conf.as_dict()["connections"]["APP_CLIENT_SECRET"]).decode()
+            ),
+        },
+    )
 
     def find_plugins(**kwargs):
-        info_dict = kwargs['ti'].xcom_pull(task_ids='find_uuid').copy()
-        status = info_dict['status'].lower()
+        info_dict = kwargs["ti"].xcom_pull(task_ids="find_uuid").copy()
+        status = info_dict["status"].lower()
+        entity_type = info_dict["entity_type"].lower()
         map_path = join(dirname(__file__), PLUGIN_MAP_FILENAME)
-        with open(map_path, 'r') as f:
+        with open(map_path, "r") as f:
             map = yaml.safe_load(f)
         plugins = []
-        for dct in map['export_and_backup_map']:
-            if dct['status'] == status:
-                plugins.extend(dct['plugins'])
-        info_dict['plugins'] = plugins
+        for dct in map["export_and_backup_map"]:
+            try:
+                if dct[entity_type]["status"] == status:
+                    plugins.extend(dct["plugins"])
+                else:
+                    raise Exception(
+                        f"status {status} for entity_type {entity_type} not in export_and_backup_map"
+                    )
+            except Exception as e:
+                raise Exception(f"entity_type {entity_type} not in export_and_backup_map; '{e}'")
+        info_dict["plugins"] = plugins
         return info_dict
 
     t_find_plugins = PythonOperator(
-        task_id='find_plugins',
+        task_id="find_plugins",
         python_callable=find_plugins,
         provide_context=True,
         op_kwargs={
-            'crypt_auth_tok': (
-                encrypt_tok(
-                    airflow_conf.as_dict()['connections']['APP_CLIENT_SECRET']
-                ).decode()
-                ),
-            },
-        )
+            "crypt_auth_tok": (
+                encrypt_tok(airflow_conf.as_dict()["connections"]["APP_CLIENT_SECRET"]).decode()
+            ),
+        },
+    )
 
     def run_plugins(**kwargs):
-        info_dict = kwargs['ti'].xcom_pull(task_ids='find_plugins').copy()
+        info_dict = kwargs["ti"].xcom_pull(task_ids="find_plugins").copy()
         for key in info_dict:
-            logging.info(f'{key.upper()}: {info_dict[key]}')
-        plugin_path = Path(export_and_backup_plugin.__file__).parent / 'plugins'
-        print('plugin_path: ', plugin_path)
+            logging.info(f"{key.upper()}: {info_dict[key]}")
+        plugin_path = Path(export_and_backup_plugin.__file__).parent / "plugins"
+        print("plugin_path: ", plugin_path)
         for plugin in export_and_backup_plugin.export_and_backup_result_iter(
             plugin_path, **info_dict
         ):
 
             result = plugin.run_plugin()
-            print('result: ', result)
+            print("result: ", result)
         return info_dict
 
     t_run_plugins = PythonOperator(
-        task_id='run_plugins',
+        task_id="run_plugins",
         python_callable=run_plugins,
         provide_context=True,
         op_kwargs={
-            'crypt_auth_tok': (
-                encrypt_tok(
-                    airflow_conf.as_dict()['connections']['APP_CLIENT_SECRET']
-                ).decode()
-                ),
-            },
-        )
+            "crypt_auth_tok": (
+                encrypt_tok(airflow_conf.as_dict()["connections"]["APP_CLIENT_SECRET"]).decode()
+            ),
+        },
+    )
 
     t_find_uuid >> t_find_plugins >> t_run_plugins

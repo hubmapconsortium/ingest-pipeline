@@ -1,27 +1,36 @@
 export_and_backup_map:
-# not sure if "error"/"invalid" are comparable, desirable, or if you can OR them;
-# there are also stages when an upload/dataset may be invalid in different ways
-  - 'status': 'error'
-    'plugins': ['error_export', 'error_backup']
-  - 'status': 'invalid'
-    'plugins': ['upload_invalid', 'dataset_invalid']
-# there might be two different "new" statuses, unsure
-  - 'status': 'new'
-    'plugins': ['upload_new', 'dataset_new']
-  - 'status': 'validated'
-    'plugins': ['upload_validated']
-# "submitted" and "validated" may be the same status
-  - 'status': 'submitted'
-    'plugins': ['upload_submitted']
-  - 'status': 'reorganized'
-    'plugins': ['upload_reorganized']
-  - 'status': 'qa'
-    'plugins': ['dataset_qa']
-  - 'status': 'approved'
-    'plugins': ['dataset_approved']
-# I believe "published" is different from approved, but may be desirable for post-publication changes and/or dbGaP export
-  - 'status': 'published'
-    'plugins': ['published_backup']
-# do we want to backup and/or export "abandoned" datasets?
-  - 'status': 'abandoned'
-    'plugins': ['dataset_abandoned']
+  upload:
+    - 'status': 'new'
+      'plugins': ['upload_new']
+    - 'status': 'processing'
+      'plugins': ['upload_processing']
+    - 'status': 'valid'
+      'plugins': ['upload_valid']
+    - 'status': 'invalid'
+      'plugins': ['upload_invalid']
+    - 'status': 'error'
+      'plugins': ['upload_error']
+    - 'status': 'submitted'
+      'plugins': ['upload_submitted']
+    - 'status': 'reorganized'
+      'plugins': ['upload_reorganized']
+  dataset:
+    - 'status': 'new'
+      'plugins': ['dataset_new']
+    # needs logic for primary/derived
+    - 'status': 'qa'
+      'plugins': ['dataset_qa']
+    - 'status': 'processing'
+      'plugins': ['dataset_processing']
+    - 'status': 'invalid'
+      'plugins': ['dataset_invalid']
+    # currently testing published_dataset_plugins on error status
+    - 'status': 'error'
+      # 'plugins': ['dataset_error']
+      'plugins': ['published_dataset_plugins']
+    # left blank to avoid testing on published datasets
+    - 'status': 'published'
+      # 'plugins': ['dataset_published']
+      'plugins': ['']
+    - 'status': 'retracted'
+      'plugins': ['dataset_retracted']
