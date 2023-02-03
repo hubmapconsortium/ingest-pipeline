@@ -94,16 +94,12 @@ with HMDAG(
         with open(map_path, "r") as f:
             map = yaml.safe_load(f)
         plugins = []
-        for dct in map["export_and_backup_map"]:
-            try:
-                if dct[entity_type]["status"] == status:
-                    plugins.extend(dct["plugins"])
-                else:
-                    raise Exception(
-                        f"status {status} for entity_type {entity_type} not in export_and_backup_map"
-                    )
-            except Exception as e:
-                raise Exception(f"entity_type {entity_type} not in export_and_backup_map; '{e}'")
+        for entity in map["export_and_backup_map"]:
+            if not entity == entity_type:
+                continue
+            for status_type in entity["status"]:
+                if status_type == status:
+                    plugins.extend(status_type["plugins"])
         info_dict["plugins"] = plugins
         return info_dict
 
