@@ -46,7 +46,7 @@ with HMDAG(
     # Pared down and altered copy of find_uuid from diagnose_failure
     def find_uuid(**kwargs):
         try:
-            assert_json_matches_schema(kwargs["dag_run"].conf, "export_and_backup.yml")
+            assert_json_matches_schema(kwargs["dag_run"].conf, "export_and_backup_schema.yml")
         except AssertionError:
             print("invalid metadata follows:")
             pprint(kwargs["dag_run"].conf)
@@ -93,6 +93,12 @@ with HMDAG(
         map_path = join(dirname(__file__), PLUGIN_MAP_FILENAME)
         with open(map_path, "r") as f:
             plugin_map = yaml.safe_load(f)
+        try:
+            assert_json_matches_schema(plugin_map, "export_and_backup_map_schema.yml")
+        except AssertionError:
+            print("invalid metadata follows:")
+            pprint(kwargs["dag_run"].conf)
+            raise
         plugins = []
         for entity, value in plugin_map["export_and_backup_map"].items():
             if not entity == entity_type:

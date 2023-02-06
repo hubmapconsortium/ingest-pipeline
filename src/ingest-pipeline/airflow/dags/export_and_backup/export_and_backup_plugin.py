@@ -3,6 +3,11 @@ import inspect
 from pathlib import Path
 from importlib import util
 from typing import Iterator
+import yaml
+
+from utils import localized_assert_json_matches_schema as assert_json_matches_schema
+
+EXPORT_AND_BACKUP_MAP = None
 
 
 class add_path:
@@ -22,6 +27,25 @@ class add_path:
             sys.path.remove(self.path)
         except ValueError:
             pass
+
+
+def _get_export_and_backup_map() -> List[Tuple[Pattern, Pattern, str]]:
+    """
+    Lazy compilation of export_and_backup map
+    modified from utils._get_workflow_map
+    """
+    if EXPORT_AND_BACKUP_MAP is None:
+        map_path = join(dirname(__file__), EXPORT_AND_BACKUP_MAP)
+        with open(map_path, "r") as f:
+            export_and_backup_map = yaml.safe_load(f)
+        assert_json_matches_schema(export_and_backup_map, "export_and_backup_map_schema.yml")
+        cmp_map = []
+        for dct in export_and_backup_map["export_and_backup_map"]:
+            ct_re = re.compile(dct["collection_type"])
+            at_re = re.compile(dct["assay_type"])
+            cmp_map.append((ct_re, at_re, dct["workflow"]))
+        COMPILED_WORKFLOW_MAP = cmp_map
+    return COMPILED_WORKFLOW_MAP
 
 
 class ExportAndBackupPlugin:
