@@ -7,6 +7,7 @@ import datetime
 from airflow.operators.python import PythonOperator
 from airflow.providers.http.hooks.http import HttpHook
 from airflow.configuration import conf as airflow_conf
+from airflow.exceptions import AirflowException
 
 import utils
 from utils import (
@@ -60,6 +61,10 @@ with HMDAG('trigger_file_reindex',
             response.raise_for_status()
         except http.client.HTTPException as he:
             print(f'Error {he}')
+        except AirflowException as ae:
+            print(f'Error {ae}')
+        except Exception as e:
+            print(f'Broad Exception {e}')
 
     t_launch_file_reindex = PythonOperator(
         task_id='launch_file_reindex',
