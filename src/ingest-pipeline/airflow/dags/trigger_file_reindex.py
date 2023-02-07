@@ -45,13 +45,6 @@ with HMDAG('trigger_file_reindex',
 
     def launch_file_reindex(**kwargs):
         auth_token = get_auth_tok(**kwargs)
-        files_api_connection = HttpHook.get_connection('files_api_connection').host
-        instance_identifier = find_matching_endpoint(files_api_connection)
-        # This is intended to throw an error if the instance is unknown or not listed
-        output_dir = {'PROD':  '/hive/hubmap/assets/status',
-                      'STAGE': '/hive/hubmap-stage/assets/status',
-                      'TEST':  '/hive/hubmap-test/assets/status',
-                      'DEV':   '/hive/hubmap-dev/assets/status'}[instance_identifier]
 
         try:
             headers = {
