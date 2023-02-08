@@ -190,7 +190,7 @@ with HMDAG('codex_cytokit',
             data_dir / 'cytokit',
             '--slicing_pipeline_config',
             data_dir / 'pipelineConfig.json',
-            '--num_concurrent_tasks",
+            '--num_concurrent_tasks',
             get_threads_resource(dag.dag_id),
         ]
 
