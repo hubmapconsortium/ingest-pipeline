@@ -14,10 +14,9 @@ class IOErrorsDiagnosticPlugin(RegexDiagnosticPlugin):
     order_of_application = 1.0
 
     def diagnose(self):
-        session_log_path = self.get_session_log_path
         regex = re.compile(IO_ERROR_REGEX)
         errors = []
-        for line in open(session_log_path):
+        for line in open(self.get_session_log_path):
             match = regex.search(line)
             if match:
                 errors.append("Input/output error found!")
