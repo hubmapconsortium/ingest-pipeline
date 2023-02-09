@@ -8,4 +8,4 @@ workflow_map.yml
 resource_map.yml
 celery_queue_map.yml
 diagnostics
-export_and_backup
+/export_and_backup

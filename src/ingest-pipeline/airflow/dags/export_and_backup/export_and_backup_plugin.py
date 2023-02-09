@@ -29,7 +29,7 @@ class add_path:
             pass
 
 
-def _get_export_and_backup_map() -> List[Tuple[Pattern, Pattern, str]]:
+def _get_export_and_backup_map():
     """
     Lazy compilation of export_and_backup map
     modified from utils._get_workflow_map
