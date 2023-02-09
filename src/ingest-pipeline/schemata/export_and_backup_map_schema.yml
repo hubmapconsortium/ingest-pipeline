@@ -15,10 +15,19 @@
            'description': 'the status of the dataset or upload'
         'plugins':
             'type': 'array'
+            'items': {'type': 'string'}
             'description': 'array of appropriate plugins for status'
   'export_and_backup_entity_type':
-      'type': 'string'
-      'description': 'contains associated export_and_backup_records'
+      'type': 'object'
+      'properties':
+        'upload':
+          'type': 'array'
+          'items': {'$ref': '#/definitions/export_and_backup_record'}
+          'description': 'plugins applicable to uploads'
+        'dataset':
+          'type': 'array'
+          'items': {'$ref': '#/definitions/export_and_backup_record'}
+          'description': 'plugins applicable to datasets'
   'export_and_backup_map':
     'type': 'object'
     'properties':
