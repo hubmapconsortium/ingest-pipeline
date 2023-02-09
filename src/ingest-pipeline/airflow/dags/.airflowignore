@@ -3,7 +3,9 @@ mock_data
 cwl
 obsolete
 utils.py
+export_and_backup_map.yml
 workflow_map.yml
 resource_map.yml
 celery_queue_map.yml
 diagnostics
+export_and_backup
