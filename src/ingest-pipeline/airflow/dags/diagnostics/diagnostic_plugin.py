@@ -120,6 +120,7 @@ def diagnostic_result_iter(plugin_dir: PathOrStr, **kwargs) -> Iterator[Diagnost
                 if (
                     inspect.isclass(obj)
                     and obj != DiagnosticPlugin
+                    and obj != RegexDiagnosticPlugin
                     and issubclass(obj, DiagnosticPlugin)
                 ):
                     sort_me.append((obj.order_of_application, obj.description, obj))
