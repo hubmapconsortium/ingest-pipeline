@@ -52,7 +52,7 @@ with HMDAG('trigger_samples_incremental_reindex',
             }
             # URL Root: https://spatial.api.hubmapconsortium.org/
             response = HttpHook('PUT', http_conn_id='spatial_api_connection').run(
-                endpoint=f'samples/incremental-reindex',
+                endpoint='samples/incremental-reindex',
                 headers=headers,
                 extra_options=[]
             )
