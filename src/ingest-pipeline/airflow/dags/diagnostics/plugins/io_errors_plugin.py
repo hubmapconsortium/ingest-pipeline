@@ -16,7 +16,7 @@ class IOErrorsDiagnosticPlugin(RegexDiagnosticPlugin):
     def diagnose(self):
         regex = re.compile(IO_ERROR_REGEX)
         errors = []
-        for line in open(self.get_session_log_path):
+        for line in open(self.session_log_path):
             match = regex.search(line)
             if match:
                 errors.append("Input/output error found!")

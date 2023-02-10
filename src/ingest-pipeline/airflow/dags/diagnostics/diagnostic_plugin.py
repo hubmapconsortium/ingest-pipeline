@@ -1,4 +1,5 @@
 import inspect
+import re
 import sys
 from importlib import util
 from pathlib import Path
@@ -83,10 +84,28 @@ class RegexDiagnosticPlugin(DiagnosticPlugin):
         self.dir_path = Path(kwargs["local_directory_full_path"])
 
     @property
-    def get_session_log_path(self):
+    def session_log_path(self):
         session_log_path = self.dir_path / "session.log"
         assert session_log_path.exists(), "session.log is not in the dataset directory"
         return session_log_path
+
+    def get_docker_section(self):
+        session_log_data = open(self.session_log_path).read()
+        docker_regex = r"(\[job )([^\]]*)(.*docker.*)(\2] Max memory used)"
+        compiled_docker_regex = re.compile(docker_regex, re.DOTALL)
+        docker_match = compiled_docker_regex.search(session_log_data)
+        if not docker_match:
+            return None
+        return docker_match
+
+    def get_named_docker_section(self, process_name):
+        session_log_data = open(self.session_log_path).read()
+        docker_regex = rf"(\[job )({process_name}?(?=\]))(.*docker.*)(\2\])( Max memory used)"
+        compiled_docker_regex = re.compile(docker_regex, re.DOTALL)
+        docker_match = compiled_docker_regex.search(session_log_data)
+        if not docker_match:
+            return None
+        return docker_match
 
 
 def diagnostic_result_iter(plugin_dir: PathOrStr, **kwargs) -> Iterator[DiagnosticResult]:
