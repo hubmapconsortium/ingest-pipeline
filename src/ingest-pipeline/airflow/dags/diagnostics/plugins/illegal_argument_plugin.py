@@ -31,8 +31,6 @@ class IllegalArgumentDiagnosticPlugin(RegexDiagnosticPlugin):
 
     def diagnose(self):
         regex = re.compile(ILLEGAL_ARGUMENT_REGEX)
-        docker_test = self.get_docker_section()
-        print(docker_test.group(0))
         docker_match = self.get_named_docker_section("convert_to_pyramid")
         if docker_match:
             for line in docker_match.group(0).splitlines():

@@ -89,6 +89,10 @@ class RegexDiagnosticPlugin(DiagnosticPlugin):
         assert session_log_path.exists(), "session.log is not in the dataset directory"
         return session_log_path
 
+    """
+    This will return the outermost docker container.
+    """
+
     def get_docker_section(self):
         session_log_data = open(self.session_log_path).read()
         docker_regex = r"(\[job )([^\]]*)(.*docker.*)(\2] Max memory used)"
