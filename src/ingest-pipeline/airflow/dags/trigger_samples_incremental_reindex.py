@@ -33,7 +33,7 @@ default_args = {
 }
 
 with HMDAG('trigger_samples_incremental_reindex',
-           schedule_interval='@daily',
+           schedule_interval='@weekly',
            is_paused_upon_creation=False,
            default_args=default_args,
            user_defined_macros={
