@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 
-from airflow.providers.amazon.aws.operators.batch import BatchOperator as AWSBatchOperator
+from airflow.providers.amazon.aws.operators.batch import AwsBatchOperator as AWSBatchOperator
 
 import utils
 

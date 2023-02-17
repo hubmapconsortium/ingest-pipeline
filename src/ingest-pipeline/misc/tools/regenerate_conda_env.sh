@@ -9,11 +9,10 @@ fi
 instance="$HUBMAP_INSTANCE"
 
 # What python version should be used?
-python_version=3.9
+python_version=3.6
 
 # Root directory for newly created conda environments
 conda_env_root="/opt/environments"
-# conda_env_root="/jet/home/hive/.conda/envs"
 
 function get_dir_of_this_script () {
     # This function sets DIR to the directory in which this script itself is found.
