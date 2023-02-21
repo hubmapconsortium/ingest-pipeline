@@ -11,13 +11,13 @@ from utils import (
     get_preserve_scratch_resource,
     create_dataset_state_error_callback,
     pythonop_md_consistency_tests,
+    make_send_status_msg_function,
+    get_tmp_dir_path,
 )
 
 from hubmap_operators.common_operators import (
-    make_send_status_msg_function,
     CreateTmpDirOperator,
     CleanupTmpDirOperator,
-    get_tmp_dir_path,
 )
 
 
