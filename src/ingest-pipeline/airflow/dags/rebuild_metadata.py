@@ -1,8 +1,11 @@
 import os
 import yaml
+from pprint import pprint
 
 from airflow.operators.bash import BashOperator
 from airflow.operators.python import PythonOperator
+from airflow.exceptions import AirflowException
+from airflow.configuration import conf as airflow_conf
 from datetime import datetime, timedelta
 
 from utils import (
@@ -13,6 +16,9 @@ from utils import (
     pythonop_md_consistency_tests,
     make_send_status_msg_function,
     get_tmp_dir_path,
+    localized_assert_json_matches_schema as assert_json_matches_schema,
+    pythonop_get_dataset_state,
+    encrypt_tok,
 )
 
 from hubmap_operators.common_operators import (
@@ -29,8 +35,7 @@ def get_uuid_for_error(**kwargs):
 
 
 def get_dataset_uuid(**kwargs):
-    ctx = kwargs['dag_run'].conf
-    return ctx['submission_id']
+    return kwargs['dag_run'].conf['uuid']
 
 
 def get_dataset_lz_path(**kwargs):
@@ -58,10 +63,64 @@ with HMDAG('rebuild_metadata',
            default_args=default_args,
            user_defined_macros={
                'tmp_dir_path': get_tmp_dir_path,
-               'preserve_scratch': get_preserve_scratch_resource('launch_multi_analysis')
+               'preserve_scratch': get_preserve_scratch_resource('rebuild_metadata')
            }) as dag:
 
     t_create_tmpdir = CreateTmpDirOperator(task_id='create_temp_dir')
+
+    def check_one_uuid(uuid, **kwargs):
+        """
+        Look up information on the given uuid or HuBMAP identifier.
+        Returns:
+        - the uuid, translated from an identifier if necessary
+        - data type(s) of the dataset
+        - local directory full path of the dataset
+        """
+        print(f'Starting uuid {uuid}')
+        my_callable = lambda **kwargs: uuid
+        ds_rslt = pythonop_get_dataset_state(dataset_uuid_callable=my_callable, **kwargs)
+        if not ds_rslt:
+            raise AirflowException(f'Invalid uuid/doi for group: {uuid}')
+        print('ds_rslt:')
+        pprint(ds_rslt)
+
+        for key in ['status', 'uuid', 'local_directory_full_path', 'metadata']:
+            assert key in ds_rslt, f"Dataset status for {uuid} has no {key}"
+
+        if not ds_rslt['status'] in ['New', 'Error', 'QA', 'Published']:
+            raise AirflowException(f'Dataset {uuid} is not QA or better')
+
+        return (ds_rslt['uuid'], ds_rslt['local_directory_full_path'],
+                ds_rslt['metadata'])
+
+    def check_uuids(**kwargs):
+        print('dag_run conf follows:')
+        pprint(kwargs['dag_run'].conf)
+
+        try:
+            assert_json_matches_schema(kwargs['dag_run'].conf,
+                                       'launch_checksums_metadata_schema.yml')
+        except AssertionError as e:
+            print('invalid metadata follows:')
+            pprint(kwargs['dag_run'].conf)
+            raise
+
+        uuid, lz_path, metadata = check_one_uuid(kwargs['dag_run'].conf['uuid'], **kwargs)
+        print(f'filtered metadata: {metadata}')
+        print(f'filtered paths: {lz_path}')
+        kwargs['dag_run'].conf['lz_path'] = lz_path
+        kwargs['dag_run'].conf['src_path'] = airflow_conf.as_dict()['connections']['src_path'].strip("'")
+
+
+    t_check_uuids = PythonOperator(
+        task_id='check_uuids',
+        python_callable=check_uuids,
+        provide_context=True,
+        op_kwargs={
+            'crypt_auth_tok': encrypt_tok(airflow_conf.as_dict()
+                                          ['connections']['APP_CLIENT_SECRET']).decode(),
+        }
+    )
 
     t_run_md_extract = BashOperator(
         task_id='run_md_extract',
@@ -98,7 +157,7 @@ with HMDAG('rebuild_metadata',
 
     send_status_msg = make_send_status_msg_function(
         dag_file=__file__,
-        retcode_ops=['run_validation', 'run_md_extract', 'md_consistency_tests'],
+        retcode_ops=['run_md_extract', 'md_consistency_tests'],
         cwl_workflows=[],
         dataset_uuid_fun=get_dataset_uuid,
         dataset_lz_path_fun=get_dataset_lz_path,
@@ -127,9 +186,13 @@ with HMDAG('rebuild_metadata',
         task_id='send_status_msg',
         python_callable=wrapped_send_status_msg,
         provide_context=True,
-        trigger_rule='all_done'
+        trigger_rule='all_done',
+        op_kwargs={
+            'crypt_auth_tok': encrypt_tok(airflow_conf.as_dict()
+                                          ['connections']['APP_CLIENT_SECRET']).decode(),
+        }
     )
 
     t_cleanup_tmpdir = CleanupTmpDirOperator(task_id='cleanup_temp_dir')
 
-    t_create_tmpdir >> t_run_md_extract >> t_md_consistency_tests >> t_send_status >> t_cleanup_tmpdir
+    t_check_uuids >> t_create_tmpdir >> t_run_md_extract >> t_md_consistency_tests >> t_send_status >> t_cleanup_tmpdir
