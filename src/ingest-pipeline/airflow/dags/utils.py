@@ -1242,7 +1242,6 @@ def make_send_status_msg_function(
         dag_file: str,
         retcode_ops: List[str],
         cwl_workflows: List[Path],
-        http_conn_id: str = 'entity_api_connection',
         uuid_src_task_id: str = 'send_create_dataset',
         dataset_uuid_fun: Optional[Callable[..., str]] = None,
         dataset_lz_path_fun: Optional[Callable[..., str]] = None,
@@ -1331,7 +1330,7 @@ def make_send_status_msg_function(
         extra_options = {}
         return_status = True  # mark false on failure
 
-        http_hook = HttpHook(method, http_conn_id=http_conn_id)
+        http_hook = HttpHook(method, http_conn_id='entity_api_connection')
 
         if success:
             md = {}
