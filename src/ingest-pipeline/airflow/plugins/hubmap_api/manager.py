@@ -34,7 +34,7 @@ class APIAdminView1(AppBuilderBaseView):
                              title='Known Routes',
                              content_lst=map_to_list(current_app.url_map))
 aav1 = APIAdminView1()
-aav1_package = {'category': 'HuBMAP API',
+aav1_package = {'category': 'SenNet API',
                 'name': 'Known Routes',
                 'view': aav1}
 
@@ -49,7 +49,7 @@ class APIAdminView2(AppBuilderBaseView):
                              title='Flask Config',
                              content_lst=["{0} = {1}".format(k, v) for k, v in current_app.config.items()])
 aav2 = APIAdminView2()
-aav2_package = {'category': 'HuBMAP API',
+aav2_package = {'category': 'SenNet API',
                 'name': 'Flask Config',
                 'view': aav2}
 
@@ -64,7 +64,7 @@ class APIAdminView3(AppBuilderBaseView):
                              title='Airflow Config',
                              dict_of_dicts=airflow_conf.as_dict())
 aav3 = APIAdminView3()
-aav3_package = {'category': 'HuBMAP API',
+aav3_package = {'category': 'SenNet API',
                 'name': 'Airflow Config',
                 'view': aav3}
 
@@ -81,7 +81,7 @@ class APIAdminView4(AppBuilderBaseView):
                              title='Environment Variables',
                              content_lst=eltL)
 aav4 = APIAdminView4()
-aav4_package = {'category': 'HuBMAP API',
+aav4_package = {'category': 'SenNet API',
                 'name': 'Environment Variables',
                 'view': aav4}
 
@@ -119,7 +119,7 @@ class APIAdminView5(AppBuilderBaseView):
         return redirect(url_for('admin.index'))
 
 aav5 = APIAdminView5()
-aav5_package = {'category': 'HuBMAP API',
+aav5_package = {'category': 'SenNet API',
                 'name': 'Trigger Test Globus Transfer',
                 'view': aav5}
 
@@ -134,15 +134,15 @@ class APIAdminView6(AppBuilderBaseView):
 
 
 aav6 = APIAdminView6()
-aav6_package = {'category': 'HuBMAP API',
+aav6_package = {'category': 'SenNet API',
                 'name': 'Globus Logout',
                 'view': aav6}
 
 
-# Create a Flask blueprint to hold the HuBMAP API
+# Create a Flask blueprint to hold the SenNet API
 blueprint = Blueprint(
     "hubmap_api", __name__,
-    url_prefix='/api/hubmap',
+    url_prefix='/api/sennet',
     template_folder='templates',
     static_folder='static',
 )
