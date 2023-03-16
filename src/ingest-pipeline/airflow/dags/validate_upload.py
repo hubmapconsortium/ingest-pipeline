@@ -37,6 +37,12 @@ from submodules import (
 
 sys.path.pop()
 
+"""
+TODO
+- fix validation message being pushed in failure_email_function
+- identify different types of errors and email creator for subset
+"""
+
 
 def failure_email_function(context):
     # traceback logic borrowed from https://stackoverflow.com/questions/51822029/get-exception-details-on-airflow-on-failure-callback-context
