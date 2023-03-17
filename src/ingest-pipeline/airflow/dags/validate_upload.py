@@ -39,13 +39,32 @@ sys.path.pop()
 
 """
 TODO
+- troubleshoot dag_run
+- exception does not capture exception name yuck, is there an elegant way to find it
+  or do I need to crawl through traceback
 - fix validation message being pushed in failure_email_function
 - identify different types of errors and email creator for subset
+    - in the case of ingest validation:
+        - if [PreflightError, ValidatorError, DirectoryValidationErrors, FileNotFoundError] email submitter
+    - probably an add-on to regular process of emailing data curators;
+      would want curator to know it was sent to submitted though
+    - retrieve submitter data from xcom and construct message using other xcom data
+        - create templates
+- find proper generalizable home for all of this
+- type hinting
 """
+
+
+def email_submitter(context):
+    created_by_user_email = context.get("task_instance").xcom_pull(key="created_by_user_email")
+    subject = None
+    msg = None
+    send_email(to=[created_by_user_email], subject=subject, html_content=msg)
 
 
 def failure_email_function(context):
     # traceback logic borrowed from https://stackoverflow.com/questions/51822029/get-exception-details-on-airflow-on-failure-callback-context
+    # dag_run is not working
     dag_run = context.get("dag_run")
     exception = context.get("exception")
     formatted_exception = "".join(
@@ -58,6 +77,8 @@ def failure_email_function(context):
             Error: {exception}
             Traceback: {formatted_exception}"""
     send_email(to=["gesina@psc.edu"], subject=subject, html_content=msg)
+    # if exception in [PreflightError, ValidatorError, DirectoryValidationErrors, FileNotFoundError]
+    # email_submitter(context)
 
     """
     It looks like a failure callback will need to manually set the
