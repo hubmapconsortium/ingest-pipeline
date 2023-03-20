@@ -77,7 +77,7 @@ with HMDAG('scan_and_begin_processing',
     t_start_instance = EC2StartInstanceOperator(
         task_id='start_instance',
         instance_id='i-007bbde390bf07819',
-        region_name='us-east-2'
+        region_name='us-east-1'
     )
 
     t_sense_start_instance = EC2InstanceStateSensor(
@@ -281,7 +281,7 @@ with HMDAG('scan_and_begin_processing',
     t_stop_instance = EC2StopInstanceOperator(
         task_id='stop_instance',
         instance_id='i-007bbde390bf07819',
-        region_name='us-east-2'
+        region_name='us-east-1'
     )
 
     t_sense_stop_instance = EC2InstanceStateSensor(
