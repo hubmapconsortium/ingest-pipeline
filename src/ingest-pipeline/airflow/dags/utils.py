@@ -1376,17 +1376,18 @@ def make_send_status_msg_function(
                 )
 
             # Refactoring metadata structure
-            md['files'] = md['metadata'].pop('files_info_alt_path', [])
-            md['extra_metadata'] = {'collectiontype': md['metadata'].pop('collectiontype', None)}
-            antibodies = md['metadata'].pop('antibodies', [])
-            contributors = md['metadata'].pop('contributors', [])
-            md['metadata'] = md['metadata'].pop('metadata', [])
-            contacts = []
-            for contrib in contributors:
-                if 'is_contact' in contrib:
-                    v = contrib['is_contact']
-                    if __is_true(val=v):
-                        contacts.append(contrib)
+            if metadata_fun:
+                md['files'] = md['metadata'].pop('files_info_alt_path', [])
+                md['extra_metadata'] = {'collectiontype': md['metadata'].pop('collectiontype', None)}
+                antibodies = md['metadata'].pop('antibodies', [])
+                contributors = md['metadata'].pop('contributors', [])
+                md['metadata'] = md['metadata'].pop('metadata', [])
+                contacts = []
+                for contrib in contributors:
+                    if 'is_contact' in contrib:
+                        v = contrib['is_contact']
+                        if __is_true(val=v):
+                            contacts.append(contrib)
 
             def my_callable(**kwargs):
                 return dataset_uuid
@@ -1398,20 +1399,22 @@ def make_send_status_msg_function(
             if not ds_rslt:
                 status = 'QA'
             else:
-                status = ds_rslt['status']
-                if not contacts:
-                    contacts = ds_rslt.get('contacts', [])
+                status = ds_rslt.get('status', 'QA')
+                if metadata_fun:
+                    if not contacts:
+                        contacts = ds_rslt.get('contacts', [])
 
             try:
                 assert_json_matches_schema(md, 'dataset_metadata_schema.yml')
                 data = {
                     'pipeline_message': 'the process ran',
                     'ingest_metadata': md,
-                    'antibodies': antibodies,
-                    'contributors': contributors,
-                    'contacts': contacts,
-                    'thumbnail_file_abs_path': thumbnail_file_abs_path
                 }
+                if metadata_fun:
+                    data.update({'antibodies': antibodies,
+                                 'contributors': contributors,
+                                 'contacts': contacts,
+                                 'thumbnail_file_abs_path': thumbnail_file_abs_path})
                 if status not in ['Published']:
                     data.update({'status': status})
             except AssertionError as e:
