@@ -129,14 +129,12 @@ with HMDAG('trigger_downstream_processing',
 
     t_maybe_spawn = FlexMultiDagRunOperator(
         task_id='flex_maybe_spawn',
-        provide_context=True,
+        dag=dag,
+        trigger_dag_id='trigger_downstream_processing',
         python_callable=flex_maybe_spawn,
         op_kwargs={
-            'crypt_auth_tok': (
-                utils.encrypt_tok(airflow_conf.as_dict()
-                                  ['connections']['APP_CLIENT_SECRET'])
-                .decode()
-                ),
+            'crypt_auth_tok': utils.encrypt_tok(airflow_conf.as_dict()
+                                                ['connections']['APP_CLIENT_SECRET']).decode(),
             }
         )
 
