@@ -1,7 +1,6 @@
 import sys
 
 import json
-import traceback
 from pathlib import Path
 from datetime import datetime, timedelta
 from pprint import pprint
@@ -27,6 +26,7 @@ from utils import (
     get_preserve_scratch_resource,
     get_threads_resource,
 )
+from catch_pipeline_errors import FailureCallback, FailureCallbackException
 
 sys.path.append(airflow_conf.as_dict()["connections"]["SRC_PATH"].strip("'").strip('"'))
 from submodules import (
@@ -37,78 +37,55 @@ from submodules import (
 
 sys.path.pop()
 
-"""
-TODO
-- troubleshoot dag_run
-- exception does not capture exception name yuck, is there an elegant way to find it
-  or do I need to crawl through traceback
-- fix validation message being pushed in failure_email_function
-- identify different types of errors and email creator for subset
-    - in the case of ingest validation:
-        - if [PreflightError, ValidatorError, DirectoryValidationErrors, FileNotFoundError] email submitter
-    - probably an add-on to regular process of emailing data curators;
-      would want curator to know it was sent to submitted though
-    - retrieve submitter data from xcom and construct message using other xcom data
-        - create templates
-- find proper generalizable home for all of this
-- type hinting
-"""
 
+class ValidateUploadFailure(FailureCallback):
+    external_exceptions = [
+        "ValueError",
+        "PreflightError",
+        "ValidatorError",
+        "DirectoryValidationErrors",
+        "FileNotFoundError",
+    ]
 
-def email_submitter(context):
-    created_by_user_email = context.get("task_instance").xcom_pull(key="created_by_user_email")
-    subject = None
-    msg = None
-    send_email(to=[created_by_user_email], subject=subject, html_content=msg)
+    def get_failure_email_template(
+        self,
+        formatted_exception=None,
+        external_template=False,
+        submission_data=None,
+        report_txt=False,
+    ):
+        if external_template:
+            if report_txt and submission_data:
+                subject = f"Your {submission_data.get('entity_type')} has failed!"
+                msg = f"""
+                    Error: {report_txt}
+                    """
+                return subject, msg
+        else:
+            if report_txt and submission_data:
+                subject = f"{submission_data.get('entity_type')} {self.uuid} has failed!"
+                msg = f"""
+                    Error: {report_txt}
+                    """
+                return subject, msg
+        return super().get_failure_email_template(formatted_exception)
 
-
-def failure_email_function(context):
-    # traceback logic borrowed from https://stackoverflow.com/questions/51822029/get-exception-details-on-airflow-on-failure-callback-context
-    # dag_run is not working
-    dag_run = context.get("dag_run")
-    exception = context.get("exception")
-    formatted_exception = "".join(
-        traceback.format_exception(
-            etype=type(exception), value=exception, tb=exception.__traceback__
-        )
-    ).strip()
-    subject = f"DAG {context.get('dag')} failed at task {context.get('task')}"
-    msg = f"""DAG run: {dag_run}
-            Error: {exception}
-            Traceback: {formatted_exception}"""
-    send_email(to=["gesina@psc.edu"], subject=subject, html_content=msg)
-    # if exception in [PreflightError, ValidatorError, DirectoryValidationErrors, FileNotFoundError]
-    # email_submitter(context)
-
-    """
-    It looks like a failure callback will need to manually set the
-    dataset status. That's what this does.
-
-    Recycling the send_status task would be better but
-    it requires all upstream tasks to succeed.
-    This would need to be generalized.
-    """
-    uuid = context.get("task_instance").xcom_pull(key="uuid")
-    crypt_auth_tok = context.get("crypt_auth_tok")
-    auth_tok = get_auth_tok(**{"crypt_auth_tok": crypt_auth_tok})
-    endpoint = f"/entities/{uuid}"
-    headers = {
-        "authorization": "Bearer " + auth_tok,
-        "X-Hubmap-Application": "ingest-pipeline",
-        "content-type": "application/json",
-    }
-    extra_options = []
-    http_conn_id = "entity_api_connection"
-    http_hook = HttpHook("PUT", http_conn_id=http_conn_id)
-    data = {"status": "Invalid", "validation_message": formatted_exception}
-    print("data: ")
-    pprint(data)
-    response = http_hook.run(
-        endpoint,
-        json.dumps(data),
-        headers,
-        extra_options,
-    )
+    def send_failure_email(self, **kwargs):
+        super().send_failure_email(**kwargs)
+        if "report_txt" in kwargs:
+            try:
+                created_by_user_email = self.submission_data.get("created_by_user_email")
+                subject, msg = self.get_failure_email_template(
+                    formatted_exception=None,
+                    external_template=True,
+                    submission_data=self.submission_data,
+                    **kwargs,
+                )
+                send_email(to=[created_by_user_email], subject=subject, html_content=msg)
+            except:
+                raise FailureCallbackException(
+                    "Failure retrieving created_by_user_email or sending email in ValidateUploadFailure."
+                )
 
 
 # Following are defaults which can be overridden later on
@@ -119,8 +96,9 @@ default_args = {
     "email": ["gesina@psc.edu"],
     "email_on_failure": False,
     "email_on_retry": False,
-    "on_failure_callback": failure_email_function,
-    "retries": 1,
+    "on_failure_callback": ValidateUploadFailure,
+    # "retries": 1,
+    "retries": 0,
     "retry_delay": timedelta(minutes=1),
     "xcom_push": True,
     "queue": get_queue_resource("validate_upload"),
@@ -239,6 +217,11 @@ with HMDAG(
             }
         else:
             data = {"status": "Invalid", "validation_message": report_txt}
+            context = kwargs["ti"].get_template_context()
+            context["crypt_auth_tok"] = kwargs["crypt_auth_tok"]
+            ValidateUploadFailure(context, execute_methods=False).send_failure_email(
+                report_txt=report_txt
+            )
         print("data: ")
         pprint(data)
         response = http_hook.run(
