@@ -39,6 +39,7 @@ sys.path.pop()
 
 
 class ValidateUploadFailure(FailureCallback):
+    # Should probably be importing custom exceptions rather than comparing strings
     external_exceptions = [
         "ValueError",
         "PreflightError",
