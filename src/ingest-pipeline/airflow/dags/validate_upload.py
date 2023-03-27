@@ -157,8 +157,10 @@ with HMDAG(
     )
 
     def run_validation(**kwargs):
-        # Force an error to test email
+        # Force an exception to test internal email
         # raise Exception("test")
+        # Force an exception to test internal and external email
+        # raise ValueError
         lz_path = kwargs["ti"].xcom_pull(key="lz_path")
         uuid = kwargs["ti"].xcom_pull(key="uuid")
         plugin_path = [path for path in ingest_validation_tests.__path__][0]
