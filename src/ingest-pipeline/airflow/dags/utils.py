@@ -1400,6 +1400,8 @@ def make_send_status_msg_function(
                 status = 'QA'
             else:
                 status = ds_rslt.get('status', 'QA')
+                if status in ['Processing', ]:
+                    status = 'QA'
                 if metadata_fun:
                     if not contacts:
                         contacts = ds_rslt.get('contacts', [])
