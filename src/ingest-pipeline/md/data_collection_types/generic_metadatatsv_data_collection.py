@@ -87,13 +87,16 @@ class GenericMetadataTSVDataCollection(DataCollection):
                                 assert key in rec, ('metadata.tsv does not have a'
                                                          '"{}" column'.format(key))
                             this_dict = {'metadata': rec}
-                            for sub_key, dict_key in [('contributors_path', 'contributors'),
-                                                      ('antibodies_path', 'antibodies')]:
+                            for sub_key, dict_key, ext, type_key in [
+                                    ('contributors_path', 'contributors', '.tsv', 'TSV'),
+                                    ('antibodies_path', 'antibodies', '.tsv', 'TSV'),
+                                    ('markdown_path', 'markdown', '.md', 'MD'),
+                            ]:
                                 if sub_key in rec:
-                                    assert rec[sub_key].endswith('.tsv')
+                                    assert rec[sub_key].endswith(ext)
                                     sub_path = os.path.join(os.path.dirname(fpath),
                                                             rec[sub_key])
-                                    sub_parser = md_type_tbl['TSV'](sub_path)
+                                    sub_parser = md_type_tbl[type_key](sub_path)
                                     sub_md = sub_parser.collect_metadata()
                                     this_dict[dict_key] = sub_md
                             cl.append(this_dict)
