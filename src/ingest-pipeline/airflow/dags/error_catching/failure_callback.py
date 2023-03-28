@@ -25,7 +25,6 @@ class FailureCallback:
     """
     List should be overwritten by each subclass with appropriate values.
     """
-
     external_exceptions = []
     # TODO: Switch to curator email(s)
     internal_email_recipients = ["gesina@psc.edu"]
@@ -33,7 +32,7 @@ class FailureCallback:
     def __init__(self, context, execute_methods=True):
         self.context = context
         self.uuid = self.context.get("task_instance").xcom_pull(key="uuid")
-        self.crypt_auth_tok = self.context.get("crypt_auth_tok")
+        self.auth_tok = get_auth_tok(**{"crypt_auth_tok": self.context.get("crypt_auth_tok")})
         self.dag_run = self.context.get("dag_run")
         self.task = self.context.get("task")
         self.exception = self.context.get("exception")
@@ -41,14 +40,21 @@ class FailureCallback:
 
         if execute_methods:
             self.set_status()
-            self.send_failure_email()
+            self.send_notifications()
+
+    def send_notifications(self):
+        """
+        Subclasses should override the send_notifications method
+        in order to add self.send_asana_notification() or other
+        custom notifications.
+        """
+        self.send_failure_email()
 
     # This is simplified from pythonop_get_dataset_state in utils
     def get_submission_context(self):
         method = "GET"
-        auth_tok = get_auth_tok(**{"crypt_auth_tok": self.crypt_auth_tok})
         headers = {
-            "authorization": f"Bearer {auth_tok}",
+            "authorization": f"Bearer {self.auth_tok}",
             "content-type": "application/json",
             "X-Hubmap-Application": "ingest-pipeline",
         }
@@ -74,7 +80,7 @@ class FailureCallback:
     def get_status_and_message(self):
         """
         Error message might need to be overwritten when
-        subclassed for various DAGs, so this is broken out.
+        subclassed for various DAGs.
         """
         return {
             "status": "Invalid",
@@ -83,14 +89,13 @@ class FailureCallback:
 
     def set_status(self):
         """
-        The failure callback needs to set the
-        dataset status.
+        The failure callback needs to set the dataset status,
+        otherwise it will remain in the "Processing" state
         """
         data = self.get_status_and_message()
-        auth_tok = get_auth_tok(**{"crypt_auth_tok": self.crypt_auth_tok})
         endpoint = f"/entities/{self.uuid}"
         headers = {
-            "authorization": "Bearer " + auth_tok,
+            "authorization": "Bearer " + self.auth_tok,
             "X-Hubmap-Application": "ingest-pipeline",
             "content-type": "application/json",
         }
@@ -159,5 +164,8 @@ class FailureCallback:
                 send_email(to=[created_by_user_email], subject=subject, html_content=msg)
             except:
                 raise FailureCallbackException(
-                    "Failure retrieving created_by_user_email or sending email."
+FailureCallbackException"Failure retrieving created_by_user_email or sending email."
                 )
+
+    def send_asana_notification(self, **kwargs):
+        pass
