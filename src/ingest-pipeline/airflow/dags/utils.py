@@ -489,8 +489,8 @@ def get_git_provenance_list(file_list: Iterable[str]) -> List[Mapping[str, Any]]
     root_l = get_git_root_paths(file_list)
     rel_name_l = [relpath(name, root) for name, root in zip(name_l, root_l)]
     # Make sure each repo appears only once
-    repo_d = {origin: {'name': name, 'hash': hash}
-              for origin, name, hash in zip(origin_l, rel_name_l, hash_l)}
+    repo_d = {origin: {'name': name, 'hash': hashed}
+              for origin, name, hashed in zip(origin_l, rel_name_l, hash_l)}
     rslt = []
     for origin in repo_d:
         dct = repo_d[origin].copy()

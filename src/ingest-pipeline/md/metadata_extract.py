@@ -60,7 +60,7 @@ def main(myargv=None):
     # default_schema_path = os.path.join(os.path.dirname(__file__), '../schemata/', DEFAULT_SCHEMA)
     default_schema_path = DEFAULT_SCHEMA  # trust the schema tools to know where to look
 
-    parser = argparse.ArgumentParser(description='Scan a directory tree of data files and extract metadata')
+    parser = argparse.ArgumentParser(description='Scan a directory tree of datafiles and extract metadata')
     parser.add_argument('--out', default=None,
                         help='Full pathname of output JSON (defaults to stdout)')
     parser.add_argument('--schema', default=None, nargs=1,
