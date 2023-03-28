@@ -673,7 +673,7 @@ def pythonop_send_create_dataset(**kwargs) -> str:
     headers = {
         'authorization': 'Bearer ' + get_auth_tok(**kwargs),
         'content-type': 'application/json',
-        'X-Hubmap-Application': 'ingest-pipeline'
+        'X-SenNet-Application': 'ingest-pipeline'
     }
 
     if 'dataset_types' in kwargs:
@@ -789,7 +789,7 @@ def pythonop_set_dataset_state(**kwargs) -> None:
     headers = {
         'authorization': 'Bearer ' + get_auth_tok(**kwargs),
         'content-type': 'application/json',
-        'X-Hubmap-Application': 'ingest-pipeline'}
+        'X-SenNet-Application': 'ingest-pipeline'}
     extra_options = {}
 
     http_hook = HttpHook('PUT',
@@ -852,7 +852,7 @@ def pythonop_get_dataset_state(**kwargs) -> JSONType:
     headers = {
         'authorization': f'Bearer {auth_tok}',
         'content-type': 'application/json',
-        'X-Hubmap-Application': 'ingest-pipeline',
+        'X-SenNet-Application': 'ingest-pipeline',
     }
     http_hook = HttpHook(method, http_conn_id='ingest_api_connection')
 

@@ -2,6 +2,9 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import List
 
+from airflow.providers.amazon.aws.operators.ec2 import EC2StartInstanceOperator, EC2StopInstanceOperator
+from airflow.providers.amazon.aws.sensors.ec2 import EC2InstanceStateSensor
+
 from airflow import DAG
 from airflow.operators.bash import BashOperator
 from airflow.operators.dummy import DummyOperator
@@ -66,6 +69,18 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
             Path("azimuth-annotate", "pipeline.cwl"),
             Path("portal-containers", "h5ad-to-arrow.cwl"),
             Path("portal-containers", "anndata-to-ui.cwl"),
+        )
+
+        t_start_instance = EC2StartInstanceOperator(
+            task_id='start_instance',
+            instance_id='i-007bbde390bf07819',
+            region_name='us-east-1'
+        )
+
+        t_sense_start_instance = EC2InstanceStateSensor(
+            task_id='await_start_instance',
+            instance_id='i-007bbde390bf07819',
+            target_state='running'
         )
 
         def build_dataset_name(**kwargs):
@@ -319,6 +334,18 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
             provide_context=True,
         )
 
+        t_stop_instance = EC2StopInstanceOperator(
+            task_id='stop_instance',
+            instance_id='i-007bbde390bf07819',
+            region_name='us-east-1'
+        )
+
+        t_sense_stop_instance = EC2InstanceStateSensor(
+            task_id='await_stop_instance',
+            instance_id='i-007bbde390bf07819',
+            target_state='stopped'
+        )
+
         t_log_info = LogInfoOperator(task_id="log_info")
         t_join = JoinOperator(task_id="join")
         t_create_tmpdir = CreateTmpDirOperator(task_id="create_tmpdir")
@@ -331,6 +358,8 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
             >> t_create_tmpdir
             >> t_send_create_dataset
             >> t_set_dataset_processing
+            >> t_start_instance
+            >> t_sense_start_instance
             >> prepare_cwl1
             >> t_build_cmd1
             >> t_pipeline_exec
@@ -350,6 +379,8 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
             >> t_move_data
             >> t_send_status
             >> t_join
+            >> t_stop_instance
+            >> t_sense_stop_instance
         )
         t_maybe_keep_cwl1 >> t_set_dataset_error
         t_maybe_keep_cwl2 >> t_set_dataset_error
@@ -357,6 +388,8 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
         t_maybe_keep_cwl4 >> t_set_dataset_error
         t_set_dataset_error >> t_join
         t_join >> t_cleanup_tmpdir
+        t_cleanup_tmpdir >> t_stop_instance
+        t_stop_instance >> t_sense_stop_instance
 
     return dag
 
