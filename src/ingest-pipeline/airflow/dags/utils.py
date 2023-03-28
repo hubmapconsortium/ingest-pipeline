@@ -1379,6 +1379,7 @@ def make_send_status_msg_function(
             if metadata_fun:
                 md['files'] = md['metadata'].pop('files_info_alt_path', [])
                 md['extra_metadata'] = {'collectiontype': md['metadata'].pop('collectiontype', None)}
+                md['thumbnail_file_abs_path'] = thumbnail_file_abs_path
                 antibodies = md['metadata'].pop('antibodies', [])
                 contributors = md['metadata'].pop('contributors', [])
                 md['metadata'] = md['metadata'].pop('metadata', [])
@@ -1415,8 +1416,7 @@ def make_send_status_msg_function(
                 if metadata_fun:
                     data.update({'antibodies': antibodies,
                                  'contributors': contributors,
-                                 'contacts': contacts,
-                                 'thumbnail_file_abs_path': thumbnail_file_abs_path})
+                                 'contacts': contacts})
                 if status not in ['Published']:
                     data.update({'status': status})
             except AssertionError as e:
