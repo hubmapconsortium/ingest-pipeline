@@ -53,7 +53,7 @@ default_args = {
     'retries': 1,
     'retry_delay': timedelta(minutes=1),
     'xcom_push': True,
-    'queue': get_queue_resource('launch_multi_analysis'),
+    'queue': get_queue_resource('rebuild_metadata'),
     'on_failure_callback': create_dataset_state_error_callback(get_uuid_for_error)
 }
 
