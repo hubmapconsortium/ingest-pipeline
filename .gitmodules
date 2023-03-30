@@ -52,3 +52,6 @@
 [submodule "src/ingest-pipeline/submodules/py-hubmapbags"]
 	path = src/ingest-pipeline/submodules/py-hubmapbags
 	url = https://github.com/hubmapconsortium/py-hubmapbags.git
+[submodule "src/ingest-pipeline/airflow/dags/hubmap-inventory"]
+	path = src/ingest-pipeline/airflow/dags/hubmap-inventory
+	url = https://github.com/hubmapconsortium/hubmap-inventory
