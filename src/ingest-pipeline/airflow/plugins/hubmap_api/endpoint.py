@@ -279,20 +279,6 @@ def _auth_tok_from_environment():
     return tok
 
 
-def _get_dag(dag_id):
-    """
-    Look up and return the dag associated with this dag_id, or raise KeyError
-    """
-    dagbag = DagBag('dags')
-
-    if dag_id not in dagbag.dags:
-        LOGGER.warning('Requested dag {} not among {}'
-                       .format(dag_id, [did for did in dagbag.dags]))
-        LOGGER.warning('Dag dir full path {}'.format(os.path.abspath('dags')))
-        raise KeyError(f"Dag id {dag_id} not found")
-    return dagbag.get_dag(dag_id)
-
-
 """
 Parameters for this request (all required)
 
@@ -332,18 +318,13 @@ def request_ingest():
 
     try:
         dag_id = config('ingest_map', process)
-    except HubmapApiConfigException:
+    except AirflowConfigException:
         return HubmapApiResponse.bad_request('{} is not a known ingestion process'.format(process))
     
     try:
         check_ingest_parms(provider, submission_id, process, full_path)
     
         session = settings.Session()
-
-        try:
-            dag = _get_dag(dag_id)
-        except KeyError as e:
-            HubmapApiResponse.not_found(f'{e}')
 
         # Produce one and only one run
         tz = pytz.timezone(config('core', 'timezone'))
@@ -398,7 +379,6 @@ def generic_invoke_dag_on_uuid(uuid, process_name):
     try:
         dag_id = config('ingest_map', process)
         session = settings.Session()
-        dag = _get_dag(dag_id)
 
         # Produce one and only one run
         tz = pytz.timezone(config('core', 'timezone'))
