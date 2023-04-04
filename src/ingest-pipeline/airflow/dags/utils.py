@@ -836,7 +836,7 @@ def restructure_entity_metadata(raw_metadata: JSONType) -> JSONType:
 
 def pythonop_get_dataset_state(**kwargs) -> JSONType:
     """
-    Gets the status JSON structure for a dataset.  Works for Uploads 
+    Gets the status JSON structure for a dataset.  Works for Uploads
     and Publications as well as Datasets.
     
     Accepts the following via the caller's op_kwargs:
@@ -875,7 +875,7 @@ def pythonop_get_dataset_state(**kwargs) -> JSONType:
 
     for key in ['status', 'uuid', 'entity_type']:
         assert key in ds_rslt, f"Dataset status for {uuid} has no {key}"
-    if ds_rslt['entity_type'] == 'Dataset':
+    if ds_rslt['entity_type'] in ['Dataset', 'Publication']:
         assert 'data_types' in ds_rslt, f"Dataset status for {uuid} has no data_types"
         data_types = ds_rslt['data_types']
         parent_dataset_uuid_list = [ancestor['uuid']
@@ -888,14 +888,6 @@ def pythonop_get_dataset_state(**kwargs) -> JSONType:
         metadata = {}
         endpoint = f"uploads/{ds_rslt['uuid']}/file-system-abs-path"
         parent_dataset_uuid_list = None
-    elif ds_rslt['entity_type'] == 'Publication':
-        assert 'data_types' in ds_rslt, f"Dataset status for {uuid} has no data_types"
-        data_types = ds_rslt['data_types']
-        parent_dataset_uuid_list = [ancestor['uuid']
-                                    for ancestor in ds_rslt['direct_ancestors']
-                                    if ancestor['entity_type'] == 'Dataset']
-        metadata = restructure_entity_metadata(ds_rslt)
-        endpoint = f"publications/{ds_rslt['uuid']}/file-system-abs-path"
     else:
         raise RuntimeError(f"Unknown entity_type {ds_rslt['entity_type']}")
     try:
