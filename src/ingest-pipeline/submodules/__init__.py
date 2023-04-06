@@ -8,6 +8,8 @@ sys.path.append(os.path.join(os.path.dirname(__file__),
                              'ingest-validation-tests', 'src'))
 sys.path.append(os.path.join(os.path.dirname(__file__),
                              'py-hubmapbags'))
+sys.path.append(os.path.join(os.path.dirname(__file__),
+                             'hubmap-inventory'))
 
 ingest_validation_tools_upload = import_module('ingest_validation_tools.upload')
 ingest_validation_tools_error_report = import_module('ingest_validation_tools.error_report')
@@ -56,6 +58,8 @@ hubmapbags_subject_role_taxonomy = import_module('hubmapbags.subject_role_taxono
 hubmapbags_subject_substance = import_module('hubmapbags.subject_substance')
 hubmapbags_utilities = import_module('hubmapbags.utilities')
 hubmapbags_uuids = import_module('hubmapbags.uuids')
+hubmapinventory = import_module('hubmap-inventory')
+hubmapinventory_inventory = import_module('hubmapinventory.inventory')
 
 __all__ = ["ingest_validation_tools_validation_utils",
            "ingest_validation_tools_upload",
@@ -104,8 +108,11 @@ __all__ = ["ingest_validation_tools_validation_utils",
            "hubmapbags_subject_substance",
            "hubmapbags_utilities",
            "hubmapbags_uuids",
+           "hubmapinventory",
+           "hubmapinventory_inventory",
            ]
 
+sys.path.pop()
 sys.path.pop()
 sys.path.pop()
 sys.path.pop()

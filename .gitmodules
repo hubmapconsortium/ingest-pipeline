@@ -55,3 +55,6 @@
 [submodule "src/ingest-pipeline/airflow/dags/hubmap-inventory"]
 	path = src/ingest-pipeline/airflow/dags/hubmap-inventory
 	url = https://github.com/hubmapconsortium/hubmap-inventory
+[submodule "src/ingest-pipeline/submodules/hubmap-inventory"]
+	path = src/ingest-pipeline/submodules/hubmap-inventory
+	url = https://github.com/hubmapconsortium/hubmap-inventory.git
