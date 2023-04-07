@@ -6,9 +6,6 @@ import yaml
 from pathlib import Path
 from datetime import datetime, timedelta
 
-from airflow.providers.amazon.aws.operators.ec2 import EC2StartInstanceOperator, EC2StopInstanceOperator
-from airflow.providers.amazon.aws.sensors.ec2 import EC2InstanceStateSensor
-
 from airflow.configuration import conf as airflow_conf
 from airflow.operators.bash import BashOperator
 from airflow.operators.python import PythonOperator, BranchPythonOperator
@@ -30,6 +27,11 @@ from utils import (
     pythonop_maybe_keep,
     pythonop_get_dataset_state,
     )
+
+from aws_utils import (
+    create_instance,
+    terminate_instance
+)
 
 sys.path.append(airflow_conf.as_dict()['connections']['SRC_PATH']
                 .strip("'").strip('"'))
@@ -74,16 +76,22 @@ with HMDAG('scan_and_begin_processing',
                'preserve_scratch': get_preserve_scratch_resource('scan_and_begin_processing')
            }) as dag:
 
-    t_start_instance = EC2StartInstanceOperator(
-        task_id='start_instance',
-        instance_id='i-007bbde390bf07819',
-        region_name='us-east-1'
-    )
+    def start_new_environment(**kwargs):
+        uuid = kwargs['dag_run'].conf['submission_id']
+        instance_id = create_instance(uuid, 'Airflow Worker', 'c6a.large')
+        if instance_id is None:
+            return 1
+        else:
+            kwargs['ti'].xcom_push(key='instance_id', value=instance_id)
+            return 0
 
-    t_sense_start_instance = EC2InstanceStateSensor(
-        task_id='await_start_instance',
-        instance_id='i-007bbde390bf07819',
-        target_state='running'
+
+    t_initialize_environment = PythonOperator(
+        task_id='initialize_environment',
+        python_callable=start_new_environment,
+        provide_context=True,
+        op_kwargs={
+        }
     )
 
     def read_metadata_file(**kwargs):
@@ -278,21 +286,26 @@ with HMDAG('scan_and_begin_processing',
         python_callable=flex_maybe_spawn
         )
 
-    t_stop_instance = EC2StopInstanceOperator(
-        task_id='stop_instance',
-        instance_id='i-007bbde390bf07819',
-        region_name='us-east-1'
-    )
 
-    t_sense_stop_instance = EC2InstanceStateSensor(
-        task_id='await_stop_instance',
-        instance_id='i-007bbde390bf07819',
-        target_state='stopped'
+    def terminate_new_environment(**kwargs):
+        instance_id = kwargs['ti'].xcom_pull(key='instance_id', task_ids="initialize_environment")
+        if instance_id is None:
+            return 1
+        else:
+            uuid = kwargs['dag_run'].conf['submission_id']
+            terminate_instance(instance_id, uuid)
+        return 0
+
+    t_terminate_environment = PythonOperator(
+        task_id='terminate_environment',
+        python_callable=terminate_new_environment,
+        provide_context=True,
+        op_kwargs={
+        }
     )
 
     (
-        t_start_instance
-        >> t_sense_start_instance
+        t_initialize_environment
         >> t_create_tmpdir
         >> t_run_validation
         >> t_maybe_continue
@@ -301,10 +314,8 @@ with HMDAG('scan_and_begin_processing',
         >> t_send_status
         >> t_maybe_spawn
         >> t_cleanup_tmpdir
-        >> t_stop_instance
-        >> t_sense_stop_instance
+        >> t_terminate_environment
      )
 
     t_maybe_continue >> t_send_status
-    t_send_status >> t_stop_instance
-    t_stop_instance >> t_sense_stop_instance
+    t_send_status >> t_terminate_environment

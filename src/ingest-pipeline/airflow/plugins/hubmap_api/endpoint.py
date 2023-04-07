@@ -332,16 +332,18 @@ def request_ingest():
         dag_id = config('ingest_map', process)
     except HubmapApiConfigException:
         return HubmapApiResponse.bad_request('{} is not a known ingestion process'.format(process))
+    except AirflowConfigException:
+        return HubmapApiResponse.bad_request('{} is not a known ingestion process'.format(process))
     
     try:
         check_ingest_parms(provider, submission_id, process, full_path)
     
         session = settings.Session()
 
-        try:
-            dag = _get_dag(dag_id)
-        except KeyError as e:
-            HubmapApiResponse.not_found(f'{e}')
+        # try:
+        #     dag = _get_dag(dag_id)
+        # except KeyError as e:
+        #     HubmapApiResponse.not_found(f'{e}')
 
         # Produce one and only one run
         tz = pytz.timezone(config('core', 'timezone'))
