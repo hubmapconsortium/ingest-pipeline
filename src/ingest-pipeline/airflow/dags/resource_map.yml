@@ -27,6 +27,9 @@ resource_map:
     'lanes': 2
     # 'lanes': 12
     'tasks':
+    - 'task_re': '.*cwl.*|.*exec|.*cmd.*|.*azimuth.*|.*ui.*'
+      'queue': 'processing'
+      'threads': 6
     - 'task_re': '.*'
       'queue': 'general'
       'threads': 6

@@ -39,6 +39,11 @@ from utils import (
     get_preserve_scratch_resource,
 )
 
+from aws_utils import (
+    create_instance,
+    terminate_instance
+)
+
 
 def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
     default_args = {
@@ -71,16 +76,22 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
             Path("portal-containers", "anndata-to-ui.cwl"),
         )
 
-        t_start_instance = EC2StartInstanceOperator(
-            task_id='start_instance',
-            instance_id='i-007bbde390bf07819',
-            region_name='us-east-1'
-        )
 
-        t_sense_start_instance = EC2InstanceStateSensor(
-            task_id='await_start_instance',
-            instance_id='i-007bbde390bf07819',
-            target_state='running'
+        def start_new_environment(**kwargs):
+            uuid = kwargs['dag_run'].conf['submission_id']
+            instance_id = create_instance(uuid, 'Airflow Worker', 'm5zn.3xlarge')
+            if instance_id is None:
+                return 1
+            else:
+                kwargs['ti'].xcom_push(key='instance_id', value=instance_id)
+                return 0
+
+        t_initialize_environment = PythonOperator(
+            task_id='initialize_environment',
+            python_callable=start_new_environment,
+            provide_context=True,
+            op_kwargs={
+            }
         )
 
         def build_dataset_name(**kwargs):
@@ -334,16 +345,21 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
             provide_context=True,
         )
 
-        t_stop_instance = EC2StopInstanceOperator(
-            task_id='stop_instance',
-            instance_id='i-007bbde390bf07819',
-            region_name='us-east-1'
-        )
+        def terminate_new_environment(**kwargs):
+            instance_id = kwargs['ti'].xcom_pull(key='instance_id', task_ids="initialize_environment")
+            if instance_id is None:
+                return 1
+            else:
+                uuid = kwargs['dag_run'].conf['submission_id']
+                terminate_instance(instance_id, uuid)
+            return 0
 
-        t_sense_stop_instance = EC2InstanceStateSensor(
-            task_id='await_stop_instance',
-            instance_id='i-007bbde390bf07819',
-            target_state='stopped'
+        t_terminate_environment = PythonOperator(
+            task_id='terminate_environment',
+            python_callable=terminate_new_environment,
+            provide_context=True,
+            op_kwargs={
+            }
         )
 
         t_log_info = LogInfoOperator(task_id="log_info")
@@ -358,8 +374,7 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
             >> t_create_tmpdir
             >> t_send_create_dataset
             >> t_set_dataset_processing
-            >> t_start_instance
-            >> t_sense_start_instance
+            >> t_initialize_environment
             >> prepare_cwl1
             >> t_build_cmd1
             >> t_pipeline_exec
@@ -379,8 +394,7 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
             >> t_move_data
             >> t_send_status
             >> t_join
-            >> t_stop_instance
-            >> t_sense_stop_instance
+            >> t_terminate_environment
         )
         t_maybe_keep_cwl1 >> t_set_dataset_error
         t_maybe_keep_cwl2 >> t_set_dataset_error
@@ -388,8 +402,7 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
         t_maybe_keep_cwl4 >> t_set_dataset_error
         t_set_dataset_error >> t_join
         t_join >> t_cleanup_tmpdir
-        t_cleanup_tmpdir >> t_stop_instance
-        t_stop_instance >> t_sense_stop_instance
+        t_cleanup_tmpdir >> t_terminate_environment
 
     return dag
 
