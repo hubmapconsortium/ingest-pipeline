@@ -66,10 +66,11 @@ class PublishedExportPlugin(ExportAndBackupPlugin):
             hubmapinventory_inventory.create(
                 hubmap_id,
                 token=self.token,
-                ncores=2,
+                ncores=10,
                 compute_uuids=False,
                 dbgap_study_id=dbgap_study_id,
                 recompute_file_extension=False,
+                backup=False,
                 debug=True,
             )
             return "PublishedExportPlugin ran successfully"
