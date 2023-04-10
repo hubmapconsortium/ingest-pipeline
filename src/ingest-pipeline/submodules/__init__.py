@@ -58,7 +58,7 @@ hubmapbags_subject_role_taxonomy = import_module('hubmapbags.subject_role_taxono
 hubmapbags_subject_substance = import_module('hubmapbags.subject_substance')
 hubmapbags_utilities = import_module('hubmapbags.utilities')
 hubmapbags_uuids = import_module('hubmapbags.uuids')
-hubmapinventory = import_module('hubmap-inventory')
+hubmapinventory = import_module('hubmapinventory')
 hubmapinventory_inventory = import_module('hubmapinventory.inventory')
 
 __all__ = ["ingest_validation_tools_validation_utils",
