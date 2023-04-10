@@ -40,7 +40,7 @@ class PublishedExportPlugin(ExportAndBackupPlugin):
             'content-type': 'application/json',
             'X-Hubmap-Application': 'ingest-pipeline',
             }
-        http_hook = HttpHook(method, http_conn_id='ingest_api_connection')
+        http_hook = HttpHook(method, http_conn_id='entity_api_connection')
 
         endpoint = f'entities/{uuid}'
 
