@@ -2,9 +2,6 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import List
 
-from airflow.providers.amazon.aws.operators.ec2 import EC2StartInstanceOperator, EC2StopInstanceOperator
-from airflow.providers.amazon.aws.sensors.ec2 import EC2InstanceStateSensor
-
 from airflow import DAG
 from airflow.operators.bash import BashOperator
 from airflow.operators.dummy import DummyOperator
@@ -78,7 +75,7 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
 
 
         def start_new_environment(**kwargs):
-            uuid = kwargs['dag_run'].conf['submission_id']
+            uuid = kwargs['run_id']
             instance_id = create_instance(uuid, 'Airflow Worker', 'm5zn.3xlarge')
             if instance_id is None:
                 return 1
@@ -350,7 +347,7 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
             if instance_id is None:
                 return 1
             else:
-                uuid = kwargs['dag_run'].conf['submission_id']
+                uuid = kwargs['run_id']
                 terminate_instance(instance_id, uuid)
             return 0
 
