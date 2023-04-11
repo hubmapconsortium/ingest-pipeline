@@ -34,6 +34,7 @@ from utils import (
     get_queue_resource,
     get_threads_resource,
     get_preserve_scratch_resource,
+    get_instance_type,
 )
 
 from aws_utils import (
@@ -72,7 +73,6 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
             Path("portal-containers", "h5ad-to-arrow.cwl"),
             Path("portal-containers", "anndata-to-ui.cwl"),
         )
-
 
         def start_new_environment(**kwargs):
             uuid = kwargs['run_id']
