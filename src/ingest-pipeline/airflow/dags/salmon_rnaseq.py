@@ -76,7 +76,7 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
 
         def start_new_environment(**kwargs):
             uuid = kwargs['run_id']
-            instance_id = create_instance(uuid, 'Airflow Worker', 'm5zn.3xlarge')
+            instance_id = create_instance(uuid, 'Airflow Worker', get_instance_type(kwargs.get('dag_id')))
             if instance_id is None:
                 return 1
             else:
