@@ -52,28 +52,33 @@ with HMDAG(
             pprint(kwargs["dag_run"].conf)
             raise
 
-        uuid = kwargs["dag_run"].conf["uuid"]
+        uuids = kwargs["dag_run"].conf["uuids"]
 
-        def my_callable(**kwargs):
-            return uuid
+        uuid_dict = {}
 
-        ds_rslt = pythonop_get_dataset_state(dataset_uuid_callable=my_callable, **kwargs)
-        if not ds_rslt:
-            raise AirflowException(f"Invalid uuid/doi for group: {uuid}")
-        ds_rslt["crypt_auth_tok"] = kwargs["crypt_auth_tok"]
-        print("ds_rslt:")
-        pprint(ds_rslt)
+        for uuid in uuids:
+            def my_callable(**kwargs):
+                return uuid
 
-        if not ds_rslt["entity_type"] in ["Dataset", "Upload"]:
-            raise AirflowException(
-                f"Entity {uuid} is entity_type {ds_rslt['entity_type']}, needs to be type 'Dataset' or 'Upload'"
-            )
+            ds_rslt = pythonop_get_dataset_state(dataset_uuid_callable=my_callable, **kwargs)
+            if not ds_rslt:
+                raise AirflowException(f"Invalid uuid/doi for group: {uuid}")
+            ds_rslt["crypt_auth_tok"] = kwargs["crypt_auth_tok"]
+            print("ds_rslt:")
+            pprint(ds_rslt)
 
-        if not ds_rslt["status"]:
-            raise AirflowException(f"Entity {uuid} has no status")
+            if not ds_rslt["entity_type"] in ["Dataset", "Upload"]:
+                raise AirflowException(
+                    f"Entity {uuid} is entity_type {ds_rslt['entity_type']}, needs to be type 'Dataset' or 'Upload'"
+                )
 
-        print(f'Finished uuid {ds_rslt["uuid"]}')
-        return ds_rslt  # causing it to be put into xcom
+            if not ds_rslt["status"]:
+                raise AirflowException(f"Entity {uuid} has no status")
+
+            print(f'Finished uuid {ds_rslt["uuid"]}')
+            uuid_dict[uuid] = ds_rslt
+        print(uuid_dict)
+        return uuid_dict  # causing it to be put into xcom
 
     t_find_uuid = PythonOperator(
         task_id="find_uuid",
@@ -88,25 +93,28 @@ with HMDAG(
 
     def find_plugins(**kwargs):
         info_dict = kwargs["ti"].xcom_pull(task_ids="find_uuid").copy()
-        status = info_dict["status"].lower()
-        entity_type = info_dict["entity_type"].lower()
-        map_path = join(dirname(__file__), PLUGIN_MAP_FILENAME)
-        with open(map_path, "r") as f:
-            plugin_map = yaml.safe_load(f)
-        try:
-            assert_json_matches_schema(plugin_map, "export_and_backup_map_schema.yml")
-        except AssertionError:
-            print("invalid metadata follows:")
-            pprint(kwargs["dag_run"].conf)
-            raise
-        plugins = []
-        for entity, value in plugin_map["export_and_backup_map"].items():
-            if not entity == entity_type:
-                continue
-            for status_type in value:
-                if status_type["status"] == status:
-                    plugins.extend(status_type["plugins"])
-        info_dict["plugins"] = plugins
+        print(info_dict)
+        for uuid in kwargs["dag_run"].conf["uuids"]:
+            uuid_info = info_dict[uuid]
+            status = uuid_info["status"].lower()
+            entity_type = uuid_info["entity_type"].lower()
+            map_path = join(dirname(__file__), PLUGIN_MAP_FILENAME)
+            with open(map_path, "r") as f:
+                plugin_map = yaml.safe_load(f)
+            try:
+                assert_json_matches_schema(plugin_map, "export_and_backup_map_schema.yml")
+            except AssertionError:
+                print("invalid metadata follows:")
+                pprint(kwargs["dag_run"].conf)
+                raise
+            plugins = []
+            for entity, value in plugin_map["export_and_backup_map"].items():
+                if not entity == entity_type:
+                    continue
+                for status_type in value:
+                    if status_type["status"] == status:
+                        plugins.extend(status_type["plugins"])
+            info_dict[uuid]["plugins"] = plugins
         return info_dict
 
     t_find_plugins = PythonOperator(
@@ -122,16 +130,18 @@ with HMDAG(
 
     def run_plugins(**kwargs):
         info_dict = kwargs["ti"].xcom_pull(task_ids="find_plugins").copy()
-        for key in info_dict:
-            logging.info(f"{key.upper()}: {info_dict[key]}")
-        plugin_path = Path(export_and_backup_plugin.__file__).parent / "plugins"
-        print("plugin_path: ", plugin_path)
-        for plugin in export_and_backup_plugin.export_and_backup_result_iter(
-            plugin_path, **info_dict
-        ):
+        for uuid in kwargs["dag_run"].conf["uuids"]:
+            uuid_info = info_dict[uuid]
+            for key in uuid_info:
+                logging.info(f"{key.upper()}: {uuid_info[key]}")
+            plugin_path = Path(export_and_backup_plugin.__file__).parent / "plugins"
+            print("plugin_path: ", plugin_path)
+            for plugin in export_and_backup_plugin.export_and_backup_result_iter(
+                plugin_path, **uuid_info
+            ):
 
-            result = plugin.run_plugin()
-            print("result: ", result)
+                result = plugin.run_plugin()
+                print("result: ", result)
         return info_dict
 
     t_run_plugins = PythonOperator(

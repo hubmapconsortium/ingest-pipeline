@@ -42,4 +42,4 @@ class IllegalArgumentDiagnosticPlugin(RegexDiagnosticPlugin):
                 self.do_regex_search(
                     regex, line, "IllegalArgument error found; no docker container found"
                 )
-        return DiagnosticResult(self.errors)k
+        return DiagnosticResult(self.errors)
