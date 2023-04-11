@@ -9,7 +9,7 @@ from export_and_backup.export_and_backup_plugin import ExportAndBackupPlugin, ad
 from utils import get_auth_tok
 
 with add_path(airflow_conf.as_dict()["connections"]["SRC_PATH"].strip("'").strip('"')):
-    from submodules import hubmapinventory, hubmapinventory_inventory
+    from submodules import hubmapinventory
 
 
 class PublishedBackupPlugin(ExportAndBackupPlugin):
@@ -63,7 +63,7 @@ class PublishedExportPlugin(ExportAndBackupPlugin):
         dbgap_study_id = self.kwargs.get("dbgap_study_id", None)
         # instance will need to be changed
         try:
-            hubmapinventory_inventory.create(
+            hubmapinventory.inventory.create(
                 hubmap_id,
                 token=self.token,
                 ncores=10,

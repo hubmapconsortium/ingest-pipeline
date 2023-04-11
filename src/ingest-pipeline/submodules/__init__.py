@@ -59,7 +59,6 @@ hubmapbags_subject_substance = import_module('hubmapbags.subject_substance')
 hubmapbags_utilities = import_module('hubmapbags.utilities')
 hubmapbags_uuids = import_module('hubmapbags.uuids')
 hubmapinventory = import_module('hubmapinventory')
-hubmapinventory_inventory = import_module('hubmapinventory.inventory')
 
 __all__ = ["ingest_validation_tools_validation_utils",
            "ingest_validation_tools_upload",
@@ -109,7 +108,6 @@ __all__ = ["ingest_validation_tools_validation_utils",
            "hubmapbags_utilities",
            "hubmapbags_uuids",
            "hubmapinventory",
-           "hubmapinventory_inventory",
            ]
 
 sys.path.pop()
