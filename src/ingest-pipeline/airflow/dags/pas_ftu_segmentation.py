@@ -290,8 +290,7 @@ with HMDAG(
     t_move_data = MoveDataOperator(task_id="move_data")
 
     (
-        dag
-        >> t_log_info
+        t_log_info
         >> t_create_tmpdir
         >> t_send_create_dataset
         >> t_set_dataset_processing
