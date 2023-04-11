@@ -9,13 +9,6 @@ from airflow.utils.email import send_email
 
 from utils import get_auth_tok
 
-"""
-TODO
-- this requires crypt_auth_tok to be an op_kwarg, is that reasonable?
-- fix DRY issues (e.g. get_submission_context?, set_status)
-- type hinting
-"""
-
 
 class FailureCallbackException(Exception):
     pass
@@ -32,7 +25,7 @@ class FailureCallback:
     def __init__(self, context, execute_methods=True):
         self.context = context
         self.uuid = self.context.get("task_instance").xcom_pull(key="uuid")
-        self.auth_tok = get_auth_tok(**{"crypt_auth_tok": self.context.get("crypt_auth_tok")})
+        self.auth_tok = get_auth_tok(**context)
         self.dag_run = self.context.get("dag_run")
         self.task = self.context.get("task")
         self.exception = self.context.get("exception")
@@ -58,7 +51,7 @@ class FailureCallback:
             "content-type": "application/json",
             "X-Hubmap-Application": "ingest-pipeline",
         }
-        http_hook = HttpHook(method, http_conn_id="ingest_api_connection")
+        http_hook = HttpHook(method, http_conn_id="entity_api_connection")
 
         endpoint = f"entities/{self.uuid}"
 
@@ -164,7 +157,7 @@ class FailureCallback:
                 send_email(to=[created_by_user_email], subject=subject, html_content=msg)
             except:
                 raise FailureCallbackException(
-FailureCallbackException"Failure retrieving created_by_user_email or sending email."
+                        "Failure retrieving created_by_user_email or sending email."
                 )
 
     def send_asana_notification(self, **kwargs):

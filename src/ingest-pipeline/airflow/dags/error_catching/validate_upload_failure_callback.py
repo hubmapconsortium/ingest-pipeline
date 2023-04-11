@@ -1,6 +1,6 @@
 from airflow.utils.email import send_email
 
-from failure_callback import FailureCallback, FailureCallbackException
+from .failure_callback import FailureCallback, FailureCallbackException
 
 
 class ValidateUploadFailure(FailureCallback):

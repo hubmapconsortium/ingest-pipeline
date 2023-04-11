@@ -15,7 +15,7 @@ from hubmap_operators.common_operators import (
     CleanupTmpDirOperator,
 )
 
-from error_catching.validate_upload_failure import ValidateUploadFailure
+from error_catching.validate_upload_failure_callback import ValidateUploadFailure
 from utils import (
     encrypt_tok,
     get_tmp_dir_path,
@@ -48,7 +48,6 @@ default_args = {
     "email_on_retry": False,
     "on_failure_callback": ValidateUploadFailure,
     "retries": 1,
-    # "retries": 0,
     "retry_delay": timedelta(minutes=1),
     "xcom_push": True,
     "queue": get_queue_resource("validate_upload"),
@@ -98,18 +97,9 @@ with HMDAG(
         task_id="find_uuid",
         python_callable=find_uuid,
         provide_context=True,
-        op_kwargs={
-            "crypt_auth_tok": (
-                encrypt_tok(airflow_conf.as_dict()["connections"]["APP_CLIENT_SECRET"]).decode()
-            )
-        },
     )
 
     def run_validation(**kwargs):
-        # Force an exception to test internal email
-        # raise Exception("test")
-        # Force an exception to test internal and external email
-        # raise ValueError
         lz_path = kwargs["ti"].xcom_pull(key="lz_path")
         uuid = kwargs["ti"].xcom_pull(key="uuid")
         plugin_path = [path for path in ingest_validation_tests.__path__][0]
@@ -142,11 +132,6 @@ with HMDAG(
         task_id="run_validation",
         python_callable=run_validation,
         provide_context=True,
-        op_kwargs={
-            "crypt_auth_tok": (
-                encrypt_tok(airflow_conf.as_dict()["connections"]["APP_CLIENT_SECRET"]).decode()
-            )
-        },
     )
 
     def send_status_msg(**kwargs):
@@ -170,7 +155,6 @@ with HMDAG(
         else:
             data = {"status": "Invalid", "validation_message": report_txt}
             context = kwargs["ti"].get_template_context()
-            context["crypt_auth_tok"] = kwargs["crypt_auth_tok"]
             ValidateUploadFailure(context, execute_methods=False).send_failure_email(
                 report_txt=report_txt
             )
@@ -189,11 +173,6 @@ with HMDAG(
         task_id="send_status",
         python_callable=send_status_msg,
         provide_context=True,
-        op_kwargs={
-            "crypt_auth_tok": (
-                encrypt_tok(airflow_conf.as_dict()["connections"]["APP_CLIENT_SECRET"]).decode()
-            )
-        },
     )
 
     t_create_tmpdir = CreateTmpDirOperator(task_id="create_temp_dir")
