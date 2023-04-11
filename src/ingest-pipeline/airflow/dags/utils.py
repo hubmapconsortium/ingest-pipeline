@@ -1553,7 +1553,7 @@ def _get_resource_map() -> List[Tuple[Pattern, Pattern, Dict[str, str]]]:
 
 
 def _lookup_resource_record(dag_id: str,
-                            task_id: Optional[str] = None) -> Tuple[int, Dict]:
+                            task_id: Optional[str] = None) -> Dict:
     """
     Look up the resource map entry for the given dag_id and task_id. The first
     match is returned.  If the task_id is None, the first record matching only
@@ -1606,8 +1606,7 @@ def get_preserve_scratch_resource(dag_id: str) -> bool:
     resource map.
     """
     rec = _lookup_resource_record(dag_id)
-    assert 'preserve_scratch' in rec, ('schema should guarantee'
-                                       ' "preserve_scratch" is present?')
+    assert 'preserve_scratch' in rec, 'schema should guarantee "preserve_scratch" is present?'
     return bool(rec['preserve_scratch'])
 
 
@@ -1628,6 +1627,17 @@ def get_threads_resource(dag_id: str, task_id: Optional[str] = None) -> int:
             else math.ceil(os.cpu_count() / 4)
     else:
         return int(rec.get('threads'))
+
+
+def get_instance_type(dag_id: str, task_id: Optional[str] = None) -> str:
+    """
+    Look up for the AWS instance type the dag_id needs to be run with.
+    """
+    if task_id is None:
+        task_id = '__default__'
+    rec = _lookup_resource_record(dag_id)
+    assert 'instance_type' in rec, 'schema should guarantee "instance_type" is present?'
+    return rec.get('instance_type')
 
 
 def get_type_client() -> TypeClient:
