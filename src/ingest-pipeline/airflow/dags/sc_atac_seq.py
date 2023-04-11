@@ -1,11 +1,11 @@
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import List, Tuple
+from typing import List
 
 from airflow import DAG
-from airflow.operators.bash_operator import BashOperator
-from airflow.operators.dummy_operator import DummyOperator
-from airflow.operators.python_operator import BranchPythonOperator, PythonOperator
+from airflow.operators.bash import BashOperator
+from airflow.operators.dummy import DummyOperator
+from airflow.operators.python import BranchPythonOperator, PythonOperator
 from hubmap_operators.common_operators import (
     CleanupTmpDirOperator,
     CreateTmpDirOperator,
@@ -51,16 +51,14 @@ def generate_atac_seq_dag(params: SequencingDagParameters) -> DAG:
         "on_failure_callback": utils.create_dataset_state_error_callback(get_uuid_for_error),
     }
 
-    with HMDAG(
-        params.dag_id,
-        schedule_interval=None,
-        is_paused_upon_creation=False,
-        default_args=default_args,
-        user_defined_macros={
-            "tmp_dir_path": get_tmp_dir_path,
-            "preserve_scratch": get_preserve_scratch_resource(params.dag_id),
-        },
-    ) as dag:
+    with HMDAG(params.dag_id,
+               schedule_interval=None,
+               is_paused_upon_creation=False,
+               default_args=default_args,
+               user_defined_macros={
+                   "tmp_dir_path": get_tmp_dir_path,
+                   "preserve_scratch": get_preserve_scratch_resource(params.dag_id),
+               }) as dag:
         cwl_workflows = get_absolute_workflows(
             Path("sc-atac-seq-pipeline", "sc_atac_seq_prep_process_analyze.cwl"),
             Path("portal-containers", "scatac-csv-to-arrow.cwl"),
@@ -197,6 +195,7 @@ def generate_atac_seq_dag(params: SequencingDagParameters) -> DAG:
             retcode_ops=["pipeline_exec", "move_data", "make_arrow1"],
             cwl_workflows=cwl_workflows,
         )
+
         t_send_status = PythonOperator(
             task_id="send_status_msg",
             python_callable=send_status_msg,
@@ -211,8 +210,7 @@ def generate_atac_seq_dag(params: SequencingDagParameters) -> DAG:
         t_move_data = MoveDataOperator(task_id="move_data")
 
         (
-            dag
-            >> t_log_info
+            t_log_info
             >> t_create_tmpdir
             >> t_send_create_dataset
             >> t_set_dataset_processing
@@ -254,6 +252,12 @@ atacseq_dag_data: List[SequencingDagParameters] = [
         pipeline_name="sn-atac-seq-pipeline",
         assay="snseq",
         dataset_type="sn_atac_seq",
+    ),
+    SequencingDagParameters(
+        dag_id="sc_atac_seq_multiome_10x",
+        pipeline_name="sn-atac-seq-pipeline",
+        assay="multiome_10x",
+        dataset_type="sn_atac_seq_multiome_10x",
     ),
 ]
 

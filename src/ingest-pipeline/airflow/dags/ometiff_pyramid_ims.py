@@ -1,13 +1,12 @@
 from pathlib import Path
 from datetime import datetime, timedelta
 
-from airflow import DAG
-from airflow.operators.bash_operator import BashOperator
-from airflow.operators.python_operator import PythonOperator
-from airflow.operators.python_operator import BranchPythonOperator
-from airflow.operators.dummy_operator import DummyOperator
+from airflow.operators.bash import BashOperator
+from airflow.operators.python import PythonOperator
+from airflow.operators.python import BranchPythonOperator
+from airflow.operators.dummy import DummyOperator
 
-#these are the hubmap common operators that are used in all DAGS
+# these are the hubmap common operators that are used in all DAGS
 from hubmap_operators.common_operators import (
     LogInfoOperator,
     JoinOperator,
@@ -61,8 +60,8 @@ with HMDAG('ometiff_pyramid_ims',
            is_paused_upon_creation=False,
            default_args=default_args,
            user_defined_macros={
-               'tmp_dir_path' : get_tmp_dir_path,
-               'preserve_scratch' : get_preserve_scratch_resource('ometiff_pyramid_ims'),
+               'tmp_dir_path': get_tmp_dir_path,
+               'preserve_scratch': get_preserve_scratch_resource('ometiff_pyramid_ims'),
            }) as dag:
 
     # does the name need to match the filename?
@@ -83,19 +82,19 @@ with HMDAG('ometiff_pyramid_ims',
         task_id='prepare_cwl1'
         )
 
-    #print useful info and build command line
+    # print useful info and build command line
     def build_cwltool_cmd1(**kwargs):
         run_id = kwargs['run_id']
 
-        #tmpdir is temp directory in /hubmap-tmp
+        # tmpdir is temp directory in /hubmap-tmp
         tmpdir = get_tmp_dir_path(run_id)
         print('tmpdir: ', tmpdir)
 
-        #data directory is input directory in /hubmap-data
+        # data directory is input directory in /hubmap-data
         data_dir = get_parent_data_dir(**kwargs)
         print('data_dir: ', data_dir)
 
-        #this is the call to the CWL
+        # this is the call to the CWL
         command = [
             *get_cwltool_base_cmd(tmpdir),
             cwl_workflows[0],
@@ -124,20 +123,20 @@ with HMDAG('ometiff_pyramid_ims',
         """
     )
 
-    #CWL2
+    # CWL2
     prepare_cwl2 = DummyOperator(
         task_id='prepare_cwl2'
         )
 
-    #print useful info and build command line
+    # print useful info and build command line
     def build_cwltool_cmd2(**kwargs):
         run_id = kwargs['run_id']
 
-        #tmpdir is temp directory in /hubmap-tmp
+        # tmpdir is temp directory in /hubmap-tmp
         tmpdir = get_tmp_dir_path(run_id)
         print('tmpdir: ', tmpdir)
 
-        #this is the call to the CWL
+        # this is the call to the CWL
         command = [
             *get_cwltool_base_cmd(tmpdir),
             cwl_workflows[1],
@@ -163,49 +162,48 @@ with HMDAG('ometiff_pyramid_ims',
         """
     )
 
-    #next_op if true, bail_op if false. test_op returns value for testing.
+    # next_op if true, bail_op if false. test_op returns value for testing.
     t_maybe_keep_cwl2 = BranchPythonOperator(
         task_id='maybe_keep_cwl2',
         python_callable=utils.pythonop_maybe_keep,
         provide_context=True,
-        op_kwargs = {'next_op' : 'move_data',
-                     'bail_op' : 'set_dataset_error',
-                     'test_op' : 'pipeline_exec_cwl2'}
+        op_kwargs={'next_op': 'move_data',
+                   'bail_op': 'set_dataset_error',
+                   'test_op': 'pipeline_exec_cwl2'}
         )
 
-    #Others
+    # Others
     t_send_create_dataset = PythonOperator(
         task_id='send_create_dataset',
         python_callable=utils.pythonop_send_create_dataset,
         provide_context=True,
-        op_kwargs = {'parent_dataset_uuid_callable' : get_parent_dataset_uuids_list,
-                     'previous_revision_uuid_callable' : get_previous_revision_uuid,
-                     'http_conn_id' : 'ingest_api_connection',
-                     'dataset_name_callable' : build_dataset_name,
-                     "dataset_types":["image_pyramid"]
-                     }
+        op_kwargs={'parent_dataset_uuid_callable': get_parent_dataset_uuids_list,
+                   'previous_revision_uuid_callable': get_previous_revision_uuid,
+                   'http_conn_id': 'ingest_api_connection',
+                   'dataset_name_callable': build_dataset_name,
+                   'dataset_types': ["image_pyramid"]
+                   }
     )
-
 
     t_set_dataset_error = PythonOperator(
         task_id='set_dataset_error',
         python_callable=utils.pythonop_set_dataset_state,
         provide_context=True,
         trigger_rule='all_done',
-        op_kwargs = {'dataset_uuid_callable' : get_dataset_uuid,
-                     'ds_state' : 'Error',
-                     'message' : 'An error occurred in {}'.format(pipeline_name)
-                     }
+        op_kwargs={'dataset_uuid_callable': get_dataset_uuid,
+                   'ds_state': 'Error',
+                   'message': 'An error occurred in {}'.format(pipeline_name)
+                   }
     )
 
-    #next_op if true, bail_op if false. test_op returns value for testing.
+    # next_op if true, bail_op if false. test_op returns value for testing.
     t_maybe_keep_cwl1 = BranchPythonOperator(
         task_id='maybe_keep_cwl1',
         python_callable=utils.pythonop_maybe_keep,
         provide_context=True,
-        op_kwargs = {'next_op' : 'prepare_cwl2',
-                     'bail_op' : 'set_dataset_error',
-                     'test_op' : 'pipeline_exec_cwl1'}
+        op_kwargs={'next_op': 'prepare_cwl2',
+                   'bail_op': 'set_dataset_error',
+                   'test_op': 'pipeline_exec_cwl1'}
         )
 
     send_status_msg = make_send_status_msg_function(
@@ -213,6 +211,7 @@ with HMDAG('ometiff_pyramid_ims',
         retcode_ops=['pipeline_exec_cwl1', 'pipeline_exec_cwl2', 'move_data'],
         cwl_workflows=cwl_workflows,
     )
+
     t_send_status = PythonOperator(
         task_id='send_status_msg',
         python_callable=send_status_msg,
@@ -227,12 +226,14 @@ with HMDAG('ometiff_pyramid_ims',
     t_move_data = MoveDataOperator(task_id='move_data')
 
     # DAG
-    (dag >> t_log_info >> t_create_tmpdir
-     >> t_send_create_dataset >> t_set_dataset_processing
-     >> prepare_cwl1 >> t_build_cmd1 >> t_pipeline_exec_cwl1
-     >> t_maybe_keep_cwl1 >> prepare_cwl2 >> t_build_cmd2
-     >> t_pipeline_exec_cwl2 >> t_maybe_keep_cwl2
-     >> t_move_data >> t_send_status >> t_join)
+    (
+        t_log_info >> t_create_tmpdir
+        >> t_send_create_dataset >> t_set_dataset_processing
+        >> prepare_cwl1 >> t_build_cmd1 >> t_pipeline_exec_cwl1
+        >> t_maybe_keep_cwl1 >> prepare_cwl2 >> t_build_cmd2
+        >> t_pipeline_exec_cwl2 >> t_maybe_keep_cwl2
+        >> t_move_data >> t_send_status >> t_join
+    )
     t_maybe_keep_cwl1 >> t_set_dataset_error
     t_maybe_keep_cwl2 >> t_set_dataset_error
     t_set_dataset_error >> t_join

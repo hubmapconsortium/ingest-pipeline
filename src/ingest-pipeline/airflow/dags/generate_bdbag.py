@@ -1,14 +1,10 @@
 #!/usr/bin/env python3
 
 # Import modules
-import sys
 import os
-import re
-import tempfile
 import hubmap_sdk
 import pandas as pd
 import sys
-import subprocess
 import datetime
 from pprint import pprint
 from pathlib import Path
@@ -16,13 +12,13 @@ from shutil import rmtree, copy, move
 
 from hubmap_sdk import EntitySdk
 
-from airflow import DAG
-from airflow.operators.python_operator import PythonOperator
-from airflow.hooks.http_hook import HttpHook
-from airflow.exceptions import AirflowException
+
+from airflow.operators.python import PythonOperator
+from airflow.providers.http.hooks.http import HttpHook
 from airflow.configuration import conf as airflow_conf
 
 from hubmap_operators.common_operators import CreateTmpDirOperator, CleanupTmpDirOperator
+from requests import codes, HTTPError
 
 import utils
 from utils import (
@@ -46,7 +42,6 @@ from submodules import (
     hubmapbags_biosample_gene as biosample_gene,
     hubmapbags_assay_type as assay_type,
     hubmapbags_biosample_disease as biosample_disease,
-    hubmapbags_anatomy as anatomy,
     hubmapbags_file_describes_collection as file_describes_collection,
     hubmapbags_project_in_project as project_in_project,
     hubmapbags_file_describes_biosample as file_describes_biosample,
@@ -78,9 +73,7 @@ from submodules import (
     hubmapbags_subject_role_taxonomy as subject_role_taxonomy,
     hubmapbags_subject_substance as subject_substance,
     hubmapbags_file_format as file_format,
-    hubmapbags_apis as apis,
     hubmapbags_uuids as uuids,
-    hubmapbags_utilities as utilities,
 )
 sys.path.pop()
 
@@ -107,7 +100,6 @@ with HMDAG('generate_bdbag',
                'preserve_scratch': get_preserve_scratch_resource('generate_bdbag'),
            }) as dag:
 
-
     def get_dataset_full_path(uuid, auth_token):
         """
         Getting the full data path is not yet supported by hubmap_sdk, so we need
@@ -121,9 +113,9 @@ with HMDAG('generate_bdbag',
         endpoint = f'datasets/{uuid}/file-system-abs-path'
         http_hook = HttpHook('GET', http_conn_id='ingest_api_connection')
         headers = {
-            'authorization' : f'Bearer {auth_token}',
-            'content-type' : 'application/json',
-            'X-Hubmap-Application' : 'ingest-pipeline',
+            'authorization': f'Bearer {auth_token}',
+            'content-type': 'application/json',
+            'X-Hubmap-Application': 'ingest-pipeline',
         }
         try:
             response = http_hook.run(endpoint,
@@ -188,17 +180,17 @@ with HMDAG('generate_bdbag',
         entity_token = get_auth_tok(**kwargs)
         entity_connection = HttpHook.get_connection('entity_api_connection')
         entity_url = entity_connection.get_uri()
-        entity_url = entity_url.replace('http://https%3a%2f%2f','https://')
-        entity_url = entity_url.replace('http://https%3A%2F%2F','https://')
+        entity_url = entity_url.replace('http://https%3a%2f%2f', 'https://')
+        entity_url = entity_url.replace('http://https%3A%2F%2F', 'https://')
         entity_host = entity_connection.host
-        print(f"entity_url as used by EntitySdk: <{entity_url}>")
+        print(f'entity_url as used by EntitySdk: <{entity_url}>')
         entity_sdk = EntitySdk(token=entity_token, service_url=entity_url)
         instance_identifier = find_matching_endpoint(entity_host)
         # This is intended to throw an error if the instance is unknown or not listed
-        output_dir = {'PROD' :  '/hive/hubmap/bdbags/auto',
-                      'STAGE' : '/hive/hubmap-stage/bdbags/auto',
-                      'TEST' :  '/hive/hubmap-test/bdbags/auto',
-                      'DEV' :   '/hive/hubmap-dev/bdbags/auto'}[instance_identifier]
+        output_dir = {'PROD':  '/hive/hubmap/bdbags/auto',
+                      'STAGE': '/hive/hubmap-stage/bdbags/auto',
+                      'TEST':  '/hive/hubmap-test/bdbags/auto',
+                      'DEV':   '/hive/hubmap-dev/bdbags/auto'}[instance_identifier]
         debug = True
         
         tmp_dir_path = get_tmp_dir_path(kwargs['run_id'])
@@ -210,7 +202,7 @@ with HMDAG('generate_bdbag',
             assert_json_matches_schema(kwargs['dag_run'].conf,
                                        'generate_bdbag_metadata_schema.yml')
         except AssertionError as e:
-            print('invalid metadata follows:')
+            print(f'Error {e} and invalid metadata follows:')
             pprint(kwargs['dag_run'].conf)
             raise
         
@@ -237,17 +229,16 @@ with HMDAG('generate_bdbag',
 
         for idx, row in df.iterrows():
             status = row['ds.status'].lower()
-            data_type = str(row['ds.data_types']).replace('[','').replace(']','').replace('\'','').lower()
+            data_type = str(row['ds.data_types']).replace('[', '').replace(']', '').replace('\'', '').lower()
             data_provider = row['ds.group_name']
             hubmap_id = row['ds.hubmap_id']
             hubmap_uuid = row['dataset_uuid']
             biosample_id = row['first_sample_id']
             data_directory = row['full_path']
-            print('Preparing bag for dataset ' + data_directory )
-            computing = data_directory.replace('/','_').replace(' ','_') + '.computing'
-            done = '.' + data_directory.replace('/','_').replace(' ','_') + '.done'
+            print('Preparing bag for dataset ' + data_directory)
+            computing = data_directory.replace('/', '_').replace(' ', '_') + '.computing'
+            done = '.' + data_directory.replace('/', '_').replace(' ', '_') + '.done'
             organ_shortcode = row['organ_type']
-            organ_id = row['organ_id']
             donor_id = row['donor_id']
 
             # Should we be dealing with this dataset at all?
@@ -262,20 +253,20 @@ with HMDAG('generate_bdbag',
 
             # Create the marker that this dataset's summary is being computed
             print('Creating checkpoint ' + computing)
-            with open(computing, 'w') as file:
+            with open(computing, 'w'):
                 pass
                 
             print('Checking if output directory exists.')
             output_directory = data_type + '-' + status + '-' + hubmap_uuid
 
-            print('Creating output directory ' + output_directory + '.' )
+            print('Creating output directory ' + output_directory + '.')
             try:
                 os.mkdir(output_directory)
             except FileExistsError:
                 pass
                     
             print('Making file.tsv')
-            temp_file = data_directory.replace('/','_').replace(' ','_') + '.pkl'
+            temp_file = data_directory.replace('/', '_').replace(' ', ' _') + '.pkl'
             
             ignored = files.create_manifest(project_id=data_provider,
                                             assay_type=data_type,
@@ -284,89 +275,89 @@ with HMDAG('generate_bdbag',
                                             dbgap_study_id=dbgap_study_id,
                                             token=entity_token,
                                             dataset_hmid=hubmap_id,
-                                            dataset_uuid=hubmap_uuid )
+                                            dataset_uuid=hubmap_uuid)
 
             print('Making biosample.tsv')
-            biosample.create_manifest( biosample_id, data_provider, organ_shortcode,
-                                       output_directory )
+            biosample.create_manifest(biosample_id, data_provider, organ_shortcode,
+                                      output_directory)
 
             print('Making biosample_in_collection.tsv')
-            biosample_in_collection.create_manifest( biosample_id, hubmap_id, output_directory )
+            biosample_in_collection.create_manifest(biosample_id, hubmap_id, output_directory)
 
             print('Making project.tsv')
-            projects.create_manifest( data_provider, output_directory )
+            projects.create_manifest(data_provider, output_directory)
 
             print('Making project_in_project.tsv')
-            project_in_project.create_manifest( data_provider, output_directory )
+            project_in_project.create_manifest(data_provider, output_directory)
 
             print('Making biosample_from_subject.tsv')
-            biosample_from_subject.create_manifest( biosample_id, donor_id, output_directory )
+            biosample_from_subject.create_manifest(biosample_id, donor_id, output_directory)
 
             print('Making ncbi_taxonomy.tsv')
-            ncbi_taxonomy.create_manifest( output_directory )
+            ncbi_taxonomy.create_manifest(output_directory)
 
             print('Making collection.tsv')
-            collection.create_manifest( hubmap_id, output_directory )
+            collection.create_manifest(hubmap_id, output_directory)
 
             print('Making collection_defined_by_project.tsv')
-            collection_defined_by_project.create_manifest( hubmap_id, data_provider, output_directory )
+            collection_defined_by_project.create_manifest(hubmap_id, data_provider, output_directory)
 
             print('Making file_describes_collection.tsv')
-            file_describes_collection.create_manifest( hubmap_id, data_directory, output_directory )
+            file_describes_collection.create_manifest(hubmap_id, data_directory, output_directory)
 
             print('Making dcc.tsv')
-            primary_dcc_contact.create_manifest( output_directory )        
+            primary_dcc_contact.create_manifest(output_directory)
 
             print('Making id_namespace.tsv')
-            id_namespace.create_manifest( output_directory )
+            id_namespace.create_manifest(output_directory)
 
             print('Making subject.tsv')
-            subject.create_manifest( data_provider, donor_id, output_directory )
+            subject.create_manifest(data_provider, donor_id, output_directory)
 
             print('Making subject_in_collection.tsv')
-            subject_in_collection.create_manifest( donor_id, hubmap_id, output_directory )
+            subject_in_collection.create_manifest(donor_id, hubmap_id, output_directory)
 
             print('Making file_in_collection.tsv')
-            ignored = file_in_collection.create_manifest( hubmap_id, data_directory, output_directory )
+            ignored = file_in_collection.create_manifest(hubmap_id, data_directory, output_directory)
 
             print('Creating empty files')
-            file_describes_subject.create_manifest( output_directory )
-            file_describes_biosample.create_manifest( output_directory )
-            anatomy.create_manifest( output_directory )
-            assay_type.create_manifest( output_directory )
-            biosample_disease.create_manifest( output_directory )
-            biosample_gene.create_manifest( output_directory )
-            biosample_substance.create_manifest( output_directory )
-            collection_anatomy.create_manifest( output_directory )
-            collection_compound.create_manifest( output_directory )
-            collection_disease.create_manifest( output_directory )
-            collection_gene.create_manifest( output_directory )
-            collection_in_collection.create_manifest( output_directory )
-            collection_phenotype.create_manifest( output_directory )
-            collection_protein.create_manifest( output_directory )
-            collection_substance.create_manifest( output_directory )
-            collection_taxonomy.create_manifest( output_directory )
-            file_format.create_manifest( output_directory )
-            ncbi_taxonomy.create_manifest( output_directory )
-            subject_disease.create_manifest( output_directory )
-            subject_phenotype.create_manifest( output_directory )
-            subject_race.create_manifest( output_directory )
-            subject_role_taxonomy.create_manifest( output_directory )
-            subject_substance.create_manifest( output_directory )
-            file_format.create_manifest( output_directory )
+            file_describes_subject.create_manifest(output_directory)
+            file_describes_biosample.create_manifest(output_directory)
+            anatomy.create_manifest(output_directory)
+            assay_type.create_manifest(output_directory)
+            biosample_disease.create_manifest(output_directory)
+            biosample_gene.create_manifest(output_directory)
+            biosample_substance.create_manifest(output_directory)
+            collection_anatomy.create_manifest(output_directory)
+            collection_compound.create_manifest(output_directory)
+            collection_disease.create_manifest(output_directory)
+            collection_gene.create_manifest(output_directory)
+            collection_in_collection.create_manifest(output_directory)
+            collection_phenotype.create_manifest(output_directory)
+            collection_protein.create_manifest(output_directory)
+            collection_substance.create_manifest(output_directory)
+            collection_taxonomy.create_manifest(output_directory)
+            file_format.create_manifest(output_directory)
+            ncbi_taxonomy.create_manifest(output_directory)
+            subject_disease.create_manifest(output_directory)
+            subject_phenotype.create_manifest(output_directory)
+            subject_race.create_manifest(output_directory)
+            subject_role_taxonomy.create_manifest(output_directory)
+            subject_substance.create_manifest(output_directory)
+            file_format.create_manifest(output_directory)
             
-            print('Removing checkpoint ' + computing )
+            print('Removing checkpoint ' + computing)
             Path(computing).unlink()
                 
             print('Counting files')
-            n_files = len([name for name in os.listdir( output_directory )
-                           if os.path.isfile( os.path.join( output_directory, name ))])
+            n_files = len([name for name in os.listdir(output_directory)
+                           if os.path.isfile(os.path.join(output_directory, name))])
             if n_files != 36:
                 print(f'Generated only {n_files} for {hubmap_uuid}; expected 36- dropping this dataset')
                 continue
 
-            print('Creating final checkpoint ' + done )
-            with open(done, 'w') as file:
+            print('Creating final checkpoint ' + done)
+            with open(done, 'w'):
                 pass
 
             print('Creating output directory if necessary')
@@ -378,26 +369,26 @@ with HMDAG('generate_bdbag',
                 print(f'Removing old version of {full_output_dir_path}')
                 rmtree(full_output_dir_path)
             print('Moving directory ' + output_directory + ' to ' + output_dir + '.')
-            move( output_directory, output_dir )
+            move(output_directory, output_dir)
 
             if compute_uuids:
                 print('Generating UUIDs via the uuid-api')
-                if uuids.should_i_generate_uuids( hubmap_id=hubmap_id,
-                                                  filename=temp_file,
-                                                  instance=instance_identifier,
-                                                  token=entity_token,
-                                                  debug=debug):
+                if uuids.should_i_generate_uuids(hubmap_id=hubmap_id,
+                                                 filename=temp_file,
+                                                 instance=instance_identifier,
+                                                 token=entity_token,
+                                                 debug=debug):
                     print('UUIDs not found in uuid-api database. Generating UUIDs.')
-                    uuids.generate( temp_file, debug=debug )
+                    uuids.generate(temp_file, debug=debug)
                 else:
                     print('UUIDs found in uuid-api database. Populating local file')
-                    uuids.populate_local_file_with_remote_uuids( hubmap_id=hubmap_id,
-                                                                 instance=instance_identifier,
-                                                                 token=entity_token,
-                                                                 debug=debug )
+                    uuids.populate_local_file_with_remote_uuids(hubmap_id=hubmap_id,
+                                                                instance=instance_identifier,
+                                                                token=entity_token,
+                                                                debug=debug)
             if debug:
-                df=pd.read_pickle( temp_file )
-                df.to_csv(temp_file.replace('pkl','tsv'), sep="\t")
+                df = pd.read_pickle(temp_file)
+                df.to_csv(temp_file.replace('pkl', 'tsv'), sep='\t')
 
         return True
         
@@ -406,19 +397,16 @@ with HMDAG('generate_bdbag',
         python_callable=generate_bdbag,
         provide_context=True,
         op_kwargs={
-            'crypt_auth_tok' : utils.encrypt_tok(airflow_conf.as_dict()
-                                                 ['connections']['APP_CLIENT_SECRET']).decode(),
+            'crypt_auth_tok': utils.encrypt_tok(airflow_conf.as_dict()
+                                                ['connections']['APP_CLIENT_SECRET']).decode(),
             }
         )
     
     t_create_tmpdir = CreateTmpDirOperator(task_id='create_tmpdir')
     t_cleanup_tmpdir = CleanupTmpDirOperator(task_id='cleanup_tmpdir')
 
-    (dag
-     >> t_create_tmpdir
-     >> t_generate_bdbag
-     >> t_cleanup_tmpdir
+    (
+        t_create_tmpdir
+        >> t_generate_bdbag
+        >> t_cleanup_tmpdir
     )
-
-
-

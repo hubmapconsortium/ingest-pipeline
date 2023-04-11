@@ -1,20 +1,15 @@
 import sys
 import os
-import yaml
-import json
-from pathlib import Path
 from pprint import pprint
+
+import yaml
+from pathlib import Path
 from datetime import datetime, timedelta
 
-from airflow import DAG
 from airflow.configuration import conf as airflow_conf
-from airflow.operators.bash_operator import BashOperator
-from airflow.operators.python_operator import PythonOperator
-from airflow.operators.python_operator import BranchPythonOperator
-from airflow.operators.dummy_operator import DummyOperator
-from airflow.operators.dagrun_operator import TriggerDagRunOperator, DagRunOrder
-from airflow.operators.multi_dagrun import TriggerMultiDagRunOperator
-from airflow.hooks.http_hook import HttpHook
+from airflow.operators.bash import BashOperator
+from airflow.operators.python import PythonOperator, BranchPythonOperator
+from airflow.exceptions import AirflowException
 
 from hubmap_operators.flex_multi_dag_run import FlexMultiDagRunOperator
 from hubmap_operators.common_operators import (
@@ -25,12 +20,12 @@ from hubmap_operators.common_operators import (
 import utils
 
 from utils import (
-    localized_assert_json_matches_schema as assert_json_matches_schema,
     make_send_status_msg_function,
     HMDAG,
     get_queue_resource,
     get_preserve_scratch_resource,
     pythonop_maybe_keep,
+    pythonop_get_dataset_state,
     )
 
 sys.path.append(airflow_conf.as_dict()['connections']['SRC_PATH']
@@ -44,6 +39,7 @@ sys.path.pop()
 def get_dataset_uuid(**kwargs):
     ctx = kwargs['dag_run'].conf
     return ctx['submission_id']
+
 
 def get_dataset_lz_path(**kwargs):
     ctx = kwargs['dag_run'].conf
@@ -71,8 +67,8 @@ with HMDAG('scan_and_begin_processing',
            is_paused_upon_creation=False, 
            default_args=default_args,
            user_defined_macros={
-               'tmp_dir_path' : utils.get_tmp_dir_path,
-               'preserve_scratch' : get_preserve_scratch_resource('scan_and_begin_processing')
+               'tmp_dir_path': utils.get_tmp_dir_path,
+               'preserve_scratch': get_preserve_scratch_resource('scan_and_begin_processing')
            }) as dag:
 
     def read_metadata_file(**kwargs):
@@ -84,8 +80,31 @@ with HMDAG('scan_and_begin_processing',
 
     
     def run_validation(**kwargs):
-        lz_path = kwargs['dag_run'].conf['lz_path']
-        uuid = kwargs['dag_run'].conf['submission_id']
+        if ('lz_path' in kwargs['dag_run'].conf
+            and 'submission_id' in kwargs['dag_run'].conf):
+            # These conditions are set by the hubap_api plugin when this DAG
+            # is invoked from the ingest user interface
+            lz_path = kwargs['dag_run'].conf['lz_path']
+            uuid = kwargs['dag_run'].conf['submission_id']
+        elif 'parent_submission_id' in kwargs['dag_run'].conf:
+            # These conditions are met when this DAG is triggered via
+            # the launch_multi_analysis DAG.
+            uuid_list = kwargs['dag_run'].conf['parent_submission_id']
+            assert len(uuid_list) == 1, f"{dag.dag_id} can only handle one uuid at a time"
+            def my_callable(**kwargs):
+                return uuid_list[0]
+            ds_rslt = pythonop_get_dataset_state(
+                dataset_uuid_callable=my_callable,
+                **kwargs
+            )
+            if not ds_rslt:
+                raise AirflowException(f'Invalid uuid/doi for group: {uuid}')
+            if not 'local_directory_full_path' in ds_rslt:
+                raise AirflowException(f'Dataset status for {uuid_list[0]} has no full path')
+            lz_path = ds_rslt['local_directory_full_path']
+            uuid = uuid_list[0]  # possibly translating a HuBMAP ID
+        else:
+            raise AirflowException("The dag_run does not contain enough information")
         plugin_path = [path for path in ingest_validation_tests.__path__][0]
 
         ignore_globs = [uuid, 'extras', '*metadata.tsv',
@@ -98,14 +117,16 @@ with HMDAG('scan_and_begin_processing',
             dataset_ignore_globs=ignore_globs,
             upload_ignore_globs='*',
             plugin_directory=plugin_path,
-            #offline=True,  # noqa E265
+            # offline=True,  # noqa E265
             add_notes=False,
             ignore_deprecation=True
         )
         # Scan reports an error result
         errors = upload.get_errors(plugin_kwargs=kwargs)
         if errors:
-            report = ingest_validation_tools_error_report.ErrorReport(errors)
+            info = upload.get_info()
+            report = ingest_validation_tools_error_report.ErrorReport(errors=errors,
+                                                                      info=info)
             sys.stdout.write('Directory validation failed! Errors follow:\n')
             sys.stdout.write(report.as_text())
             log_fname = os.path.join(utils.get_tmp_dir_path(kwargs['run_id']),
@@ -137,7 +158,7 @@ with HMDAG('scan_and_begin_processing',
 
     def wrapped_send_status_msg(**kwargs):
         if send_status_msg(**kwargs):
-            scanned_md = read_metadata_file(**kwargs) # Yes, it's getting re-read
+            scanned_md = read_metadata_file(**kwargs)  # Yes, it's getting re-read
             kwargs['ti'].xcom_push(key='collectiontype',
                                    value=(scanned_md['collectiontype']
                                           if 'collectiontype' in scanned_md
@@ -186,7 +207,7 @@ with HMDAG('scan_and_begin_processing',
         task_id='md_consistency_tests',
         python_callable=utils.pythonop_md_consistency_tests,
         provide_context=True,
-        op_kwargs = {'metadata_fname' : 'rslt.yml'}
+        op_kwargs={'metadata_fname': 'rslt.yml'}
         )
 
     t_send_status = PythonOperator(
@@ -213,9 +234,7 @@ with HMDAG('scan_and_begin_processing',
         md_extract_retcode = int(md_extract_retcode or '0')
         md_consistency_retcode = kwargs['ti'].xcom_pull(task_ids="md_consistency_tests")
         md_consistency_retcode = int(md_consistency_retcode or '0')
-        if (run_validation_retcode == 0
-            and md_extract_retcode == 0
-            and md_consistency_retcode == 0):
+        if run_validation_retcode == 0 and md_extract_retcode == 0 and md_consistency_retcode == 0:
             collectiontype = kwargs['ti'].xcom_pull(key='collectiontype',
                                                     task_ids="send_status_msg")
             assay_type = kwargs['ti'].xcom_pull(key='assay_type',
@@ -224,29 +243,31 @@ with HMDAG('scan_and_begin_processing',
             md_fname = os.path.join(utils.get_tmp_dir_path(kwargs['run_id']), 'rslt.yml')
             with open(md_fname, 'r') as f:
                 md = yaml.safe_load(f)
-            payload = {k:kwargs['dag_run'].conf[k] for k in kwargs['dag_run'].conf}
-            payload = {'ingest_id' : ctx['run_id'],
-                       'crypt_auth_tok' : ctx['crypt_auth_tok'],
-                       'parent_lz_path' : ctx['lz_path'],
-                       'parent_submission_id' : ctx['submission_id'],
+            # payload = {k:kwargs['dag_run'].conf[k] for k in kwargs['dag_run'].conf}
+            payload = {'ingest_id': ctx['run_id'],
+                       'crypt_auth_tok': ctx['crypt_auth_tok'],
+                       'parent_lz_path': ctx['lz_path'],
+                       'parent_submission_id': ctx['submission_id'],
                        'metadata': md,
-                       'dag_provenance_list' : utils.get_git_provenance_list(__file__)
+                       'dag_provenance_list': utils.get_git_provenance_list(__file__)
                        }
             for next_dag in utils.downstream_workflow_iter(collectiontype, assay_type):
-                yield next_dag, DagRunOrder(payload=payload)
+                yield next_dag, payload
         else:
             return None
 
 
     t_maybe_spawn = FlexMultiDagRunOperator(
         task_id='flex_maybe_spawn',
-        provide_context=True,
+        dag=dag,
+        trigger_dag_id='scan_and_begin_processing',
         python_callable=flex_maybe_spawn
         )
 
-    (dag >> t_create_tmpdir >> t_run_validation >>
-     t_maybe_continue >>
-     t_run_md_extract >> t_md_consistency_tests >>
-     t_send_status >> t_maybe_spawn >> t_cleanup_tmpdir
-    )
+    (
+        t_create_tmpdir >> t_run_validation >>
+        t_maybe_continue >>
+        t_run_md_extract >> t_md_consistency_tests >>
+        t_send_status >> t_maybe_spawn >> t_cleanup_tmpdir
+     )
     t_maybe_continue >> t_send_status

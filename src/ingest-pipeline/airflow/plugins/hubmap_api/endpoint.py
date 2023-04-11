@@ -5,31 +5,24 @@ Based heavily on https://github.com/airflow-plugins/airflow_api_plugin
 import json
 import os
 import logging
-import configparser
 from datetime import datetime
 import pytz
 import yaml
 from cryptography.fernet import Fernet
 
-from werkzeug.exceptions import HTTPException, NotFound 
 
-from flask import Blueprint, current_app, send_from_directory, abort, escape, request, Response
+from flask import request, Response
 from sqlalchemy import or_
 from airflow import settings
 from airflow.exceptions import AirflowException, AirflowConfigException
 from airflow.www.app import csrf
-from airflow.models import DagBag, DagRun, Connection
-from airflow.utils import timezone
-from airflow.utils.dates import date_range as utils_date_range
-from airflow.utils.state import State
-from airflow.api.common.experimental import trigger_dag
+from airflow.models import DagBag, DagRun
+from airflow.api.common.trigger_dag import trigger_dag
 from airflow.configuration import conf as airflow_conf
 
 from hubmap_api.manager import blueprint as api_bp
-from hubmap_api.manager import show_template
 
-from hubmap_commons.hm_auth import AuthHelper, AuthCache, secured
-#from hubmap_api.hm_auth import AuthHelper, AuthCache, secured
+from hubmap_commons.hm_auth import AuthHelper, secured
 
 API_VERSION = 4
 
@@ -42,6 +35,8 @@ airflow_conf.read(os.path.join(os.environ['AIRFLOW_HOME'], 'instance', 'app.cfg'
 NEEDED_ENV_VARS = [
     'AIRFLOW_CONN_INGEST_API_CONNECTION',
     'AIRFLOW_CONN_UUID_API_CONNECTION',
+    'AIRFLOW_CONN_FILES_API_CONNECTION',
+    'AIRFLOW_CONN_SPATIAL_API_CONNECTION',
     'AIRFLOW_CONN_SEARCH_API_CONNECTION',
     'AIRFLOW_CONN_ENTITY_API_CONNECTION'
     ]
@@ -62,6 +57,7 @@ NEEDED_CONFIGS = [
     ('core', 'fernet_key')
     ]
 
+
 def check_config():
     # Check for needed configuration elements, since it's better to fail early
     dct = airflow_conf.as_dict(display_sensitive=True)
@@ -80,6 +76,8 @@ def check_config():
             LOGGER.error('The configuration parameter [{}] {} does not exist'.format(key1, key2))
             failed += 1
     assert failed == 0, 'ingest-pipeline plugin found {} configuration errors'.format(failed)
+
+
 check_config()
 
 
@@ -108,7 +106,7 @@ if not AuthHelper.isInitialized():
     AUTH_HELPER = AuthHelper.create(clientId=config('connections', 'app_client_id'), 
                                     clientSecret=config('connections', 'app_client_secret'))
 else:
-    AUTH_HELPER = authHelper.instance()
+    AUTH_HELPER = AuthHelper.instance()
 
 
 class HubmapApiInputException(Exception):
@@ -169,15 +167,15 @@ class HubmapApiResponse:
 @secured(groups="HuBMAP-read")
 def api_test():
     token = None
-    clientId=config('connections', 'app_client_id')
-    print ("Client id: " + clientId)
-    clientSecret=config('connections', 'app_client_secret')
-    print ("Client secret: " + clientSecret)
+    client_id = config('connections', 'app_client_id')
+    print("Client id: " + client_id)
+    client_secret = config('connections', 'app_client_secret')
+    print("Client secret: " + client_secret)
     if 'MAUTHORIZATION' in request.headers:
         token = str(request.headers["MAUTHORIZATION"])[8:]
     elif 'AUTHORIZATION' in request.headers:
         token = str(request.headers["AUTHORIZATION"])[7:]
-    print ("Token: " + token)
+    print("Token: " + token)
     return HubmapApiResponse.success({'api_is_alive': True})
  
 
@@ -225,20 +223,20 @@ def check_ingest_parms(provider, submission_id, process, full_path):
     """
     if process.startswith('mock.'):
         # test request; there should be pre-recorded response data
-        here_dir = os.path.dirname(os.path.resolve(__file__))
-        yml_path = os.path.join(here_dir,'../../dags/mock_data/',
+        here_dir = os.path.dirname(os.path.abspath(__file__))
+        yml_path = os.path.join(here_dir, '../../dags/mock_data/',
                                 process + '.yml')
         try:
             with open(yml_path, 'r') as f:
                 mock_data = yaml.safe_load(f)
-        except yaml.YamlError as e:
+        except yaml.YAMLError as e:
             LOGGER.error('mock data contains invalid YAML: {}'.format(e))
             raise HubmapApiInputException('Mock data is invalid YAML for process %s', process)
         except IOError as e:
             LOGGER.error('mock data load failed: {}'.format(e))
             raise HubmapApiInputException('No mock data found for process %s', process)
     else:
-        dct = {'provider' : provider, 'submission_id' : submission_id, 'process' : process}
+        dct = {'provider': provider, 'submission_id': submission_id, 'process': process}
         base_path = config('connections', 'docker_mount_path')
         if os.path.commonprefix([full_path, base_path]) != base_path:
             LOGGER.error("Ingest directory {} is not a subdirectory of DOCKER_MOUNT_PATH"
@@ -269,7 +267,7 @@ def _auth_tok_from_request():
     assert authorization[:len('BEARER')].lower() == 'bearer', 'authorization is not BEARER'
     substr = authorization[len('BEARER'):].strip()
     auth_tok = substr
-    #LOGGER.info('auth_tok: %s', auth_tok)  # reduce visibility of auth_tok
+    # LOGGER.info('auth_tok: %s', auth_tok)  # reduce visibility of auth_tok
     return auth_tok
 
 
@@ -279,20 +277,6 @@ def _auth_tok_from_environment():
     """
     tok = airflow_conf.as_dict()['connections']['APP_CLIENT_SECRET']
     return tok
-
-
-def _get_dag(dag_id):
-    """
-    Look up and return the dag associated with this dag_id, or raise KeyError
-    """
-    dagbag = DagBag('dags')
-
-    if dag_id not in dagbag.dags:
-        LOGGER.warning('Requested dag {} not among {}'
-                       .format(dag_id,[did for did in dagbag.dags]))
-        LOGGER.warning('Dag dir full path {}'.os.path.abspath('dags'))
-        raise KeyError(f"Dag id {dag_id} not found")
-    return dagbag.get_dag(dag_id)
 
 
 """
@@ -309,9 +293,11 @@ Key        Type    Description
 ingest_id  string  Unique ID string to be used in references to this request
 run_id     string  The identifier by which the ingest run is known to Airflow
 """
+
+
 @csrf.exempt
 @api_bp.route('/request_ingest', methods=['POST'])
-#@secured(groups="HuBMAP-read")
+# @secured(groups="HuBMAP-read")
 def request_ingest():
     auth_tok = _auth_tok_from_environment()
 
@@ -332,18 +318,13 @@ def request_ingest():
 
     try:
         dag_id = config('ingest_map', process)
-    except HubmapApiConfigException:
+    except AirflowConfigException:
         return HubmapApiResponse.bad_request('{} is not a known ingestion process'.format(process))
     
     try:
         check_ingest_parms(provider, submission_id, process, full_path)
     
         session = settings.Session()
-
-        try:
-            dag = _get_dag(dag_id)
-        except KeyError as e:
-            HubmapApiResponse.not_found(f'{e}')
 
         # Produce one and only one run
         tz = pytz.timezone(config('core', 'timezone'))
@@ -372,21 +353,11 @@ def request_ingest():
             raise AirflowException('The request happened twice?')
 
         try:
-            dr = trigger_dag.trigger_dag(dag_id, run_id, conf, execution_date=execution_date)
+            dr = trigger_dag(dag_id, run_id, conf, execution_date=execution_date)
         except AirflowException as err:
             LOGGER.error(err)
             raise AirflowException("Attempt to trigger run produced an error: {}".format(err))
         LOGGER.info('dagrun follows: {}'.format(dr))
-
-#             dag.create_dagrun(
-#                 run_id=run['run_id'],
-#                 execution_date=run['execution_date'],
-#                 state=State.RUNNING,
-#                 conf=conf,
-#                 external_trigger=True
-#             )
-#            results.append(run['run_id'])
-
         session.close()
     except HubmapApiInputException as e:
         return HubmapApiResponse.bad_request(str(e))
@@ -404,10 +375,10 @@ def request_ingest():
 def generic_invoke_dag_on_uuid(uuid, process_name):
     auth_tok = _auth_tok_from_environment()
     process = process_name
+    run_id = "empty"
     try:
         dag_id = config('ingest_map', process)
         session = settings.Session()
-        dag = _get_dag(dag_id)
 
         # Produce one and only one run
         tz = pytz.timezone(config('core', 'timezone'))
@@ -432,7 +403,7 @@ def generic_invoke_dag_on_uuid(uuid, process_name):
             raise AirflowException('The request happened twice?')
 
         try:
-            dr = trigger_dag.trigger_dag(dag_id, run_id, conf, execution_date=execution_date)
+            dr = trigger_dag(dag_id, run_id, conf, execution_date=execution_date)
         except AirflowException as err:
             LOGGER.error(err)
             raise AirflowException("Attempt to trigger run produced an error: {}".format(err))
@@ -457,16 +428,16 @@ def generic_invoke_dag_on_uuid(uuid, process_name):
 
 @csrf.exempt
 @api_bp.route('/uploads/<uuid>/validate', methods=['PUT'])
-#@secured(groups="HuBMAP-read")
+# @secured(groups="HuBMAP-read")
 def validate_upload_uuid(uuid):
     return generic_invoke_dag_on_uuid(uuid, 'validate.upload')
-    auth_tok = _auth_tok_from_request()
-    process = 'validate.upload'
+    # auth_tok = _auth_tok_from_request()
+    # process = 'validate.upload'
 
 
 @csrf.exempt
 @api_bp.route('/uploads/<uuid>/reorganize', methods=['PUT'])
-#@secured(groups="HuBMAP-read")
+# @secured(groups="HuBMAP-read")
 def reorganize_upload_uuid(uuid):
     return generic_invoke_dag_on_uuid(uuid, 'reorganize.upload')
     
@@ -478,9 +449,10 @@ Parameters included in the response:
 Key        Type    Description
 process_strings  list of strings  The list of valid 'process' strings
 """
+
+
 @api_bp.route('get_process_strings')
 def get_process_strings():
     dct = airflow_conf.as_dict()
     psl = [s.upper() for s in dct['ingest_map']] if 'ingest_map' in dct else []
     return HubmapApiResponse.success({'process_strings': psl})
-

@@ -96,7 +96,7 @@ resource_map:
     'tasks':
     - 'task_re': 'run_validation'
       'queue': 'validate'
-      'threads': 6
+      'coreuse': 60
     - 'task_re': '.*'
       'queue': 'general'
       'threads': 6
@@ -106,7 +106,7 @@ resource_map:
     'tasks':
     - 'task_re': 'run_validation'
       'queue': 'validate'
-      'threads': 6
+      'coreuse': 60
     - 'task_re': '.*'
       'queue': 'general'
       'threads': 6
@@ -116,7 +116,7 @@ resource_map:
     'tasks':
     - 'task_re': 'run_validation'
       'queue': 'validate'
-      'threads': 6
+      'coreuse': 60
     - 'task_re': '.*'
       'queue': 'general'
       'threads': 6

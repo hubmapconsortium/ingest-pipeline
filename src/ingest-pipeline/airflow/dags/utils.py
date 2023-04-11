@@ -1,3 +1,6 @@
+import math
+import os
+import urllib.parse
 from abc import ABC, abstractmethod
 from collections import namedtuple
 from functools import lru_cache
@@ -24,7 +27,7 @@ from copy import deepcopy
 
 import yaml
 from airflow import DAG
-from airflow.operators import BaseOperator
+from airflow.models.baseoperator import BaseOperator
 from airflow.configuration import conf as airflow_conf
 from airflow.hooks.http_hook import HttpHook
 from cryptography.fernet import Fernet
@@ -451,6 +454,7 @@ def get_git_root_paths(file_list: Iterable[str]) -> Union[str, List[str]]:
                 dirnm = '.'
             root_path = check_output(command, cwd=dirnm)
         except CalledProcessError as e:
+            print(f'Exception {e}')
             root_path = dirname(fname).encode('utf-8')
         rslt.append(root_path.strip().decode('utf-8'))
     if unroll:
@@ -467,7 +471,7 @@ def get_git_provenance_dict(file_list: PathStrOrList) -> Mapping[str, str]:
     """
     if isinstance(file_list, (str, Path)):  # sadly, a str is an Iterable[str]
         file_list = [file_list]
-    return {basename(fname) : get_git_commits(realpath(fname))
+    return {basename(fname): get_git_commits(realpath(fname))
             for fname in file_list}
 
 
@@ -485,8 +489,8 @@ def get_git_provenance_list(file_list: Iterable[str]) -> List[Mapping[str, Any]]
     root_l = get_git_root_paths(file_list)
     rel_name_l = [relpath(name, root) for name, root in zip(name_l, root_l)]
     # Make sure each repo appears only once
-    repo_d = {origin: {'name': name, 'hash': hash}
-              for origin, name, hash in zip(origin_l, rel_name_l, hash_l)}
+    repo_d = {origin: {'name': name, 'hash': hashed}
+              for origin, name, hashed in zip(origin_l, rel_name_l, hash_l)}
     rslt = []
     for origin in repo_d:
         dct = repo_d[origin].copy()
@@ -494,7 +498,7 @@ def get_git_provenance_list(file_list: Iterable[str]) -> List[Mapping[str, Any]]
         if not dct['name'].endswith('cwl'):
             del dct['name']  # include explicit names for workflows only
         rslt.append(dct)
-    #pprint(rslt)
+    # pprint(rslt)
     return rslt
 
 
@@ -509,7 +513,7 @@ def _get_file_type(path: Path) -> str:
             lst.append((re.compile(regex), tpnm))
         COMPILED_TYPE_MATCHERS = lst
     for regex, tpnm in COMPILED_TYPE_MATCHERS:
-        #print('testing ', regex, tpnm)
+        # print('testing ', regex, tpnm)
         if regex.match(fspath(path)):
             return tpnm
     return 'unknown'
@@ -543,9 +547,9 @@ def get_file_metadata(root_dir: str, matcher: FileMatcher) -> List[Mapping[str, 
             add_to_index, description, ontology_term, is_qa_qc = matcher.get_file_metadata(relative_path)
             if add_to_index:
                 # sha1sum disabled because of run time issues on large data collections
-                #line = check_output([word.format(fname=full_path)
+                # line = check_output([word.format(fname=full_path)
                 #                     for word in SHA1SUM_COMMAND])
-                #cs = line.split()[0].strip().decode('utf-8')
+                # cs = line.split()[0].strip().decode('utf-8')
                 rslt.append(
                     {
                         'rel_path': fspath(relative_path),
@@ -554,10 +558,11 @@ def get_file_metadata(root_dir: str, matcher: FileMatcher) -> List[Mapping[str, 
                         'description': description,
                         'edam_term': ontology_term,
                         'is_qa_qc': is_qa_qc,
-                        #'sha1sum': cs,
+                        # 'sha1sum': cs,
                     }
                 )
     return rslt
+
 
 def get_file_metadata_dict(
         root_dir: str,
@@ -581,9 +586,10 @@ def get_file_metadata_dict(
         fpath = join(alt_file_dir, '{}.json'.format(uuid.uuid4()))
         with open(fpath, 'w') as f:
             json.dump({'files': file_info}, f)
-        return {'files_info_alt_path' : relpath(fpath, _get_scratch_base_path())}
+        return {'files_info_alt_path': relpath(fpath, _get_scratch_base_path())}
     else:
-        return {'files' : file_info}
+        return {'files': file_info}
+
 
 def pythonop_trigger_target(**kwargs) -> None:
     """
@@ -662,11 +668,11 @@ def pythonop_send_create_dataset(**kwargs) -> str:
         assert any([arg in kwargs for arg in arg_options])
 
     http_conn_id = kwargs['http_conn_id']
-    ctx = kwargs['dag_run'].conf
+    # ctx = kwargs['dag_run'].conf
     headers = {
-        'authorization' : 'Bearer ' + get_auth_tok(**kwargs),
-        'content-type' : 'application/json',
-        'X-Hubmap-Application' : 'ingest-pipeline'
+        'authorization': 'Bearer ' + get_auth_tok(**kwargs),
+        'content-type': 'application/json',
+        'X-Hubmap-Application': 'ingest-pipeline'
     }
 
     if 'dataset_types' in kwargs:
@@ -681,7 +687,7 @@ def pythonop_send_create_dataset(**kwargs) -> str:
         type_info = _get_type_client().getAssayType(assay_type)
         canonical_types.add(type_info.name)
         contains_seq |= type_info.contains_pii
-    canonical_types = list(canonical_types)
+    # canonical_types = list(canonical_types)
 
     source_uuids = kwargs['parent_dataset_uuid_callable'](**kwargs)
     if not isinstance(source_uuids, list):
@@ -711,7 +717,7 @@ def pythonop_send_create_dataset(**kwargs) -> str:
             "contains_human_genetic_sequences": contains_seq
         }
         if 'previous_revision_uuid_callable' in kwargs:
-            previous_revision_uuid = kwargs['previous_revision_uuid_callable'](**kwargs);
+            previous_revision_uuid = kwargs['previous_revision_uuid_callable'](**kwargs)
             if previous_revision_uuid is not None:
                 data['previous_revision_uuid'] = previous_revision_uuid
         print('data for dataset creation:')
@@ -720,7 +726,7 @@ def pythonop_send_create_dataset(**kwargs) -> str:
             endpoint='datasets',
             data=json.dumps(data),
             headers=headers,
-            extra_options=[]
+            extra_options={}
         )
         response.raise_for_status()
         response_json = response.json()
@@ -780,15 +786,15 @@ def pythonop_set_dataset_state(**kwargs) -> None:
     ds_state = kwargs['ds_state'] if 'ds_state' in kwargs else 'Processing'
     message = kwargs.get('message', None)
     headers = {
-        'authorization' : 'Bearer ' + get_auth_tok(**kwargs),
-        'content-type' : 'application/json',
+        'authorization': 'Bearer ' + get_auth_tok(**kwargs),
+        'content-type': 'application/json',
         'X-Hubmap-Application': 'ingest-pipeline'}
-    extra_options = []
+    extra_options = {}
 
     http_hook = HttpHook('PUT',
                          http_conn_id=http_conn_id)
 
-    data = {'status' : ds_state}
+    data = {'status': ds_state}
     if message is not None:
         data['pipeline_message'] = message
     print('data: ')
@@ -797,7 +803,7 @@ def pythonop_set_dataset_state(**kwargs) -> None:
     response = http_hook.run(endpoint,
                              json.dumps(data),
                              headers,
-                        extra_options)
+                             extra_options)
     print('response: ')
     pprint(response.json())
 
@@ -823,8 +829,8 @@ def restructure_entity_metadata(raw_metadata: JSONType) -> JSONType:
         md['contributors'] = deepcopy(raw_metadata['contributors'])
     if 'antibodies' in raw_metadata:
         md['antibodies'] = deepcopy(raw_metadata['antibodies'])
-    #print('reconstructed metadata follows')
-    #pprint(md)
+    # print('reconstructed metadata follows')
+    # pprint(md)
     return md
 
 
@@ -843,9 +849,9 @@ def pythonop_get_dataset_state(**kwargs) -> JSONType:
     method = 'GET'
     auth_tok = get_auth_tok(**kwargs)
     headers = {
-        'authorization' : f'Bearer {auth_tok}',
-        'content-type' : 'application/json',
-        'X-Hubmap-Application' : 'ingest-pipeline',
+        'authorization': f'Bearer {auth_tok}',
+        'content-type': 'application/json',
+        'X-Hubmap-Application': 'ingest-pipeline',
         }
     http_hook = HttpHook(method, http_conn_id='ingest_api_connection')
 
@@ -872,12 +878,16 @@ def pythonop_get_dataset_state(**kwargs) -> JSONType:
     if ds_rslt['entity_type'] == 'Dataset':
         assert 'data_types' in ds_rslt, f"Dataset status for {uuid} has no data_types"
         data_types = ds_rslt['data_types']
+        parent_dataset_uuid_list = [ancestor['uuid']
+                                    for ancestor in ds_rslt['direct_ancestors']
+                                    if ancestor['entity_type'] == 'Dataset']
         metadata = restructure_entity_metadata(ds_rslt)
         endpoint = f"datasets/{ds_rslt['uuid']}/file-system-abs-path"
     elif ds_rslt['entity_type'] == 'Upload':
         data_types = []
         metadata = {}
         endpoint = f"uploads/{ds_rslt['uuid']}/file-system-abs-path"
+        parent_dataset_uuid_list = None
     else:
         raise RuntimeError(f"Unknown entity_type {ds_rslt['entity_type']}")
     try:
@@ -903,6 +913,7 @@ def pythonop_get_dataset_state(**kwargs) -> JSONType:
         'entity_type': ds_rslt['entity_type'],
         'status': ds_rslt['status'],
         'uuid': ds_rslt['uuid'],
+        'parent_dataset_uuid_list': parent_dataset_uuid_list,
         'data_types': data_types,
         'local_directory_full_path': full_path,
         'metadata': metadata,
@@ -935,10 +946,10 @@ def _uuid_lookup(uuid, **kwargs):
     http_conn_id = 'uuid_api_connection'
     endpoint = 'hmuuid/{}'.format(uuid)
     method = 'GET'
-    headers = {'authorization' : 'Bearer ' + get_auth_tok(**kwargs)}
+    headers = {'authorization': 'Bearer ' + get_auth_tok(**kwargs)}
 #     print('headers:')
 #     pprint(headers)
-    extra_options = []
+    extra_options = {}
 
     http_hook = HttpHook(method,
                          http_conn_id=http_conn_id)
@@ -1002,9 +1013,9 @@ def pythonop_md_consistency_tests(**kwargs) -> int:
         else:
             return 0
     else:
-            kwargs['ti'].xcom_push(key='err_msg',
-                                   value='Expected metadata file is missing')
-            return 1
+        kwargs['ti'].xcom_push(key='err_msg',
+                               value='Expected metadata file is missing')
+        return 1
         
 
 def _get_scratch_base_path() -> Path:
@@ -1048,8 +1059,10 @@ def get_cwltool_base_cmd(tmpdir: Path) -> List[str]:
     return [
         'env',
         'TMPDIR={}'.format(tmpdir),
+        '_JAVA_OPTIONS={}'.format('-XX:ActiveProcessorCount=2'),
         'cwltool',
         '--timestamps',
+        '--preserve-environment', '_JAVA_OPTIONS',
         # The trailing slashes in the next two lines are deliberate.
         # cwltool treats these path prefixes as *strings*, not as
         # directories in which new temporary dirs should be created, so
@@ -1061,7 +1074,8 @@ def get_cwltool_base_cmd(tmpdir: Path) -> List[str]:
         '--tmp-outdir-prefix={}/'.format(tmpdir / 'cwl-out-tmp'),
     ]
 
-def make_send_status_msg_function(
+
+def make_send_status_msg_function_old(
         dag_file: str,
         retcode_ops: List[str],
         cwl_workflows: List[Path],
@@ -1135,7 +1149,7 @@ def make_send_status_msg_function(
             'authorization': 'Bearer ' + get_auth_tok(**kwargs),
             'content-type': 'application/json',
         }
-        extra_options = []
+        extra_options = {}
         return_status = True  # mark false on failure
 
         http_hook = HttpHook(method, http_conn_id=http_conn_id)
@@ -1224,6 +1238,222 @@ def make_send_status_msg_function(
     return send_status_msg
 
 
+def make_send_status_msg_function(
+        dag_file: str,
+        retcode_ops: List[str],
+        cwl_workflows: List[Path],
+        uuid_src_task_id: str = 'send_create_dataset',
+        dataset_uuid_fun: Optional[Callable[..., str]] = None,
+        dataset_lz_path_fun: Optional[Callable[..., str]] = None,
+        metadata_fun: Optional[Callable[..., dict]] = None,
+        include_file_metadata: Optional[bool] = True
+) -> Callable[..., None]:
+    """
+    The function which is generated by this function will return a boolean,
+    True if the message which was ultimately sent was for a success and
+    False otherwise.  This return value is not necessary in most circumstances
+    but is useful when the generated function is being wrapped.
+
+    The user can specify dataset_uuid_fun and dataset_lz_path_fun, or leave
+    both to their empty default values and specify 'uuid_src_task_id'.
+
+    `dag_file` should always be `__file__` wherever this function is used,
+    to include the DAG file in the provenance. This could be "automated" with
+    something like `sys._getframe(1).f_code.co_filename`, but that doesn't
+    seem worth it at the moment
+
+    'http_conn_id' is the Airflow connection id associated with the /datasets/status service.
+
+    'dataset_uuid_fun' is a function which returns the uuid of the dataset to be
+    updated, or None.  If given, it will be called with **kwargs arguments.
+
+    'dataset_lz_path_fun' is a function which returns the full path of the dataset
+    data directory, or None.  If given, it will be called with **kwargs arguments.
+    If the return value of this callable is None or the empty string, no file metadata
+    will be ultimately be included in the status message.
+
+    'uuid_src_task_id' is the Airflow task_id of a task providing the uuid via
+    the XCOM key 'derived_dataset_uuid' and the dataset data directory
+    via the None key.  This is used only if dataset_uuid is None or dataset_lz_path
+    is None.
+
+    'metadata_fun' is a function which returns additional metadata in JSON form,
+    or None.  If given, it will be called with **kwargs arguments.  This function
+    will only be evaluated if retcode_ops have all returned 0.
+
+    'include_file_metadata is a boolean defaulting to True which indicates whether
+    file metadata should be included in the transmitted metadata structure.  If False,
+    no file metadata will be included.  Note that file metadata may also be excluded
+    based on the return value of 'dataset_lz_path_fun' above.
+    """
+
+    # Does the string represent a "true" value, or an int that is 1
+    def __is_true(val):
+        if val is None: return False
+        if isinstance(val, str):
+            uval = val.upper().strip()
+            if uval in ['TRUE', 'T', '1', 'Y', 'YES']:
+                return True
+            else:
+                return False
+        elif isinstance(val, int) and val == 1:
+            return True
+        else:
+            return False
+
+    def send_status_msg(**kwargs) -> bool:
+        retcodes = [
+            kwargs['ti'].xcom_pull(task_ids=op)
+            for op in retcode_ops
+        ]
+        retcodes = [int(rc or '0') for rc in retcodes]
+        print('retcodes: ', {k: v for k, v in zip(retcode_ops, retcodes)})
+        success = all(rc == 0 for rc in retcodes)
+        if dataset_uuid_fun is None:
+            dataset_uuid = kwargs['ti'].xcom_pull(
+                key='derived_dataset_uuid',
+                task_ids=uuid_src_task_id,
+            )
+        else:
+            dataset_uuid = dataset_uuid_fun(**kwargs)
+        if dataset_lz_path_fun is None:
+            ds_dir = kwargs['ti'].xcom_pull(task_ids=uuid_src_task_id)
+        else:
+            ds_dir = dataset_lz_path_fun(**kwargs)
+        endpoint = '/entities/' + dataset_uuid
+        method = 'PUT'
+        headers = {
+            'authorization': 'Bearer ' + get_auth_tok(**kwargs),
+            'content-type': 'application/json',
+            'X-Hubmap-Application': 'ingest-pipeline',
+        }
+        extra_options = {}
+        return_status = True  # mark false on failure
+
+        http_hook = HttpHook(method, http_conn_id='entity_api_connection')
+
+        if success:
+            md = {}
+            files_for_provenance = [dag_file, *cwl_workflows]
+
+            if 'dag_provenance' in kwargs['dag_run'].conf:
+                md['dag_provenance'] = kwargs['dag_run'].conf['dag_provenance'].copy()
+                new_prv_dct = get_git_provenance_dict(files_for_provenance)
+                md['dag_provenance'].update(new_prv_dct)
+            else:
+                dag_prv = (kwargs['dag_run'].conf['dag_provenance_list']
+                           if 'dag_provenance_list' in kwargs['dag_run'].conf
+                           else [])
+                dag_prv.extend(get_git_provenance_list(files_for_provenance))
+                md['dag_provenance_list'] = dag_prv
+
+            if metadata_fun:
+                md['metadata'] = metadata_fun(**kwargs)
+
+            thumbnail_file_abs_path = []
+            if dataset_lz_path_fun:
+                dataset_dir_abs_path = dataset_lz_path_fun(**kwargs)
+                if dataset_dir_abs_path:
+                    #########################################################################
+                    # Added by Zhou 6/16/2021 for registering thumbnail image
+                    # This is the only place that uses this hardcoded extras/thumbnail.jpg
+                    thumbnail_file_abs_path = join(dataset_dir_abs_path,
+                                                   'extras/thumbnail.jpg')
+                    if exists(thumbnail_file_abs_path):
+                        thumbnail_file_abs_path = thumbnail_file_abs_path
+                    else:
+                        thumbnail_file_abs_path = []
+                    #########################################################################
+
+            manifest_files = find_pipeline_manifests(cwl_workflows)
+            if include_file_metadata and ds_dir is not None and not ds_dir == '':
+                md.update(
+                    get_file_metadata_dict(
+                        ds_dir,
+                        get_tmp_dir_path(kwargs['run_id']),
+                        manifest_files,
+                    ),
+                )
+
+            # Refactoring metadata structure
+            if metadata_fun:
+                md['files'] = md['metadata'].pop('files_info_alt_path', [])
+                md['extra_metadata'] = {'collectiontype': md['metadata'].pop('collectiontype', None)}
+                md['thumbnail_file_abs_path'] = thumbnail_file_abs_path
+                antibodies = md['metadata'].pop('antibodies', [])
+                contributors = md['metadata'].pop('contributors', [])
+                md['metadata'] = md['metadata'].pop('metadata', [])
+                contacts = []
+                for contrib in contributors:
+                    if 'is_contact' in contrib:
+                        v = contrib['is_contact']
+                        if __is_true(val=v):
+                            contacts.append(contrib)
+
+            def my_callable(**kwargs):
+                return dataset_uuid
+
+            ds_rslt = pythonop_get_dataset_state(
+                dataset_uuid_callable=my_callable,
+                **kwargs
+            )
+            if not ds_rslt:
+                status = 'QA'
+            else:
+                status = ds_rslt.get('status', 'QA')
+                if status in ['Processing', 'New']:
+                    status = 'QA'
+                if metadata_fun:
+                    if not contacts:
+                        contacts = ds_rslt.get('contacts', [])
+
+            try:
+                assert_json_matches_schema(md, 'dataset_metadata_schema.yml')
+                data = {
+                    'pipeline_message': 'the process ran',
+                    'ingest_metadata': md,
+                }
+                if metadata_fun:
+                    data.update({'antibodies': antibodies,
+                                 'contributors': contributors,
+                                 'contacts': contacts})
+                if status not in ['Published']:
+                    data.update({'status': status})
+            except AssertionError as e:
+                print('invalid metadata follows:')
+                pprint(md)
+                data = {
+                    'status': 'Error',
+                    'pipeline_message': 'internal error; schema violation: {}'.format(e),
+                    'ingest_metadata': {},
+                }
+                return_status = False
+        else:
+            log_fname = Path(get_tmp_dir_path(kwargs['run_id']), 'session.log')
+            with open(log_fname, 'r') as f:
+                err_txt = '\n'.join(f.readlines())
+            data = {
+                'status': 'Invalid',
+                'pipeline_message': err_txt,
+            }
+            return_status = False
+        print('data: ')
+        pprint(data)
+
+        response = http_hook.run(
+            endpoint,
+            json.dumps(data),
+            headers,
+            extra_options,
+        )
+        print('response: ')
+        pprint(response.json())
+
+        return return_status
+
+    return send_status_msg
+
+
 def map_queue_name(raw_queue_name: str) -> str:
     """
     If the configuration contains QUEUE_NAME_TEMPLATE, use it to customize the
@@ -1238,26 +1468,28 @@ def map_queue_name(raw_queue_name: str) -> str:
     else:
         return raw_queue_name
 
+
 def create_dataset_state_error_callback(dataset_uuid_callable: Callable[[Any], str]) -> Callable[[Mapping, Any],
                                                                                                  None]:
-    def set_dataset_state_error(contextDict: Mapping, **kwargs) -> None:
+    def set_dataset_state_error(context_dict: Mapping, **kwargs) -> None:
         """
         This routine is meant to be
         """
-        msg = 'An internal error occurred in the {} workflow step {}'.format(contextDict['dag'].dag_id,
-                                                                             contextDict['task'].task_id)
+        msg = 'An internal error occurred in the {} workflow step {}'.format(context_dict['dag'].dag_id,
+                                                                             context_dict['task'].task_id)
         new_kwargs = kwargs.copy()
-        new_kwargs.update(contextDict)
-        new_kwargs.update({'dataset_uuid_callable' : dataset_uuid_callable,
-                           'http_conn_id' : 'ingest_api_connection',
-                           'ds_state' : 'Error',
-                           'message' : msg
+        new_kwargs.update(context_dict)
+        new_kwargs.update({'dataset_uuid_callable': dataset_uuid_callable,
+                           'http_conn_id': 'ingest_api_connection',
+                           'ds_state': 'Error',
+                           'message': msg
                            })
         pythonop_set_dataset_state(**new_kwargs)
     return set_dataset_state_error
 
 
 set_schema_base_path(SCHEMA_BASE_PATH, SCHEMA_BASE_URI)
+
 
 def localized_assert_json_matches_schema(jsn: JSONType, schemafile: str) -> None:
     """
@@ -1386,8 +1618,13 @@ def get_threads_resource(dag_id: str, task_id: Optional[str] = None) -> int:
     if task_id is None:
         task_id = '__default__'
     rec = _lookup_resource_record(dag_id, task_id)
-    assert 'threads' in rec, 'schema should guarantee "threads" is present?'
-    return int(rec['threads'])
+    assert any(['threads' in rec, 'coreuse' in rec]), 'schema should guarantee "threads" or "coreuse" is present?'
+    if rec.get('coreuse'):
+        return math.ceil(os.cpu_count() * (int(rec.get('coreuse')) / 100)) \
+            if int(rec.get('coreuse')) > 0 \
+            else math.ceil(os.cpu_count() / 4)
+    else:
+        return int(rec.get('threads'))
 
 
 def get_type_client() -> TypeClient:
@@ -1404,6 +1641,9 @@ def _get_type_client() -> TypeClient:
     global TYPE_CLIENT
     if TYPE_CLIENT is None:
         conn = HttpHook.get_connection('search_api_connection')
+        if conn.host.startswith('https'):
+            conn.host = urllib.parse.unquote(conn.host).split('https://')[1]
+            conn.conn_type = 'https'
         if conn.port is None:
             url = f'{conn.conn_type}://{conn.host}'
         else:
@@ -1414,7 +1654,7 @@ def _get_type_client() -> TypeClient:
 
 def _canonicalize_assay_type_if_possible(assay_type: StrOrListStr) -> StrOrListStr:
     """
-    Attempt to look up the the assay type (or each element if it is a list) and
+    Attempt to look up the assay type (or each element if it is a list) and
     return the canonical version.
     """
     if isinstance(assay_type, list):
@@ -1468,7 +1708,7 @@ def _strip_url(url):
     return url.split(':')[1].strip('/')
 
 
-def find_matching_endpoint(host_url: str)-> str:
+def find_matching_endpoint(host_url: str) -> str:
     """
     Find the identity of the 'instance' of Airflow infrastructure based
     on environment information.
@@ -1486,14 +1726,13 @@ def find_matching_endpoint(host_url: str)-> str:
     return candidates[0]
 
 
-
 def main():
     """
     This provides some unit tests.  To run it, you will need to define the
     'search_api_connection' connection ID and the Fernet key.  The easiest way
     to do that is with something like:
     
-      export AIRFLOW_CONN_SEARCH_API_CONNECTION='https://search.api.hubmapconsortium.org/
+      export AIRFLOW_CONN_SEARCH_API_CONNECTION='https://search.api.hubmapconsortium.org/v3/
       fernet_key=`python -c 'from cryptography.fernet import Fernet ; print(Fernet.generate_key().decode())'`
       export AIRFLOW__CORE__FERNET_KEY=${fernet_key}
     """
@@ -1506,14 +1745,14 @@ def main():
     for elt in get_file_metadata(dirnm, DummyFileMatcher()):
         print(elt)
     pprint(get_git_provenance_list(__file__))
-    md = {'metadata' : {'my_string' : 'hello world'},
-          'files' : get_file_metadata(dirnm, DummyFileMatcher()),
-          'dag_provenance_list' : get_git_provenance_list(__file__)}
+    md = {'metadata': {'my_string': 'hello world'},
+          'files': get_file_metadata(dirnm, DummyFileMatcher()),
+          'dag_provenance_list': get_git_provenance_list(__file__)}
     try:
         localized_assert_json_matches_schema(md, 'dataset_metadata_schema.yml')
         print('ASSERT passed')
     except AssertionError as e:
-        print('ASSERT failed')
+        print(f'ASSERT failed {e}')
 
     assay_pairs = [('devtest', 'devtest'), ('codex', 'CODEX'),
                    ('codex', 'SOMEOTHER'), ('someother', 'CODEX'),

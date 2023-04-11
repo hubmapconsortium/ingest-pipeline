@@ -1,11 +1,9 @@
 from pathlib import Path
 from datetime import datetime, timedelta
 
-from airflow import DAG
-from airflow.operators.bash_operator import BashOperator
-from airflow.operators.python_operator import PythonOperator
-from airflow.operators.python_operator import BranchPythonOperator
-from airflow.operators.dummy_operator import DummyOperator
+from airflow.operators.bash import BashOperator
+from airflow.operators.python import PythonOperator, BranchPythonOperator
+from airflow.operators.dummy import DummyOperator
 from hubmap_operators.common_operators import (
     LogInfoOperator,
     JoinOperator,
@@ -45,20 +43,19 @@ default_args = {
     'retries': 1,
     'retry_delay': timedelta(minutes=1),
     'xcom_push': True,
-    'queue': get_queue_resource("bulk_atacseq"),
+    'queue': get_queue_resource('bulk_atacseq'),
     'on_failure_callback': utils.create_dataset_state_error_callback(get_uuid_for_error),
 }
 
-with HMDAG(
-        'bulk_atacseq',
-        schedule_interval=None,
-        is_paused_upon_creation=False,
-        default_args=default_args,
-        user_defined_macros={
-            'tmp_dir_path': get_tmp_dir_path,
-            'preserve_scratch': get_preserve_scratch_resource('bulk_atacseq'),
-        },
-) as dag:
+with HMDAG('bulk_atacseq',
+           schedule_interval=None,
+           is_paused_upon_creation=False,
+           default_args=default_args,
+           user_defined_macros={
+               'tmp_dir_path': get_tmp_dir_path,
+               'preserve_scratch': get_preserve_scratch_resource('bulk_atacseq'),
+           }) as dag:
+
     pipeline_name = 'bulk-atac-seq'
     cwl_workflows = get_absolute_workflows(
         Path('sc-atac-seq-pipeline', 'bulk-atac-seq-pipeline.cwl'),
@@ -125,7 +122,7 @@ with HMDAG(
             'previous_revision_uuid_callable': get_previous_revision_uuid,
             'http_conn_id': 'ingest_api_connection',
             'dataset_name_callable': build_dataset_name,
-            "dataset_types": ["bulk_atacseq"],
+            'dataset_types': ['bulk_atacseq'],
         },
     )
 
@@ -159,10 +156,12 @@ with HMDAG(
     t_set_dataset_processing = SetDatasetProcessingOperator(task_id='set_dataset_processing')
     t_move_data = MoveDataOperator(task_id='move_data')
 
-    (dag >> t_log_info >> t_create_tmpdir
-     >> t_send_create_dataset >> t_set_dataset_processing
-     >> prepare_cwl1 >> t_build_cmd1 >> t_pipeline_exec >> t_maybe_keep_cwl1
-     >> t_move_data >> t_send_status >> t_join)
+    (
+        t_log_info >> t_create_tmpdir
+        >> t_send_create_dataset >> t_set_dataset_processing
+        >> prepare_cwl1 >> t_build_cmd1 >> t_pipeline_exec >> t_maybe_keep_cwl1
+        >> t_move_data >> t_send_status >> t_join
+    )
     t_maybe_keep_cwl1 >> t_set_dataset_error
     t_set_dataset_error >> t_join
     t_join >> t_cleanup_tmpdir

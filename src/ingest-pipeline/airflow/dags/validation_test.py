@@ -1,13 +1,11 @@
 import sys
 import os
-import ast
 from pathlib import Path
 from pprint import pprint
 from datetime import datetime, timedelta
 
-from airflow import DAG
 from airflow.configuration import conf as airflow_conf
-from airflow.operators.python_operator import PythonOperator
+from airflow.operators.python import PythonOperator
 from airflow.exceptions import AirflowException
 
 import utils
@@ -38,12 +36,11 @@ default_args = {
     'queue': get_queue_resource('validation_test'),
 }
 
-
 with HMDAG('validation_test',
            schedule_interval=None,
            is_paused_upon_creation=False,
            default_args=default_args,
-       ) as dag:
+           ) as dag:
 
     def find_uuid(**kwargs):
         try:
@@ -117,12 +114,13 @@ with HMDAG('validation_test',
             dataset_ignore_globs=ignore_globs,
             upload_ignore_globs='*',
             plugin_directory=plugin_path,
-            #offline=True,  # noqa E265
+            # offline=True,  # noqa E265
             add_notes=False
         )
         # Scan reports an error result
         report = ingest_validation_tools_error_report.ErrorReport(
-            upload.get_errors(plugin_kwargs=kwargs)
+            errors=upload.get_errors(plugin_kwargs=kwargs),
+            info=upload.get_info()
         )
         with open(os.path.join(lz_path, 'validation_report.txt'), 'w') as f:
             f.write(report.as_text())
@@ -140,4 +138,4 @@ with HMDAG('validation_test',
         }
     )
 
-    (dag >> t_find_uuid >> t_run_validation)
+    t_find_uuid >> t_run_validation

@@ -1,4 +1,11 @@
 #! /bin/bash
+
+# set -x  # for logging and debugging
+
+# allowed values of HUBMAP_INSTANCE
+hubmap_instance_strings=" prod test dev proto stage pittdev cmudev "
+
+# function to find the path to this script
 function get_dir_of_this_script () {
     # This function sets DIR to the directory in which this script itself is found.
     # Thank you https://stackoverflow.com/questions/59895/how-to-get-the-source-directory-of-a-bash-script-from-within-the-script-itself
@@ -12,7 +19,81 @@ function get_dir_of_this_script () {
     DIR="$( cd -P "$( dirname "$SCRIPT_SOURCE" )" >/dev/null 2>&1 && pwd )"
     }
 
-# set DIR to the directory of the current script
+# function to check for presence of token $2 in list $1
+contains() {
+    [[ $1 =~ (^|[[:space:]])$2($|[[:space:]]) ]] && echo 1 || echo 0
+}
+
+
+# check for instance info
+if [[ -z "${HUBMAP_INSTANCE}" ]] ; then
+    echo "HUBMAP_INSTANCE is not defined"
+    exit -1
+else
+    instance="${HUBMAP_INSTANCE}"
+fi
+if [ $(contains "${hubmap_instance_strings}" "${instance}") == 0 ] ; then
+   echo "${instance} is not one of ${hubmap_instance_strings}"
+   exit -1
+fi
+
+# set DIR to the directory of the current script, and find the source tree top level
 get_dir_of_this_script
 cd "$DIR"
-env AIRFLOW__HUBMAP_API_PLUGIN__BUILD_NUMBER=`cat "$DIR/../../../build_number"` ./airflow_exe $*
+top_level_dir="$(git rev-parse --show-toplevel)"
+
+# establish OS context
+source source_platform_file.sh
+
+# Handle setting of environment variables.
+#
+# The goal is to let values from the environment (prefix HUBMAP_) override
+# those from the config files (prefix HM_AF_).  We also check that all
+# required variables are set at some level.
+envvars=( CONFIG HOME \
+	  CONN_INGEST_API_CONNECTION \
+	  CONN_UUID_API_CONNECTION \
+	  CONN_FILES_API_CONNECTION \
+	  CONN_SPATIAL_API_CONNECTION \
+	  CONN_CELLS_API_CONNECTION \
+	  CONN_SEARCH_API_CONNECTION \
+	  CONN_ENTITY_API_CONNECTION \
+	)
+for varname in "${envvars[@]}" ; do
+    full_varname="AIRFLOW_${varname}"
+    cfg_varname="HM_AF_${varname}"
+    if [[ -z "${!full_varname}" ]] ; then
+	export ${full_varname}=${!cfg_varname}
+    fi
+    if [[ -z "${!full_varname}" ]] ; then
+	echo "${full_varname} is not set"
+	exit -1
+    fi
+done
+
+if [ "${HM_AF_METHOD}" == 'conda' ] ; then
+    which conda || export PATH=/hive/users/hive/anaconda3/bin:$PATH
+    eval "$(conda shell.bash hook)"
+    conda activate "${HM_AF_ENV_NAME}"
+elif [ "${HM_AF_METHOD}" == 'module_conda' ] ; then
+    source /etc/profile.d/modules.sh
+    module use /hive/modulefiles
+    module load anaconda
+    eval "$(conda shell.bash hook)"
+    conda activate "${HM_AF_ENV_NAME}"
+elif [ "${HM_AF_METHOD}" == 'venv' ] ; then
+    source "${HM_AF_ENV_NAME}/bin/activate"
+else
+    echo "unknown HM_AF_METHOD ${HM_AF_METHOD}"
+    exit -1
+fi
+echo 'PATH follows'
+echo $PATH
+echo 'PYTHONPATH follows'
+echo $PYTHONPATH
+echo 'Environment follows'
+printenv
+
+cd $AIRFLOW_HOME ; \
+env AIRFLOW__HUBMAP_API_PLUGIN__BUILD_NUMBER="$(cat ${top_level_dir}/build_number)" \
+    airflow $*

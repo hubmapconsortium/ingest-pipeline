@@ -1,19 +1,8 @@
-import sys
-import os
-import json
-import shlex
 import ast
-from pathlib import Path
 from pprint import pprint
 from datetime import datetime, timedelta
 
-from airflow import DAG
-from airflow.operators.bash_operator import BashOperator
-from airflow.operators.python_operator import PythonOperator
-from airflow.operators.python_operator import BranchPythonOperator
-from airflow.operators.dummy_operator import DummyOperator
-from airflow.operators.dagrun_operator import TriggerDagRunOperator, DagRunOrder
-from airflow.hooks.http_hook import HttpHook
+from airflow.operators.python import PythonOperator
 from airflow.exceptions import AirflowException
 from airflow.configuration import conf as airflow_conf
 from hubmap_operators.flex_multi_dag_run import FlexMultiDagRunOperator
@@ -50,15 +39,14 @@ default_args = {
 }
 
 
-with HMDAG('launch_multi_analysis', 
-           schedule_interval=None, 
-           is_paused_upon_creation=False, 
+with HMDAG('launch_multi_analysis',
+           schedule_interval=None,
+           is_paused_upon_creation=False,
            default_args=default_args,
            user_defined_macros={
-               'tmp_dir_path' : utils.get_tmp_dir_path,
-               'preserve_scratch' : get_preserve_scratch_resource('launch_multi_analysis')
+               'tmp_dir_path': utils.get_tmp_dir_path,
+               'preserve_scratch': get_preserve_scratch_resource('launch_multi_analysis')
            }) as dag:
-
 
     def check_one_uuid(uuid, **kwargs):
         """
@@ -70,10 +58,7 @@ with HMDAG('launch_multi_analysis',
         """
         print(f'Starting uuid {uuid}')
         my_callable = lambda **kwargs: uuid
-        ds_rslt=utils.pythonop_get_dataset_state(
-            dataset_uuid_callable=my_callable,
-            **kwargs
-        )
+        ds_rslt = utils.pythonop_get_dataset_state(dataset_uuid_callable=my_callable, **kwargs)
         if not ds_rslt:
             raise AirflowException(f'Invalid uuid/doi for group: {uuid}')
         print('ds_rslt:')
@@ -133,7 +118,7 @@ with HMDAG('launch_multi_analysis',
             filtered_md_l.append(metadata)
         if prev_version_uuid is not None:
             prev_version_uuid = check_one_uuid(prev_version_uuid, **kwargs)[0]
-        print(f'Finished uuid {uuid}')
+        # print(f'Finished uuid {uuid}')
         print(f'filtered data types: {filtered_data_types}')
         print(f'filtered paths: {filtered_path_l}')
         print(f'filtered uuids: {filtered_uuid_l}')
@@ -149,8 +134,8 @@ with HMDAG('launch_multi_analysis',
         python_callable=check_uuids,
         provide_context=True,
         op_kwargs={
-            'crypt_auth_tok' : utils.encrypt_tok(airflow_conf.as_dict()
-                                                 ['connections']['APP_CLIENT_SECRET']).decode(),
+            'crypt_auth_tok': utils.encrypt_tok(airflow_conf.as_dict()
+                                                ['connections']['APP_CLIENT_SECRET']).decode(),
             }
         )
 
@@ -175,26 +160,27 @@ with HMDAG('launch_multi_analysis',
         print('lz_paths:')
         pprint(lz_paths)
         print(f'previous version uuid: {prev_version_uuid}')
-        payload = {'ingest_id' : kwargs['run_id'],
-                   'crypt_auth_tok' : kwargs['crypt_auth_tok'],
-                   'parent_lz_path' : lz_paths,
-                   'parent_submission_id' : uuids,
-                   'previous_version_uuid' : prev_version_uuid,
-                   'metadata': metadata_list,
-                   'dag_provenance_list' : utils.get_git_provenance_list(__file__)
+        payload = {
+                    'ingest_id': kwargs['run_id'],
+                    'crypt_auth_tok': kwargs['crypt_auth_tok'],
+                    'parent_lz_path': lz_paths,
+                    'parent_submission_id': uuids,
+                    'previous_version_uuid': prev_version_uuid,
+                    'metadata': metadata_list,
+                    'dag_provenance_list': utils.get_git_provenance_list(__file__)
         }
         for next_dag in utils.downstream_workflow_iter(collectiontype, assay_type):
-            yield next_dag, DagRunOrder(payload=payload)
+            yield next_dag, payload
 
     t_maybe_spawn = FlexMultiDagRunOperator(
         task_id='flex_maybe_spawn',
-        provide_context=True,
+        dag=dag,
+        trigger_dag_id='launch_multi_analysis',
         python_callable=flex_maybe_spawn,
         op_kwargs={
-            'crypt_auth_tok' : utils.encrypt_tok(airflow_conf.as_dict()
-                                                 ['connections']['APP_CLIENT_SECRET']).decode(),
+            'crypt_auth_tok': utils.encrypt_tok(airflow_conf.as_dict()
+                                                ['connections']['APP_CLIENT_SECRET']).decode(),
             }
         )
 
-    dag >> check_uuids_t >> t_maybe_spawn
-
+    check_uuids_t >> t_maybe_spawn

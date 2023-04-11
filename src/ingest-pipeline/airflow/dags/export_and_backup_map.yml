@@ -1,0 +1,32 @@
+export_and_backup_map:
+  upload:
+    - 'status': 'new'
+      'plugins': ['upload_new']
+    - 'status': 'processing'
+      'plugins': ['upload_processing']
+    - 'status': 'valid'
+      'plugins': ['upload_valid']
+    - 'status': 'invalid'
+      'plugins': ['upload_invalid']
+    - 'status': 'error'
+      'plugins': ['upload_error']
+    - 'status': 'submitted'
+      'plugins': ['upload_submitted']
+    - 'status': 'reorganized'
+      'plugins': ['upload_reorganized']
+  dataset:
+    - 'status': 'new'
+      'plugins': ['dataset_new']
+    # needs logic for primary/derived
+    - 'status': 'qa'
+      'plugins': ['dataset_qa']
+    - 'status': 'processing'
+      'plugins': ['dataset_processing']
+    - 'status': 'invalid'
+      'plugins': ['dataset_invalid']
+    - 'status': 'error'
+      'plugins': ['dataset_error']
+    - 'status': 'published'
+      'plugins': ['dataset_published']
+    - 'status': 'retracted'
+      'plugins': ['dataset_retracted']

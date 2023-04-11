@@ -5,7 +5,6 @@ import argparse
 import re
 import json
 from pathlib import Path
-from pprint import pprint
 import pandas as pd
 import requests
 
@@ -16,27 +15,27 @@ from hubmap_commons.hm_auth import AuthHelper
 ENDPOINTS = {
     'PROD': {
         'entity_url': 'https://entity.api.hubmapconsortium.org',
-        'search_url': 'https://search.api.hubmapconsortium.org',
+        'search_url': 'https://search.api.hubmapconsortium.org/v3',
         'ingest_url': 'http://hivevm193.psc.edu:7777',
-        'assay_info_url': 'https://search.api.hubmapconsortium.org'
+        'assay_info_url': 'https://search.api.hubmapconsortium.org/v3'
         },
     'STAGE': {
         'entity_url': 'https://entity-api.stage.hubmapconsortium.org',
-        'search_url': 'https://search-api.stage.hubmapconsortium.org',
+        'search_url': 'https://search-api.stage.hubmapconsortium.org/v3',
         'ingest_url': 'http://hivevm195.psc.edu:7777',
-        'assay_info_url': 'https://search-api.stage.hubmapconsortium.org'
+        'assay_info_url': 'https://search-api.stage.hubmapconsortium.org/v3'
         },
     'TEST': {
         'entity_url': 'https://entity-api.test.hubmapconsortium.org',
-        'search_url': 'https://search-api.test.hubmapconsortium.org',
+        'search_url': 'https://search-api.test.hubmapconsortium.org/v3',
         'ingest_url': 'http://hivevm192.psc.edu:7777',
-        'assay_info_url': 'https://search-api.test.hubmapconsortium.org'
+        'assay_info_url': 'https://search-api.test.hubmapconsortium.org/v3'
         },
     'DEV': {
         'entity_url': 'https://entity-api.dev.hubmapconsortium.org',
-        'search_url': 'https://search-api.dev.hubmapconsortium.org',
+        'search_url': 'https://search-api.dev.hubmapconsortium.org/v3',
         'ingest_url': 'http://hivevm191.psc.edu:7777',
-        'assay_info_url': 'https://search-api.dev.hubmapconsortium.org'
+        'assay_info_url': 'https://search-api.dev.hubmapconsortium.org/v3'
         },
     }
 
@@ -52,7 +51,7 @@ STRIP_BRACKETS_RE = re.compile(r"\[(.*)\]")
 # middle alphabetically.
 #
 COLUMN_SORT_WEIGHTS = {
-    'note':20,
+    'note': 20,
     'validated': 10,
     'last_touch': 11,
     'n_md_recs': 9,
@@ -108,6 +107,7 @@ def column_sorter(col_l):
 class SplitTree:
     def __init__(self):
         self.root = {}
+
     def add(self, s):
         words = s.strip().split('-')
         here = self.root
@@ -116,22 +116,23 @@ class SplitTree:
             if w0 not in here:
                 here[w0] = {}
             here = here[w0]
+
     def _inner_dump(self, dct, prefix):
         for elt in dct:
             print(f'{prefix}{elt}:')
             self._inner_dump(dct[elt], prefix+'    ')
+
     def dump(self):
         self._inner_dump(self.root, '')
+
     def _inner_str(self, dct, prefix=''):
         k_l = sorted(dct)
         if k_l:
-            #print(f'{prefix}k_l: {k_l}')
             if len(k_l) == 1:
                 next_term = self._inner_str(dct[k_l[0]], prefix=prefix+'  ')
                 rslt = k_l[0]
                 if next_term:
                     rslt += '-' + next_term
-                #print(f'{prefix}--> {rslt}')
                 return rslt
             kid_l = [self._inner_str(dct[k], prefix=prefix+'  ') for k in k_l]
             if all([k == '' for k in kid_l]):
@@ -139,9 +140,9 @@ class SplitTree:
             else:
                 s = ','.join([f'{a}-{b}' for a, b in zip(k_l, kid_l)])
             rslt = f'[{s}]'
-            #print(f'{prefix}--> {rslt}')
             return rslt
         return ''
+
     def __str__(self):
         return self._inner_str(self.root)
 
@@ -220,7 +221,7 @@ class Dataset(Entity):
 
     @property
     def donor_uuid(self):
-        if self._donor_uuid is None:
+        if self._donor_uuid is None and self.parent_uuids:
             parent_uuid = self.parent_uuids[0]
             parent_entity = self.entity_factory.get(parent_uuid)
             if isinstance(parent_entity, Donor):
@@ -294,7 +295,6 @@ class Dataset(Entity):
                               else 'multiple')
         return parent_dataset, sample_submission_id, sample_hubmap_id
 
-
     def build_rec(self, include_all_children=False):
         """
         Returns a dict containing:
@@ -327,8 +327,7 @@ class Dataset(Entity):
          rec['sample_hubmap_id']) = self._parse_sample_parents()
         rec['donor_uuid'] = self.donor_uuid
         if not self.organs:
-            raise SurveyException(f'The source organ for Sample {self.uuid}'
-                                  'could not be found')
+            raise SurveyException(f'The source organ for Sample {self.uuid} could not be found')
         if len(self.organs) > 1:
             raise SurveyException(f'Sample {self.uuid} comes from multiple organs,'
                                   ' which is not supported')
@@ -456,7 +455,6 @@ class Upload(Entity):
                               else 'multiple')
         return parent_dataset, sample_submission_id, sample_hubmap_id
 
-
     def build_rec(self, include_all_children=False):
         """
         Returns a dict containing:
@@ -580,7 +578,6 @@ class Support(Dataset):
             for kid in self.kid_dataset_uuids:
                 self.kids[kid].describe(prefix=prefix+'    ', file=file)
 
-
     def build_rec(self, include_all_children=False):
         rec = super().build_rec(include_all_children)
         return rec
@@ -614,7 +611,6 @@ class EntityFactory:
             r.raise_for_status()
         df = pd.DataFrame(r.json())  # that's all there is to it!
         return df
-
 
     def get(self, uuid):
         """
@@ -654,7 +650,6 @@ class EntityFactory:
         r = requests.get(f'{ingest_url}/datasets/{ds_uuid}/file-system-abs-path',
                          headers={'Authorization': f'Bearer {self.auth_tok}',
                                   'Content-Type': 'application/json'})
-        #print(f'query was {r.request.body}')
         if r.status_code >= 300:
             r.raise_for_status()
         jsn = r.json()
@@ -711,6 +706,7 @@ class EntityFactory:
         if r.status_code >= 300:
             r.raise_for_status()
         return r.json()
+
 
 def is_uuid(s):
     return s and len(s) == 32 and all([c in '0123456789abcdef' for c in list(s)])
@@ -779,14 +775,14 @@ def main():
                 rec['uuid'] = uuid  # just to make sure it is present
         if rec:
             out_recs.append(rec)
-    out_df = pd.DataFrame(out_recs).rename(columns={'qa_child_uuid':'derived_uuid',
-                                                    'child_uuid':'derived_uuid',
-                                                    'qa_child_hubmap_id':'derived_hubmap_id',
-                                                    'child_hubmap_id':'derived_hubmap_id',
-                                                    'qa_child_data_type':'derived_data_type',
-                                                    'child_data_type':'derived_data_type',
-                                                    'qa_child_status':'derived_status',
-                                                    'child_status':'derived_status'})
+    out_df = pd.DataFrame(out_recs).rename(columns={'qa_child_uuid': 'derived_uuid',
+                                                    'child_uuid': 'derived_uuid',
+                                                    'qa_child_hubmap_id': 'derived_hubmap_id',
+                                                    'child_hubmap_id': 'derived_hubmap_id',
+                                                    'qa_child_data_type': 'derived_data_type',
+                                                    'child_data_type': 'derived_data_type',
+                                                    'qa_child_status': 'derived_status',
+                                                    'child_status': 'derived_status'})
     out_df = out_df.sort_values([key for key in ROW_SORT_KEYS if key in out_df.columns],
                                 axis=0)
     out_df.to_csv(args.out, sep='\t', index=False,
