@@ -58,3 +58,6 @@
 [submodule "src/ingest-pipeline/airflow/dags/cwl/create-vis-symlink-archive"]
 	path = src/ingest-pipeline/airflow/dags/cwl/create-vis-symlink-archive
 	url = https://github.com/hubmapconsortium/create-vis-symlink-archive.git
+[submodule "src/ingest-pipeline/airflow/dags/cwl/mibi-pipeline"]
+	path = src/ingest-pipeline/airflow/dags/cwl/mibi-pipeline
+	url = https://github.com/hubmapconsortium/mibi-pipeline
