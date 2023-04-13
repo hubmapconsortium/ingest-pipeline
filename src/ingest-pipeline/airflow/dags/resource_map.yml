@@ -18,6 +18,7 @@ resource_map:
     - 'task_re': '.*segmentation'
       'queue': 'gpu000_q1'
       'threads': 6
+      'instance_type': 'p2.xlarge'
     - 'task_re': '.*'
       'queue': 'general'
       'threads': 6
@@ -61,6 +62,7 @@ resource_map:
     - 'task_re': '.*cwl_cytokit'
       'queue': 'gpu000_q1'
       'threads': 6
+      'instance_type': 'p2.xlarge'
     - 'task_re': '.*'
       'queue': 'general'
       'threads': 6

@@ -1633,9 +1633,7 @@ def get_instance_type(dag_id: str, task_id: Optional[str] = None) -> str:
     """
     Look up for the AWS instance type the dag_id needs to be run with.
     """
-    if task_id is None:
-        task_id = '__default__'
-    rec = _lookup_resource_record(dag_id)
+    rec = _lookup_resource_record(dag_id, task_id)
     assert 'instance_type' in rec, 'schema should guarantee "instance_type" is present?'
     return rec.get('instance_type')
 
