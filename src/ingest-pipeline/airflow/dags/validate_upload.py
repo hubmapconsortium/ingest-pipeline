@@ -62,7 +62,7 @@ with HMDAG('validate_upload',
 
     def start_new_environment(**kwargs):
         uuid = kwargs['dag_run'].conf['submission_id']
-        instance_id = create_instance(uuid, 'Airflow Worker', get_instance_type(kwargs.get('dag_id')))
+        instance_id = create_instance(uuid, 'Airflow Worker', get_instance_type(kwargs['dag_run'].conf['dag_id']))
         if instance_id is None:
             return 1
         else:
