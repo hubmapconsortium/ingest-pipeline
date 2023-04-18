@@ -15,6 +15,7 @@ from utils import (
     get_queue_resource,
     get_preserve_scratch_resource,
     get_instance_type,
+    get_environment_instance
 )
 
 from aws_utils import (
@@ -56,7 +57,8 @@ with HMDAG('launch_multi_analysis',
 
     def start_new_environment(**kwargs):
         uuid = kwargs['dag_run'].conf['submission_id']
-        instance_id = create_instance(uuid, 'Airflow Worker', get_instance_type(kwargs.get('dag_id')))
+        instance_id = create_instance(uuid, f'Airflow {get_environment_instance()} Worker',
+                                      get_instance_type(kwargs.get('dag_id')))
         if instance_id is None:
             return 1
         else:

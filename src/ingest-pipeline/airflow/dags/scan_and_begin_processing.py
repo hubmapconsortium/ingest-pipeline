@@ -28,6 +28,7 @@ from utils import (
     pythonop_get_dataset_state,
     get_instance_type,
     get_threads_resource,
+    get_environment_instance
     )
 
 from aws_utils import (
@@ -80,7 +81,8 @@ with HMDAG('scan_and_begin_processing',
 
     def start_new_environment(**kwargs):
         uuid = kwargs['dag_run'].conf['submission_id']
-        instance_id = create_instance(uuid, 'Airflow Worker', get_instance_type(kwargs['dag_run'].conf['dag_id']))
+        instance_id = create_instance(uuid, f'Airflow {get_environment_instance()} Worker',
+                                      get_instance_type(kwargs['dag_run'].conf['dag_id']))
         if instance_id is None:
             return 1
         else:
