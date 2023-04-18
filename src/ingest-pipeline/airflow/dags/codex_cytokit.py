@@ -30,6 +30,7 @@ from utils import (
     get_queue_resource,
     get_preserve_scratch_resource,
     get_instance_type,
+    get_environment_instance
 )
 
 from aws_utils import (
@@ -63,7 +64,8 @@ with HMDAG('codex_cytokit',
 
     def start_new_environment(**kwargs):
         uuid = kwargs['run_id']
-        instance_id = create_instance(uuid, 'Airflow Worker', get_instance_type(kwargs['dag_run'].conf['dag_id']))
+        instance_id = create_instance(uuid, f'Airflow {get_environment_instance()} Worker',
+                                      get_instance_type(kwargs['dag_run'].conf['dag_id']))
         if instance_id is None:
             return 1
         else:
@@ -147,8 +149,9 @@ with HMDAG('codex_cytokit',
 
     def start_new_gpu_environment(**kwargs):
         uuid = get_dataset_uuid(**kwargs)
-        instance_id = create_instance(uuid, 'GPU Worker', get_instance_type(kwargs['dag_run'].conf['dag_id'],
-                                                                            kwargs['dag_run'].conf['task_id']))
+        instance_id = create_instance(uuid, f'GPU {get_environment_instance()} Worker',
+                                      get_instance_type(kwargs['dag_run'].conf['dag_id'],
+                                                        kwargs['dag_run'].conf['task_id']))
         if instance_id is None:
             return 1
         else:

@@ -23,6 +23,7 @@ from utils import (
     get_preserve_scratch_resource,
     get_threads_resource,
     get_instance_type,
+    get_environment_instance
     )
 
 from aws_utils import (
@@ -62,7 +63,8 @@ with HMDAG('validate_upload',
 
     def start_new_environment(**kwargs):
         uuid = kwargs['dag_run'].conf['submission_id']
-        instance_id = create_instance(uuid, 'Airflow Worker', get_instance_type(kwargs['dag_run'].conf['dag_id']))
+        instance_id = create_instance(uuid, f'Airflow {get_environment_instance()} Worker',
+                                      get_instance_type(kwargs['dag_run'].conf['dag_id']))
         if instance_id is None:
             return 1
         else:

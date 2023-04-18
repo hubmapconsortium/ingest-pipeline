@@ -606,6 +606,12 @@ def pythonop_trigger_target(**kwargs) -> None:
     pprint(kwargs)
 
 
+def get_environment_instance() -> str:
+    environment = os.getenv('HUBMAP_INSTANCE')
+    print(f'The environment {environment}')
+    return environment.upper()
+
+
 def pythonop_maybe_keep(**kwargs) -> str:
     """
     accepts the following via the caller's op_kwargs:
