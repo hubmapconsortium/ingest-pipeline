@@ -8,6 +8,6 @@ HM_AF_ENV_NAME="condaEnv_rhel_9_python_${HUBMAP_PYTHON_VERSION}_prod"
 PARENTDIR="$(dirname "$(readlink -f "$0")")"
 . "${PARENTDIR}/airflow_environments/env_prod.sh"
 
-HM_AF_CONFIG=/opt/repositories/vm002-test/ingest-pipeline/src/ingest-pipeline/airflow/airflow.cfg
-HM_AF_HOME=/opt/repositories/vm002-test/ingest-pipeline/src/ingest-pipeline/airflow
-HM_AF_CONN_INGEST_API_CONNECTION=http://vm002.hive.psc.edu:7777/
+HM_AF_CONFIG=/opt/repositories/vm004-prod/ingest-pipeline/src/ingest-pipeline/airflow/airflow.cfg
+HM_AF_HOME=/opt/repositories/vm004-prod/ingest-pipeline/src/ingest-pipeline/airflow
+HM_AF_CONN_INGEST_API_CONNECTION=http://vm004.hive.psc.edu:7777/
