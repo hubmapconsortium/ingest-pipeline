@@ -34,9 +34,6 @@
 [submodule "src/ingest-pipeline/airflow/dags/cwl/sprm"]
 	path = src/ingest-pipeline/airflow/dags/cwl/sprm
 	url = https://github.com/hubmapconsortium/sprm
-[submodule "src/ingest-pipeline/airflow/dags/cwl/create-vis-symlink-archive"]
-	path = src/ingest-pipeline/airflow/dags/cwl/create-vis-symlink-archive
-	url = https://github.com/hubmapconsortium/create-vis-symlink-archive
 [submodule "src/ingest-pipeline/submodules/manual-data-ingest"]
 	path = src/ingest-pipeline/submodules/manual-data-ingest
 	url = https://github.com/hubmapconsortium/manual-data-ingest.git
@@ -52,3 +49,15 @@
 [submodule "src/ingest-pipeline/submodules/py-hubmapbags"]
 	path = src/ingest-pipeline/submodules/py-hubmapbags
 	url = https://github.com/hubmapconsortium/py-hubmapbags.git
+[submodule "src/ingest-pipeline/airflow/dags/cwl/pas-ftu-segmentation-pipeline"]
+	path = src/ingest-pipeline/airflow/dags/cwl/pas-ftu-segmentation-pipeline
+	url = https://github.com/hubmapconsortium/pas-ftu-segmentation-pipeline
+[submodule "src/ingest-pipeline/submodules/hubmap-inventory"]
+	path = src/ingest-pipeline/submodules/hubmap-inventory
+	url = https://github.com/hubmapconsortium/hubmap-inventory.git
+[submodule "src/ingest-pipeline/airflow/dags/cwl/create-vis-symlink-archive"]
+	path = src/ingest-pipeline/airflow/dags/cwl/create-vis-symlink-archive
+	url = https://github.com/hubmapconsortium/create-vis-symlink-archive.git
+[submodule "src/ingest-pipeline/airflow/dags/cwl/mibi-pipeline"]
+	path = src/ingest-pipeline/airflow/dags/cwl/mibi-pipeline
+	url = https://github.com/hubmapconsortium/mibi-pipeline
