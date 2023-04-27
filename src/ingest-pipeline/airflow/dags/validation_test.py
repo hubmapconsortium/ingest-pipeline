@@ -69,10 +69,11 @@ with HMDAG('validation_test',
                     'local_directory_full_path']:
             assert key in ds_rslt, f"Dataset status for {uuid} has no {key}"
 
-        if not ds_rslt['entity_type'] in ['Dataset', 'Upload']:
-            raise AirflowException(f'Entity {uuid} is not a Dataset or Upload')
+        if not ds_rslt['entity_type'] in ['Dataset', 'Upload', 'Publication']:
+            raise AirflowException(f'Entity {uuid} is not a Dataset,'
+                                   ' Publication, or Upload')
 
-        if ds_rslt['entity_type'] == 'Dataset':
+        if ds_rslt['entity_type'] in ['Dataset', 'Publication']:
             if not ds_rslt['status'] in ['New', 'Invalid']:
                 raise AirflowException(f'Dataset {uuid} is not New or Invalid')
         else:

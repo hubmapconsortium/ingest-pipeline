@@ -191,11 +191,11 @@ class Dataset(Entity):
         direct_ancestors_list = prop_dct.get('direct_ancestors', [])
         self.parent_uuids = [elt['uuid'] for elt in direct_ancestors_list]
         self.parent_dataset_uuids = [elt['uuid'] for elt in direct_ancestors_list
-                                     if elt['entity_type'] in ['Dataset', 'Publication']
+                                     if elt['entity_type'] in ['Dataset', 'Publication']]
         direct_descendants_list = prop_dct.get('direct_descendants', [])
         self.kid_uuids = [elt['uuid'] for elt in direct_descendants_list]
         self.kid_dataset_uuids = [elt['uuid'] for elt in direct_descendants_list
-                                  if elt['entity_type'] in ['Dataset', 'Publication']
+                                  if elt['entity_type'] in ['Dataset', 'Publication']]
         self.data_types = prop_dct['data_types'] if 'data_types' in prop_dct else []
         assay_type = parse_text_list(self.data_types)
         if isinstance(assay_type, list) and len(assay_type) == 1:
