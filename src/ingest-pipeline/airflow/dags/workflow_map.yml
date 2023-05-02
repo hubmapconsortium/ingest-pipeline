@@ -21,7 +21,7 @@ workflow_map:
     'assay_type': 'cell-dive'
     'workflow': 'celldive_deepcell'
   - 'collection_type': '.*'
-    'assay_type': 'mibi'
+    'assay_type': 'MIBI'
     'workflow': 'mibi_deepcell'
   - 'collection_type': '.*'
     'assay_type': 'MxIF'
