@@ -1,14 +1,12 @@
-import sys
-
 import json
 from pathlib import Path
 from datetime import datetime, timedelta
 from pprint import pprint
-from collections import defaultdict
+from requests import codes
+from requests.exceptions import HTTPError
 
 import frontmatter
 
-from airflow.configuration import conf as airflow_conf
 from airflow.operators.python import PythonOperator, BranchPythonOperator
 from airflow.exceptions import AirflowException
 from airflow.providers.http.hooks.http import HttpHook
@@ -24,7 +22,6 @@ from hubmap_operators.common_operators import (
 
 from utils import (
     localized_assert_json_matches_schema as assert_json_matches_schema,
-    encrypt_tok,
     get_tmp_dir_path,
     get_auth_tok,
     get_dataset_uuid,
@@ -38,9 +35,9 @@ from utils import (
     HMDAG,
     get_queue_resource,
     get_preserve_scratch_resource,
-    get_threads_resource,
     get_uuid_for_error,
     create_dataset_state_error_callback,
+    make_send_status_msg_function,
 )
 
 # Following are defaults which can be overridden later on
@@ -131,9 +128,9 @@ with HMDAG(
             response.raise_for_status()
             ds_rslt = response.json()
             return ds_rslt['description']
-        except HTTPError as e:
-            print(f'ERROR: {e}')
-            if e.response.status_code == codes.unauthorized:
+        except HTTPError as excp:
+            print(f'ERROR: {excp}')
+            if excp.response.status_code == codes.unauthorized:
                 raise RuntimeError('entity database authorization was rejected?')
             else:
                 print('benign error')
@@ -154,7 +151,8 @@ with HMDAG(
 
             for this_vignette_path in vignette_path.glob('*'):
                 #print(f'this_vignette_path {this_vignette_path}')
-                assert this_vignette_path.is_dir(), f'Found the non-dir {this_vignette_path} in vignettes'
+                assert this_vignette_path.is_dir(), (f'Found the non-dir {this_vignette_path}'
+                                                     ' in vignettes')
                 vig_block = {
                     'figures': [],
                     'directory_name': str(this_vignette_path.name)
@@ -198,7 +196,6 @@ with HMDAG(
             print('rslt follows')
             pprint(rslt)
             assert_json_matches_schema(rslt, 'publication_ancillary_schema.yml')
-            run_id = kwargs['run_id']
             tmpdir = get_tmp_dir_path(kwargs['run_id'])
             tmpdir_path = Path(tmpdir)
             (tmpdir_path / 'cwl_out').mkdir(exist_ok=True)
@@ -216,48 +213,18 @@ with HMDAG(
         provide_context=True,
     )
 
-    def send_status_msg(**kwargs):
-        #validation_file_path = Path(kwargs["ti"].xcom_pull(key="validation_file_path"))
-        uuid = kwargs["ti"].xcom_pull(key="uuid")
-        endpoint = f"/entities/{uuid}"
-        headers = {
-            "authorization": "Bearer " + get_auth_tok(**kwargs),
-            "X-Hubmap-Application": "ingest-pipeline",
-            "content-type": "application/json",
-        }
-        extra_options = []
-        http_conn_id = "entity_api_connection"
-        http_hook = HttpHook("PUT", http_conn_id=http_conn_id)
-        # with open(validation_file_path) as f:
-        #     report_txt = f.read()
-        # if report_txt.startswith("No errors!"):
-        #     data = {
-        #         "status": "Valid",
-        #     }
-        # else:
-        #     data = {"status": "Invalid", "validation_message": report_txt}
-        #     context = kwargs["ti"].get_template_context()
-        #     ValidateUploadFailure(context, execute_methods=False).send_failure_email(
-        #         report_txt=report_txt
-        #     )
-        # print("data: ")
-        # pprint(data)
-        # response = http_hook.run(
-        #     endpoint,
-        #     json.dumps(data),
-        #     headers,
-        #     extra_options,
-        # )
-        # print("response: ")
-        # pprint(response.json())
+    send_status_msg = make_send_status_msg_function(
+        dag_file=__file__,
+        retcode_ops=['build_ancillary_data', 'move_data'],
+        cwl_workflows=[],
+    )
 
     t_send_status = PythonOperator(
-        task_id="send_status",
+        task_id='send_status_msg',
         python_callable=send_status_msg,
         provide_context=True,
     )
 
-    # Others
     t_send_create_dataset = PythonOperator(
         task_id='send_create_dataset',
         python_callable=pythonop_send_create_dataset,
@@ -301,13 +268,13 @@ with HMDAG(
 
     # DAG
     (
-        t_log_info >> t_create_tmpdir 
+        t_log_info >> t_create_tmpdir
         >> t_send_create_dataset >> t_set_dataset_processing
-        >> t_find_uuid 
+        >> t_find_uuid
         >> t_build_ancillary_data
         >> t_maybe_keep_ancillary_data
         >> t_move_data
-        >> t_send_status 
+        >> t_send_status
         >> t_join
     )
     t_maybe_keep_ancillary_data >> t_set_dataset_error
