@@ -37,3 +37,8 @@ authlib==0.15.6
 google-api-python-client==2.52.0
 google-auth-httplib2==0.1.0
 google-auth-oauthlib==0.8.0
+python-magic==0.4.27
+numpyencoder==0.3.0
+tqdm==4.36.1
+pandarallel==1.6.4
+python-frontmatter>=1.0.0
