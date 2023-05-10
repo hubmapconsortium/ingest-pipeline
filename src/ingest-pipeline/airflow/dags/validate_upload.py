@@ -151,9 +151,13 @@ with HMDAG(
         if report_txt.startswith("No errors!"):
             data = {
                 "status": "Valid",
+                "validation_message": "",
             }
         else:
-            data = {"status": "Invalid", "validation_message": report_txt}
+            data = {
+                "status": "Invalid",
+                "validation_message": report_txt,
+            }
             context = kwargs["ti"].get_template_context()
             ValidateUploadFailure(context, execute_methods=False).send_failure_email(
                 report_txt=report_txt
