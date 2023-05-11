@@ -62,7 +62,13 @@ resource_map:
     - 'task_re': '.*cwl_cytokit'
       'queue': 'gpu000_q1'
       'threads': 6
+    - 'task_re': '.*gpu'
+      'queue': 'general'
       'instance_type': 'p2.xlarge'
+      'threads': 6
+    - 'task_re': '(.*(?:cwl))(?!(?:_cytokit)).*|.*internal.*|.*cmd.*|maybe_keep_cwl_cytokit'
+      'queue': 'processing'
+      'threads': 6
     - 'task_re': '.*'
       'queue': 'general'
       'threads': 6
