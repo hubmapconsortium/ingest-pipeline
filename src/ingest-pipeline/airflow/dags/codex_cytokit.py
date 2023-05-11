@@ -65,7 +65,7 @@ with HMDAG('codex_cytokit',
     def start_new_environment(**kwargs):
         uuid = kwargs['run_id']
         instance_id = create_instance(uuid, f'Airflow {get_environment_instance()} Worker',
-                                      get_instance_type(kwargs['dag_run'].conf['dag_id']))
+                                      get_instance_type(dag.dag_id))
         if instance_id is None:
             return 1
         else:
@@ -141,7 +141,7 @@ with HMDAG('codex_cytokit',
         python_callable=utils.pythonop_maybe_keep,
         provide_context=True,
         op_kwargs={
-            'next_op': 'prepare_cwl_cytokit',
+            'next_op': 'initialize_environment_gpu',
             'bail_op': 'set_dataset_error',
             'test_op': 'pipeline_exec_cwl_illumination_first_stitching',
         }
@@ -150,8 +150,8 @@ with HMDAG('codex_cytokit',
     def start_new_gpu_environment(**kwargs):
         uuid = get_dataset_uuid(**kwargs)
         instance_id = create_instance(uuid, f'GPU {get_environment_instance()} Worker',
-                                      get_instance_type(kwargs['dag_run'].conf['dag_id'],
-                                                        kwargs['dag_run'].conf['task_id']))
+                                      get_instance_type(dag.dag_id,
+                                                        kwargs['task'].task_id))
         if instance_id is None:
             return 1
         else:
@@ -682,8 +682,8 @@ with HMDAG('codex_cytokit',
         >> prepare_cwl_cytokit
         >> t_build_cwl_cytokit
         >> t_pipeline_exec_cwl_cytokit
-        >> t_maybe_keep_cwl_cytokit
         >> t_terminate_environment_gpu
+        >> t_maybe_keep_cwl_cytokit
 
         >> prepare_cwl_ometiff_second_stitching
         >> t_build_cwl_ometiff_second_stitching
@@ -728,7 +728,7 @@ with HMDAG('codex_cytokit',
     )
     t_pipeline_exec_cwl_ometiff_second_stitching >> t_delete_internal_pipeline_files
     t_maybe_keep_cwl_illumination_first_stitching >> t_set_dataset_error
-    t_maybe_keep_cwl_cytokit >> t_terminate_environment_gpu >> t_set_dataset_error
+    t_maybe_keep_cwl_cytokit >> t_set_dataset_error
     t_maybe_keep_cwl_ometiff_second_stitching >> t_set_dataset_error
     t_maybe_keep_cwl_sprm >> t_set_dataset_error
     t_maybe_keep_cwl_create_vis_symlink_archive >> t_set_dataset_error
