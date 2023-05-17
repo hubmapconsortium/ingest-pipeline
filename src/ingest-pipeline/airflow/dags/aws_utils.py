@@ -22,7 +22,11 @@ def _get_latest_ami_id(image_prefix):
 def create_key_pair(key_name: str):
     client = AwsBaseHook(client_type="ec2").get_conn()
 
-    key_pair_id = client.create_key_pair(KeyName=key_name)["KeyName"]
+    try:
+        key_pair_id = client.import_key_pair(KeyName=key_name)["KeyName"]
+    except:
+        print(f'No {key_name} key_pair found, expected behavior')
+        key_pair_id = client.create_key_pair(KeyName=key_name)["KeyName"]
     # Creating the key takes a very short but measurable time, preventing race condition:
     client.get_waiter("key_pair_exists").wait(KeyNames=[key_pair_id])
 
