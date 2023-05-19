@@ -48,3 +48,4 @@ numpyencoder==0.3.0
 tqdm==4.36.1
 pandarallel==1.6.4
 python-frontmatter>=1.0.0
+asana==3.2.1
