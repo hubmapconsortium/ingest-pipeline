@@ -1,6 +1,6 @@
 # import traceback
 
-from status_manager import StatusChanger, StatusChangerExtras, Statuses
+from status_change.status_manager import StatusChanger, StatusChangerExtras, Statuses
 from utils import get_auth_tok
 
 
