@@ -84,8 +84,8 @@ class StatusChanger:
         data = {
             "status": self.status.value,
         }
-        for key, value in self.extras["extra_fields"]:
-            data[key] = value
+        # @note not sure if I want to do some checking here, e.g. to make sure status is not overwritten
+        data.update(self.extras["extra_fields"])
         return data
 
     def set_entity_api_status(self):
