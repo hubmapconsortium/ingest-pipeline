@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from requests import codes
 from requests.exceptions import HTTPError
 

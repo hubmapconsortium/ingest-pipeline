@@ -156,7 +156,7 @@ with HMDAG(
                 "extra_fields": extra_fields,
                 "extra_options": {},
             },
-        )
+        ).on_status_change()
 
     t_send_status = PythonOperator(
         task_id="send_status",

@@ -6,13 +6,12 @@ from pprint import pprint
 from typing import Any, TypedDict
 
 import asana
-from status_utils import get_hubmap_id_from_uuid
+from status_change.status_utils import get_hubmap_id_from_uuid
 
 from airflow.providers.http.hooks.http import HttpHook
 
 """
 TODO:
-    - Refactor validate_upload to work as test case
     - Emails?
     - Determine what extra_fields (e.g. validation_message for invalid status(es)) are required
       required for each status and how to manage them
@@ -56,6 +55,7 @@ Example usage, default path (update status, update Asana):
                 "extra_fields": {},
                 "extra_options": {},
             }
+        ).on_status_change()
 """
 
 
@@ -67,7 +67,7 @@ class StatusChanger:
         status: Statuses,
         extras: StatusChangerExtras,
         # @note: Need to change default in production
-        env: str = "dev",
+        env: str = "test",
     ):
         self.uuid = uuid
         self.token = token
@@ -166,8 +166,6 @@ class AsanaProcessStage(Enum):
 class UpdateAsana:
     def __init__(self, uuid: str, token: str, status: Statuses):
         self.http_conn_id = "https://app.asana.com/api/1.0"
-        # self.workspace = "830534504524868"
-        # self.project = "1204583312696119"
         self.workspace = WORKSPACE_ID
         self.project = PROJECT_ID
         self.client = asana.Client.access_token(API_KEY)
@@ -186,25 +184,6 @@ class UpdateAsana:
         Statuses.UPLOAD_SUBMITTED: AsanaProcessStage.PRE_PROCESSING,
         Statuses.UPLOAD_VALID: AsanaProcessStage.PRE_PROCESSING,
     }
-
-    # asana_status_map = {
-    #     AsanaProcessStage.INTAKE: [Statuses.UPLOAD_NEW],
-    #     AsanaProcessStage.READY_BACKLOG: [],
-    #     AsanaProcessStage.PROCESSING: [Statuses.UPLOAD_REORGANIZED],
-    #     AsanaProcessStage.PRE_PROCESSING: [Statuses.UPLOAD_VALID, Statuses.UPLOAD_SUBMITTED],
-    #     AsanaProcessStage.POST_PROCESSING: [Statuses.DATASET_QA],
-    #     AsanaProcessStage.BLOCKED: [
-    #         Statuses.UPLOAD_ERROR,
-    #         Statuses.UPLOAD_INVALID,
-    #         Statuses.DATASET_ERROR,
-    #         Statuses.DATASET_INVALID,
-    #     ],
-    #     # TODO: All datasets required to be in published or completed for this to happen
-    #     # Needs more thought
-    #     # AsanaProcessStage.PUBLISHING: [Statuses.DATASET_APPROVED],
-    #     # AsanaProcessStage.COMPLETED: [Statuses.DATASET_PUBLISHED],
-    #     AsanaProcessStage.ABANDONED: [Statuses.DATASET_ABANDONED],
-    # }
 
     # could hard-code HuBMAP ID gid, unsure whether that or the magic
     # string ("HuBMAP ID") here is better

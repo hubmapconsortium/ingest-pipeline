@@ -1,7 +1,7 @@
 import traceback
 
-from dags.status_utils import get_hubmap_id_from_uuid
 from export_and_backup.export_and_backup_plugin import ExportAndBackupPlugin, add_path
+from status_change.status_utils import get_hubmap_id_from_uuid
 from utils import get_auth_tok
 
 from airflow.configuration import conf as airflow_conf
