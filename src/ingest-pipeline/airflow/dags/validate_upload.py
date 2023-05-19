@@ -1,39 +1,33 @@
+import logging
 import sys
-
-import json
-from pathlib import Path
 from datetime import datetime, timedelta
+from pathlib import Path
 from pprint import pprint
 
-from airflow.configuration import conf as airflow_conf
-from airflow.operators.python import PythonOperator
-from airflow.exceptions import AirflowException
-from airflow.providers.http.hooks.http import HttpHook
-
 from hubmap_operators.common_operators import (
-    CreateTmpDirOperator,
     CleanupTmpDirOperator,
+    CreateTmpDirOperator,
+)
+from status_change.status_manager import StatusChanger, Statuses
+from status_change.validate_upload_failure_callback import ValidateUploadFailure
+from utils import (
+    HMDAG,
+    get_auth_tok,
+    get_preserve_scratch_resource,
+    get_queue_resource,
+    get_threads_resource,
+    get_tmp_dir_path,
+    pythonop_get_dataset_state,
 )
 
-from error_catching.validate_upload_failure_callback import ValidateUploadFailure
-from utils import (
-    encrypt_tok,
-    get_tmp_dir_path,
-    get_auth_tok,
-    pythonop_get_dataset_state,
-    HMDAG,
-    get_queue_resource,
-    get_preserve_scratch_resource,
-    get_threads_resource,
-)
+from airflow.configuration import conf as airflow_conf
+from airflow.exceptions import AirflowException
+from airflow.operators.python import PythonOperator
 
 sys.path.append(airflow_conf.as_dict()["connections"]["SRC_PATH"].strip("'").strip('"'))
 
-from submodules import (
-    ingest_validation_tools_upload,  # noqa E402
-    ingest_validation_tools_error_report,
-    ingest_validation_tests,
-)
+from submodules import ingest_validation_tools_upload  # noqa E402
+from submodules import ingest_validation_tests, ingest_validation_tools_error_report
 
 sys.path.pop()
 
@@ -136,42 +130,33 @@ with HMDAG(
 
     def send_status_msg(**kwargs):
         validation_file_path = Path(kwargs["ti"].xcom_pull(key="validation_file_path"))
-        uuid = kwargs["ti"].xcom_pull(key="uuid")
-        endpoint = f"/entities/{uuid}"
-        headers = {
-            "authorization": "Bearer " + get_auth_tok(**kwargs),
-            "X-Hubmap-Application": "ingest-pipeline",
-            "content-type": "application/json",
-        }
-        extra_options = []
-        http_conn_id = "entity_api_connection"
-        http_hook = HttpHook("PUT", http_conn_id=http_conn_id)
         with open(validation_file_path) as f:
             report_txt = f.read()
         if report_txt.startswith("No errors!"):
-            data = {
-                "status": "Valid",
+            status = Statuses.UPLOAD_VALID
+            extra_fields = {
                 "validation_message": "",
             }
         else:
-            data = {
-                "status": "Invalid",
+            status = Statuses.UPLOAD_INVALID
+            extra_fields = {
                 "validation_message": report_txt,
             }
-            context = kwargs["ti"].get_template_context()
-            ValidateUploadFailure(context, execute_methods=False).send_failure_email(
-                report_txt=report_txt
-            )
-        print("data: ")
-        pprint(data)
-        response = http_hook.run(
-            endpoint,
-            json.dumps(data),
-            headers,
-            extra_options,
+        logging.info(
+            f"""
+                     status: {status.value}
+                     validation_message: {extra_fields['validation_message']}
+                     """
         )
-        print("response: ")
-        pprint(response.json())
+        StatusChanger(
+            kwargs["ti"].xcom_pull(key="uuid"),
+            get_auth_tok(**kwargs),
+            status,
+            {
+                "extra_fields": extra_fields,
+                "extra_options": {},
+            },
+        )
 
     t_send_status = PythonOperator(
         task_id="send_status",
