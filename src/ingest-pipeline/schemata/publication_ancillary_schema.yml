@@ -1,0 +1,45 @@
+'$schema': 'http://json-schema.org/schema#'
+'$id': 'http://schemata.hubmapconsortium.org/publication_ancillary_schema.yml'
+'title': 'publication ancillary data schema'
+'description': 'publication ancillary data schema'
+
+'allOf': [{'$ref': '#/definitions/publication_ancillary_data'}]
+
+'definitions':
+
+  'figure':
+    'type': 'object'
+    'description': 'a figure within a vignette'
+    'properties':
+      'name':
+        'type': 'string'
+        'description': 'name of the figure'
+      'file':
+        'type': 'string'
+        'description': 'path to JSON file defining the figure for Vitessce'
+  
+  'vignette':
+    'type': 'object'
+    'properties':
+      'name':
+        'type': 'string'
+        'description': 'name of the vignette'
+      'directory_name':
+        'type': 'string'
+        'description': 'relative path to the vignette'
+      'figures':
+        'type': 'array'
+        'items': {'$ref': '#/definitions/figure'}
+    'required': ['name', 'directory_name']
+  
+  'publication_ancillary_data':
+     'type': 'object'
+     'properties':
+       'vignettes':
+         'type': 'array'
+         'items': {'$ref': '#/definitions/vignette'}
+       'description':
+         'type': 'string'
+         'description': 'description of the publication, possibly containing markdwn'
+     'required': ['vignettes', 'description']
+

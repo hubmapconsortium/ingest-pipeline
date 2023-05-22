@@ -836,8 +836,8 @@ def restructure_entity_metadata(raw_metadata: JSONType) -> JSONType:
 
 def pythonop_get_dataset_state(**kwargs) -> JSONType:
     """
-    Gets the status JSON structure for a dataset.  Works for Uploads as well
-    as Datasets.
+    Gets the status JSON structure for a dataset.  Works for Uploads
+    and Publications as well as Datasets.
     
     Accepts the following via the caller's op_kwargs:
     'dataset_uuid_callable' : called with **kwargs; returns the
@@ -853,7 +853,7 @@ def pythonop_get_dataset_state(**kwargs) -> JSONType:
         'content-type': 'application/json',
         'X-Hubmap-Application': 'ingest-pipeline',
         }
-    http_hook = HttpHook(method, http_conn_id='ingest_api_connection')
+    http_hook = HttpHook(method, http_conn_id='entity_api_connection')
 
     endpoint = f'entities/{uuid}'
 
@@ -875,7 +875,7 @@ def pythonop_get_dataset_state(**kwargs) -> JSONType:
 
     for key in ['status', 'uuid', 'entity_type']:
         assert key in ds_rslt, f"Dataset status for {uuid} has no {key}"
-    if ds_rslt['entity_type'] == 'Dataset':
+    if ds_rslt['entity_type'] in ['Dataset', 'Publication']:
         assert 'data_types' in ds_rslt, f"Dataset status for {uuid} has no data_types"
         data_types = ds_rslt['data_types']
         parent_dataset_uuid_list = [ancestor['uuid']
@@ -891,6 +891,7 @@ def pythonop_get_dataset_state(**kwargs) -> JSONType:
     else:
         raise RuntimeError(f"Unknown entity_type {ds_rslt['entity_type']}")
     try:
+        http_hook = HttpHook(method, http_conn_id='ingest_api_connection')
         response = http_hook.run(endpoint,
                                  headers=headers,
                                  extra_options={'check_response': False})
