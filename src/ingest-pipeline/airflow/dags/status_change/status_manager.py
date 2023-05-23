@@ -66,19 +66,11 @@ class StatusChanger:
         token: str,
         status: Statuses,
         extras: StatusChangerExtras,
-        # @note: Need to change default in production
-        env: str = "test",
     ):
         self.uuid = uuid
         self.token = token
         self.status = status
         self.extras = extras
-        if env == "prod":
-            self.http_conn_id = "entity_api_connection"
-        elif env in ["dev", "test"]:
-            self.http_conn_id = f"https://entity-api.{env}.hubmapconsortium.org"
-        else:
-            raise Exception(f"Unknown environment {env} passed to StatusChanger.")
 
     def format_status_data(self):
         data = {
@@ -95,7 +87,7 @@ class StatusChanger:
             "X-Hubmap-Application": "ingest-pipeline",
             "content-type": "application/json",
         }
-        http_hook = HttpHook("PUT", http_conn_id=self.http_conn_id)
+        http_hook = HttpHook("PUT", http_conn_id="entity_api_connection")
         data = self.format_status_data()
         logging.info(
             f"""
@@ -108,7 +100,7 @@ class StatusChanger:
             response = http_hook.run(
                 endpoint, json.dumps(data), headers, self.extras["extra_options"]
             )
-            response.check_response()
+            response.raise_for_response()
             logging.info(
                 f"""
                     Status set to {response.json()['status']}.
@@ -165,7 +157,6 @@ class AsanaProcessStage(Enum):
 
 class UpdateAsana:
     def __init__(self, uuid: str, token: str, status: Statuses):
-        self.http_conn_id = "https://app.asana.com/api/1.0"
         self.workspace = WORKSPACE_ID
         self.project = PROJECT_ID
         self.client = asana.Client.access_token(API_KEY)
@@ -197,17 +188,21 @@ class UpdateAsana:
                 name = custom_field["custom_field"]["name"]
             except Exception:
                 continue
-            if name == "hubmap id":
+            if name == "HuBMAP ID":
                 return custom_field["custom_field"]["gid"]
         return ""
 
     @cached_property
     def get_task_by_hubmap_id(self) -> str:
+        if not (hubmap_id_field := self.get_hubmap_id_field):
+            raise Exception(
+                f"Asana HuBMAP ID field not found! Status update for {self.hubmap_id} failed."
+            )
         response = self.client.tasks.search_tasks_for_workspace(
             self.workspace,
             {
                 "projects_any": self.project,
-                f"custom_fields.{self.get_hubmap_id_field}.value": self.hubmap_id,
+                f"custom_fields.{hubmap_id_field}.value": self.hubmap_id,
             },
         )
         try:
@@ -217,7 +212,7 @@ class UpdateAsana:
             logging.info(
                 f"Error occurred while retrieving milestone for {self.hubmap_id}. Error: {e}"
             )
-            return ""
+            raise Exception
         if response_length != 1:
             logging.info(
                 f"""
@@ -238,7 +233,7 @@ class UpdateAsana:
         process_stage_gid = [
             custom_field["custom_field"]["gid"]
             for custom_field in response
-            if custom_field["custom_field"]["name"] == "process stage"
+            if custom_field["custom_field"]["name"] == "Process Stage"
         ]
         if len(process_stage_gid) != 1:
             logging.info(
