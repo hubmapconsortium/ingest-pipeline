@@ -66,19 +66,11 @@ class StatusChanger:
         token: str,
         status: Statuses,
         extras: StatusChangerExtras,
-        # @note: Need to change default in production
-        env: str = "test",
     ):
         self.uuid = uuid
         self.token = token
         self.status = status
         self.extras = extras
-        if env == "prod":
-            self.http_conn_id = "entity_api_connection"
-        elif env in ["dev", "test"]:
-            self.http_conn_id = f"https://entity-api.{env}.hubmapconsortium.org"
-        else:
-            raise Exception(f"Unknown environment {env} passed to StatusChanger.")
 
     def format_status_data(self):
         data = {
@@ -95,7 +87,7 @@ class StatusChanger:
             "X-Hubmap-Application": "ingest-pipeline",
             "content-type": "application/json",
         }
-        http_hook = HttpHook("PUT", http_conn_id=self.http_conn_id)
+        http_hook = HttpHook("PUT", http_conn_id="entity_api_connection")
         data = self.format_status_data()
         logging.info(
             f"""
@@ -165,7 +157,6 @@ class AsanaProcessStage(Enum):
 
 class UpdateAsana:
     def __init__(self, uuid: str, token: str, status: Statuses):
-        self.http_conn_id = "https://app.asana.com/api/1.0"
         self.workspace = WORKSPACE_ID
         self.project = PROJECT_ID
         self.client = asana.Client.access_token(API_KEY)
