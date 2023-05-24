@@ -186,7 +186,7 @@ def populate(row, source_entity, entity_factory, dryrun=False):
         row['antibodies_path'] = str(new_antibodies_path)
     else:
         old_antibodies_path = None
-    row['assay_type'] = row['canonical_assay_type']
+    # row['assay_type'] = row['canonical_assay_type']
     row_df = pd.DataFrame([row])
     row_df = row_df.drop(columns=['canonical_assay_type', 'new_uuid'])
     if dryrun:
