@@ -13,14 +13,7 @@ from utils import (
     localized_assert_json_matches_schema as assert_json_matches_schema,
     HMDAG,
     get_queue_resource,
-    get_preserve_scratch_resource,
-    get_instance_type,
-    get_environment_instance
-)
-
-from aws_utils import (
-    create_instance,
-    terminate_instance
+    get_preserve_scratch_resource
 )
 
 
@@ -54,25 +47,6 @@ with HMDAG('launch_multi_analysis',
                'tmp_dir_path': utils.get_tmp_dir_path,
                'preserve_scratch': get_preserve_scratch_resource('launch_multi_analysis')
            }) as dag:
-
-    def start_new_environment(**kwargs):
-        uuid = kwargs['dag_run'].conf['submission_id']
-        instance_id = create_instance(uuid, f'Airflow {get_environment_instance()} Worker',
-                                      get_instance_type(kwargs.get('dag_id')))
-        if instance_id is None:
-            return 1
-        else:
-            kwargs['ti'].xcom_push(key='instance_id', value=instance_id)
-            return 0
-
-
-    t_initialize_environment = PythonOperator(
-        task_id='initialize_environment',
-        python_callable=start_new_environment,
-        provide_context=True,
-        op_kwargs={
-        }
-    )
 
     def check_one_uuid(uuid, **kwargs):
         """
@@ -208,21 +182,4 @@ with HMDAG('launch_multi_analysis',
             }
         )
 
-    def terminate_new_environment(**kwargs):
-        instance_id = kwargs['ti'].xcom_pull(key='instance_id', task_ids="initialize_environment")
-        if instance_id is None:
-            return 1
-        else:
-            uuid = kwargs['dag_run'].conf['submission_id']
-            terminate_instance(instance_id, uuid)
-        return 0
-
-    t_terminate_environment = PythonOperator(
-        task_id='terminate_environment',
-        python_callable=terminate_new_environment,
-        provide_context=True,
-        op_kwargs={
-        }
-    )
-
-    t_initialize_environment >> check_uuids_t >> t_maybe_spawn >> t_terminate_environment
+    check_uuids_t >> t_maybe_spawn

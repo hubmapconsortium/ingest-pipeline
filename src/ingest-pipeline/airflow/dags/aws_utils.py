@@ -23,10 +23,10 @@ def create_key_pair(key_name: str):
     client = AwsBaseHook(client_type="ec2").get_conn()
 
     try:
-        key_pair_id = client.import_key_pair(KeyName=key_name)["KeyName"]
-    except:
-        print(f'No {key_name} key_pair found, expected behavior')
         key_pair_id = client.create_key_pair(KeyName=key_name)["KeyName"]
+    except:
+        key_pair_id = key_name
+        print(f'Was the {key_name} key before the call?')
     # Creating the key takes a very short but measurable time, preventing race condition:
     client.get_waiter("key_pair_exists").wait(KeyNames=[key_pair_id])
 
