@@ -71,18 +71,25 @@ class StatusChanger:
         token: str,
         status: Statuses,
         extras: StatusChangerExtras,
+        http_conn_id: str = "entity_api_connection",
     ):
         self.uuid = uuid
         self.token = token
         self.status = status
         self.extras = extras
+        self.http_conn_id = http_conn_id
 
     def format_status_data(self):
-        data = {
-            "status": self.status.value,
-        }
-        # @note not sure if I want to do some checking here, e.g. to make sure status is not
-        # overwritten if extra_fields contains a "status" key
+        if not type(self.status) == Statuses:
+            raise StatusChangerException(
+                f"Status {self.status} for uuid {self.uuid} is not part of the Statuses enum. Status not changed."
+            )
+        data = {"status": self.status.value}
+        # Double-check that you're not accidentally overwriting status
+        if (extra_status := self.extras.get("status")) is not None:
+            assert (
+                extra_status == self.status
+            ), f"Entity uuid {self.uuid} passed two different statuses: {self.status} and {extra_status} as part of extras."
         data.update(self.extras["extra_fields"])
         return data
 
@@ -93,7 +100,7 @@ class StatusChanger:
             "X-Hubmap-Application": "ingest-pipeline",
             "content-type": "application/json",
         }
-        http_hook = HttpHook("PUT", http_conn_id="entity_api_connection")
+        http_hook = HttpHook("PUT", http_conn_id=self.http_conn_id)
         data = self.format_status_data()
         logging.info(
             f"""
@@ -102,11 +109,9 @@ class StatusChanger:
             """
         )
         try:
-            logging.info(f"Setting status to {self.status.value}...")
-            response = http_hook.run(
-                endpoint, json.dumps(data), headers, self.extras["extra_options"]
-            )
-            response.raise_for_response()
+            logging.info(f"Setting status to {data['status']}...")
+            extra_options = self.extras["extra_options"].update({"check_response": True})
+            response = http_hook.run(endpoint, json.dumps(data), headers, extra_options)
             logging.info(
                 f"""
                     Status set to {response.json()['status']}.
@@ -161,6 +166,7 @@ class AsanaProcessStage(Enum):
 
 class UpdateAsana:
     def __init__(self, uuid: str, token: str, status: Statuses):
+        # set at least API_KEY as a secret
         self.workspace = WORKSPACE_ID
         self.project = PROJECT_ID
         self.client = asana.Client.access_token(API_KEY)
@@ -198,22 +204,24 @@ class UpdateAsana:
         status = ""
         task = self.client.tasks.get_task(self.hubmap_id_field)
         for field in task["custom_fields"]:
+            # Using Status/In progress as a stand-in for the entity type field
             if field["name"] == "Status":
                 status = field["enum_value"]
-        if status == "Dataset":
+        # if status == "Dataset":
+        if status == "In progress":
             for field in task["custom_fields"]:
                 if field["name"] == "HuBMAP ID":
                     sibling_datasets = field["text_value"].split(" ")
                     return sibling_datasets
-        if not sibling_datasets:
+        else:
             try:
                 parent_upload_uuid = get_submission_context(
                     self.token, self.submission_data["upload"]["uuid"]
                 ).get("uuid")
-                sibling_dataset_info = get_submission_context(self.token, parent_upload_uuid)
-                sibling_datasets = []
-                for dataset in sibling_dataset_info:
-                    sibling_datasets.append(dataset.get("hubmap_id"))
+                if parent_upload_uuid:
+                    sibling_dataset_info = get_submission_context(self.token, parent_upload_uuid)
+                    for dataset in sibling_dataset_info:
+                        sibling_datasets.append(dataset.get("hubmap_id"))
                 return sibling_datasets
             except Exception as e:
                 raise StatusChangerException(
@@ -327,9 +335,10 @@ class UpdateAsana:
                         + f"{self.hubmap_id} set to {self.status.value} on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
                     },
                 )
-                response.raise_for_response()
                 logging.info(
-                    f"Notes for task {self.get_task_by_hubmap_id} updated. Process Stage for task not updated because all datasets are not yet in appropriate statuses."
+                    f"""Notes for task {self.get_task_by_hubmap_id} updated. Process Stage for task not updated because all datasets are not yet in appropriate statuses.
+                    Response: {response}
+                    """
                 )
                 return
             except Exception as e:
