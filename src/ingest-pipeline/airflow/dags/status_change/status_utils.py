@@ -8,6 +8,9 @@ from airflow.hooks.http_hook import HttpHook
 
 # This is simplified from pythonop_get_dataset_state in utils
 def get_submission_context(token: str, uuid: str) -> dict:
+    """
+    uuid can also be a HuBMAP ID.
+    """
     method = "GET"
     headers = {
         "authorization": f"Bearer {token}",
