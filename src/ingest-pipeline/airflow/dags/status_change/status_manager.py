@@ -103,10 +103,8 @@ class StatusChanger:
         )
         try:
             logging.info(f"Setting status to {self.status.value}...")
-            response = http_hook.run(
-                endpoint, json.dumps(data), headers, self.extras["extra_options"]
-            )
-            response.raise_for_response()
+            extra_options = self.extras["extra_options"].update({"check_response": True})
+            response = http_hook.run(endpoint, json.dumps(data), headers, extra_options)
             logging.info(
                 f"""
                     Status set to {response.json()['status']}.
@@ -327,9 +325,10 @@ class UpdateAsana:
                         + f"{self.hubmap_id} set to {self.status.value} on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
                     },
                 )
-                response.raise_for_response()
                 logging.info(
-                    f"Notes for task {self.get_task_by_hubmap_id} updated. Process Stage for task not updated because all datasets are not yet in appropriate statuses."
+                    f"""Notes for task {self.get_task_by_hubmap_id} updated. Process Stage for task not updated because all datasets are not yet in appropriate statuses.
+                    Response: {response}
+                    """
                 )
                 return
             except Exception as e:
