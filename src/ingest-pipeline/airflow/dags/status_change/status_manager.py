@@ -1,6 +1,5 @@
 import json
 import logging
-from datetime import datetime
 from enum import Enum
 from functools import cached_property
 from pprint import pprint
@@ -14,9 +13,7 @@ from airflow.providers.http.hooks.http import HttpHook
 """
 TODO:
     - Emails?
-    - Determine what extra_fields (e.g. validation_message for invalid status(es)) are required
-      required for each status and how to manage them
-    - Write tests
+    - Determine what extra_fields (e.g. validation_message for invalid status(es)) are required for each status and how to manage them
 """
 
 
@@ -79,7 +76,7 @@ class StatusChanger:
         self.extras = extras
         self.http_conn_id = http_conn_id
 
-    def format_status_data(self):
+    def format_status_data(self) -> dict:
         if not type(self.status) == Statuses:
             raise StatusChangerException(
                 f"Status {self.status} for uuid {self.uuid} is not part of the Statuses enum. Status not changed."
@@ -93,7 +90,7 @@ class StatusChanger:
         data.update(self.extras["extra_fields"])
         return data
 
-    def set_entity_api_status(self):
+    def set_entity_api_status(self) -> None:
         endpoint = f"/entities/{self.uuid}"
         headers = {
             "authorization": "Bearer " + self.token,
@@ -124,7 +121,7 @@ class StatusChanger:
                 f"Encountered error with request to change status for {self.uuid}, status not set. Error: {e}"
             )
 
-    def update_asana(self):
+    def update_asana(self) -> None:
         UpdateAsana(self.uuid, self.token, self.status).update_process_stage()
 
     def send_email(self):
@@ -151,122 +148,122 @@ class StatusChanger:
             self.update_asana()
 
 
-# @note: gids are for test Asana project
-class AsanaProcessStage(Enum):
-    INTAKE = "1204584344373115"
-    PRE_PROCESSING = "1204584344373116"
-    READY_BACKLOG = "1204584347884579"
-    PROCESSING = "1204584347884580"
-    POST_PROCESSING = "1204584347884581"
-    PUBLISHING = "1204584347884582"
-    BLOCKED = "1204584347884583"
-    COMPLETED = "1204584347884584"
-    ABANDONED = ""
-
-
 class UpdateAsana:
     def __init__(self, uuid: str, token: str, status: Statuses):
         # set at least API_KEY as a secret
         self.workspace = WORKSPACE_ID
         self.project = PROJECT_ID
         self.client = asana.Client.access_token(API_KEY)
-        self.hubmap_id_field = self.verify_asana_field("1204584344373110", "HuBMAP ID")
-        self.process_stage_gid = self.verify_asana_field("1204584344373114", "Process Stage")
         self.hubmap_id = get_hubmap_id_from_uuid(token, uuid)
         self.status = status
         self.token = token
         self.submission_data = get_submission_context(token, uuid)
+        self.custom_field_gids()
 
-    asana_status_map = {
-        Statuses.DATASET_ABANDONED: AsanaProcessStage.ABANDONED,
-        Statuses.DATASET_ERROR: AsanaProcessStage.BLOCKED,
-        Statuses.DATASET_INVALID: AsanaProcessStage.BLOCKED,
-        Statuses.DATASET_QA: AsanaProcessStage.POST_PROCESSING,
-        Statuses.UPLOAD_ERROR: AsanaProcessStage.BLOCKED,
-        Statuses.UPLOAD_INVALID: AsanaProcessStage.BLOCKED,
-        Statuses.UPLOAD_NEW: AsanaProcessStage.INTAKE,
-        Statuses.UPLOAD_REORGANIZED: AsanaProcessStage.PROCESSING,
-        Statuses.UPLOAD_SUBMITTED: AsanaProcessStage.PRE_PROCESSING,
-        Statuses.UPLOAD_VALID: AsanaProcessStage.PRE_PROCESSING,
-    }
+        self.asana_status_map = {
+            Statuses.DATASET_ABANDONED: self.process_stage_gids["Blocked 🛑"],
+            Statuses.DATASET_APPROVED: self.process_stage_gids["Publishing"],
+            Statuses.DATASET_ERROR: self.process_stage_gids["Blocked 🛑"],
+            Statuses.DATASET_INVALID: self.process_stage_gids["Blocked 🛑"],
+            Statuses.DATASET_PUBLISHED: self.process_stage_gids["Publishing"],
+            Statuses.DATASET_QA: self.process_stage_gids["Post-Processing"],
+            Statuses.UPLOAD_ERROR: self.process_stage_gids["Blocked 🛑"],
+            Statuses.UPLOAD_INVALID: self.process_stage_gids["Blocked 🛑"],
+            Statuses.UPLOAD_NEW: self.process_stage_gids["Intake"],
+            Statuses.UPLOAD_REORGANIZED: self.process_stage_gids["Processing"],
+            Statuses.UPLOAD_SUBMITTED: self.process_stage_gids["Pre-Processing"],
+            Statuses.UPLOAD_VALID: self.process_stage_gids["Pre-Processing"],
+        }
 
-    @cached_property
-    def get_sibling_datasets(self) -> list:
-        # @note need to check on how derived datasets factor in
-        """
-        Should only be called for entity_type "Dataset".
-        Check first whether the Asana task is labeled "Datasets".
-        If so, retrieve other datasets in the "HuBMAP ID" field.
-        If not, first retrieve parent upload from Entity API and
-        then query its child datasets.
-        """
-        sibling_datasets = []
-        status = ""
-        task = self.client.tasks.get_task(self.hubmap_id_field)
-        for field in task["custom_fields"]:
-            # Using Status/In progress as a stand-in for the entity type field
-            if field["name"] == "Status":
-                status = field["enum_value"]
-        # if status == "Dataset":
-        if status == "In progress":
-            for field in task["custom_fields"]:
-                if field["name"] == "HuBMAP ID":
-                    sibling_datasets = field["text_value"].split(" ")
-                    return sibling_datasets
-        else:
-            try:
-                parent_upload_uuid = get_submission_context(
-                    self.token, self.submission_data["upload"]["uuid"]
-                ).get("uuid")
-                if parent_upload_uuid:
-                    sibling_dataset_info = get_submission_context(self.token, parent_upload_uuid)
-                    for dataset in sibling_dataset_info:
-                        sibling_datasets.append(dataset.get("hubmap_id"))
-                return sibling_datasets
-            except Exception as e:
-                raise StatusChangerException(
-                    f"Retrieving sibling datasets from Entity API for {self.hubmap_id} failed! Error: {e}"
-                )
-        return []
+    # @cached_property
+    # def get_sibling_datasets(self) -> list:
+    #     # @note need to check on how derived datasets factor in
+    #     """
+    #     Should only be called for entity_type "Dataset".
+    #     Check first whether the Asana task is labeled "Datasets".
+    #     If so, retrieve other datasets in the "HuBMAP ID" field.
+    #     If not, first retrieve parent upload from Entity API and
+    #     then query its child datasets.
+    #     """
+    #     sibling_datasets = []
+    #     status = ""
+    #     task = self.client.tasks.get_task(self.hubmap_id_field)
+    #     for field in task["custom_fields"]:
+    #         # Using Status/In progress as a stand-in for the entity type field
+    #         if field["name"] == "Status":
+    #             status = field["enum_value"]
+    #     # if status == "Dataset":
+    #     if status == "In progress":
+    #         for field in task["custom_fields"]:
+    #             if field["name"] == "HuBMAP ID":
+    #                 sibling_datasets = field["text_value"].split(" ")
+    #                 return sibling_datasets
+    #     else:
+    #         try:
+    #             parent_upload_uuid = get_submission_context(
+    #                 self.token, self.submission_data["upload"]["uuid"]
+    #             ).get("uuid")
+    #             if parent_upload_uuid:
+    #                 sibling_dataset_info = get_submission_context(self.token, parent_upload_uuid)
+    #                 for dataset in sibling_dataset_info:
+    #                     sibling_datasets.append(dataset.get("hubmap_id"))
+    #             return sibling_datasets
+    #         except Exception as e:
+    #             raise StatusChangerException(
+    #                 f"Retrieving sibling datasets from Entity API for {self.hubmap_id} failed! Error: {e}"
+    #             )
+    #     return []
+    #
+    # def progress_task(self) -> bool:
+    #     """
+    #     Check dataset statuses first to see if any are in a status that
+    #     would block the Asana task from being updated. If not, check whether
+    #     the status to be changed to is Approved/Published. In that case, make
+    #     sure all sibling datasets are also through QA.
+    #     """
+    #     sibling_datasets = self.get_sibling_datasets
+    #     for dataset in sibling_datasets:
+    #         status = get_submission_context(self.token, dataset).get("status")
+    #         if status in [
+    #             Statuses.DATASET_PROCESSING.value,
+    #             Statuses.DATASET_ERROR.value,
+    #             Statuses.DATASET_INVALID.value,
+    #             Statuses.DATASET_NEW.value,
+    #         ]:
+    #             return False
+    #         elif self.status in [Statuses.DATASET_APPROVED, Statuses.DATASET_PUBLISHED]:
+    #             if status == Statuses.DATASET_QA:
+    #                 return False
 
-    def progress_task(self) -> bool:
-        """
-        Check dataset statuses first to see if any are in a status that
-        would block the Asana task from being updated. If not, check whether
-        the status to be changed to is Approved/Published. In that case, make
-        sure all sibling datasets are also through QA.
-        """
-        sibling_datasets = self.get_sibling_datasets
-        for dataset in sibling_datasets:
-            status = get_submission_context(self.token, dataset).get("status")
-            if status in [
-                Statuses.DATASET_PROCESSING.value,
-                Statuses.DATASET_ERROR.value,
-                Statuses.DATASET_INVALID.value,
-                Statuses.DATASET_NEW.value,
-            ]:
-                return False
-            elif self.status in [Statuses.DATASET_APPROVED, Statuses.DATASET_PUBLISHED]:
-                if status == Statuses.DATASET_QA:
-                    return False
-        return True
-
-    def verify_asana_field(self, field_gid: str, field_name: str) -> str:
-        """
-        For extra safety, make sure the Asana fields match what is hard-coded.
-        """
+    def custom_field_gids(self) -> None:
         response = self.client.custom_field_settings.get_custom_field_settings_for_project(
             self.project
         )
-        fields = [field for field in response]
-        for field in fields:
-            if (field["custom_field"]["gid"] == field_gid) and (
-                field["custom_field"]["name"] == field_name
-            ):
-                return field_gid
-        raise StatusChangerException(
-            f"Field GID {field_gid} does not match field name {field_name} in Asana project {self.project}. Has the project GID or field name changed?"
-        )
+        self.process_stage_gids = {}
+        for custom_field in response:
+            try:
+                name = custom_field["custom_field"]["name"]
+            except Exception:
+                continue
+            if name == "HuBMAP ID":
+                self.hubmap_id_gid = custom_field["custom_field"]["gid"]
+            elif name == "Process Stage":
+                self.process_stage_field_gid = custom_field["custom_field"]["gid"]
+                for stage in custom_field["custom_field"]["enum_options"]:
+                    self.process_stage_gids[stage["name"]] = stage["gid"]
+        if (
+            not self.process_stage_gids
+            or not self.hubmap_id_gid
+            or not self.process_stage_field_gid
+        ):
+            raise Exception(
+                f"""
+                            Unable to retrieve some GIDs from Asana board {self.project}:
+                            Process Stage GIDs: {self.process_stage_gids}
+                            Process Stage field GID: {self.process_stage_field_gid}
+                            HuBMAP ID field GID: {self.hubmap_id_gid}
+                            """
+            )
 
     @cached_property
     def get_task_by_hubmap_id(self) -> str:
@@ -278,7 +275,7 @@ class UpdateAsana:
             self.workspace,
             {
                 "projects_any": self.project,
-                f"custom_fields.{self.hubmap_id_field}.contains": self.hubmap_id,
+                f"custom_fields.{self.hubmap_id_gid}.contains": self.hubmap_id,
             },
         )
         try:
@@ -306,7 +303,7 @@ class UpdateAsana:
         return task_id
 
     @cached_property
-    def get_asana_status(self):
+    def get_asana_status(self) -> str:
         """
         Maps between enum for Entity API status that was passed in
         and Asana status to be set.
@@ -316,40 +313,34 @@ class UpdateAsana:
                 f"Status {self.status} assigned to {self.hubmap_id} not found in asana_status_map. Status not updated."
             )
         asana_status = self.asana_status_map[self.status]
-        return asana_status.value
+        return asana_status
 
-    def update_process_stage(self):
-        """
-        First, weed out datasets where all sibling datasets (in Asana task
-        or Entity API upload) are not in the right status to progress the task;
-        update Asana notes field before skipping.
-        Then, update Process Stage in Asana.
-        """
-        if (self.submission_data["entity_type"] == "Dataset") and (self.progress_task() is False):
-            try:
-                notes_field = self.client.tasks.get_task(self.get_task_by_hubmap_id).get("notes")
-                response = self.client.tasks.update_task(
-                    self.get_task_by_hubmap_id,
-                    {
-                        "notes": notes_field
-                        + f"{self.hubmap_id} set to {self.status.value} on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
-                    },
-                )
-                logging.info(
-                    f"""Notes for task {self.get_task_by_hubmap_id} updated. Process Stage for task not updated because all datasets are not yet in appropriate statuses.
-                    Response: {response}
-                    """
-                )
-                return
-            except Exception as e:
-                raise StatusChangerException(
-                    f"""Error updating notes for task {self.get_task_by_hubmap_id} occurred while checking sibling dataset statuses for {self.hubmap_id}.
-                                Error: {e}
-                                """
-                )
-        logging.info(
-            f"Dataset {self.hubmap_id} and all sibling datasets are in state {self.status} or are further along in process; updating Process Stage for task {self.get_task_by_hubmap_id} to {self.get_asana_status}."
-        )
+    def update_process_stage(self) -> None:
+        # if (self.submission_data["entity_type"] == "Dataset") and (self.progress_task() is False):
+        #     try:
+        #         notes_field = self.client.tasks.get_task(self.get_task_by_hubmap_id).get("notes")
+        #         response = self.client.tasks.update_task(
+        #             self.get_task_by_hubmap_id,
+        #             {
+        #                 "notes": notes_field
+        #                 + f"{self.hubmap_id} set to {self.status.value} on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+        #             },
+        #         )
+        #         logging.info(
+        #             f"""Notes for task {self.get_task_by_hubmap_id} updated. Process Stage for task not updated because all datasets are not yet in appropriate statuses.
+        #             Response: {response}
+        #             """
+        #         )
+        #         return
+        #     except Exception as e:
+        #         raise StatusChangerException(
+        #             f"""Error updating notes for task {self.get_task_by_hubmap_id} occurred while checking sibling dataset statuses for {self.hubmap_id}.
+        #                         Error: {e}
+        #                         """
+        #         )
+        # logging.info(
+        #     f"Dataset {self.hubmap_id} and all sibling datasets are in state {self.status} or are further along in process; updating Process Stage for task {self.get_task_by_hubmap_id} to {self.get_asana_status}."
+        # )
         try:
             response = self.client.tasks.update_task(
                 self.get_task_by_hubmap_id,
