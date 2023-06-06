@@ -37,8 +37,8 @@ sys.path.pop()
 
 
 def get_dataset_uuid(**kwargs):
-    ctx = kwargs['dag_run'].conf
-    return ctx['submission_id']
+    lz_path, uuid = __get_lzpath_uuid(**kwargs)
+    return uuid
 
 
 def get_dataset_lz_path(**kwargs):
