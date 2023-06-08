@@ -657,6 +657,8 @@ class EntityFactory:
                 entity = Support(prop_dct, self)
             elif entity_type == 'Upload':
                 entity = Upload(prop_dct, self)
+            elif entity_type == 'Publication':
+                entity = Publication(prop_dct, self)
             else:
                 entity = Entity(prop_dct, self)
 

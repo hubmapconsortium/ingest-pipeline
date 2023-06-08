@@ -37,8 +37,8 @@ sys.path.pop()
 
 
 def get_dataset_uuid(**kwargs):
-    ctx = kwargs['dag_run'].conf
-    return ctx['submission_id']
+    lz_path, uuid = __get_lzpath_uuid(**kwargs)
+    return uuid
 
 
 def get_dataset_lz_path(**kwargs):
@@ -78,8 +78,7 @@ with HMDAG('scan_and_begin_processing',
             scanned_md = yaml.safe_load(f)
         return scanned_md
 
-    
-    def run_validation(**kwargs):
+    def __get_lzpath_uuid(**kwargs):
         if ('lz_path' in kwargs['dag_run'].conf
             and 'submission_id' in kwargs['dag_run'].conf):
             # These conditions are set by the hubap_api plugin when this DAG
@@ -98,13 +97,18 @@ with HMDAG('scan_and_begin_processing',
                 **kwargs
             )
             if not ds_rslt:
-                raise AirflowException(f'Invalid uuid/doi for group: {uuid}')
+                raise AirflowException(f'Invalid uuid/doi for group: {uuid_list}')
             if not 'local_directory_full_path' in ds_rslt:
                 raise AirflowException(f'Dataset status for {uuid_list[0]} has no full path')
             lz_path = ds_rslt['local_directory_full_path']
             uuid = uuid_list[0]  # possibly translating a HuBMAP ID
         else:
             raise AirflowException("The dag_run does not contain enough information")
+        return lz_path, uuid
+
+
+    def run_validation(**kwargs):
+        lz_path, uuid = __get_lzpath_uuid(**kwargs)
         plugin_path = [path for path in ingest_validation_tests.__path__][0]
 
         ignore_globs = [uuid, 'extras', '*metadata.tsv',
@@ -244,10 +248,11 @@ with HMDAG('scan_and_begin_processing',
             with open(md_fname, 'r') as f:
                 md = yaml.safe_load(f)
             # payload = {k:kwargs['dag_run'].conf[k] for k in kwargs['dag_run'].conf}
+            lz_path, uuid = __get_lzpath_uuid(**kwargs)
             payload = {'ingest_id': ctx['run_id'],
                        'crypt_auth_tok': ctx['crypt_auth_tok'],
-                       'parent_lz_path': ctx['lz_path'],
-                       'parent_submission_id': ctx['submission_id'],
+                       'parent_lz_path': lz_path,
+                       'parent_submission_id': uuid,
                        'metadata': md,
                        'dag_provenance_list': utils.get_git_provenance_list(__file__)
                        }
