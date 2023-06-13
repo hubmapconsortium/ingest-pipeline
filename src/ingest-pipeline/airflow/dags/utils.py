@@ -1402,7 +1402,7 @@ def make_send_status_msg_function(
                 status = 'QA'
             else:
                 status = ds_rslt.get('status', 'QA')
-                if status in ['Processing', 'New']:
+                if status in ['Processing', 'New', 'Error']:
                     status = 'QA'
                 if metadata_fun:
                     if not contacts:
