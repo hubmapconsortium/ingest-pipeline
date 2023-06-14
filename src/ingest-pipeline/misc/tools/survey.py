@@ -176,8 +176,9 @@ class Entity:
 class Dataset(Entity):
     def __init__(self, prop_dct, entity_factory):
         super().__init__(prop_dct, entity_factory)
-        assert prop_dct['entity_type'] in ['Dataset', 'Support'], (f"uuid {prop_dct['uuid']} is a"
-                                                                   f"{prop_dct['entity_type']}")
+        if prop_dct['entity_type'] not in ['Dataset', 'Support', 'Publication']:
+            raise AssertionError(f"uuid {prop_dct['uuid']} is a"
+                                 f"{prop_dct['entity_type']}")
         self.status = prop_dct['status']
         if 'metadata' in prop_dct and prop_dct['metadata']:
             if 'dag_provenance_list' in prop_dct['metadata']:
@@ -190,11 +191,11 @@ class Dataset(Entity):
         direct_ancestors_list = prop_dct.get('direct_ancestors', [])
         self.parent_uuids = [elt['uuid'] for elt in direct_ancestors_list]
         self.parent_dataset_uuids = [elt['uuid'] for elt in direct_ancestors_list
-                                     if elt['entity_type'] == 'Dataset']
+                                     if elt['entity_type'] in ['Dataset', 'Publication']]
         direct_descendants_list = prop_dct.get('direct_descendants', [])
         self.kid_uuids = [elt['uuid'] for elt in direct_descendants_list]
         self.kid_dataset_uuids = [elt['uuid'] for elt in direct_descendants_list
-                                  if elt['entity_type'] == 'Dataset']
+                                  if elt['entity_type'] in ['Dataset', 'Publication']]
         self.data_types = prop_dct['data_types'] if 'data_types' in prop_dct else []
         assay_type = parse_text_list(self.data_types)
         if isinstance(assay_type, list) and len(assay_type) == 1:
@@ -379,6 +380,24 @@ class Dataset(Entity):
         Returns a list of unique dataset or support UUIDs associated with this entity
         """
         return super().all_dataset_uuids() + self.kid_dataset_uuids + self.parent_dataset_uuids
+
+
+class Publication(Dataset):
+    def __init__(self, prop_dct, entity_factory):
+        super().__init__(prop_dct, entity_factory)
+        assert prop_dct['entity_type'] == 'Publication', (f"uuid {prop_dct['uuid']} is"
+                                                      f" a {prop_dct['entity_type']}")
+
+    def describe(self, prefix='', file=sys.stdout):
+        print(f"{prefix}Publication {self.uuid}: "
+              f"{self.hubmap_id} "
+              f"{self.data_types} "
+              f"{self.status} "
+              f"{self.notes if self.notes else ''}",
+              file=file)
+        if self.kid_dataset_uuids:
+            for kid in self.kid_dataset_uuids:
+                self.kids[kid].describe(prefix=prefix+'    ', file=file)
 
 
 class Upload(Entity):

@@ -6,23 +6,23 @@ from pprint import pprint
 from typing import Any, TypedDict
 
 import asana
-from status_change.status_utils import get_hubmap_id_from_uuid
+from status_change.status_utils import get_hubmap_id_from_uuid, get_submission_context
 
 from airflow.providers.http.hooks.http import HttpHook
 
 """
 TODO:
+    - Add dag to run nightly to check statuses
     - Emails?
-    - Determine what extra_fields (e.g. validation_message for invalid status(es)) are required
-      required for each status and how to manage them
-    - Write tests
+    - Determine what extra_fields (e.g. validation_message for invalid status(es)) are required for each status and how to manage them
 """
 
 
 class Statuses(Enum):
-    DATASET_ABANDONED = "Abandoned"
-    DATASET_APPROVED = "Approved"
+    # Dataset Hold and Deprecated are not currently in use but are valid for Entity API
+    DATASET_DEPRECATED = "Deprecated"
     DATASET_ERROR = "Error"
+    DATASET_HOLD = "Hold"
     DATASET_INVALID = "Invalid"
     DATASET_NEW = "New"
     DATASET_PROCESSING = "Processing"
@@ -42,19 +42,24 @@ class StatusChangerExtras(TypedDict):
     extra_options: dict[str, Any]
 
 
+class StatusChangerException(Exception):
+    pass
+
+
 """
 Example usage, default path (update status, update Asana):
 
-    from status_manager import StatusChanger, StatusChangerExtras, Statuses
+    from status_manager import StatusChanger, Statuses
 
     StatusChanger(
             "uuid_string",
             "token_string",
             Statuses.STATUS_ENUM,
-            status_changer_extras: StatusChangerExtras = {
+            {
                 "extra_fields": {},
                 "extra_options": {},
-            }
+            },
+            #optional http_conn_id="entity_api_connection"
         ).on_status_change()
 """
 
@@ -66,29 +71,31 @@ class StatusChanger:
         token: str,
         status: Statuses,
         extras: StatusChangerExtras,
-        # @note: Need to change default in production
-        env: str = "test",
+        http_conn_id: str = "entity_api_connection",
+        verbose: bool = True,
     ):
         self.uuid = uuid
         self.token = token
         self.status = status
         self.extras = extras
-        if env == "prod":
-            self.http_conn_id = "entity_api_connection"
-        elif env in ["dev", "test"]:
-            self.http_conn_id = f"https://entity-api.{env}.hubmapconsortium.org"
-        else:
-            raise Exception(f"Unknown environment {env} passed to StatusChanger.")
+        self.http_conn_id = http_conn_id
+        self.verbose = verbose
 
-    def format_status_data(self):
-        data = {
-            "status": self.status.value,
-        }
-        # @note not sure if I want to do some checking here, e.g. to make sure status is not overwritten
+    def format_status_data(self) -> dict:
+        if not type(self.status) == Statuses:
+            raise StatusChangerException(
+                f"Status {self.status} for uuid {self.uuid} is not part of the Statuses enum. Status not changed."
+            )
+        data = {"status": self.status.value}
+        # Double-check that you're not accidentally overwriting status
+        if (extra_status := self.extras.get("status")) is not None:
+            assert (
+                extra_status == self.status
+            ), f"Entity uuid {self.uuid} passed two different statuses: {self.status} and {extra_status} as part of extras."
         data.update(self.extras["extra_fields"])
         return data
 
-    def set_entity_api_status(self):
+    def set_entity_api_status(self) -> None:
         endpoint = f"/entities/{self.uuid}"
         headers = {
             "authorization": "Bearer " + self.token,
@@ -104,23 +111,24 @@ class StatusChanger:
             """
         )
         try:
-            logging.info(f"Setting status to {self.status.value}...")
-            response = http_hook.run(
-                endpoint, json.dumps(data), headers, self.extras["extra_options"]
-            )
-            response.check_response()
-            logging.info(
-                f"""
-                    Status set to {response.json()['status']}.
-                    Response:
-                    {response}
-                """
-            )
+            if self.verbose:
+                logging.info(f"Setting status to {data['status']}...")
+            extra_options = self.extras["extra_options"].update({"check_response": True})
+            response = http_hook.run(endpoint, json.dumps(data), headers, extra_options)
+            if self.verbose:
+                logging.info(
+                    f"""
+                        Status set to {response.json()['status']}.
+                        Response:
+                        {response}
+                    """
+                )
         except Exception as e:
-            logging.info(f"Encountered error, status not set. Error: {e}")
-            raise
+            raise StatusChangerException(
+                f"Encountered error with request to change status for {self.uuid}, status not set. Error: {e}"
+            )
 
-    def update_asana(self):
+    def update_asana(self) -> None:
         UpdateAsana(self.uuid, self.token, self.status).update_process_stage()
 
     def send_email(self):
@@ -147,121 +155,159 @@ class StatusChanger:
             self.update_asana()
 
 
-# maybe fragile, could retrieve programmatically
-# but would still need a map for names (i.e. "Ready Backlog" to READY_BACKLOG)
-# which is fragile in a different way
-# @note: gids are for test Asana project
-class AsanaProcessStage(Enum):
-    INTAKE = "1204584344373115"
-    PRE_PROCESSING = "1204584344373116"
-    READY_BACKLOG = "1204584347884579"
-    PROCESSING = "1204584347884580"
-    POST_PROCESSING = "1204584347884581"
-    PUBLISHING = "1204584347884582"
-    BLOCKED = "1204584347884583"
-    COMPLETED = "1204584347884584"
-    ABANDONED = ""
-
-
 class UpdateAsana:
     def __init__(self, uuid: str, token: str, status: Statuses):
-        self.http_conn_id = "https://app.asana.com/api/1.0"
+        # set at least API_KEY as a secret
         self.workspace = WORKSPACE_ID
         self.project = PROJECT_ID
         self.client = asana.Client.access_token(API_KEY)
         self.hubmap_id = get_hubmap_id_from_uuid(token, uuid)
         self.status = status
+        self.token = token
+        self.submission_data = get_submission_context(token, uuid)
+        self.custom_field_gids()
 
-    asana_status_map = {
-        Statuses.DATASET_ABANDONED: AsanaProcessStage.ABANDONED,
-        Statuses.DATASET_ERROR: AsanaProcessStage.BLOCKED,
-        Statuses.DATASET_INVALID: AsanaProcessStage.BLOCKED,
-        Statuses.DATASET_QA: AsanaProcessStage.POST_PROCESSING,
-        Statuses.UPLOAD_ERROR: AsanaProcessStage.BLOCKED,
-        Statuses.UPLOAD_INVALID: AsanaProcessStage.BLOCKED,
-        Statuses.UPLOAD_NEW: AsanaProcessStage.INTAKE,
-        Statuses.UPLOAD_REORGANIZED: AsanaProcessStage.PROCESSING,
-        Statuses.UPLOAD_SUBMITTED: AsanaProcessStage.PRE_PROCESSING,
-        Statuses.UPLOAD_VALID: AsanaProcessStage.PRE_PROCESSING,
-    }
+        # If any Process Stage enum values change in Asana, update them here
+        self.asana_status_map = {
+            Statuses.DATASET_ERROR: self.process_stage_gids["Blocked 🛑"],
+            Statuses.DATASET_INVALID: self.process_stage_gids["Blocked 🛑"],
+            Statuses.DATASET_NEW: self.process_stage_gids["Intake"],
+            Statuses.DATASET_PUBLISHED: self.process_stage_gids["Publishing"],
+            Statuses.DATASET_QA: self.process_stage_gids["Post-Processing"],
+            Statuses.UPLOAD_ERROR: self.process_stage_gids["Blocked 🛑"],
+            Statuses.UPLOAD_INVALID: self.process_stage_gids["Blocked 🛑"],
+            Statuses.UPLOAD_NEW: self.process_stage_gids["Intake"],
+            Statuses.UPLOAD_REORGANIZED: self.process_stage_gids["Processing"],
+            Statuses.UPLOAD_SUBMITTED: self.process_stage_gids["Pre-Processing"],
+            Statuses.UPLOAD_VALID: self.process_stage_gids["Pre-Processing"],
+        }
 
-    # could hard-code HuBMAP ID gid, unsure whether that or the magic
-    # string ("HuBMAP ID") here is better
-    @cached_property
-    def get_hubmap_id_field(self) -> str:
+    def custom_field_gids(self) -> None:
         response = self.client.custom_field_settings.get_custom_field_settings_for_project(
             self.project
         )
+        self.process_stage_gids = {}
         for custom_field in response:
             try:
                 name = custom_field["custom_field"]["name"]
             except Exception:
                 continue
-            if name == "hubmap id":
-                return custom_field["custom_field"]["gid"]
-        return ""
+            # possible to use data dict here instead?
+            if name == "HuBMAP ID":
+                self.hubmap_id_gid = custom_field["custom_field"]["gid"]
+            elif name == "Process Stage":
+                self.process_stage_field_gid = custom_field["custom_field"]["gid"]
+                for stage in custom_field["custom_field"]["enum_options"]:
+                    self.process_stage_gids[stage["name"]] = stage["gid"]
+            # check naming of these fields in Asana
+            elif name == "Parent":
+                self.parent_field_gid = custom_field["custom_field"]["gid"]
+            elif name == "Entity Type":
+                self.entity_type_field_gid = custom_field["custom_field"]["gid"]
+        if (
+            not self.process_stage_gids
+            or not self.hubmap_id_gid
+            or not self.process_stage_field_gid
+        ):
+            raise Exception(
+                f"""
+                            Unable to retrieve some GIDs from Asana board {self.project}:
+                            Process Stage GIDs: {self.process_stage_gids}
+                            Process Stage field GID: {self.process_stage_field_gid}
+                            HuBMAP ID field GID: {self.hubmap_id_gid}
+                """
+            )
 
     @cached_property
     def get_task_by_hubmap_id(self) -> str:
+        """
+        Given a HuBMAP ID, find the associated Asana task.
+        Fails if a HuBMAP ID is associated with 0 or >1 tasks.
+        """
+        # TODO: this might need to change for grouped dataset tasks--HuBMAP ID would be present in two cards
         response = self.client.tasks.search_tasks_for_workspace(
             self.workspace,
             {
                 "projects_any": self.project,
-                f"custom_fields.{self.get_hubmap_id_field}.value": self.hubmap_id,
+                f"custom_fields.{self.hubmap_id_gid}.contains": self.hubmap_id,
             },
         )
         try:
             response_list = [item for item in response]
             response_length = len(list(response_list))
         except Exception as e:
-            logging.info(
-                f"Error occurred while retrieving milestone for {self.hubmap_id}. Error: {e}"
+            raise StatusChangerException(
+                f"Error occurred while retrieving Asana task for {self.hubmap_id}. Error: {e}"
             )
-            return ""
-        if response_length != 1:
-            logging.info(
+        if response_length > 1:
+            task_gids = [task["gid"] for task in response_list]
+            raise StatusChangerException(
                 f"""
-                Error retrieving task by HuBMAP ID for {self.hubmap_id}! Retrieved {response_length} results.
-                Check that a milestone for the expected HuBMAP ID exists in Asana and that it is formatted '{self.hubmap_id}' with no surrounding whitespace.
+                Error retrieving task by HuBMAP ID for {self.hubmap_id}! ID is associated with multiple Asana tasks: {task_gids}.
                 """
             )
-            return ""
+        elif response_length == 0:
+            raise StatusChangerException(
+                f"""
+                Error retrieving task by HuBMAP ID for {self.hubmap_id}! No results found.
+                Check that a task for the expected HuBMAP ID exists in Asana and that it is formatted '{self.hubmap_id}' with no surrounding whitespace.
+                """
+            )
         task_id = response_list[0]["gid"]
         return task_id
 
-    # could also hard-code process stage gid, see note to get_hubmap_id_field
     @cached_property
-    def get_process_stage_gid(self) -> str:
-        response = self.client.custom_field_settings.get_custom_field_settings_for_project(
-            self.project
-        )
-        process_stage_gid = [
-            custom_field["custom_field"]["gid"]
-            for custom_field in response
-            if custom_field["custom_field"]["name"] == "process stage"
-        ]
-        if len(process_stage_gid) != 1:
-            logging.info(
-                f"Error retrieving process stage gid for HuBMAP ID {self.hubmap_id}; retrieved {len(process_stage_gid)} gids"
-            )
-        return process_stage_gid[0]
-
-    @property
-    def get_asana_status(self):
+    def get_asana_status(self) -> str:
+        """
+        Maps between enum for Entity API status that was passed in
+        and Asana status to be set.
+        """
         if self.status not in self.asana_status_map:
-            raise Exception(f"Status for {self.hubmap_id} not found in asana_status_map")
+            raise StatusChangerException(
+                f"Status {self.status} assigned to {self.hubmap_id} not found in asana_status_map. Status not updated."
+            )
         asana_status = self.asana_status_map[self.status]
-        return asana_status.value
+        return asana_status
 
-    def update_process_stage(self):
+    def update_process_stage(self) -> None:
+        if self.status == Statuses.UPLOAD_REORGANIZED:
+            self.create_dataset_cards()
         try:
             response = self.client.tasks.update_task(
                 self.get_task_by_hubmap_id,
-                {"custom_fields": {self.get_process_stage_gid: self.get_asana_status}},
+                {"custom_fields": {self.process_stage_field_gid: self.get_asana_status}},
                 opt_pretty=True,
             )
             logging.info(f"UPDATE SUCCESSFUL: {response}")
         except Exception as e:
-            logging.info(
+            raise StatusChangerException(
                 f"Error occurred while updating HuBMAP ID {self.hubmap_id}; not updated. Error: {e}"
             )
+
+    def create_dataset_cards(self):
+        # TODO: assign dataset hubmap ids to list and count
+        logging.info(f"Upload {self.hubmap_id} has n child datasets. Creating Asana cards...")
+        try:
+            # for dataset_id in child_datasets:
+            # get fields for title (should be in self.submission_data)
+            response = self.client.tasks.create_task(
+                {
+                    "custom_fields": {
+                        # "title": "Data Provider institution | assay type | submission date"
+                        # self.hubmap_id_gid: dataset_id,
+                        # TODO: is "New" correct? Should it be mapped to Intake?
+                        self.process_stage_field_gid: "New",
+                        self.entity_type_field_gid: "Dataset",
+                        self.parent_field_gid: self.hubmap_id,
+                        # TODO: does parent_field_gid need to be extensible for card IDs for non-upload groups? is that a separate field or is this actually a parent milestone ID field?
+                    },
+                    "projects": [self.project],
+                },
+                opt_pretty=True,
+            )
+            # logging.info(f"Card created successfully for dataset {dataset_id}")
+        except Exception:
+            raise StatusChangerException(
+                # f"Error creating dataset card for dataset {hubmap_id}, part of reorganized dataset {self.hubmap_id}"
+            )
+        logging.info(f"All dataset cards created for upload {self.hubmap_id}")
