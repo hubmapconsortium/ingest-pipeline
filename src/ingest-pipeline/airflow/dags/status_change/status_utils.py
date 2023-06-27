@@ -26,8 +26,7 @@ def get_submission_context(token: str, uuid: str) -> dict:
             endpoint, headers=headers, extra_options={"check_response": False}
         )
         response.raise_for_status()
-        submission_data = response.json()
-        return submission_data
+        return response.json()
     except HTTPError as e:
         print(f"ERROR: {e}")
         if e.response.status_code == codes.unauthorized:
@@ -44,7 +43,6 @@ def get_hubmap_id_from_uuid(token: str, uuid: str) -> str | None:
         "content-type": "application/json",
         "X-Hubmap-Application": "ingest-pipeline",
     }
-    # http_hook = HttpHook(method, http_conn_id="entity_api_connection")
     http_hook = HttpHook(method, http_conn_id="entity_api_connection")
 
     endpoint = f"entities/{uuid}"
