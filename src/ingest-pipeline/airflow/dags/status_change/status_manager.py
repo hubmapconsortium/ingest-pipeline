@@ -230,7 +230,7 @@ class UpdateAsana:
     @cached_property
     def submission_data(self):
         if self.uuid is not None:
-        return get_submission_context(self.token, self.uuid)
+            return get_submission_context(self.token, self.uuid)
 
     def get_custom_fields(self):
         return list(
@@ -333,7 +333,6 @@ class UpdateAsana:
                 },
                 opt_pretty=True,
             )
-            response.raise_for_status()
             new_status = None
             for custom_field in response["custom_fields"]:
                 if custom_field["name"] == "Status":
