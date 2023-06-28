@@ -10,6 +10,11 @@ media
 
 docker/dev-local
 
+# airflow
+airflow/logs/
+airflow/airflow.cfg
+airflow/airflow.db
+
 # dependencies
 node_modules
 hubmap/frontend/node_modules
@@ -25,6 +30,7 @@ hubmap/frontend/build
 
 # misc
 .DS_Store
+.env
 .env.local
 .env.development.local
 .env.test.local
