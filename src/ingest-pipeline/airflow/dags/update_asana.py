@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 
 import asana
 import requests
-from status_change.status_manager import UpdateAsana
+from status_change.status_manager import Statuses, UpdateAsana
 from utils import (
     HMDAG,
     encrypt_tok,
@@ -22,7 +22,7 @@ from airflow.operators.python import PythonOperator
 default_args = {
     "owner": "hubmap",
     "depends_on_past": False,
-    "start_date": datetime(2019, 1, 1),
+    "start_date": datetime(2023, 6, 28),
     "email": ["joel.welling@gmail.com"],
     "email_on_failure": False,
     "email_on_retry": False,
@@ -42,7 +42,6 @@ with HMDAG(
     def get_asana_tasks(**kwargs) -> dict[str, dict[str, str]]:
         asana_dict = {}
         client = asana.Client.access_token(os.environ["ASANA_API_KEY"])
-        kwargs["ti"].xcom_push(key="client", value=client)
         # Draft for restricting to only non-Publishing status tasks; requires addition of field in Asana to filter them out
         # Remove UpdateAsana instance from compare_results and reference this one instead if implemented
         """
@@ -143,7 +142,7 @@ with HMDAG(
                     errors["missing_status"].append(key)
                     continue
                 mapped_entity_api_status = asana_status_map[
-                    f"{entity_type.upper()}_{entity_api_status.upper()}"
+                    Statuses[f"{entity_type.upper()}_{entity_api_status.upper()}"]
                 ]
                 if value["asana_status"] == mapped_entity_api_status:
                     continue
@@ -167,7 +166,7 @@ with HMDAG(
 
     def update_asana_if_needed(**kwargs):
         errors = kwargs["ti"].xcom_pull(task_ids="compare_results").copy()
-        client = kwargs["ti"].xcom_pull(task_ids="get_asana_tasks", key="client").copy()
+        client = asana.Client.access_token(os.environ["ASANA_API_KEY"])
         asana_hubmap_id_gid = kwargs["ti"].xcom_pull(task_ids="get_asana_tasks").copy()["gid"]
         if not any([errors["missing_key"], errors["missing_status"], errors["mismatch"]]):
             logging.info("No errors or discrepancies found, no Asana update needed.")

@@ -11,8 +11,7 @@ from typing import List, TypeVar
 
 import pandas as pd
 import requests
-
-from airflow.dags.status_change.status_manager import StatusChanger, Statuses
+from status_change.status_manager import StatusChanger, Statuses
 
 # There has got to be a better solution for this, but I can't find it
 try:

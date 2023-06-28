@@ -41,6 +41,7 @@ class Statuses(str, Enum):
     UPLOAD_VALID = "Valid"
 
 
+# Needed some way to disambiguate statuses shared by datasets and uploads
 DATASET_STATUS_MAP = {
     "Deprecated": Statuses.DATASET_DEPRECATED,
     "Error": Statuses.DATASET_ERROR,
