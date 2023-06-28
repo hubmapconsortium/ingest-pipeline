@@ -750,7 +750,7 @@ def pythonop_send_create_dataset(**kwargs) -> str:
     return abs_path
 
 
-def pythonop_set_dataset_state_old(**kwargs) -> None:
+def pythonop_set_dataset_state(**kwargs) -> None:
     """
     Sets the status of a dataset, to 'Processing' if no specific state
     is specified.  NOTE that this routine cannot change a dataset into
@@ -786,51 +786,6 @@ def pythonop_set_dataset_state_old(**kwargs) -> None:
         },
         http_conn_id=http_conn_id,
     ).on_status_change()
-
-
-def pythonop_set_dataset_state(**kwargs) -> None:
-    """
-    Sets the status of a dataset, to 'Processing' if no specific state
-    is specified.  NOTE that this routine cannot change a dataset into
-    or out of the Published state.
-
-    Accepts the following via the caller's op_kwargs:
-    'dataset_uuid_callable' : called with **kwargs; returns the
-                              uuid of the dataset to be modified
-    'http_conn_id' : the http connection to be used.  Default is "entity_api_connection"
-    'ds_state' : one of 'QA', 'Processing', 'Error', 'Invalid'. Default: 'Processing'
-    'message' : update message, saved as dataset metadata element "pipeline_messsage".
-                The default is not to save any message.
-    """
-    status_map = {
-        "Abandoned": Statuses.DATASET_ABANDONED,
-        "Approved": Statuses.DATASET_APPROVED,
-        "Error": Statuses.DATASET_ERROR,
-        "Invalid": Statuses.DATASET_INVALID,
-        "New": Statuses.DATASET_NEW,
-        "Processing": Statuses.DATASET_PROCESSING,
-        "Published": Statuses.DATASET_PUBLISHED,
-        "QA": Statuses.DATASET_QA,
-    }
-    for arg in ["dataset_uuid_callable"]:
-        assert arg in kwargs, "missing required argument {}".format(arg)
-    dataset_uuid = kwargs["dataset_uuid_callable"](**kwargs)
-    http_conn_id = kwargs.get("http_conn_id", "entity_api_connection")
-    ds_state = kwargs["ds_state"] if "ds_state" in kwargs else "Processing"
-    try:
-        status = status_map["ds_state"]
-    except Exception as e:
-        raise Exception(
-            f"Dataset status {ds_state} for uuid {dataset_uuid} not found in dataset status map: {status_map}. Error: {e}"
-        )
-    message = kwargs.get("message", None)
-    extras = {
-        "extra_fields": {},
-        "extra_options": {},
-    }
-    if message is not None:
-        extras["extra_fields"]["pipeline_message"] = message
-    StatusChanger(dataset_uuid, get_auth_tok(**kwargs), status, extras, http_conn_id=http_conn_id)
 
 
 def restructure_entity_metadata(raw_metadata: JSONType) -> JSONType:
