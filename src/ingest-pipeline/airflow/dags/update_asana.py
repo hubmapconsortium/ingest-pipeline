@@ -1,9 +1,12 @@
+from __future__ import annotations
+
 import logging
 import os
 from datetime import datetime, timedelta
 
 import asana
 import requests
+from status_change.status_manager import UpdateAsana
 from utils import (
     HMDAG,
     encrypt_tok,
@@ -13,7 +16,6 @@ from utils import (
 )
 
 from airflow.configuration import conf as airflow_conf
-from airflow.dags.status_change.status_manager import UpdateAsana
 from airflow.operators.python import PythonOperator
 
 # Following are defaults which can be overridden later on

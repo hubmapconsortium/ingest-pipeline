@@ -1,4 +1,4 @@
-# import traceback
+from __future__ import annotations
 
 from status_change.status_manager import StatusChanger, StatusChangerExtras, Statuses
 from utils import get_auth_tok
