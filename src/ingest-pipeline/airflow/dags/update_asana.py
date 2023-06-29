@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import logging
 import os
+from collections import defaultdict
 from datetime import datetime, timedelta
 
 import asana
 import requests
+from requests.exceptions import HTTPError
 from status_change.status_manager import Statuses, UpdateAsana
 from utils import (
     HMDAG,
@@ -17,6 +19,7 @@ from utils import (
 
 from airflow.configuration import conf as airflow_conf
 from airflow.operators.python import PythonOperator
+from airflow.providers.http.hooks.http import HttpHook
 
 # Following are defaults which can be overridden later on
 default_args = {
@@ -81,6 +84,9 @@ with HMDAG(
                     for field in task["custom_fields"]
                     if field["name"] == "HuBMAP ID"
                 )[0]
+                if hubmap_id is None:
+                    logging.info(f"No HuBMAP ID found for task; skipping. Task info: {task}.")
+                    continue
                 asana_status = list(
                     field["enum_value"]
                     for field in task["custom_fields"]
@@ -99,14 +105,38 @@ with HMDAG(
         provide_context=True,
     )
 
-    def query_entity_api(**kwargs) -> dict[str, str]:
-        asana_dict = kwargs["ti"].xcom_pull(task_ids="get_asana_tasks").copy()
-        entity_api_dict = {}
-        for hubmap_id in asana_dict.keys():
-            entity_api_record = pythonop_get_dataset_state(
-                dataset_uuid_callable=lambda **kwargs: hubmap_id, **kwargs
+    def api_query(hubmap_id: str, **kwargs) -> dict:
+        headers = {
+            "authorization": f"Bearer {get_auth_tok(**kwargs)}",
+            "content-type": "application/json",
+            "X-Hubmap-Application": "ingest-pipeline",
+        }
+        http_hook = HttpHook("GET", http_conn_id="entity_api_connection")
+        endpoint = f"entities/{hubmap_id}"
+        try:
+            response = http_hook.run(
+                endpoint, headers=headers, extra_options={"check_response": True}
             )
-            entity_api_dict[hubmap_id] = entity_api_record["status"]
+            return response
+        except HTTPError as e:
+            print(f"ERROR: {e}")
+            if e.response.status_code == requests.codes.unauthorized:
+                raise RuntimeError("entity database authorization was rejected?")
+            else:
+                print("benign error")
+                return {}
+
+    def query_entity_api(**kwargs) -> defaultdict[str, dict[str, str]]:
+        asana_dict = kwargs["ti"].xcom_pull(task_ids="get_asana_tasks").copy()
+        entity_api_dict = defaultdict(dict)
+        for hubmap_id in asana_dict.keys():
+            entity_api_record = api_query(hubmap_id, **kwargs)
+            if not entity_api_record:
+                logging.info(f"Error retrieving record for {hubmap_id} from Entity API.")
+                continue
+            entity_api_dict["entity_type"][entity_api_record["hubmap_id"]] = entity_api_record[
+                "status"
+            ]
         return entity_api_dict
 
     t_query_entity_api = PythonOperator(
@@ -132,7 +162,7 @@ with HMDAG(
         entity_api_dict = kwargs["ti"].xcom_pull(task_ids="query_entity_api").copy()
         errors = {"missing_key": [], "missing_status": [], "mismatch": {}}
         for entity_type in asana_dict:
-            for key, value in entity_type:
+            for key, value in entity_type.items():
                 try:
                     entity_api_status = entity_api_dict["key"].get("status")
                 except KeyError:
