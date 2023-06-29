@@ -30,14 +30,16 @@ default_args = {
     "email_on_failure": False,
     "email_on_retry": False,
     "retries": 1,
-    "retry_delay": timedelta(minutes=1),
+    # "retry_delay": timedelta(minutes=1),
+    "retry_delay": timedelta(seconds=5),
     "xcom_push": True,
     "queue": get_queue_resource("update_asana"),
 }
 
 with HMDAG(
     "update_asana",
-    schedule_interval="@daily",
+    # schedule_interval="@daily",
+    schedule_interval=None,
     is_paused_upon_creation=False,
     default_args=default_args,
 ) as dag:
@@ -57,7 +59,7 @@ with HMDAG(
         )
         asana_status_map = asana_helper.asana_status_map
         asana_process_stage_gid = asana_helper.process_stage_field_gid
-        kwargs["ti"].xcom_push(key="client", value=asana_status_map)
+        kwargs["ti"].xcom_push(key="asana_status_map", value=asana_status_map)
         response = list(
             client.tasks.search_tasks_for_workspace(
                 os.environ["WORKSPACE_ID"],
@@ -91,7 +93,7 @@ with HMDAG(
                     field["enum_value"]
                     for field in task["custom_fields"]
                     if field["name"] == "Process Stage"
-                )[0]
+                )[0]["gid"]
                 asana_dict[hubmap_id] = {"asana_status": asana_status, "task_id": task["gid"]}
             except Exception:
                 logging.info(
@@ -113,11 +115,12 @@ with HMDAG(
         }
         http_hook = HttpHook("GET", http_conn_id="entity_api_connection")
         endpoint = f"entities/{hubmap_id}"
+        # TODO: this needs some sleeps
         try:
             response = http_hook.run(
                 endpoint, headers=headers, extra_options={"check_response": True}
             )
-            return response
+            return response.json()
         except HTTPError as e:
             print(f"ERROR: {e}")
             if e.response.status_code == requests.codes.unauthorized:
@@ -131,12 +134,15 @@ with HMDAG(
         entity_api_dict = defaultdict(dict)
         for hubmap_id in asana_dict.keys():
             entity_api_record = api_query(hubmap_id, **kwargs)
-            if not entity_api_record:
-                logging.info(f"Error retrieving record for {hubmap_id} from Entity API.")
+            if "error" in entity_api_record:
+                logging.info(
+                    f"Error retrieving record for {hubmap_id} from Entity API: {entity_api_record}"
+                )
                 continue
-            entity_api_dict["entity_type"][entity_api_record["hubmap_id"]] = entity_api_record[
-                "status"
-            ]
+
+            entity_api_dict[entity_api_record["entity_type"]][
+                entity_api_record["hubmap_id"]
+            ] = entity_api_record["status"]
         return entity_api_dict
 
     t_query_entity_api = PythonOperator(
@@ -151,35 +157,33 @@ with HMDAG(
     )
 
     def compare_results(**kwargs) -> dict[str, list | dict]:
-        asana_status_map = UpdateAsana(
+        asana_helper = UpdateAsana(
             uuid=None,
             token=get_auth_tok(**kwargs),
             status=None,
             workspace_id=os.environ["WORKSPACE_ID"],
             project_id=os.environ["PROJECT_ID"],
-        ).asana_status_map
+        )
+        asana_status_map = asana_helper.asana_status_map
+        asana_process_stage_gid = asana_helper.process_stage_field_gid
+        kwargs["ti"].xcom_push(key="asana_process_stage_gid", value=asana_process_stage_gid)
         asana_dict = kwargs["ti"].xcom_pull(task_ids="get_asana_tasks").copy()
         entity_api_dict = kwargs["ti"].xcom_pull(task_ids="query_entity_api").copy()
         errors = {"missing_key": [], "missing_status": [], "mismatch": {}}
-        for entity_type in asana_dict:
-            for key, value in entity_type.items():
-                try:
-                    entity_api_status = entity_api_dict["key"].get("status")
-                except KeyError:
-                    errors["missing_key"].append(key)
-                    continue
-                if entity_api_status is None:
-                    errors["missing_status"].append(key)
+        for entity_type, details in entity_api_dict.items():
+            for hubmap_id, status in details.items():
+                if status is None:
+                    errors["missing_status"].append(hubmap_id)
                     continue
                 mapped_entity_api_status = asana_status_map[
-                    Statuses[f"{entity_type.upper()}_{entity_api_status.upper()}"]
+                    Statuses[f"{entity_type.upper()}_{status.upper()}"]
                 ]
-                if value["asana_status"] == mapped_entity_api_status:
+                if asana_dict[hubmap_id]["asana_status"] == mapped_entity_api_status:
                     continue
                 else:
-                    errors["mismatch"][key] = {
+                    errors["mismatch"][hubmap_id] = {
                         "status": mapped_entity_api_status,
-                        "task_id": value["task_id"],
+                        "task_id": asana_dict[hubmap_id]["task_id"],
                     }
         return errors
 
@@ -197,23 +201,27 @@ with HMDAG(
     def update_asana_if_needed(**kwargs):
         errors = kwargs["ti"].xcom_pull(task_ids="compare_results").copy()
         client = asana.Client.access_token(os.environ["ASANA_API_KEY"])
+        asana_process_stage_gid = kwargs["ti"].xcom_pull(
+            task_ids="compare_results", key="asana_process_stage_gid"
+        )
         asana_hubmap_id_gid = kwargs["ti"].xcom_pull(task_ids="get_asana_tasks").copy()["gid"]
         if not any([errors["missing_key"], errors["missing_status"], errors["mismatch"]]):
             logging.info("No errors or discrepancies found, no Asana update needed.")
             return
         elif errors["mismatch"]:
-            for hubmap_id, value in errors["mismatch"]:
-                response = client.tasks.update_task(
-                    value["task_id"],
-                    {
-                        "custom_fields": {asana_hubmap_id_gid: value["status"]},
-                    },
-                )
+            for hubmap_id, value in errors["mismatch"].items():
                 try:
-                    response.raise_for_status()
+                    response = client.tasks.update_task(
+                        value["task_id"],
+                        {
+                            "custom_fields": {asana_process_stage_gid: value["status"]},
+                        },
+                    )
+                    logging.info(
+                        f"Asana status updated for {hubmap_id}: {response['custom_fields']}"
+                    )
                 except requests.HTTPError as e:
                     logging.info(f"ERROR: Asana status not updated for {hubmap_id}: {e}")
-                logging.info(f"Asana status updated for {hubmap_id}: {response['custom_fields']}")
         if errors["missing_key"]:
             logging.info(
                 f"The following HuBMAP IDs were not found in Entity API: {errors['missing_key']}."
