@@ -1245,11 +1245,8 @@ def make_send_status_msg_function(
                 "pipeline_message": err_txt,
             }
             return_status = False
-        print(f"status: {status}")
-        print("data: ")
-        pprint(extra_fields)
-        if not isinstance(status, Statuses):
-            status = DATASET_STATUS_MAP["status"]
+        if isinstance(status, str):
+            status = DATASET_STATUS_MAP[status]
         elif status is None:
             pass
         else:

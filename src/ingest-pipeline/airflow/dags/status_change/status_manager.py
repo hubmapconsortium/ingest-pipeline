@@ -16,9 +16,7 @@ from airflow.providers.http.hooks.http import HttpHook
 
 """
 TODO:
-    - Add dag to run nightly to check statuses
-    - Emails?
-    - Determine what extra_fields (e.g. validation_message for invalid status(es)) are required for each status and how to manage them
+    - Email capability?
 """
 
 
@@ -154,6 +152,7 @@ class StatusChanger:
                     f"""
                         Status set to {response.json()['status']}.
                         Response:
+                        {json.dumps(response.json(), indent=6)}
                     """
                 )
             return response.json()
@@ -207,17 +206,19 @@ class UpdateAsana:
         self.custom_fields = self.get_custom_fields()
         self.process_stage_field_gid = self.get_custom_field_gid("Process Stage")
 
-    @property
+    @cached_property
     def asana_status_map(self):
         return {
             Statuses.DATASET_ERROR: self.process_stage_gids["Blocked 🛑"],
             Statuses.DATASET_INVALID: self.process_stage_gids["Blocked 🛑"],
             Statuses.DATASET_NEW: self.process_stage_gids["Intake"],
+            Statuses.DATASET_PROCESSING: "",
             Statuses.DATASET_PUBLISHED: self.process_stage_gids["Publishing"],
             Statuses.DATASET_QA: self.process_stage_gids["Post-Processing"],
             Statuses.UPLOAD_ERROR: self.process_stage_gids["Blocked 🛑"],
             Statuses.UPLOAD_INVALID: self.process_stage_gids["Blocked 🛑"],
             Statuses.UPLOAD_NEW: self.process_stage_gids["Intake"],
+            Statuses.UPLOAD_PROCESSING: "",
             Statuses.UPLOAD_REORGANIZED: self.process_stage_gids["Processing"],
             Statuses.UPLOAD_SUBMITTED: self.process_stage_gids["Pre-Processing"],
             Statuses.UPLOAD_VALID: self.process_stage_gids["Pre-Processing"],
@@ -320,7 +321,7 @@ class UpdateAsana:
         return asana_status
 
     def update_process_stage(self) -> None:
-        if self.status is None:
+        if self.status in [None, Statuses.UPLOAD_PROCESSING, Statuses.DATASET_PROCESSING]:
             return
         elif self.status == Statuses.UPLOAD_REORGANIZED:
             self.create_dataset_cards()
@@ -336,7 +337,7 @@ class UpdateAsana:
             )
             new_status = None
             for custom_field in response["custom_fields"]:
-                if custom_field["name"] == "Status":
+                if custom_field["name"] == "Process Stage":
                     new_status = custom_field["enum_value"]["gid"]
             assert (
                 self.get_asana_status == new_status

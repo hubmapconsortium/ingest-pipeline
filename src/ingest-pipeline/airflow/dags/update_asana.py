@@ -118,7 +118,7 @@ with HMDAG(
         # TODO: this needs some sleeps
         try:
             response = http_hook.run(
-                endpoint, headers=headers, extra_options={"check_response": True}
+                endpoint, headers=headers, extra_options={"check_response": False}
             )
             return response.json()
         except HTTPError as e:
@@ -172,7 +172,9 @@ with HMDAG(
         errors = {"missing_key": [], "missing_status": [], "mismatch": {}}
         for entity_type, details in entity_api_dict.items():
             for hubmap_id, status in details.items():
-                if status is None:
+                if status in [Statuses.DATASET_PROCESSING, Statuses.UPLOAD_PROCESSING]:
+                    continue
+                elif status is None:
                     errors["missing_status"].append(hubmap_id)
                     continue
                 mapped_entity_api_status = asana_status_map[
@@ -204,7 +206,6 @@ with HMDAG(
         asana_process_stage_gid = kwargs["ti"].xcom_pull(
             task_ids="compare_results", key="asana_process_stage_gid"
         )
-        asana_hubmap_id_gid = kwargs["ti"].xcom_pull(task_ids="get_asana_tasks").copy()["gid"]
         if not any([errors["missing_key"], errors["missing_status"], errors["mismatch"]]):
             logging.info("No errors or discrepancies found, no Asana update needed.")
             return
