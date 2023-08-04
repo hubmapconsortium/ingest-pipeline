@@ -148,7 +148,14 @@ SequencingDagParameters = namedtuple(
     ],
 )
 
-ManifestMatch = Tuple[bool, Optional[str], Optional[str], Optional[bool]]
+# TODO: rethink this, now that it's getting more and more unwieldy
+ManifestMatch = Tuple[
+    bool,
+    Optional[str],
+    Optional[str],
+    Optional[bool],
+    Optional[bool],
+]
 
 
 class FileMatcher(ABC):
@@ -163,14 +170,14 @@ class FileMatcher(ABC):
 
 
 class PipelineFileMatcher(FileMatcher):
-    # (file/directory regex, description template, EDAM ontology term)
-    matchers: List[Tuple[Pattern, str, str, bool]]
+    # (file/directory regex, description template, EDAM ontology term, is_qa_qc, is_data_product)
+    matchers: List[Tuple[Pattern, str, str, bool, bool]]
 
     def __init__(self):
         self.matchers = []
 
     @classmethod
-    def read_manifest(cls, pipeline_file_manifest: Path) -> Iterable[Tuple[Pattern, str, str, bool]]:
+    def read_manifest(cls, pipeline_file_manifest: Path) -> Iterable[Tuple[Pattern, str, str, bool, bool]]:
         with open(pipeline_file_manifest) as f:
             manifest = json.load(f)
             localized_assert_json_matches_schema(manifest, 'pipeline_file_manifest.yml')
@@ -178,7 +185,8 @@ class PipelineFileMatcher(FileMatcher):
         for annotation in manifest:
             pattern = re.compile(annotation['pattern'])
             is_qa_qc = annotation.get('is_qa_qc', False)
-            yield pattern, annotation['description'], annotation['edam_ontology_term'], is_qa_qc
+            is_data_product = annotation.get('is_data_product', False)
+            yield pattern, annotation['description'], annotation['edam_ontology_term'], is_qa_qc, is_data_product
 
     @classmethod
     def create_from_files(cls, pipeline_file_manifests: Iterable[Path]):
@@ -195,13 +203,13 @@ class PipelineFileMatcher(FileMatcher):
         the "first-match" behavior is deliberate.
         """
         path_str = fspath(file_path)
-        for pattern, description_template, ontology_term, is_qa_qc in self.matchers:
+        for pattern, description_template, ontology_term, is_qa_qc, is_data_product in self.matchers:
             # TODO: walrus operator
             m = pattern.search(path_str)
             if m:
                 formatted_description = description_template.format_map(m.groupdict())
-                return True, formatted_description, ontology_term, is_qa_qc
-        return False, None, None, None
+                return True, formatted_description, ontology_term, is_qa_qc, is_data_product
+        return False, None, None, None, None
 
 
 class DummyFileMatcher(FileMatcher):
@@ -531,6 +539,7 @@ def get_file_metadata(root_dir: str, matcher: FileMatcher) -> List[Mapping[str, 
           'description': <human-readable file description>,
           'edam_term': <EDAM ontology term>,
           'is_qa_qc': <Boolean of whether this is a QA/QC file>,
+          'is_data_product': <Boolean of whether this is a data product>,
         },
         ...
       ]
@@ -544,7 +553,7 @@ def get_file_metadata(root_dir: str, matcher: FileMatcher) -> List[Mapping[str, 
         for fn in fnames:
             full_path = dp / fn
             relative_path = full_path.relative_to(root_path)
-            add_to_index, description, ontology_term, is_qa_qc = matcher.get_file_metadata(relative_path)
+            add_to_index, description, ontology_term, is_qa_qc, is_data_product = matcher.get_file_metadata(relative_path)
             if add_to_index:
                 # sha1sum disabled because of run time issues on large data collections
                 # line = check_output([word.format(fname=full_path)
@@ -558,6 +567,7 @@ def get_file_metadata(root_dir: str, matcher: FileMatcher) -> List[Mapping[str, 
                         'description': description,
                         'edam_term': ontology_term,
                         'is_qa_qc': is_qa_qc,
+                        'is_data_product': is_data_product,
                         # 'sha1sum': cs,
                     }
                 )
