@@ -135,7 +135,7 @@ def create_new_uuid(row, source_entity, entity_factory, dryrun=False):
                 == source_entity.prop_dct['contains_human_genetic_sequences'])
     group_uuid = source_entity.prop_dct['group_uuid']
     if 'description' in row:
-        description = row['description']
+        description = str(row['description'])
     elif 'description' in source_entity.prop_dct:
         description = source_entity.prop_dct['description'] + ' : ' + rec_identifier
     elif 'lab_dataset_id' in source_entity.prop_dct:
