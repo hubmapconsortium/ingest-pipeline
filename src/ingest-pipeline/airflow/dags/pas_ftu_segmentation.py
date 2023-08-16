@@ -59,7 +59,7 @@ with HMDAG(
         },
 ) as dag:
 
-    pipeline_name = "pas-ftu-segmentation"
+    pipeline_name = "pas-ftu-segmentation-pipeline"
     cwl_workflows = get_named_absolute_workflows(
         segmentation=Path(pipeline_name, "pipeline.cwl"),
         create_vis_symlink_archive=Path("create-vis-symlink-archive", "pipeline.cwl"),
