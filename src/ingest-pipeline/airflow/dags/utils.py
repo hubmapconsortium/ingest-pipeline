@@ -1488,7 +1488,7 @@ None]:
         new_kwargs = kwargs.copy()
         new_kwargs.update(context_dict)
         new_kwargs.update({'dataset_uuid_callable': dataset_uuid_callable,
-                           'http_conn_id': 'ingest_api_connection',
+                           'http_conn_id': 'entity_api_connection',
                            'ds_state': 'Error',
                            'message': msg
                            })
