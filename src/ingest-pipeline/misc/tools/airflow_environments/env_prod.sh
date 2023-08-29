@@ -1,8 +1,8 @@
 #set airflow environment
-HM_AF_CONFIG=/hive/users/hive/hubmap/hivevm193-prod/ingest-pipeline/src/ingest-pipeline/airflow/airflow.cfg
-HM_AF_HOME=/hive/users/hive/hubmap/hivevm193-prod/ingest-pipeline/src/ingest-pipeline/airflow
+HM_AF_CONFIG=/opt/repositories/vm004-prod/ingest-pipeline/src/ingest-pipeline/airflow/airflow.cfg
+HM_AF_HOME=/opt/repositories/vm004-prod/ingest-pipeline/src/ingest-pipeline/airflow
 
-HM_AF_CONN_INGEST_API_CONNECTION=http://hivevm193.psc.edu:7777/
+HM_AF_CONN_INGEST_API_CONNECTION=http://vm004.hive.psc.edu:7777/
 HM_AF_CONN_UUID_API_CONNECTION=http://https%3a%2f%2fuuid.api.hubmapconsortium.org/
 HM_AF_CONN_FILES_API_CONNECTION=http://https%3a%2f%2ffiles.api.hubmapconsortium.org/
 HM_AF_CONN_SPATIAL_API_CONNECTION=http://https%3a%2f%2fspatial.api.hubmapconsortium.org/
