@@ -546,10 +546,10 @@ with HMDAG('codex_cytokit',
     t_expand_symlinks = BashOperator(
         task_id='expand_symlinks',
         bash_command="""
-        tmp_dir='{{tmp_dir_path(run_id)}}' ; \
-        ds_dir='{{ti.xcom_pull(task_ids='send_create_dataset')}}' ; \
-        groupname='{{conf.as_dict()['connections']['OUTPUT_GROUP_NAME']}}' ; \
-        cd '$ds_dir' ; \
+        tmp_dir="{{tmp_dir_path(run_id)}}" ; \
+        ds_dir="{{ti.xcom_pull(task_ids='send_create_dataset')}}" ; \
+        groupname="{{conf.as_dict()['connections']['OUTPUT_GROUP_NAME']}}" ; \
+        cd "$ds_dir" ; \
         tar -xf symlinks.tar ; \
         echo $?
         """

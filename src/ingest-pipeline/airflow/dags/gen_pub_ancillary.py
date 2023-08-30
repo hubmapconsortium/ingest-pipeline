@@ -188,8 +188,8 @@ with HMDAG(
                     this_vignette_all_paths.remove(md_path)
                     for fig in vig_block['figures']:
                         this_vignette_all_paths.remove(this_vignette_path / fig['file'])
-                    assert not this_vignette_all_paths, ('unexpected files in vignette:'
-                                                         f' {this_vignette_all_paths}')
+                assert not this_vignette_all_paths, ('unexpected files in vignette:'
+                                                     f' {this_vignette_all_paths}')
 
                 rslt['vignettes'].append(vig_block)
 

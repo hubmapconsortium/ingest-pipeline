@@ -135,7 +135,7 @@ def create_new_uuid(row, source_entity, entity_factory, dryrun=False):
                 == source_entity.prop_dct['contains_human_genetic_sequences'])
     group_uuid = source_entity.prop_dct['group_uuid']
     if 'description' in row:
-        description = row['description']
+        description = str(row['description'])
     elif 'description' in source_entity.prop_dct:
         description = source_entity.prop_dct['description'] + ' : ' + rec_identifier
     elif 'lab_dataset_id' in source_entity.prop_dct:
@@ -278,6 +278,24 @@ def update_upload_entity(child_uuid_list, source_entity, dryrun=False, verbose=F
             else:
                 print(f'{source_entity.uuid} status is Reorganized')
 
+            data = {"status": "Submitted"}
+            for uuid in child_uuid_list:
+                endpoint = f'{entity_url}/entities/{uuid}'
+                print(f'sending to {endpoint}: {data}')
+                r = requests.put(endpoint,
+                                 data=json.dumps(data),
+                                 headers={
+                                     'Authorization': f'Bearer {source_entity.entity_factory.auth_tok}',
+                                     'Content-Type': 'application/json',
+                                     'X-Hubmap-Application': 'ingest-pipeline'
+                                 })
+                if r.status_code >= 300:
+                    r.raise_for_status()
+                if verbose:
+                    print('response:')
+                    pprint(r.json())
+                else:
+                    print(f'Reorganized new: {uuid} from Upload: {source_entity.uuid} status is Submitted')
     else:
         print(f'source entity <{source_entity.uuid}> is not an upload,'
               ' so its status was not updated')

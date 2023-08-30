@@ -6,25 +6,22 @@ It is intended as a convenience for developers.
 """
 
 import os
-import json
 import glob
-import types
-import re
 
 from type_base import MetadataError
 from data_collection import DataCollection
 
+
 class GenericMetadataTSVDataCollection(DataCollection):
     category_name = 'GENERICMETADATATSV';
-    match_priority = 2.0 # >= 0.0; higher is better
+    match_priority = 2.0  # >= 0.0; higher is better
     top_target = None
     dir_regex = None
 
     # expected_file pairs are (globable name, filetype key)
     expected_files = [('*metadata.tsv', 'METADATATSV')]
-    
-    optional_files = []
 
+    optional_files = []
 
     @classmethod
     def find_top(cls, path, target, dir_regex=None):
@@ -33,7 +30,6 @@ class GenericMetadataTSVDataCollection(DataCollection):
         containing the metadata.tsv file.
         """
         return '.'
-
 
     @classmethod
     def test_match(cls, path):
@@ -55,8 +51,7 @@ class GenericMetadataTSVDataCollection(DataCollection):
                 return False
         else:
             return False
-            
-    
+
     def __init__(self, path):
         """
         path is the top level directory of the collection
@@ -65,7 +60,6 @@ class GenericMetadataTSVDataCollection(DataCollection):
         self.offsetdir = self.find_top(self.topdir, self.top_target, self.dir_regex)
         assert self.offsetdir is not None, 'Wrong dataset type?'
 
-    
     def collect_metadata(self):
         md_type_tbl = self.get_md_type_tbl()
         rslt = {}
@@ -84,13 +78,13 @@ class GenericMetadataTSVDataCollection(DataCollection):
                         rec_list = this_md
                         for rec in rec_list:
                             for key in ['assay_type', 'data_path', 'contributors_path']:
-                                assert key in rec, ('metadata.tsv does not have a'
-                                                         '"{}" column'.format(key))
+                                assert key in rec, 'metadata.tsv does not have a "{}" column'.format(key)
                             this_dict = {'metadata': rec}
                             for sub_key, dict_key in [('contributors_path', 'contributors'),
                                                       ('antibodies_path', 'antibodies')]:
                                 if sub_key in rec:
-                                    assert rec[sub_key].endswith('.tsv')
+                                    assert rec[sub_key].endswith('.tsv'), ('TSV file expected, received "{}"'
+                                                                           .format(rec[sub_key]))
                                     sub_path = os.path.join(os.path.dirname(fpath),
                                                             rec[sub_key])
                                     sub_parser = md_type_tbl['TSV'](sub_path)
@@ -101,18 +95,17 @@ class GenericMetadataTSVDataCollection(DataCollection):
         rslt['components'] = cl
         rslt['collectiontype'] = 'generic_metadatatsv'
         return rslt
-    
+
     def basic_filter_metadata(self, raw_metadata):
         """
         Make sure basic components of metadata are present, and promote them
         """
-        rslt = {k : raw_metadata[k] for k in ['collectiontype']}
+        rslt = {k: raw_metadata[k] for k in ['collectiontype']}
         if len(raw_metadata['components']) != 1:
             raise MetadataError("Only one line of metadata.tsv info is currently supported")
         rslt.update(raw_metadata['components'][0])
-        
-        return rslt
 
+        return rslt
 
     def filter_metadata(self, raw_metadata):
         """
@@ -123,5 +116,3 @@ class GenericMetadataTSVDataCollection(DataCollection):
         rslt = self.basic_filter_metadata(raw_metadata)
 
         return rslt
-            
-        
