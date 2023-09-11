@@ -80,6 +80,8 @@ with HMDAG('launch_multi_analysis',
 
         previous_status, previous_uuid = check_link_published_drvs(uuid, **kwargs)
         if previous_status:
+            print('old_kwargs:')
+            pprint(kwargs)
             kwargs['previous_uuid_version'] = previous_uuid
             print('new_kwargs:')
             pprint(kwargs)
