@@ -2,6 +2,7 @@ import sys
 from datetime import datetime, timedelta
 
 from airflow.operators.python import PythonOperator
+from airflow.configuration import conf as airflow_conf
 
 from utils import (
     HMDAG,
