@@ -47,7 +47,6 @@ hubmapbags_id_namespace = import_module('hubmapbags.id_namespace')
 hubmapbags_magic = import_module('hubmapbags.magic')
 hubmapbags_ncbi_taxonomy = import_module('hubmapbags.ncbi_taxonomy')
 hubmapbags_project_in_project = import_module('hubmapbags.project_in_project')
-hubmapbags_projects = import_module('hubmapbags.projects')
 hubmapbags_subject = import_module('hubmapbags.subject')
 hubmapbags_subject_disease = import_module('hubmapbags.subject_disease')
 hubmapbags_subject_in_collection = import_module('hubmapbags.subject_in_collection')
@@ -95,7 +94,6 @@ __all__ = ["ingest_validation_tools_validation_utils",
            "hubmapbags_magic",
            "hubmapbags_ncbi_taxonomy",
            "hubmapbags_project_in_project",
-           "hubmapbags_projects",
            "hubmapbags_subject",
            "hubmapbags_subject_disease",
            "hubmapbags_subject_in_collection",
