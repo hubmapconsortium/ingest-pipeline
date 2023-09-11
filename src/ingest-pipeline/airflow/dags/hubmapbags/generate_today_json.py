@@ -8,6 +8,7 @@ from utils import (
     HMDAG,
     get_queue_resource,
     get_auth_tok,
+    encrypt_tok,
     )
 
 class add_path:
@@ -61,8 +62,13 @@ with HMDAG('generate_today_json',
 
     t_generate_report = PythonOperator(
         task_id='generate_report',
-        python_callable=generate_report(),
+        python_callable=generate_report,
         provide_context=True,
+        op_kwargs={
+            "crypt_auth_tok": (
+                encrypt_tok(airflow_conf.as_dict()["connections"]["APP_CLIENT_SECRET"]).decode()
+            ),
+        },
         )
 
     t_generate_report()
