@@ -71,4 +71,4 @@ with HMDAG('generate_today_json',
         },
         )
 
-    t_generate_report()
+    t_generate_report
