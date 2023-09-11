@@ -36,7 +36,7 @@ with add_path(airflow_conf.as_dict()["connections"]["SRC_PATH"].strip("'").strip
 default_args = {
     'owner': 'hubmap',
     'depends_on_past': False,
-    'start_date': datetime.date.today(),
+    'start_date': datetime.now(),
     'email': ['joel.welling@gmail.com'],
     'email_on_failure': False,
     'email_on_retry': False,
