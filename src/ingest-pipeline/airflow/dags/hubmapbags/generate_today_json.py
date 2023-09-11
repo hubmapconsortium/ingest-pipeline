@@ -58,6 +58,7 @@ with HMDAG('generate_today_json',
         token = get_auth_tok(**kwargs)
         hubmapbags.utilities.clean()
         hubmapbags.reports.daily(token)
+        print('Finished')
 
     t_generate_report = PythonOperator(
         task_id='generate_report',
