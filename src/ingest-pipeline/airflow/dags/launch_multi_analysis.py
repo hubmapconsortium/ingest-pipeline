@@ -16,6 +16,8 @@ from utils import (
     get_preserve_scratch_resource,
 )
 
+from extra_utils import check_link_published_drvs
+
 
 def get_uuid_for_error(**kwargs):
     """
@@ -75,6 +77,12 @@ with HMDAG('launch_multi_analysis',
         if isinstance(dt, str) and dt.startswith('[') and dt.endswith(']'):
             dt = ast.literal_eval(dt)
             print(f'parsed dt: {dt}')
+
+        previous_status, previous_uuid = check_link_published_drvs(uuid, **kwargs)
+        if previous_status:
+            kwargs['previous_uuid_version'] = previous_uuid
+            print('new_kwargs:')
+            pprint(kwargs)
 
         return (ds_rslt['uuid'], dt, ds_rslt['local_directory_full_path'],
                 ds_rslt['metadata'])
