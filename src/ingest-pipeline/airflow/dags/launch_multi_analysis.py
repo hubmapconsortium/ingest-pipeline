@@ -78,7 +78,7 @@ with HMDAG('launch_multi_analysis',
             dt = ast.literal_eval(dt)
             print(f'parsed dt: {dt}')
 
-        previous_status, previous_uuid = check_link_published_drvs(uuid, **kwargs)
+        previous_status, previous_uuid = check_link_published_drvs(uuid)
         if previous_status:
             print('old_kwargs:')
             pprint(kwargs)
