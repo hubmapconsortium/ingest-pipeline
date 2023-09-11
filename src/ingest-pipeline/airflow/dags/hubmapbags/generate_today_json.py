@@ -55,7 +55,7 @@ with HMDAG('generate_today_json',
 
     def generate_report(**kwargs):
         print(kwargs)
-        token = get_auth_tok(kwargs)
+        token = get_auth_tok(**kwargs)
         hubmapbags.utilities.clean()
         hubmapbags.reports.daily(token)
 
