@@ -53,8 +53,8 @@ with HMDAG('generate_today_json',
            user_defined_macros={
            }) as dag:
 
-    def generate_report():
-        token = get_auth_tok()
+    def generate_report(**kwargs):
+        token = get_auth_tok(**kwargs)
         hubmapbags.utilities.clean()
         hubmapbags.reports.daily(token)
 
