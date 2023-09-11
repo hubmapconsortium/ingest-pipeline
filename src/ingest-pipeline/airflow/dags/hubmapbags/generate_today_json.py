@@ -36,7 +36,7 @@ with add_path(airflow_conf.as_dict()["connections"]["SRC_PATH"].strip("'").strip
 default_args = {
     'owner': 'hubmap',
     'depends_on_past': False,
-    'start_date': datetime(2019, 1, 1),
+    'start_date': datetime.date.today(),
     'email': ['joel.welling@gmail.com'],
     'email_on_failure': False,
     'email_on_retry': False,
@@ -55,7 +55,6 @@ with HMDAG('generate_today_json',
            }) as dag:
 
     def generate_report(**kwargs):
-        print(kwargs)
         token = get_auth_tok(**kwargs)
         hubmapbags.utilities.clean()
         hubmapbags.reports.daily(token)
