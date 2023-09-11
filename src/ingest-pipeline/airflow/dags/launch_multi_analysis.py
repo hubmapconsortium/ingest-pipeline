@@ -81,14 +81,10 @@ with HMDAG('launch_multi_analysis',
         if not previous_version_uuid:
             previous_status, previous_uuid = check_link_published_drvs(uuid)
             if previous_status:
-                print('old_kwargs:')
-                pprint(kwargs['dag_run'].conf)
-                kwargs['dag_run'].conf['previous_version_uuid'] = previous_uuid
-                print('new_kwargs:')
-                pprint(kwargs['dag_run'].conf)
+                previous_version_uuid = previous_uuid
 
         return (ds_rslt['uuid'], dt, ds_rslt['local_directory_full_path'],
-                ds_rslt['metadata'])
+                ds_rslt['metadata'], previous_version_uuid)
 
 
     def check_uuids(**kwargs):
@@ -112,7 +108,7 @@ with HMDAG('launch_multi_analysis',
         filtered_data_types = []
         filtered_md_l = []
         for uuid in uuid_l:
-            uuid, dt, lz_path, metadata = check_one_uuid(uuid, prev_version_uuid, **kwargs)
+            uuid, dt, lz_path, metadata, prev_version_uuid = check_one_uuid(uuid, prev_version_uuid, **kwargs)
             if isinstance(dt, list):
                 if dt:
                     if len(dt) == 1:
