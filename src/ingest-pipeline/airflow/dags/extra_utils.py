@@ -20,8 +20,8 @@ def check_link_published_drvs(uuid: str) -> Tuple[bool, str]:
     http_hook = HttpHook('GET', http_conn_id='entity_api_connection')
 
     response = http_hook.run(endpoint,
-                             headers,
-                             extra_options)
+                             headers=headers,
+                             extra_options=extra_options)
     print('response: ')
     pprint(response.json())
     for data in response.json():

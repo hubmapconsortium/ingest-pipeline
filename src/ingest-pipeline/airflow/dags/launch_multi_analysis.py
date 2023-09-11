@@ -81,10 +81,10 @@ with HMDAG('launch_multi_analysis',
         previous_status, previous_uuid = check_link_published_drvs(uuid)
         if previous_status:
             print('old_kwargs:')
-            pprint(kwargs)
-            kwargs['previous_uuid_version'] = previous_uuid
+            pprint(kwargs['dag_run'])
+            kwargs['dag_run'].conf['previous_uuid_version'] = previous_uuid
             print('new_kwargs:')
-            pprint(kwargs)
+            pprint(kwargs['dag_run'])
 
         return (ds_rslt['uuid'], dt, ds_rslt['local_directory_full_path'],
                 ds_rslt['metadata'])
