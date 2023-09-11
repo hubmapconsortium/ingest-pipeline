@@ -1,4 +1,4 @@
-from pprint import pprint
+import sys
 from datetime import datetime, timedelta
 
 from airflow.operators.python import PythonOperator
@@ -8,6 +8,24 @@ from utils import (
     get_queue_resource,
     get_auth_tok,
     )
+
+class add_path:
+    """
+    Add an element to sys.path using a context.
+    Thanks to Eugene Yarmash https://stackoverflow.com/a/39855753
+    """
+
+    def __init__(self, path):
+        self.path = path
+
+    def __enter__(self):
+        sys.path.insert(0, self.path)
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        try:
+            sys.path.remove(self.path)
+        except ValueError:
+            pass
 
 with add_path(airflow_conf.as_dict()["connections"]["SRC_PATH"].strip("'").strip('"')):
     from submodules import hubmapbags
