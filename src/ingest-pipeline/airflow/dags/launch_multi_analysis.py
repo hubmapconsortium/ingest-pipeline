@@ -50,7 +50,7 @@ with HMDAG('launch_multi_analysis',
                'preserve_scratch': get_preserve_scratch_resource('launch_multi_analysis')
            }) as dag:
 
-    def check_one_uuid(uuid, **kwargs):
+    def check_one_uuid(uuid: str, previous_version_uuid: str, **kwargs):
         """
         Look up information on the given uuid or HuBMAP identifier.
         Returns:
@@ -78,13 +78,14 @@ with HMDAG('launch_multi_analysis',
             dt = ast.literal_eval(dt)
             print(f'parsed dt: {dt}')
 
-        previous_status, previous_uuid = check_link_published_drvs(uuid)
-        if previous_status:
-            print('old_kwargs:')
-            pprint(kwargs['dag_run'])
-            kwargs['dag_run'].conf['previous_uuid_version'] = previous_uuid
-            print('new_kwargs:')
-            pprint(kwargs['dag_run'])
+        if not previous_version_uuid:
+            previous_status, previous_uuid = check_link_published_drvs(uuid)
+            if previous_status:
+                print('old_kwargs:')
+                pprint(kwargs['dag_run'].conf)
+                kwargs['dag_run'].conf['previous_version_uuid'] = previous_uuid
+                print('new_kwargs:')
+                pprint(kwargs['dag_run'].conf)
 
         return (ds_rslt['uuid'], dt, ds_rslt['local_directory_full_path'],
                 ds_rslt['metadata'])
@@ -111,7 +112,7 @@ with HMDAG('launch_multi_analysis',
         filtered_data_types = []
         filtered_md_l = []
         for uuid in uuid_l:
-            uuid, dt, lz_path, metadata = check_one_uuid(uuid, **kwargs)
+            uuid, dt, lz_path, metadata = check_one_uuid(uuid, prev_version_uuid, **kwargs)
             if isinstance(dt, list):
                 if dt:
                     if len(dt) == 1:
