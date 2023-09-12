@@ -4,7 +4,6 @@ from typing import Tuple
 from airflow.providers.http.hooks.http import HttpHook
 from airflow.configuration import conf as airflow_conf
 
-from utils import get_auth_tok
 
 def check_link_published_drvs(uuid: str) -> Tuple[bool, str]:
     needs_previous_version = False

@@ -23,7 +23,7 @@ def get_uuid_for_error(**kwargs):
     """
     Return the uuid for the derived dataset if it exists, and of the parent dataset otherwise.
     """
-    return None
+    return ''
 
 
 default_args = {
@@ -50,7 +50,7 @@ with HMDAG('launch_multi_analysis',
                'preserve_scratch': get_preserve_scratch_resource('launch_multi_analysis')
            }) as dag:
 
-    def check_one_uuid(uuid: str, previous_version_uuid: str, **kwargs):
+    def check_one_uuid(uuid: str, previous_version_uuid: str, avoid_previous_version: bool, **kwargs):
         """
         Look up information on the given uuid or HuBMAP identifier.
         Returns:
@@ -78,7 +78,7 @@ with HMDAG('launch_multi_analysis',
             dt = ast.literal_eval(dt)
             print(f'parsed dt: {dt}')
 
-        if not previous_version_uuid:
+        if not previous_version_uuid and not avoid_previous_version:
             previous_status, previous_uuid = check_link_published_drvs(uuid)
             if previous_status:
                 previous_version_uuid = previous_uuid
@@ -101,14 +101,15 @@ with HMDAG('launch_multi_analysis',
         
         uuid_l = kwargs['dag_run'].conf['uuid_list']
         collection_type = kwargs['dag_run'].conf['collection_type']
-        prev_version_uuid = kwargs['dag_run'].conf.get('previous_version_uuid',
-                                                       None)
+        prev_version_uuid = kwargs['dag_run'].conf.get('previous_version_uuid', None)
+        avoid_previous_version = kwargs['dag_run'].conf.get('avoid_previous_version_find', False)
         filtered_uuid_l = []
         filtered_path_l = []
         filtered_data_types = []
         filtered_md_l = []
         for uuid in uuid_l:
-            uuid, dt, lz_path, metadata, prev_version_uuid = check_one_uuid(uuid, prev_version_uuid, **kwargs)
+            uuid, dt, lz_path, metadata, prev_version_uuid = check_one_uuid(uuid, prev_version_uuid,
+                                                                            avoid_previous_version, **kwargs)
             if isinstance(dt, list):
                 if dt:
                     if len(dt) == 1:
@@ -124,7 +125,7 @@ with HMDAG('launch_multi_analysis',
             filtered_uuid_l.append(uuid)
             filtered_md_l.append(metadata)
         if prev_version_uuid is not None:
-            prev_version_uuid = check_one_uuid(prev_version_uuid, None, **kwargs)[0]
+            prev_version_uuid = check_one_uuid(prev_version_uuid, '', False, **kwargs)[0]
         # print(f'Finished uuid {uuid}')
         print(f'filtered data types: {filtered_data_types}')
         print(f'filtered paths: {filtered_path_l}')
