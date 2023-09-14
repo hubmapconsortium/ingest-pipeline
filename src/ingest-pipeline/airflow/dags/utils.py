@@ -781,7 +781,7 @@ def pythonop_set_dataset_state(**kwargs) -> None:
         get_auth_tok(**kwargs),
         status,
         {
-            "extra_fields": {"pipeline_message": message},
+            "extra_fields": {"pipeline_message": message} if message else {},
             "extra_options": {},
         },
         http_conn_id=http_conn_id,

@@ -10,6 +10,7 @@ from pprint import pprint
 from typing import Any, TypedDict
 
 import asana
+from asana.error import NotFoundError
 from status_change.status_utils import get_hubmap_id_from_uuid, get_submission_context
 
 from airflow.providers.http.hooks.http import HttpHook
@@ -122,7 +123,8 @@ class StatusChanger:
                 extra_status == self.status
             ), f"Entity uuid {self.uuid} passed two different statuses: {self.status} and {extra_status} as part of extras."
         data.update(self.extras["extra_fields"])
-        return data
+        logging.info(f"COMPILED DATA: {data}")
+        return json.dumps(data)
 
     def set_entity_api_status(self) -> dict:
         endpoint = f"/entities/{self.uuid}"
@@ -138,7 +140,7 @@ class StatusChanger:
         logging.info(
             f"""
             data:
-            {pprint(data)}
+            {data}
             """
         )
         try:
@@ -147,14 +149,13 @@ class StatusChanger:
             response = http_hook.run(
                 endpoint, json.dumps(data), headers, self.extras["extra_options"]
             )
-            if self.verbose:
-                logging.info(
-                    f"""
-                        Status set to {response.json()['status']}.
-                        Response:
-                        {json.dumps(response.json(), indent=6)}
-                    """
-                )
+            # if self.verbose:
+            #     logging.info(
+            #         f"""
+            #             Response:
+            #             {json.dumps(response.json(), indent=6)}
+            #         """
+            #     )
             return response.json()
         except Exception as e:
             raise StatusChangerException(
@@ -299,12 +300,13 @@ class UpdateAsana:
                 )
             task_id = gids[0]
         else:
-            raise StatusChangerException(
+            logging.info(
                 f"""
                 Error retrieving task by HuBMAP ID for {self.hubmap_id}! {response_length} results found.
                 Check that a task for the expected HuBMAP ID exists in Asana and that it is formatted '{self.hubmap_id}' with no surrounding whitespace.
                 """
             )
+            return ""
         return task_id
 
     @cached_property
@@ -335,17 +337,39 @@ class UpdateAsana:
                 },
                 opt_pretty=True,
             )
-            new_status = None
-            for custom_field in response["custom_fields"]:
-                if custom_field["name"] == "Process Stage":
-                    new_status = custom_field["enum_value"]["gid"]
+        # Separating this one out to handle empty string passed as task_id because task wasn't found
+        except NotFoundError as e:
+            logging.info(
+                f"""
+                    Error occurred while updating Asana status for HuBMAP ID {self.hubmap_id};
+                    task ID that was passed was {self.get_task_by_hubmap_id}.
+                    Task status not updated, may need to be updated manually.
+                    Error: {e}
+                """
+            )
+            return
+        except Exception as e:
+            logging.info(
+                f"""
+                    Error occurred while updating Asana status for HuBMAP ID {self.hubmap_id}.
+                    Task status not updated, may need to be updated manually.
+                    Error: {e}
+                """
+            )
+            return
+        try:
+            new_status = list(
+                field["enum_value"]
+                for field in response["custom_fields"]
+                if field["name"] == "Process Stage"
+            )[0]
             assert (
-                self.get_asana_status == new_status
-            ), f"Asana status matching Entity API status '{self.status}' not applied to {self.hubmap_id}. Current status in Asana is {new_status}."
+                self.get_asana_status == new_status["gid"]
+            ), f"Asana status matching Entity API status '{self.status}' not applied to {self.hubmap_id}. Current status in Asana matches GID {new_status['name']}."
             logging.info(f"UPDATE SUCCESSFUL: {response}")
         except Exception as e:
             raise StatusChangerException(
-                f"Error occurred while updating HuBMAP ID {self.hubmap_id}; not updated. Error: {e}"
+                f"Error occurred while updating Asana status for HuBMAP ID {self.hubmap_id}; not updated. Error: {e}"
             )
 
     def convert_utc_timestamp(self, dataset):
