@@ -7,8 +7,14 @@ db.sqlite3
 __pycache__
 media/*
 media
+.envrc
 
 docker/dev-local
+
+# airflow
+src/ingest-pipeline/airflow/logs/
+airflow.cfg
+airflow.db
 
 # dependencies
 node_modules
