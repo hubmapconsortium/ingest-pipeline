@@ -1,14 +1,26 @@
+*~
+*.pyc
+__pycache__
+.env
+.envrc
 .idea
 .vs
 .vscode
-*.pyc
 db.sqlite3
-*~
-__pycache__
 media/*
 media
 
 docker/dev-local
+
+# airflow/secrets
+.pgpwd
+airflow.cfg
+airflow.db
+pg_celery_conn.sh
+pg_conn.sh
+src/ingest-pipeline/misc/tools/.token.json
+src/ingest-pipeline/airflow/logs/
+src/ingest-pipeline/airflow/instance/app.cfg
 
 # dependencies
 node_modules
