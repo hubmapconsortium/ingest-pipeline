@@ -1,39 +1,33 @@
-import sys
-
 import json
-from pathlib import Path
+import sys
 from datetime import datetime, timedelta
+from pathlib import Path
 from pprint import pprint
 
-from airflow.configuration import conf as airflow_conf
-from airflow.operators.python import PythonOperator
-from airflow.exceptions import AirflowException
-from airflow.providers.http.hooks.http import HttpHook
-
+# from error_catching.validate_upload_failure_callback import ValidateUploadFailure
 from hubmap_operators.common_operators import (
-    CreateTmpDirOperator,
     CleanupTmpDirOperator,
+    CreateTmpDirOperator,
+)
+from utils import (
+    HMDAG,
+    get_auth_tok,
+    get_preserve_scratch_resource,
+    get_queue_resource,
+    get_threads_resource,
+    get_tmp_dir_path,
+    pythonop_get_dataset_state,
 )
 
-from error_catching.validate_upload_failure_callback import ValidateUploadFailure
-from utils import (
-    encrypt_tok,
-    get_tmp_dir_path,
-    get_auth_tok,
-    pythonop_get_dataset_state,
-    HMDAG,
-    get_queue_resource,
-    get_preserve_scratch_resource,
-    get_threads_resource,
-)
+from airflow.configuration import conf as airflow_conf
+from airflow.exceptions import AirflowException
+from airflow.operators.python import PythonOperator
+from airflow.providers.http.hooks.http import HttpHook
 
 sys.path.append(airflow_conf.as_dict()["connections"]["SRC_PATH"].strip("'").strip('"'))
 
-from submodules import (
-    ingest_validation_tools_upload,  # noqa E402
-    ingest_validation_tools_error_report,
-    ingest_validation_tests,
-)
+from submodules import ingest_validation_tools_upload  # noqa E402
+from submodules import ingest_validation_tests, ingest_validation_tools_error_report
 
 sys.path.pop()
 
@@ -46,7 +40,7 @@ default_args = {
     "email": ["gesina@psc.edu"],
     "email_on_failure": False,
     "email_on_retry": False,
-    "on_failure_callback": ValidateUploadFailure,
+    # "on_failure_callback": ValidateUploadFailure,
     "retries": 1,
     "retry_delay": timedelta(minutes=1),
     "xcom_push": True,
@@ -118,6 +112,8 @@ with HMDAG(
             extra_parameters={
                 "coreuse": get_threads_resource("validate_upload", "run_validation")
             },
+            token=get_auth_tok(**kwargs),
+            cedar_api_key=airflow_conf.as_dict()["connections"]["CEDAR_API_KEY"],
         )
         # Scan reports an error result
         report = ingest_validation_tools_error_report.ErrorReport(
@@ -158,10 +154,10 @@ with HMDAG(
                 "status": "Invalid",
                 "validation_message": report_txt,
             }
-            context = kwargs["ti"].get_template_context()
-            ValidateUploadFailure(context, execute_methods=False).send_failure_email(
-                report_txt=report_txt
-            )
+            # context = kwargs["ti"].get_template_context()
+            # ValidateUploadFailure(context, execute_methods=False).send_failure_email(
+            #     report_txt=report_txt
+            # )
         print("data: ")
         pprint(data)
         response = http_hook.run(
