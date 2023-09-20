@@ -14,28 +14,28 @@ from hubmap_commons.hm_auth import AuthHelper
 # No trailing slashes in the following URLs!
 ENDPOINTS = {
     'PROD': {
-        'entity_url': 'https://entity.api.hubmapconsortium.org',
-        'search_url': 'https://search.api.hubmapconsortium.org/v3',
-        'ingest_url': 'http://hivevm193.psc.edu:7777',
-        'assay_info_url': 'https://search.api.hubmapconsortium.org/v3'
+        'entity_url': 'https://entity.api.sennetconsortium.org',
+        'search_url': 'https://search.api.sennetconsortium.org/v3',
+        'ingest_url': 'https://ingest.api.sennetconsortium.org',
+        'assay_info_url': 'https://search.api.sennetconsortium.org/v3'
         },
     'STAGE': {
-        'entity_url': 'https://entity-api.stage.hubmapconsortium.org',
-        'search_url': 'https://search-api.stage.hubmapconsortium.org/v3',
-        'ingest_url': 'http://hivevm195.psc.edu:7777',
-        'assay_info_url': 'https://search-api.stage.hubmapconsortium.org/v3'
+        'entity_url': 'https://entity-api.stage.sennetconsortium.org',
+        'search_url': 'https://search-api.stage.sennetconsortium.org/v3',
+        'ingest_url': 'https://ingest-api.stage.sennetconsortium.org',
+        'assay_info_url': 'https://search-api.stage.sennetconsortium.org/v3'
         },
     'TEST': {
-        'entity_url': 'https://entity-api.test.hubmapconsortium.org',
-        'search_url': 'https://search-api.test.hubmapconsortium.org/v3',
-        'ingest_url': 'http://hivevm192.psc.edu:7777',
-        'assay_info_url': 'https://search-api.test.hubmapconsortium.org/v3'
+        'entity_url': 'https://entity-api.test.sennetconsortium.org',
+        'search_url': 'https://search-api.test.sennetconsortium.org/v3',
+        'ingest_url': 'https://ingest-api.test.sennetconsortium.org',
+        'assay_info_url': 'https://search-api.test.sennetconsortium.org/v3'
         },
     'DEV': {
-        'entity_url': 'https://entity-api.dev.hubmapconsortium.org',
-        'search_url': 'https://search-api.dev.hubmapconsortium.org/v3',
-        'ingest_url': 'http://hivevm191.psc.edu:7777',
-        'assay_info_url': 'https://search-api.dev.hubmapconsortium.org/v3'
+        'entity_url': 'https://entity-api.dev.sennetconsortium.org',
+        'search_url': 'https://search-api.dev.sennetconsortium.org/v3',
+        'ingest_url': 'https://ingest-api.dev.sennetconsortium.org',
+        'assay_info_url': 'https://search-api.dev.sennetconsortium.org/v3'
         },
     }
 
