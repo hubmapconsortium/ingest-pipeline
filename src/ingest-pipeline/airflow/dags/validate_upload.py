@@ -40,7 +40,7 @@ sys.path.pop()
 
 # Following are defaults which can be overridden later on
 default_args = {
-    'owner': 'hubmap',
+    'owner': 'sennet',
     'depends_on_past': False,
     'start_date': datetime(2019, 1, 1),
     'email': ['joel.welling@gmail.com'],

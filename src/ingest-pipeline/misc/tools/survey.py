@@ -605,7 +605,7 @@ class EntityFactory:
                          headers={
                              'Authorization': f'Bearer {self.auth_tok}',
                              'Content-Type': 'application/json',
-                             'X-Hubmap-Application': 'ingest-pipeline'
+                             'X-SenNet-Application': 'ingest-pipeline'
                               })
         if r.status_code >= 300:
             r.raise_for_status()
