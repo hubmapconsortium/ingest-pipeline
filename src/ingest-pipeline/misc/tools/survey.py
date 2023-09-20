@@ -60,7 +60,7 @@ COLUMN_SORT_WEIGHTS = {
     'group_name': -10,
     'data_types': -9,
     'uuid': -8,
-    'hubmap_id': -7,
+    'sennet_id': -7,
 }
 
 
@@ -152,12 +152,12 @@ class Entity:
         self.uuid = prop_dct['uuid']
         self.prop_dct = prop_dct
         self.entity_factory = entity_factory
-        self.hubmap_id = prop_dct['hubmap_id']
+        self.sennet_id = prop_dct['sennet_id']
         self.notes = []
 
     def describe(self, prefix='', file=sys.stdout):
         print(f"{prefix}{self.uuid}: "
-              f"{self.hubmap_id} ",
+              f"{self.sennet_id} ",
               file=file)
 
     def all_uuids(self):
@@ -264,7 +264,7 @@ class Dataset(Entity):
 
     def describe(self, prefix='', file=sys.stdout):
         print(f"{prefix}Dataset {self.uuid}: "
-              f"{self.hubmap_id} "
+              f"{self.sennet_id} "
               f"{self.data_types} "
               f"{self.status} "
               f"{self.notes if self.notes else ''}",
@@ -286,25 +286,25 @@ class Dataset(Entity):
                 assert isinstance(samp, (Sample, Donor)), 'was expecting a sample or donor?'
                 s_t.add(samp.submission_id)
             sample_submission_id = str(s_t)
-            sample_hubmap_id = (samp.hubmap_id if len(other_parent_uuids) == 1
+            sample_sennet_id = (samp.sennet_id if len(other_parent_uuids) == 1
                                 else 'multiple')
             parent_dataset = None
         else:
-            sample_submission_id = sample_hubmap_id = None
+            sample_submission_id = sample_sennet_id = None
             parent_dataset = (self.parent_dataset_uuids[0] if len(self.parent_dataset_uuids) == 1
                               else 'multiple')
-        return parent_dataset, sample_submission_id, sample_hubmap_id
+        return parent_dataset, sample_submission_id, sample_sennet_id
 
     def build_rec(self, include_all_children=False):
         """
         Returns a dict containing:
 
         uuid
-        hubmap_id
+        sennet_id
         data_types[0]  (verifying there is only 1 entry)
         status
         QA_child.uuid
-        QA_child.hubmap_id
+        QA_child.sennet_id
         QA_child.data_types[0]  (verifying there is only 1 entry)
         QA_child.status   (which must be QA or Published)
         note
@@ -312,7 +312,7 @@ class Dataset(Entity):
         If include_all_children=True, all child datasets are included rather
         than just those that are QA or Published.
         """
-        rec = {'uuid': self.uuid, 'hubmap_id': self.hubmap_id, 'status': self.status,
+        rec = {'uuid': self.uuid, 'sennet_id': self.sennet_id, 'status': self.status,
                'group_name': self.group_name, 'is_derived': self.is_derived}
         if not self.data_types:
             rec['data_types'] = "[]"
@@ -324,7 +324,7 @@ class Dataset(Entity):
             rec['data_types'] = f"[{','.join(self.data_types)}]"
         (rec['parent_dataset'],
          rec['sample_submission_id'],
-         rec['sample_hubmap_id']) = self._parse_sample_parents()
+         rec['sample_sennet_id']) = self._parse_sample_parents()
         rec['donor_uuid'] = self.donor_uuid
         if not self.organs:
             raise SurveyException(f'The source organ for Sample {self.uuid} could not be found')
@@ -334,7 +334,7 @@ class Dataset(Entity):
         if include_all_children:
             filtered_kids = [self.kids[uuid] for uuid in self.kids]
             uuid_hdr, doi_hdr, data_type_hdr, status_hdr, note_note = ('child_uuid',
-                                                                       'child_hubmap_id',
+                                                                       'child_sennet_id',
                                                                        'child_data_type',
                                                                        'child_status',
                                                                        'Multiple derived datasets')
@@ -345,7 +345,7 @@ class Dataset(Entity):
                 uuid_hdr, doi_hdr, data_type_hdr,
                 status_hdr, note_note
             ) = (
-                'qa_child_uuid', 'qa_child_hubmap_id',
+                'qa_child_uuid', 'qa_child_sennet_id',
                 'qa_child_data_type', 'qa_child_status',
                 'Multiple QA derived datasets'
             )
@@ -353,7 +353,7 @@ class Dataset(Entity):
             rec['note'] = note_note if len(filtered_kids) > 1 else ''
             this_kid = filtered_kids[0]
             rec[uuid_hdr] = this_kid.uuid
-            rec[doi_hdr] = this_kid.hubmap_id
+            rec[doi_hdr] = this_kid.sennet_id
             rec[data_type_hdr] = this_kid.data_types[0]
             rec[status_hdr] = this_kid.status
         else:
@@ -425,7 +425,7 @@ class Upload(Entity):
 
     def describe(self, prefix='', file=sys.stdout):
         print(f"{prefix}Upload {self.uuid}: "
-              f"{self.hubmap_id} "
+              f"{self.sennet_id} "
               f"{self.status} "
               f"{self.notes if self.notes else ''}",
               file=file)
@@ -446,27 +446,27 @@ class Upload(Entity):
                 assert isinstance(samp, (Sample, Donor)), 'was expecting a sample or donor?'
                 s_t.add(samp.submission_id)
             sample_submission_id = str(s_t)
-            sample_hubmap_id = (samp.hubmap_id if len(other_parent_uuids) == 1
+            sample_sennet_id = (samp.sennet_id if len(other_parent_uuids) == 1
                                 else 'multiple')
             parent_dataset = None
         else:
-            sample_submission_id = sample_hubmap_id = None
+            sample_submission_id = sample_sennet_id = None
             parent_dataset = (self.parent_dataset_uuids[0] if len(self.parent_dataset_uuids) == 1
                               else 'multiple')
-        return parent_dataset, sample_submission_id, sample_hubmap_id
+        return parent_dataset, sample_submission_id, sample_sennet_id
 
     def build_rec(self, include_all_children=False):
         """
         Returns a dict containing:
 
         uuid
-        hubmap_id
+        sennet_id
         status
         group_name
         note
 
         """
-        rec = {'uuid': self.uuid, 'hubmap_id': self.hubmap_id, 'status': self.status,
+        rec = {'uuid': self.uuid, 'sennet_id': self.sennet_id, 'status': self.status,
                'group_name': self.group_name, 'note': ''}
         rec['note'] = '; '.join([rec['note']] + self.notes)
         return rec
@@ -489,8 +489,8 @@ class Sample(Entity):
         super().__init__(prop_dct, entity_factory)
         assert prop_dct['entity_type'] == 'Sample', (f"uuid {prop_dct['uuid']} is"
                                                      f" a {prop_dct['entity_type']}")
-        self.hubmap_id = prop_dct['hubmap_id']
-        self._donor_hubmap_id = None
+        self.sennet_id = prop_dct['sennet_id']
+        self._donor_sennet_id = None
         self.submission_id = prop_dct['submission_id']
         self._donor_submission_id = None
         self._donor_uuid = None
@@ -519,11 +519,11 @@ class Sample(Entity):
             if isinstance(parent_entity, Sample):
                 self._donor_uuid = parent_entity.donor_uuid
                 self._donor_submission_id = parent_entity.donor_submission_id
-                self._donor_hubmap_id = parent_entity.donor_hubmap_id
+                self._donor_sennet_id = parent_entity.donor_sennet_id
             else:
                 self._donor_uuid = parent_uuid
                 self._donor_submission_id = parent_entity.submission_id
-                self._donor_hubmap_id = parent_entity.hubmap_id
+                self._donor_sennet_id = parent_entity.sennet_id
         return self._donor_uuid
 
     @property
@@ -533,14 +533,14 @@ class Sample(Entity):
         return self._donor_submission_id
 
     @property
-    def donor_hubmap_id(self):
-        if self._donor_hubmap_id is None:
+    def donor_sennet_id(self):
+        if self._donor_sennet_id is None:
             _ = self.donor_uuid  # force search for donor
-        return self._donor_hubmap_id
+        return self._donor_sennet_id
 
     def describe(self, prefix='', file=sys.stdout):
         print(f"{prefix}Sample {self.uuid}: "
-              f"{self.hubmap_id} "
+              f"{self.sennet_id} "
               f"{self.submission_id} "
               f"{self.donor_submission_id}",
               file=file)
@@ -551,12 +551,12 @@ class Donor(Entity):
         super().__init__(prop_dct, entity_factory)
         assert prop_dct['entity_type'] == 'Donor', (f"uuid {prop_dct['uuid']} is"
                                                     f" a {prop_dct['entity_type']}")
-        self.hubmap_id = prop_dct['hubmap_id']
+        self.sennet_id = prop_dct['sennet_id']
         self.submission_id = prop_dct['submission_id']
 
     def describe(self, prefix='', file=sys.stdout):
         print(f"{prefix}Donor {self.uuid}: "
-              f"{self.hubmap_id} "
+              f"{self.sennet_id} "
               f"{self.submission_id} ",
               file=file)
 
@@ -570,7 +570,7 @@ class Support(Dataset):
 
     def describe(self, prefix='', file=sys.stdout):
         print(f"{prefix}Support {self.uuid}: "
-              f"{self.hubmap_id} "
+              f"{self.sennet_id} "
               f"{self.data_types} "
               f"{self.notes if self.notes else ''}",
               file=file)
@@ -777,8 +777,8 @@ def main():
             out_recs.append(rec)
     out_df = pd.DataFrame(out_recs).rename(columns={'qa_child_uuid': 'derived_uuid',
                                                     'child_uuid': 'derived_uuid',
-                                                    'qa_child_hubmap_id': 'derived_hubmap_id',
-                                                    'child_hubmap_id': 'derived_hubmap_id',
+                                                    'qa_child_sennet_id': 'derived_sennet_id',
+                                                    'child_sennet_id': 'derived_sennet_id',
                                                     'qa_child_data_type': 'derived_data_type',
                                                     'child_data_type': 'derived_data_type',
                                                     'qa_child_status': 'derived_status',
