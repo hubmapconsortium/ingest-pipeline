@@ -135,7 +135,7 @@ with HMDAG('launch_checksums',
         headers = {
             'authorization': 'Bearer ' + get_auth_tok(**kwargs),
             'content-type': 'application/json',
-            'X-Hubmap-Application': 'ingest-pipeline'
+            'X-SenNet-Application': 'ingest-pipeline'
         }
         rec_l = []
         for idx, row in block_df.iterrows():  # pylint: disable=unused-variable
