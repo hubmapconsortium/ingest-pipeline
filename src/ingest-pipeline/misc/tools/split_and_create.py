@@ -268,7 +268,7 @@ def update_upload_entity(child_uuid_list, source_entity, dryrun=False, verbose=F
                              headers={
                                  'Authorization': f'Bearer {source_entity.entity_factory.auth_tok}',
                                  'Content-Type': 'application/json',
-                                 'X-Hubmap-Application': 'ingest-pipeline'
+                                 'X-SenNet-Application': 'ingest-pipeline'
                              })
             if r.status_code >= 300:
                 r.raise_for_status()

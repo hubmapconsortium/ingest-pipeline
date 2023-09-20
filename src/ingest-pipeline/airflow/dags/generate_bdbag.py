@@ -115,7 +115,7 @@ with HMDAG('generate_bdbag',
         headers = {
             'authorization': f'Bearer {auth_token}',
             'content-type': 'application/json',
-            'X-Hubmap-Application': 'ingest-pipeline',
+            'X-SenNet-Application': 'ingest-pipeline',
         }
         try:
             response = http_hook.run(endpoint,
