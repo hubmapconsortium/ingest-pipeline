@@ -15,27 +15,27 @@ from hubmap_commons.hm_auth import AuthHelper
 ENDPOINTS = {
     'PROD': {
         'entity_url': 'https://entity.api.sennetconsortium.org',
-        'search_url': 'https://search.api.sennetconsortium.org/v3',
+        'search_url': 'https://search.api.sennetconsortium.org',
         'ingest_url': 'https://ingest.api.sennetconsortium.org',
-        'assay_info_url': 'https://search.api.sennetconsortium.org/v3'
+        'assay_info_url': 'https://search.api.sennetconsortium.org'
         },
     'STAGE': {
         'entity_url': 'https://entity-api.stage.sennetconsortium.org',
-        'search_url': 'https://search-api.stage.sennetconsortium.org/v3',
+        'search_url': 'https://search-api.stage.sennetconsortium.org',
         'ingest_url': 'https://ingest-api.stage.sennetconsortium.org',
-        'assay_info_url': 'https://search-api.stage.sennetconsortium.org/v3'
+        'assay_info_url': 'https://search-api.stage.sennetconsortium.org'
         },
     'TEST': {
         'entity_url': 'https://entity-api.test.sennetconsortium.org',
-        'search_url': 'https://search-api.test.sennetconsortium.org/v3',
+        'search_url': 'https://search-api.test.sennetconsortium.org',
         'ingest_url': 'https://ingest-api.test.sennetconsortium.org',
-        'assay_info_url': 'https://search-api.test.sennetconsortium.org/v3'
+        'assay_info_url': 'https://search-api.test.sennetconsortium.org'
         },
     'DEV': {
         'entity_url': 'https://entity-api.dev.sennetconsortium.org',
-        'search_url': 'https://search-api.dev.sennetconsortium.org/v3',
+        'search_url': 'https://search-api.dev.sennetconsortium.org',
         'ingest_url': 'https://ingest-api.dev.sennetconsortium.org',
-        'assay_info_url': 'https://search-api.dev.sennetconsortium.org/v3'
+        'assay_info_url': 'https://search-api.dev.sennetconsortium.org'
         },
     }
 
