@@ -53,12 +53,15 @@ def _remove_na(row: pd.Series, parent_assay_type: StrOrListStr) -> pd.Series:
     return new_row
 
 SEQ_RD_FMT_TEST_RX = re.compile(r'\d+\+\d+\+\d+\+\d+')
+
+
 def _reformat_seq_read(row: pd.Series, parent_assay_type: StrOrListStr) -> pd.Series:
     new_row = row.copy()
     key = 'sequencing_read_format'
     if key in row and SEQ_RD_FMT_TEST_RX.match(row[key]):
         new_row[key] = row[key].replace('+', '/')
     return new_row
+
 
 def _fix_snare_atac_assay_type(row: pd.Series, parent_assay_type: StrOrListStr) -> pd.Series:
     new_row = row.copy()
@@ -68,6 +71,7 @@ def _fix_snare_atac_assay_type(row: pd.Series, parent_assay_type: StrOrListStr) 
             and row[key1] == 'SNARE-seq2' and row[key2] == 'SNAREseq'):
         new_row[key2] = 'SNARE-seq2'
     return new_row
+
 
 SPECIAL_CASE_TRANSFORMATIONS = [
     (re.compile('SNAREseq'), [_remove_na, _reformat_seq_read, _fix_snare_atac_assay_type])
