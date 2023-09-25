@@ -4,6 +4,8 @@ from airflow.utils.state import State
 from slurm_cli.slurm_control import get_jobs_status, run_job
 import logging
 import uuid
+import sys
+
 
 logger = logging.getLogger(__name__)
 
@@ -62,12 +64,13 @@ class SlurmExecutor(BaseExecutor):
     def end(self):
         self.heartbeat()
 
+
 # Defining the plugin class
 class SlurmExecutorPlugin(AirflowPlugin):
     name = "slurm"
     executors = [SlurmExecutor]
 
-import sys
-if __name__=='__main__':
+
+if __name__ == '__main__':
     print('output', get_jobs_status())
     print('output', get_jobs_status(sys.argv[1:]))
