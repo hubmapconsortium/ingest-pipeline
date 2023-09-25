@@ -9,6 +9,7 @@ __SRUN_PATH = 'srun'
 def __execute_on_shell(cmd, args):
     process_status = __run_process([cmd] + args, capture_output=True)
     if process_status.returncode > 0:
+        print(f'Status {process_status}')
         raise SlurmCallError()
     output = process_status.stdout.decode()
     return output
@@ -53,13 +54,13 @@ def __execute_squeue(args):
 
 
 def __parse_squeue_output(squeue_output) -> List[jobs.SlurmJobStatus]:
-    '''
+    """
     Parses the output of squeue
     e.g.
     123;test_job;CD;COMPLETED;None
     :param squeue_output:
     :return:
-    '''
+    """
     jobs_found = []
     if squeue_output:
         for line in squeue_output.split('\n'):
@@ -67,10 +68,10 @@ def __parse_squeue_output(squeue_output) -> List[jobs.SlurmJobStatus]:
                 continue
             job_id, job_name, status_code, status, reason = line.split(';')
             jobs_found.append(jobs.SlurmJobStatus(job_id=job_id,
-                                             job_name=job_name,
-                                             status_code=status_code,
-                                             status=status,
-                                             reason=reason))
+                                                  job_name=job_name,
+                                                  status_code=status_code,
+                                                  status=status,
+                                                  reason=reason))
 
     return jobs_found
 
@@ -79,7 +80,8 @@ def __map_job_status_per_jobid(job_status_list: List[jobs.SlurmJobStatus]) -> Di
     return {job_status.job_id: job_status for job_status in job_status_list}
 
 
-def get_jobs_status(job_ids: Union[List, Tuple] = (), job_name: Union[List, Tuple] = ()) -> Dict[str, jobs.SlurmJobStatus]:
+def get_jobs_status(job_ids: Union[List, Tuple] = (), job_name: Union[List, Tuple] = ()) \
+        -> Dict[str, jobs.SlurmJobStatus]:
     args = __compose_get_processes_status_cmd(job_ids, job_name)
     output = __execute_squeue(args)
     parsed_output = __parse_squeue_output(output)
