@@ -398,7 +398,7 @@ def generic_invoke_dag_on_uuid(uuid, process_name):
     try:
         dag_id = config('ingest_map', process)
         session = settings.Session()
-        dag = _get_dag(dag_id)
+        # dag = _get_dag(dag_id)
 
         # Produce one and only one run
         tz = pytz.timezone(config('core', 'timezone'))
