@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import traceback
 from typing import Any, Dict
 
 from requests import codes
@@ -62,3 +63,17 @@ def get_hubmap_id_from_uuid(token: str, uuid: str) -> str | None:
         else:
             print("benign error")
             return None
+
+
+def formatted_exception(exception):
+    """
+    traceback logic from
+    https://stackoverflow.com/questions/51822029/get-exception-details-on-airflow-on-failure-callback-context
+    """
+    if not (
+        formatted_exception := "".join(
+            traceback.TracebackException.from_exception(exception).format()
+        ).replace("\n", "<br>")
+    ):
+        return None
+    return formatted_exception

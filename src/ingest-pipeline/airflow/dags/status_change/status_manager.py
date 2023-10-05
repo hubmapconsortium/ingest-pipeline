@@ -5,14 +5,10 @@ import logging
 from enum import Enum
 from typing import Any, Dict, TypedDict
 
+from status_change.send_emails import SendFailureEmail
 from status_manager.status_utils import get_submission_context
 
 from airflow.providers.http.hooks.http import HttpHook
-
-"""
-TODO:
-    - Email capability? (Coordinate with FailureCallback if so!)
-"""
 
 
 class Statuses(str, Enum):
@@ -88,6 +84,7 @@ Example usage, optional params path:
             },
             #optional entity_type="Dataset"|"Upload"
             #optional http_conn_id="entity_api_connection"
+            #optional notification_instance=SendEmail(context)
         ).on_status_change()
 """
 
@@ -97,10 +94,14 @@ class StatusChanger:
         self,
         uuid: str,
         token: str,
+        # TODO: status is currently required; should it be possible
+        # to add extra info without updating status?
         status: Statuses | str,
         extras: StatusChangerExtras | None = None,
         entity_type: str | None = None,
         http_conn_id: str = "entity_api_connection",
+        # notification_instance assumes email, but could be generalized
+        notification_instance: SendFailureEmail | None = None,
         verbose: bool = True,
     ):
         self.uuid = uuid
@@ -118,8 +119,13 @@ class StatusChanger:
                 "extra_options": {},
             }
         )
+        self.notification_instance = notification_instance if notification_instance else None
 
-    def get_status(self, status: str, entity_type: str | None):
+    # TODO: consider checking current status here, as I believe ingest-pipeline gets mad
+    # if you try to set an entity's status to the status it already has
+    # This would mean that every instance makes a call to entity-api.
+    # The alternative is to check the current status just before the set_entity_api_status call.
+    def get_status(self, status: str, entity_type: str | None) -> Statuses:
         if entity_type is None:
             try:
                 entity_data = get_submission_context(self.token, self.uuid)
@@ -157,7 +163,7 @@ class StatusChanger:
         logging.info(f"COMPILED DATA: {data}")
         return data
 
-    def set_entity_api_status(self) -> dict:
+    def set_entity_api_status(self) -> Dict:
         endpoint = f"/entities/{self.uuid}"
         headers = {
             "authorization": "Bearer " + self.token,
@@ -175,18 +181,11 @@ class StatusChanger:
             """
         )
         try:
-            if self.verbose and data.get("status") is not None:
+            if self.verbose:
                 logging.info(f"Setting status to {data['status']}...")
             response = http_hook.run(
                 endpoint, json.dumps(data), headers, self.extras["extra_options"]
             )
-            # if self.verbose:
-            #     logging.info(
-            #         f"""
-            #             Response:
-            #             {json.dumps(response.json(), indent=6)}
-            #         """
-            #     )
             return response.json()
         except Exception as e:
             raise StatusChangerException(
@@ -201,8 +200,14 @@ class StatusChanger:
         # UpdateAsana(self.uuid, self.token, self.status).update_process_stage()
         pass
 
-    def send_email(self):
-        pass
+    def send_email(self) -> None:
+        """
+        This assumes that either a FailureCallback has passed a SendFailureEmail
+        instance or that a SendEmail subclass instance needs to be created here--
+        latter case is not implemented.
+        """
+        if self.notification_instance:
+            self.notification_instance.send_notifications()
 
     status_map = {}
     """
@@ -216,7 +221,7 @@ class StatusChanger:
     }
     """
 
-    def on_status_change(self):
+    def on_status_change(self) -> None:
         if self.status in self.status_map:
             for func in self.status_map[self.status]:
                 func(self)
