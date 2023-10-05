@@ -99,6 +99,8 @@ def __compose_run_job_arguments(cmd, queue=None, executor_config=None, job_name=
     args = []
     if queue:
         args += ['-p', queue]
+        if 'gpu' in queue.lower():
+            args += ['--gres', 'gpu:P100:2']
     if job_name:
         args += ['-J', job_name]
     else:
