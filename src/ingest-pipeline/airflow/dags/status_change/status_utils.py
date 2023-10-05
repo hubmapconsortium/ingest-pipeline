@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any, Dict
+
 from requests import codes
 from requests.exceptions import HTTPError
 
@@ -7,7 +9,7 @@ from airflow.hooks.http_hook import HttpHook
 
 
 # This is simplified from pythonop_get_dataset_state in utils
-def get_submission_context(token: str, uuid: str) -> dict:
+def get_submission_context(token: str, uuid: str) -> Dict[str, Any]:
     """
     uuid can also be a HuBMAP ID.
     """

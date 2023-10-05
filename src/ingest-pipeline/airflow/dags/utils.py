@@ -36,7 +36,7 @@ from hubmap_commons.schema_tools import assert_json_matches_schema, set_schema_b
 from hubmap_commons.type_client import TypeClient
 from requests import codes
 from requests.exceptions import HTTPError
-from status_change.status_manager import DATASET_STATUS_MAP, StatusChanger
+from status_change.status_manager import StatusChanger
 
 from airflow import DAG
 from airflow.configuration import conf as airflow_conf
@@ -49,7 +49,7 @@ try:
     from misc.tools.survey import ENDPOINTS
 
     sys.path.pop()
-except KeyError:
+except Exception:
     ENDPOINTS = {}
 
 
@@ -791,13 +791,7 @@ def pythonop_set_dataset_state(**kwargs) -> None:
         assert arg in kwargs, "missing required argument {}".format(arg)
     dataset_uuid = kwargs["dataset_uuid_callable"](**kwargs)
     http_conn_id = kwargs.get("http_conn_id", "entity_api_connection")
-    ds_state = kwargs["ds_state"] if "ds_state" in kwargs else "Processing"
-    try:
-        status = DATASET_STATUS_MAP[ds_state]
-    except Exception as e:
-        raise Exception(
-            f"Dataset status {ds_state} for uuid {dataset_uuid} not found in dataset status map: {DATASET_STATUS_MAP}. Error: {e}"
-        )
+    status = kwargs["ds_state"] if "ds_state" in kwargs else "Processing"
     message = kwargs.get("message", None)
     StatusChanger(
         dataset_uuid,
@@ -1270,12 +1264,7 @@ def make_send_status_msg_function(
                 "pipeline_message": err_txt,
             }
             return_status = False
-        if isinstance(status, str):
-            status = DATASET_STATUS_MAP[status]
-        elif status is None:
-            pass
-        else:
-            raise Exception(f"Status value {status} not recognized")
+        entity_type = ds_rslt.get("entity_type")
         StatusChanger(
             dataset_uuid,
             get_auth_tok(**kwargs),
@@ -1284,6 +1273,7 @@ def make_send_status_msg_function(
                 "extra_fields": extra_fields,
                 "extra_options": {},
             },
+            entity_type=entity_type if entity_type else None,
         ).on_status_change()
 
         return return_status

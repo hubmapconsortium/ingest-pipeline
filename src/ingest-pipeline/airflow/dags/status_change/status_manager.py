@@ -3,13 +3,15 @@ from __future__ import annotations
 import json
 import logging
 from enum import Enum
-from typing import Any, TypedDict
+from typing import Any, Dict, TypedDict
+
+from status_manager.status_utils import get_submission_context
 
 from airflow.providers.http.hooks.http import HttpHook
 
 """
 TODO:
-    - Email capability?
+    - Email capability? (Coordinate with FailureCallback if so!)
 """
 
 
@@ -33,25 +35,26 @@ class Statuses(str, Enum):
 
 
 # Needed some way to disambiguate statuses shared by datasets and uploads
-DATASET_STATUS_MAP = {
-    "Deprecated": Statuses.DATASET_DEPRECATED,
-    "Error": Statuses.DATASET_ERROR,
-    "Hold": Statuses.DATASET_HOLD,
-    "Invalid": Statuses.DATASET_INVALID,
-    "New": Statuses.DATASET_NEW,
-    "Processing": Statuses.DATASET_PROCESSING,
-    "Published": Statuses.DATASET_PUBLISHED,
-    "QA": Statuses.DATASET_QA,
-}
-
-UPLOAD_STATUS_MAP = {
-    "Error": Statuses.UPLOAD_ERROR,
-    "Invalid": Statuses.UPLOAD_INVALID,
-    "New": Statuses.UPLOAD_NEW,
-    "Processing": Statuses.UPLOAD_PROCESSING,
-    "Reorganized": Statuses.UPLOAD_REORGANIZED,
-    "Submitted": Statuses.UPLOAD_SUBMITTED,
-    "Valid": Statuses.UPLOAD_VALID,
+ENTITY_STATUS_MAP = {
+    "Dataset": {
+        "Deprecated": Statuses.DATASET_DEPRECATED,
+        "Error": Statuses.DATASET_ERROR,
+        "Hold": Statuses.DATASET_HOLD,
+        "Invalid": Statuses.DATASET_INVALID,
+        "New": Statuses.DATASET_NEW,
+        "Processing": Statuses.DATASET_PROCESSING,
+        "Published": Statuses.DATASET_PUBLISHED,
+        "QA": Statuses.DATASET_QA,
+    },
+    "Upload": {
+        "Error": Statuses.UPLOAD_ERROR,
+        "Invalid": Statuses.UPLOAD_INVALID,
+        "New": Statuses.UPLOAD_NEW,
+        "Processing": Statuses.UPLOAD_PROCESSING,
+        "Reorganized": Statuses.UPLOAD_REORGANIZED,
+        "Submitted": Statuses.UPLOAD_SUBMITTED,
+        "Valid": Statuses.UPLOAD_VALID,
+    },
 }
 
 
@@ -65,16 +68,25 @@ class StatusChangerException(Exception):
 
 
 """
-Example usage, default path:
+Example usage, simple path (e.g. status string, no validation message):
+    from status_manager import StatusChanger
+    StatusChanger(
+            "uuid_string",
+            "token_string",
+            "status",
+        ).on_status_change()
+
+Example usage, optional params path:
     from status_manager import StatusChanger, Statuses
     StatusChanger(
             "uuid_string",
             "token_string",
-            Statuses.STATUS_ENUM,
-            {
+            Statuses.STATUS_ENUM or "status",
+            # optional {
                 "extra_fields": {},
                 "extra_options": {},
             },
+            #optional entity_type="Dataset"|"Upload"
             #optional http_conn_id="entity_api_connection"
         ).on_status_change()
 """
@@ -85,33 +97,62 @@ class StatusChanger:
         self,
         uuid: str,
         token: str,
-        status: Statuses | None,
-        extras: StatusChangerExtras,
+        status: Statuses | str,
+        extras: StatusChangerExtras | None = None,
+        entity_type: str | None = None,
         http_conn_id: str = "entity_api_connection",
         verbose: bool = True,
     ):
         self.uuid = uuid
         self.token = token
-        self.status = status
-        self.extras = extras
         self.http_conn_id = http_conn_id
         self.verbose = verbose
+        self.status = (
+            status if isinstance(status, Statuses) else self.get_status(status, entity_type)
+        )
+        self.extras = (
+            extras
+            if extras
+            else {
+                "extra_fields": {},
+                "extra_options": {},
+            }
+        )
 
-    def format_status_data(self) -> dict:
-        data = {}
-        if self.status is None:
-            pass
-        elif type(self.status) == Statuses:
-            data["status"] = self.status
-        else:
+    def get_status(self, status: str, entity_type: str | None):
+        if entity_type is None:
+            try:
+                entity_data = get_submission_context(self.token, self.uuid)
+                # TODO: check this key and casing for entity_type
+                entity_type = entity_data["entity_type"]
+                assert entity_type is not None
+            except KeyError as e:
+                raise StatusChangerException(
+                    f"""
+                    Could not reconcile entity type for {self.uuid} with status '{status}'.
+                    Error {e}
+                    """
+                )
+        try:
+            entity_status = ENTITY_STATUS_MAP[entity_type.title()][status]
+        except KeyError:
             raise StatusChangerException(
-                f"Status {self.status} for uuid {self.uuid} is not part of the Statuses enum. Status not changed."
+                f"""
+                    Could not retrieve status for {self.uuid}.
+                    Check that status is valid for entity type.
+                    Status not changed.
+                """
             )
+        return entity_status
+
+    def format_status_data(self) -> Dict[str, str | Dict]:
+        data = {}
+        data["status"] = self.status
         # Double-check that you're not accidentally overwriting status
         if (extra_status := self.extras.get("status")) is not None:
             assert (
                 extra_status == self.status
-            ), f"Entity uuid {self.uuid} passed two different statuses: {self.status} and {extra_status} as part of extras."
+            ), f"Entity {self.uuid} passed multiple statuses ({self.status} and {extra_status})."
         data.update(self.extras["extra_fields"])
         logging.info(f"COMPILED DATA: {data}")
         return data
@@ -149,7 +190,10 @@ class StatusChanger:
             return response.json()
         except Exception as e:
             raise StatusChangerException(
-                f"Encountered error with request to change status for {self.uuid}, status not set. Error: {e}"
+                f"""
+                Encountered error with request to change status for {self.uuid}, status not set.
+                Error: {e}
+                """
             )
 
     def update_asana(self) -> None:
@@ -168,6 +212,7 @@ class StatusChanger:
     {
         # "Statuses.UPLOAD_INVALID": [set_entity_api_status, update_asana, send_email],
         # "Statuses.DATASET_INVALID": [set_entity_api_status, update_asana, send_email],
+        # "Statuses.DATASET_PROCESSING": [set_entity_api_status],
     }
     """
 

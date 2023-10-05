@@ -1,13 +1,13 @@
-import json
-from pprint import pprint
-from requests.exceptions import HTTPError
-from requests import codes
+import logging
 import traceback
+from functools import cached_property
+from pprint import pprint
 
-from airflow.providers.http.hooks.http import HttpHook
-from airflow.utils.email import send_email
-
+from status_change.status_manager import StatusChanger
+from status_change.status_utils import get_submission_context
 from utils import get_auth_tok
+
+from airflow.utils.email import send_email
 
 
 class FailureCallbackException(Exception):
@@ -16,8 +16,9 @@ class FailureCallbackException(Exception):
 
 class FailureCallback:
     """
-    List should be overwritten by each subclass with appropriate values.
+    List should be overridden by each subclass with appropriate values.
     """
+
     external_exceptions = []
     # TODO: Switch to curator email(s)
     internal_email_recipients = ["gesina@psc.edu"]
@@ -33,7 +34,9 @@ class FailureCallback:
 
         if execute_methods:
             self.set_status()
-            self.send_notifications()
+            # Not sending notifications currently, and
+            # notification responsibility could potentially move to status_manager.
+            # self.send_notifications()
 
     def send_notifications(self):
         """
@@ -43,41 +46,18 @@ class FailureCallback:
         """
         self.send_failure_email()
 
-    # This is simplified from pythonop_get_dataset_state in utils
-    def get_submission_context(self):
-        method = "GET"
-        headers = {
-            "authorization": f"Bearer {self.auth_tok}",
-            "content-type": "application/json",
-            "X-Hubmap-Application": "ingest-pipeline",
-        }
-        http_hook = HttpHook(method, http_conn_id="entity_api_connection")
-
-        endpoint = f"entities/{self.uuid}"
-
-        try:
-            response = http_hook.run(
-                endpoint, headers=headers, extra_options={"check_response": False}
-            )
-            response.raise_for_status()
-            submission_data = response.json()
-            return submission_data
-        except HTTPError as e:
-            print(f"ERROR: {e}")
-            if e.response.status_code == codes.unauthorized:
-                raise RuntimeError("entity database authorization was rejected?")
-            else:
-                print("benign error")
-                return {}
-
-    def get_status_and_message(self):
+    def get_extra_fields(self):
         """
         Error message might need to be overwritten when
         subclassed for various DAGs.
+        'Error' is the default for FailureCallback, which indicates a pipeline has failed.
         """
         return {
-            "status": "Invalid",
-            "validation_message": f"Process {self.dag_run.dag_id} started {self.dag_run.execution_date} failed at task {self.task.task_id} with error {self.exception_name} {self.exception}",
+            "validation_message": f"""
+                Process {self.dag_run.dag_id} started {self.dag_run.execution_date}
+                failed at task {self.task.task_id}.
+                {f'Error: {self.formatted_exception}' if self.formatted_exception else ""}
+            """,
         }
 
     def set_status(self):
@@ -85,80 +65,93 @@ class FailureCallback:
         The failure callback needs to set the dataset status,
         otherwise it will remain in the "Processing" state
         """
-        data = self.get_status_and_message()
-        endpoint = f"/entities/{self.uuid}"
-        headers = {
-            "authorization": "Bearer " + self.auth_tok,
-            "X-Hubmap-Application": "ingest-pipeline",
-            "content-type": "application/json",
-        }
-        extra_options = []
-        http_conn_id = "entity_api_connection"
-        http_hook = HttpHook("PUT", http_conn_id=http_conn_id)
-        print("data: ")
-        pprint(data)
-        response = http_hook.run(
-            endpoint,
-            json.dumps(data),
-            headers,
-            extra_options,
-        )
+        data = self.get_extra_fields()
+        logging.info("data: ")
+        logging.info(pprint(data))
+        StatusChanger(
+            self.uuid,
+            self.auth_tok,
+            "error",
+            {
+                "extra_fields": self.get_extra_fields(),
+                "extra_options": {},
+            },
+        ).on_status_change()
 
-    def get_failure_email_template(
-        self, formatted_exception=None, external_template=False, submission_data=None, **kwargs
-    ):
+    def get_internal_email_template(self, formatted_exception=None):
         """
         Generic template, can be overridden or super() called
         in subclass.
         """
         subject = f"DAG {self.dag_run.dag_id} failed at task {self.task.task_id}"
-        if formatted_exception:
-            msg = f"""
-                             DAG run: {self.dag_run.id} {self.dag_run.dag_id} <br>
-                             Task: {self.task.task_id} <br>
-                             Execution date: {self.dag_run.execution_date} <br>
-                             Run id: {self.dag_run.run_id} <br>
-                             Error: {self.exception_name} <br>
-                             Traceback: {formatted_exception}
-                            """
-
-        else:
-            msg = f"""
-                             DAG run: {self.dag_run.id} {self.dag_run.dag_id} <br>
-                             Task: {self.task.task_id} <br>
-                             Execution date: {self.dag_run.execution_date} <br>
-                             Run id: {self.dag_run.run_id} <br>
-                             Error: {self.exception_name} <br>
-                             """
+        msg = f"""
+                DAG run: {self.dag_run.id} {self.dag_run.dag_id} <br>
+                Task: {self.task.task_id} <br>
+                Execution date: {self.dag_run.execution_date} <br>
+                Run id: {self.dag_run.run_id} <br>
+                Error: {self.exception_name} <br>
+                {f'Traceback: {formatted_exception}' if formatted_exception else None}
+            """
         return subject, msg
 
-    def send_failure_email(self, **kwargs):
-        # traceback logic borrowed from https://stackoverflow.com/questions/51822029/get-exception-details-on-airflow-on-failure-callback-context
-        try:
-            formatted_exception = "".join(
-                traceback.TracebackException.from_exception(self.exception).format()
-            ).replace("\n", "<br>")
-        except:
-            formatted_exception = None
-        self.submission_data = self.get_submission_context()
-        subject, msg = self.get_failure_email_template(
-            formatted_exception=formatted_exception, submission_data=self.submission_data, **kwargs
-        )
-        send_email(to=self.internal_email_recipients, subject=subject, html_content=msg)
+    def get_external_email_template(self):
+        raise NotImplementedError
+
+    @cached_property
+    def get_external_email_recipients(self):
         if self.exception_name in self.external_exceptions:
             try:
-                created_by_user_email = self.submission_data.get("created_by_user_email")
-                subject, msg = self.get_failure_email_template(
-                    formatted_exception=formatted_exception,
-                    external_template=True,
-                    submission_data=self.submission_data,
-                    **kwargs,
-                )
-                send_email(to=[created_by_user_email], subject=subject, html_content=msg)
-            except:
+                created_by_user_email = get_submission_context.get("created_by_user_email")
+                assert isinstance(created_by_user_email, str)
+                return [created_by_user_email]
+            except AssertionError:
                 raise FailureCallbackException(
-                        "Failure retrieving created_by_user_email or sending email."
+                    f"Failed to retrieve creator email address for {self.uuid}."
                 )
 
-    def send_asana_notification(self, **kwargs):
+    @cached_property
+    def formatted_exception(self):
+        """
+        traceback logic from
+        https://stackoverflow.com/questions/51822029/get-exception-details-on-airflow-on-failure-callback-context
+        """
+        if not (
+            formatted_exception := "".join(
+                traceback.TracebackException.from_exception(self.exception).format()
+            ).replace("\n", "<br>")
+        ):
+            return None
+        return formatted_exception
+
+    def send_failure_email(self) -> None:
+        """
+        This only sends to internal recipients, and would need to be overridden
+        to use get_external_email_recipients and get_external_email_template.
+        """
+        subject, msg = self.get_internal_email_template(
+            formatted_exception=self.formatted_exception
+        )
+        self.send_email(self.internal_email_recipients, subject, msg)
+
+    def send_email(self, recipients: list, subject: str, msg: str) -> None:
+        logging.info(
+            f"""
+                Sending failure notification to {recipients}...
+                Subject: {subject}
+                Message: {msg}
+            """
+        )
+        try:
+            send_email(to=recipients, subject=subject, html_content=msg)
+            logging.info("Email sent successfully!")
+        except Exception as e:
+            raise FailureCallbackException(
+                f"""
+                Failure sending email.
+                Recipients: {self.internal_email_recipients}
+                Error: {e}
+                """
+            )
+
+    def send_asana_notification(self):
         pass
