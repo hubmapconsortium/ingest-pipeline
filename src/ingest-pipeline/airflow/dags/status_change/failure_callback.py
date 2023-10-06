@@ -19,6 +19,7 @@ class FailureCallback:
     def __init__(self, context):
         self.context = context
         self.uuid = self.context.get("task_instance").xcom_pull(key="uuid")
+        self.context["uuid"] = self.uuid
         self.auth_tok = get_auth_tok(**context)
         self.dag_run = self.context.get("dag_run")
         self.task = self.context.get("task")

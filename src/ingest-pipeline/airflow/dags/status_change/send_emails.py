@@ -2,7 +2,6 @@ import logging
 from functools import cached_property
 from typing import Any, Dict, List
 
-from status_change.failure_callback import FailureCallbackException
 from status_change.status_utils import formatted_exception, get_submission_context
 
 from airflow.utils.email import send_email
@@ -104,7 +103,7 @@ class SendFailureEmail(SendEmail):
                 assert isinstance(created_by_user_email, str)
                 return [created_by_user_email]
             except AssertionError:
-                raise FailureCallbackException(
+                raise Exception(
                     f"Failed to retrieve creator email address for {self.context.get('uuid')}."
                 )
 

@@ -3,53 +3,55 @@ from __future__ import annotations
 import json
 import logging
 from enum import Enum
-from typing import Any, Dict, TypedDict
+from functools import cached_property
+from typing import Any, Dict, TypedDict, Union
 
 from status_change.send_emails import SendFailureEmail
-from status_manager.status_utils import get_submission_context
 
 from airflow.providers.http.hooks.http import HttpHook
+
+from .status_utils import get_submission_context
 
 
 class Statuses(str, Enum):
     # Dataset Hold and Deprecated are not currently in use but are valid for Entity API
-    DATASET_DEPRECATED = "Deprecated"
-    DATASET_ERROR = "Error"
-    DATASET_HOLD = "Hold"
-    DATASET_INVALID = "Invalid"
-    DATASET_NEW = "New"
-    DATASET_PROCESSING = "Processing"
-    DATASET_PUBLISHED = "Published"
-    DATASET_QA = "QA"
-    UPLOAD_ERROR = "Error"
-    UPLOAD_INVALID = "Invalid"
-    UPLOAD_NEW = "New"
-    UPLOAD_PROCESSING = "Processing"
-    UPLOAD_REORGANIZED = "Reorganized"
-    UPLOAD_SUBMITTED = "Submitted"
-    UPLOAD_VALID = "Valid"
+    DATASET_DEPRECATED = "deprecated"
+    DATASET_ERROR = "error"
+    DATASET_HOLD = "hold"
+    DATASET_INVALID = "invalid"
+    DATASET_NEW = "new"
+    DATASET_PROCESSING = "processing"
+    DATASET_PUBLISHED = "published"
+    DATASET_QA = "qa"
+    UPLOAD_ERROR = "error"
+    UPLOAD_INVALID = "invalid"
+    UPLOAD_NEW = "new"
+    UPLOAD_PROCESSING = "processing"
+    UPLOAD_REORGANIZED = "reorganized"
+    UPLOAD_SUBMITTED = "submitted"
+    UPLOAD_VALID = "valid"
 
 
 # Needed some way to disambiguate statuses shared by datasets and uploads
 ENTITY_STATUS_MAP = {
-    "Dataset": {
-        "Deprecated": Statuses.DATASET_DEPRECATED,
-        "Error": Statuses.DATASET_ERROR,
-        "Hold": Statuses.DATASET_HOLD,
-        "Invalid": Statuses.DATASET_INVALID,
-        "New": Statuses.DATASET_NEW,
-        "Processing": Statuses.DATASET_PROCESSING,
-        "Published": Statuses.DATASET_PUBLISHED,
-        "QA": Statuses.DATASET_QA,
+    "dataset": {
+        "deprecated": Statuses.DATASET_DEPRECATED,
+        "error": Statuses.DATASET_ERROR,
+        "hold": Statuses.DATASET_HOLD,
+        "invalid": Statuses.DATASET_INVALID,
+        "new": Statuses.DATASET_NEW,
+        "processing": Statuses.DATASET_PROCESSING,
+        "published": Statuses.DATASET_PUBLISHED,
+        "qa": Statuses.DATASET_QA,
     },
-    "Upload": {
-        "Error": Statuses.UPLOAD_ERROR,
-        "Invalid": Statuses.UPLOAD_INVALID,
-        "New": Statuses.UPLOAD_NEW,
-        "Processing": Statuses.UPLOAD_PROCESSING,
-        "Reorganized": Statuses.UPLOAD_REORGANIZED,
-        "Submitted": Statuses.UPLOAD_SUBMITTED,
-        "Valid": Statuses.UPLOAD_VALID,
+    "upload": {
+        "error": Statuses.UPLOAD_ERROR,
+        "invalid": Statuses.UPLOAD_INVALID,
+        "new": Statuses.UPLOAD_NEW,
+        "processing": Statuses.UPLOAD_PROCESSING,
+        "reorganized": Statuses.UPLOAD_REORGANIZED,
+        "submitted": Statuses.UPLOAD_SUBMITTED,
+        "valid": Statuses.UPLOAD_VALID,
     },
 }
 
@@ -109,7 +111,9 @@ class StatusChanger:
         self.http_conn_id = http_conn_id
         self.verbose = verbose
         self.status = (
-            status if isinstance(status, Statuses) else self.get_status(status, entity_type)
+            self.check_status(status)
+            if isinstance(status, Statuses)
+            else self.get_status(status, entity_type)
         )
         self.extras = (
             extras
@@ -121,16 +125,19 @@ class StatusChanger:
         )
         self.notification_instance = notification_instance if notification_instance else None
 
-    # TODO: consider checking current status here, as I believe ingest-pipeline gets mad
-    # if you try to set an entity's status to the status it already has
-    # This would mean that every instance makes a call to entity-api.
-    # The alternative is to check the current status just before the set_entity_api_status call.
-    def get_status(self, status: str, entity_type: str | None) -> Statuses:
+    # TODO: checking submission context for every StatusChanger instance will break tests
+    def get_status(self, status: str, entity_type: str | None) -> Union[Statuses, None]:
+        """
+        If status is passed as a string, get the entity type and match
+        to correct entry in ENTITY_STATUS_MAP. Also check current status,
+        because ingest-pipeline will error if you try to set the same status
+        over the existing status.
+        Potential TODO: could stop any operation involving "Published"
+        statuses at this stage.
+        """
         if entity_type is None:
             try:
-                entity_data = get_submission_context(self.token, self.uuid)
-                # TODO: check this key and casing for entity_type
-                entity_type = entity_data["entity_type"]
+                entity_type = self.entity_data["entity_type"]
                 assert entity_type is not None
             except KeyError as e:
                 raise StatusChangerException(
@@ -149,7 +156,16 @@ class StatusChanger:
                     Status not changed.
                 """
             )
-        return entity_status
+        return self.check_status(entity_status)
+
+    @cached_property
+    def entity_data(self):
+        return get_submission_context(self.token, self.uuid)
+
+    def check_status(self, status: Statuses) -> Union[Statuses, None]:
+        if status == self.entity_data["status"]:
+            return None
+        return status
 
     def format_status_data(self) -> Dict[str, str | Dict]:
         data = {}
@@ -227,4 +243,5 @@ class StatusChanger:
                 func(self)
         else:
             self.set_entity_api_status()
+            self.send_email()
             self.update_asana()
