@@ -1,6 +1,6 @@
 import logging
 from functools import cached_property
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from status_change.status_utils import formatted_exception, get_submission_context
 
@@ -19,24 +19,26 @@ class SendEmail:
 
     def __init__(self, context: Dict[str, Any]):
         self.context = context
-        self.dag_run = self.context["dag_run"]
-        self.task = self.context["task"]
         self.internal_email_recipients = []
 
-    def get_internal_email_template(self):
+    def get_internal_email_template(self) -> Tuple:
         """
-        Generic template, must be overridden.
+        Generic template, should be overridden.
         """
-        raise NotImplementedError()
+        subject = "Status change details"
+        msg_strings = [f"{k}: {v} <br>" for k, v in self.context.items()]
+        msg = "".join(x for x in msg_strings)
+        return subject, msg
 
     def send_notifications(self):
         """
         Subclasses should override the send_notifications method
         to add the appropriate send_email method(s).
         """
-        raise NotImplementedError()
+        subject, msg = self.get_internal_email_template()
+        self.send_email(self.internal_email_recipients, subject, msg)
 
-    def send_email(self, recipients: list, subject: str, msg: str) -> None:
+    def send_email(self, recipients: List[str], subject: str, msg: str) -> None:
         logging.info(
             f"""
                 Sending notification to {recipients}...
@@ -69,25 +71,31 @@ class SendFailureEmail(SendEmail):
 
     def __init__(self, context: Dict[str, Any]):
         super().__init__(context)
+        self.dag_run = self.context.get("dag_run")
+        self.task = self.context.get("task")
         self.exception = self.context.get("exception")
-        self.exception_name = type(self.exception).__name__
+        if self.exception:
+            self.exception_name = type(self.exception).__name__
         self.formatted_exception = formatted_exception(self.exception)
 
     def send_notifications(self, offline=True):
         self.send_failure_email(offline)
 
-    def get_internal_email_template(self):
-        subject = f"DAG {self.dag_run.dag_id} failed at task {self.task.task_id}"
-        # TODO: ugh timezones
-        msg = f"""
-                DAG run: {self.dag_run.id} {self.dag_run.dag_id} <br>
-                Task: {self.task.task_id} <br>
-                Execution date: {self.dag_run.execution_date} <br>
-                Run id: {self.dag_run.run_id} <br>
-                Error: {self.exception_name} <br>
-                {f'Traceback: {self.formatted_exception}' if self.formatted_exception else None}
-            """
-        return subject, msg
+    def get_internal_email_template(self) -> Tuple:
+        if isinstance(self.dag_run, dict) and isinstance(self.task, dict):
+            subject = f"DAG {self.dag_run.get('dag_id')} failed at task {self.task.get('task_id')}"
+            # TODO: ugh timezones
+            msg = f"""
+                    DAG: {self.dag_run.get("dag_id")} <br>
+                    Task: {self.task.get("task_id")} <br>
+                    Execution date: {self.dag_run.get("execution_date")} <br>
+                    Run ID: {self.dag_run.get("run_id")} <br>
+                    Error: {self.exception_name if self.exception_name else 'Unknown'} <br>
+                    {f'Traceback: {self.formatted_exception}' if self.formatted_exception else None}
+                """
+            return subject, msg
+        else:
+            return super().get_internal_email_template()
 
     def get_external_email_template(self):
         raise NotImplementedError

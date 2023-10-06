@@ -6,7 +6,7 @@ from enum import Enum
 from functools import cached_property
 from typing import Any, Dict, TypedDict, Union
 
-from status_change.send_emails import SendFailureEmail
+from status_change.send_emails import SendEmail, SendFailureEmail
 
 from airflow.providers.http.hooks.http import HttpHook
 
@@ -103,7 +103,7 @@ class StatusChanger:
         entity_type: str | None = None,
         http_conn_id: str = "entity_api_connection",
         # notification_instance assumes email, but could be generalized
-        notification_instance: SendFailureEmail | None = None,
+        notification_instance: SendEmail | None = None,
         verbose: bool = True,
     ):
         self.uuid = uuid
@@ -228,6 +228,10 @@ class StatusChanger:
         """
         if self.notification_instance:
             self.notification_instance.send_notifications()
+        elif self.status:
+            SendEmail({"uuid": self.uuid, "status": self.status, "extra_fields": self.extras})
+        else:
+            SendEmail({"uuid": self.uuid, "extra_fields": self.extras})
 
     status_map = {}
     """
