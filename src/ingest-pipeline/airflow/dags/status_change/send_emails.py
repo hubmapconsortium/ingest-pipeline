@@ -38,7 +38,9 @@ class SendEmail:
         subject, msg = self.get_internal_email_template()
         self.send_email(self.internal_email_recipients, subject, msg)
 
-    def send_email(self, recipients: List[str], subject: str, msg: str) -> None:
+    def send_email(
+        self, recipients: List[str], subject: str, msg: str, offline: bool = True
+    ) -> None:
         logging.info(
             f"""
                 Sending notification to {recipients}...
@@ -46,18 +48,19 @@ class SendEmail:
                 Message: {msg}
             """
         )
-        try:
-            send_email(to=recipients, subject=subject, html_content=msg)
-            logging.info("Email sent successfully!")
-        except Exception as e:
-            # TODO: custom exception?
-            raise Exception(
-                f"""
-                Failure sending email.
-                Recipients: {self.internal_email_recipients}
-                Error: {e}
-                """
-            )
+        if not offline:
+            try:
+                send_email(to=recipients, subject=subject, html_content=msg)
+                logging.info("Email sent successfully!")
+            except Exception as e:
+                # TODO: custom exception?
+                raise Exception(
+                    f"""
+                    Failure sending email.
+                    Recipients: {self.internal_email_recipients}
+                    Error: {e}
+                    """
+                )
 
 
 class SendFailureEmail(SendEmail):

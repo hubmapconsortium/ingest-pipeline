@@ -229,9 +229,11 @@ class StatusChanger:
         if self.notification_instance:
             self.notification_instance.send_notifications()
         elif self.status:
-            SendEmail({"uuid": self.uuid, "status": self.status, "extra_fields": self.extras})
+            SendEmail(
+                {"uuid": self.uuid, "status": self.status, "extra_fields": self.extras}
+            ).send_notifications()
         else:
-            SendEmail({"uuid": self.uuid, "extra_fields": self.extras})
+            SendEmail({"uuid": self.uuid, "extra_fields": self.extras}).send_notifications()
 
     status_map = {}
     """
