@@ -43,6 +43,7 @@ default_args = {
     'retry_delay': timedelta(minutes=1),
     'xcom_push': True,
     'queue': get_queue_resource('codex_cytokit'),
+    'executor_config': {'SlurmExecutor': {'cores': '4'}},
     'on_failure_callback': utils.create_dataset_state_error_callback(get_uuid_for_error)
 }
 
