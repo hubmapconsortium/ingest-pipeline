@@ -145,6 +145,8 @@ with HMDAG(
         task_id="check_uuids",
         python_callable=check_uuids,
         provide_context=True,
+        executor_config={
+            'SlurmExecutor': {'cores': 4}},
         op_kwargs={
             "crypt_auth_tok": utils.encrypt_tok(
                 airflow_conf.as_dict()["connections"]["APP_CLIENT_SECRET"]
@@ -191,6 +193,8 @@ with HMDAG(
         dag=dag,
         trigger_dag_id="launch_multi_analysis",
         python_callable=flex_maybe_spawn,
+        executor_config={
+            'SlurmExecutor': {'cores': 4}},
         op_kwargs={
             "crypt_auth_tok": utils.encrypt_tok(
                 airflow_conf.as_dict()["connections"]["APP_CLIENT_SECRET"]
