@@ -35,6 +35,7 @@ default_args = {
     'retry_delay': timedelta(minutes=1),
     'xcom_push': True,
     'queue': get_queue_resource('launch_multi_analysis'),
+    'executor_config': {'SlurmExecutor': {'cores': '4'}},
     'on_failure_callback': utils.create_dataset_state_error_callback(get_uuid_for_error)
 }
 
@@ -133,8 +134,6 @@ with HMDAG('launch_multi_analysis',
         task_id='check_uuids',
         python_callable=check_uuids,
         provide_context=True,
-        executor_config={
-            'SlurmExecutor': {'cores': 4}},
         op_kwargs={
             'crypt_auth_tok': utils.encrypt_tok(airflow_conf.as_dict()
                                                 ['connections']['APP_CLIENT_SECRET']).decode(),
@@ -179,8 +178,6 @@ with HMDAG('launch_multi_analysis',
         dag=dag,
         trigger_dag_id='launch_multi_analysis',
         python_callable=flex_maybe_spawn,
-        executor_config={
-            'SlurmExecutor': {'cores': 4}},
         op_kwargs={
             'crypt_auth_tok': utils.encrypt_tok(airflow_conf.as_dict()
                                                 ['connections']['APP_CLIENT_SECRET']).decode(),
