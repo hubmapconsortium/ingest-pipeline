@@ -93,8 +93,10 @@ def __execute_srun(args):
 
 
 def __compose_run_job_arguments(cmd, queue=None, executor_config=None, job_name=None):
+    cpu = None
     if executor_config:
-        raise NotImplementedError()
+        cpu = executor_config.get('SlurmExecutor').get('cores')
+        # raise NotImplementedError()
 
     args = []
     if queue:
@@ -105,6 +107,8 @@ def __compose_run_job_arguments(cmd, queue=None, executor_config=None, job_name=
         args += ['-J', job_name]
     else:
         args += ['-J', cmd]
+    if cpu:
+        args += ['-c', cpu]
     args += cmd.split(' ') if isinstance(cmd, str) else cmd
     return args
 

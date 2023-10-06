@@ -25,7 +25,7 @@ class SlurmExecutor(BaseExecutor):
         unique_id = str(key[0]) + str(uuid.uuid1())
         queue = queue if queue != 'default' else None
         logging.debug('submitting job %s on queue %s', key, queue)
-        run_job(cmd=command, queue=queue, task_name=unique_id)
+        run_job(cmd=command, queue=queue, task_name=unique_id, executor_config=executor_config)
         self.commands_to_check[unique_id] = key
 
     def check_state(self):
