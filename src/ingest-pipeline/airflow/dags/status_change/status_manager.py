@@ -147,7 +147,7 @@ class StatusChanger:
                     """
                 )
         try:
-            entity_status = ENTITY_STATUS_MAP[entity_type.title()][status]
+            entity_status = ENTITY_STATUS_MAP[entity_type.lower()][status.lower()]
         except KeyError:
             raise StatusChangerException(
                 f"""
@@ -163,17 +163,20 @@ class StatusChanger:
         return get_submission_context(self.token, self.uuid)
 
     def check_status(self, status: Statuses) -> Union[Statuses, None]:
-        if status == self.entity_data["status"]:
+        if status == self.entity_data["status"].lower():
             return None
         return status
 
     def format_status_data(self) -> Dict[str, str | Dict]:
         data = {}
-        data["status"] = self.status
+        if self.status:
+            data["status"] = self.status
         # Double-check that you're not accidentally overwriting status
-        if (extra_status := self.extras.get("status")) is not None:
+        if (extra_status := self.extras.get("status")) is not None and isinstance(
+            extra_status, str
+        ):
             assert (
-                extra_status == self.status
+                extra_status.lower() == self.status
             ), f"Entity {self.uuid} passed multiple statuses ({self.status} and {extra_status})."
         data.update(self.extras["extra_fields"])
         logging.info(f"COMPILED DATA: {data}")
@@ -198,7 +201,7 @@ class StatusChanger:
         )
         try:
             if self.verbose:
-                logging.info(f"Setting status to {data['status']}...")
+                logging.info(f"Updating {self.uuid} with data {data}...")
             response = http_hook.run(
                 endpoint, json.dumps(data), headers, self.extras["extra_options"]
             )
@@ -206,7 +209,8 @@ class StatusChanger:
         except Exception as e:
             raise StatusChangerException(
                 f"""
-                Encountered error with request to change status for {self.uuid}, status not set.
+                Encountered error with request to change status/fields
+                for {self.uuid}, status not set.
                 Error: {e}
                 """
             )

@@ -1,6 +1,6 @@
 import logging
 from functools import cached_property
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from status_change.status_utils import formatted_exception, get_submission_context
 
@@ -17,12 +17,11 @@ class SendEmail:
     is SendEmail(context).send_notifications().
     """
 
-    internal_email_recipients: List
-
     def __init__(self, context: Dict[str, Any]):
         self.context = context
         self.dag_run = self.context["dag_run"]
         self.task = self.context["task"]
+        self.internal_email_recipients = []
 
     def get_internal_email_template(self):
         """
@@ -79,6 +78,7 @@ class SendFailureEmail(SendEmail):
 
     def get_internal_email_template(self):
         subject = f"DAG {self.dag_run.dag_id} failed at task {self.task.task_id}"
+        # TODO: ugh timezones
         msg = f"""
                 DAG run: {self.dag_run.id} {self.dag_run.dag_id} <br>
                 Task: {self.task.task_id} <br>
@@ -96,7 +96,7 @@ class SendFailureEmail(SendEmail):
     # TODO: is created_by_user the right call here,
     # or is there a more general contact field for all
     # corresponding submitters?
-    def get_external_email_recipients(self):
+    def get_external_email_recipients(self) -> Optional[List]:
         if self.exception_name in self.external_exceptions:
             try:
                 created_by_user_email = get_submission_context.get("created_by_user_email")
@@ -107,7 +107,7 @@ class SendFailureEmail(SendEmail):
                     f"Failed to retrieve creator email address for {self.context.get('uuid')}."
                 )
 
-    def send_failure_email(self, offline: bool) -> str:
+    def send_failure_email(self, offline: bool) -> None:
         """
         This only sends to internal recipients, and would need to be overridden
         to use get_external_email_recipients and get_external_email_template.
@@ -118,8 +118,10 @@ class SendFailureEmail(SendEmail):
         else:
             self.send_email(self.internal_email_recipients, subject, msg)
             logging.info("Email sent!")
-        return f"""
+        logging.info(
+            f"""
             Internal recipients: {self.internal_email_recipients}
             Internal subject: {subject}
             Internal message: {msg}
         """
+        )

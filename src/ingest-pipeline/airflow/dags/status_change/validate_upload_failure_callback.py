@@ -1,5 +1,6 @@
+import logging
 from functools import cached_property
-from typing import Tuple, Union
+from typing import Tuple
 
 from status_change.send_emails import SendFailureEmail
 from status_change.status_utils import get_submission_context
@@ -41,7 +42,7 @@ class ValidateUploadFailureEmail(SendFailureEmail):
                 """
         return subject, msg
 
-    def send_failure_email(self, offline: bool) -> Union[str, None]:
+    def send_failure_email(self, offline: bool) -> None:
         """
         Currently we don't want to send any emails.
         """
@@ -50,8 +51,10 @@ class ValidateUploadFailureEmail(SendFailureEmail):
             subject, msg = self.get_external_email_template
             if not offline:
                 self.send_email(self.get_external_email_recipients, subject, msg)
-            return f"""
+            logging.info(
+                f"""
                     External recipients: {self.get_external_email_recipients}
                     External subject: {subject}
                     External message: {msg}
                 """
+            )

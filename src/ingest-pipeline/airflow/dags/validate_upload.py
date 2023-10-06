@@ -10,8 +10,8 @@ from hubmap_operators.common_operators import (
     CleanupTmpDirOperator,
     CreateTmpDirOperator,
 )
+from status_change.status_manager import StatusChanger, Statuses
 from status_change.validate_upload_failure_callback import ValidateUploadFailure
-from status_manager import StatusChanger, Statuses
 from utils import (
     HMDAG,
     get_auth_tok,
