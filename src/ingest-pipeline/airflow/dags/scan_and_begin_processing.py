@@ -21,8 +21,9 @@ from utils import (
     make_send_status_msg_function,
     pythonop_get_dataset_state,
     pythonop_maybe_keep,
+    pythonop_get_dataset_state,
     get_threads_resource,
-)
+    )
 
 from airflow.configuration import conf as airflow_conf
 from airflow.exceptions import AirflowException
