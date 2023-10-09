@@ -6,8 +6,6 @@ from enum import Enum
 from functools import cached_property
 from typing import Any, Dict, TypedDict, Union
 
-from status_change.send_emails import SendEmail, SendFailureEmail
-
 from airflow.providers.http.hooks.http import HttpHook
 
 from .status_utils import get_submission_context
@@ -86,7 +84,6 @@ Example usage, optional params path:
             },
             #optional entity_type="Dataset"|"Upload"
             #optional http_conn_id="entity_api_connection"
-            #optional notification_instance=SendEmail(context)
         ).on_status_change()
 """
 
@@ -102,8 +99,6 @@ class StatusChanger:
         extras: StatusChangerExtras | None = None,
         entity_type: str | None = None,
         http_conn_id: str = "entity_api_connection",
-        # notification_instance assumes email, but could be generalized
-        notification_instance: SendEmail | None = None,
         verbose: bool = True,
     ):
         self.uuid = uuid
@@ -123,7 +118,6 @@ class StatusChanger:
                 "extra_options": {},
             }
         )
-        self.notification_instance = notification_instance if notification_instance else None
 
     # TODO: checking submission context for every StatusChanger instance will break tests
     def get_status(self, status: str, entity_type: str | None) -> Union[Statuses, None]:
@@ -221,19 +215,8 @@ class StatusChanger:
         pass
 
     def send_email(self) -> None:
-        """
-        This assumes that either a FailureCallback has passed a SendFailureEmail
-        instance or that a SendEmail subclass instance needs to be created here--
-        latter case is not implemented.
-        """
-        if self.notification_instance:
-            self.notification_instance.send_notifications()
-        elif self.status:
-            SendEmail(
-                {"uuid": self.uuid, "status": self.status, "extra_fields": self.extras}
-            ).send_notifications()
-        else:
-            SendEmail({"uuid": self.uuid, "extra_fields": self.extras}).send_notifications()
+        # This is underdeveloped and also requires a separate PR
+        pass
 
     status_map = {}
     """

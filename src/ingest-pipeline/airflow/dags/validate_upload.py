@@ -10,8 +10,8 @@ from hubmap_operators.common_operators import (
     CleanupTmpDirOperator,
     CreateTmpDirOperator,
 )
+from status_change.failure_callback import FailureCallback
 from status_change.status_manager import StatusChanger, Statuses
-from status_change.validate_upload_failure_callback import ValidateUploadFailure
 from utils import (
     HMDAG,
     get_auth_tok,
@@ -42,7 +42,7 @@ default_args = {
     "email": ["gesina@psc.edu"],
     "email_on_failure": False,
     "email_on_retry": False,
-    "on_failure_callback": ValidateUploadFailure,
+    "on_failure_callback": FailureCallback,
     "retries": 1,
     "retry_delay": timedelta(minutes=1),
     "xcom_push": True,

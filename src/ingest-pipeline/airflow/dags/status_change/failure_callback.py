@@ -1,7 +1,6 @@
 import logging
 from pprint import pprint
 
-from status_change.send_emails import SendFailureEmail
 from status_change.status_manager import StatusChanger
 from status_change.status_utils import formatted_exception
 from utils import get_auth_tok
@@ -25,7 +24,6 @@ class FailureCallback:
         self.task = self.context.get("task")
         exception = self.context.get("exception")
         self.formatted_exception = formatted_exception(exception)
-        self.notification_instance = SendFailureEmail(self.context)
 
         self.pre_set_status()
 
@@ -44,8 +42,9 @@ class FailureCallback:
         }
 
     def pre_set_status(self):
-        # Allows for alterations to props, e.g. notification_instance,
-        # before calling StatusChanger
+        # Allows for alterations to props, before calling StatusChanger
+        # This was added to support some email functions and is perhaps
+        # at the moment over-engineered.
         self.set_status()
 
     def set_status(self):
@@ -64,5 +63,4 @@ class FailureCallback:
                 "extra_fields": self.get_extra_fields(),
                 "extra_options": {},
             },
-            notification_instance=self.notification_instance,
         ).on_status_change()
