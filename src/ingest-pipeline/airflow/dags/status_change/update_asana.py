@@ -4,8 +4,11 @@ from datetime import datetime
 from functools import cached_property
 
 import asana
+from asana.error import NotFoundError
 from status_manager import StatusChangerException, Statuses
 from status_utils import get_hubmap_id_from_uuid, get_submission_context
+
+from airflow.configuration import conf as airflow_conf
 
 
 class UpdateAsana:
@@ -14,12 +17,10 @@ class UpdateAsana:
         uuid: str | None,
         token: str,
         status: Statuses | None,
-        workspace_id: str = os.environ["WORKSPACE_ID"],
-        project_id: str = os.environ["PROJECT_ID"],
     ):
-        self.workspace = workspace_id
-        self.project = project_id
-        self.client = asana.Client.access_token(os.environ["ASANA_API_KEY"])
+        self.workspace = airflow_conf.as_dict()["ASANA_WORKSPACE"]
+        self.project = airflow_conf.as_dict()["ASANA_PROJECT"]
+        self.client = asana.Client.access_token(airflow_conf.as_dict()["AIRFLOW_TOKEN"])
         self.status = status
         self.token = token
         self.uuid = uuid

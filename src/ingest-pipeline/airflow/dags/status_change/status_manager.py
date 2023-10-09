@@ -6,6 +6,8 @@ from enum import Enum
 from functools import cached_property
 from typing import Any, Dict, TypedDict, Union
 
+from update_asana import UpdateAsana
+
 from airflow.providers.http.hooks.http import HttpHook
 
 from .status_utils import get_submission_context
@@ -209,9 +211,7 @@ class StatusChanger:
             )
 
     def update_asana(self) -> None:
-        # Separating logic for updating Asana into a separate PR
-        # UpdateAsana(self.uuid, self.token, self.status).update_process_stage()
-        pass
+        UpdateAsana(self.uuid, self.token, self.status).update_process_stage()
 
     def send_email(self) -> None:
         # This is underdeveloped and also requires a separate PR
