@@ -28,22 +28,24 @@ contains() {
 # check for instance info
 if [[ -z "${HUBMAP_INSTANCE}" ]] ; then
     echo "HUBMAP_INSTANCE is not defined"
-    exit -1
+    exit 1
 else
     instance="${HUBMAP_INSTANCE}"
 fi
-if [ $(contains "${hubmap_instance_strings}" "${instance}") == 0 ] ; then
+if [ "$(contains "${hubmap_instance_strings}" "${instance}")" == 0 ] ; then
    echo "${instance} is not one of ${hubmap_instance_strings}"
-   exit -1
+   exit 1
 fi
 
 # set DIR to the directory of the current script, and find the source tree top level
 get_dir_of_this_script
-cd "$DIR"
+cd "$DIR" || exit 1
 top_level_dir="$(git rev-parse --show-toplevel)"
 
-# establish OS context
-source source_platform_file.sh
+ENV_SCRIPT="/airflow_environments/env_${HUBMAP_INSTANCE}.sh"
+
+#shellcheck source=./airflow_environments/env_*.sh
+. "$(dirname "$(readlink -f "$0")")${ENV_SCRIPT}"
 
 # Handle setting of environment variables.
 #
@@ -63,11 +65,11 @@ for varname in "${envvars[@]}" ; do
     full_varname="AIRFLOW_${varname}"
     cfg_varname="HM_AF_${varname}"
     if [[ -z "${!full_varname}" ]] ; then
-	export ${full_varname}=${!cfg_varname}
+	export "${full_varname}"="${!cfg_varname}"
     fi
     if [[ -z "${!full_varname}" ]] ; then
 	echo "${full_varname} is not set"
-	exit -1
+	exit 1
     fi
 done
 
@@ -85,15 +87,15 @@ elif [ "${HM_AF_METHOD}" == 'venv' ] ; then
     source "${HM_AF_ENV_NAME}/bin/activate"
 else
     echo "unknown HM_AF_METHOD ${HM_AF_METHOD}"
-    exit -1
+    exit 1
 fi
 echo 'PATH follows'
-echo $PATH
+echo "${PATH}"
 echo 'PYTHONPATH follows'
-echo $PYTHONPATH
+echo "${PYTHONPATH}"
 echo 'Environment follows'
 printenv
 
-cd $AIRFLOW_HOME ; \
+cd $AIRFLOW_HOME || exit 1 ; \
 env AIRFLOW__HUBMAP_API_PLUGIN__BUILD_NUMBER="$(cat ${top_level_dir}/build_number)" \
     airflow $*
