@@ -4,13 +4,14 @@
 
 # This specifies the instance of the environment to be created
 if [ -z "$HUBMAP_INSTANCE" ]; then
-    exit "The environment variable HUBMAP_INSTANCE is not set."
+    echo "The environment variable HUBMAP_INSTANCE is not set."
+    exit 1
 fi
-instance="$HUBMAP_INSTANCE"
 
 # What python version should be used?
 if [ -z "$HUBMAP_PYTHON_VERSION" ]; then
-    exit "The environment variable HUBMAP_PYTHON_VERSION is not set."
+    echo "The environment variable HUBMAP_PYTHON_VERSION is not set."
+    exit 1
 fi
 python_version="$HUBMAP_PYTHON_VERSION"
 
@@ -31,11 +32,14 @@ function get_dir_of_this_script () {
     }
 
 get_dir_of_this_script  # sets $DIR
-cd $DIR
+cd "$DIR" || exit 1
 
-source source_platform_file.sh
+ENV_SCRIPT="/airflow_environments/env_$(HUBMAP_INSTANCE).sh"
 
-echo $HM_AF_METHOD $HM_AF_ENV_NAME
+#shellcheck source=./airflow_environments/env_*.sh
+. "$(dirname "$(readlink -f "$0")")$ENV_SCRIPT"
+
+echo "$HM_AF_METHOD" "$HM_AF_ENV_NAME"
 if [ "${HM_AF_METHOD}" == 'conda' ] ; then
     which conda || export PATH=/hive/users/hive/anaconda3/bin:$PATH
     eval "$(conda shell.bash hook)"
@@ -46,13 +50,13 @@ elif [ "${HM_AF_METHOD}" == 'module_conda' ] ; then
     eval "$(conda shell.bash hook)"
 else
     echo "The config for this platform specifies a HM_AF_METHOD which is not one of 'conda' or 'module_conda'"
-    exit -1
+    exit 1
 fi
 
 # Use the existing environment if it can be found
-conda_env_path=`conda env list | grep "${HM_AF_ENV_NAME}" | awk '{print $2}'`
+conda_env_path=$(conda env list | grep "${HM_AF_ENV_NAME}" | awk '{print $2}')
 if [ "${conda_env_path}" == "" ]; then
-    if [ -e ${conda_env_root}/${HM_AF_ENV_NAME}/bin/python ]; then
+    if [ -e ${conda_env_root}/"${HM_AF_ENV_NAME}"/bin/python ]; then
 	conda_env_path=${conda_env_root}/${HM_AF_ENV_NAME}
     fi
 fi
@@ -61,13 +65,13 @@ fi
 if [ "${conda_env_path}" == "" ]; then
     conda_env_path=${conda_env_root}/${HM_AF_ENV_NAME}
     echo 'Creating the conda environment'
-    conda create --yes --prefix ${conda_env_path} python=${python_version} pip
+    conda create --yes --prefix "${conda_env_path}" python="${python_version}" pip
 else
     echo "Conda environment already exists"
 fi
 
 # Activate the environment
-conda activate ${conda_env_path}
+conda activate "${conda_env_path}"
 
 # Install requirements using pip
 pip install -r ../../requirements.txt
