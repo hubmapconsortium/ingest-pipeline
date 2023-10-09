@@ -3,7 +3,7 @@ import jobs
 from subprocess import run as __run_process
 
 __SQUEUE_PATH = 'squeue'
-__SRUN_PATH = 'srun'
+__SBATCH_PATH = 'sbatch'
 
 
 def __execute_on_shell(cmd, args):
@@ -89,26 +89,28 @@ def get_jobs_status(job_ids: Union[List, Tuple] = (), job_name: Union[List, Tupl
 
 
 def __execute_srun(args):
-    return __execute_on_shell(__SRUN_PATH, args)
+    return __execute_on_shell(__SBATCH_PATH, args)
 
 
 def __compose_run_job_arguments(cmd, queue=None, executor_config=None, job_name=None):
-    cpu = None
+    gpu_config = None
+    output_path = None
     if executor_config:
-        cpu = executor_config.get('SlurmExecutor').get('cores')
+        gpu_config = executor_config.get('SlurmExecutor').get('gpu_params')
+        output_path = executor_config.get('SlurmExecutor').get('slurm_output_path') + "slurm-%j.out"
         # raise NotImplementedError()
 
     args = []
     if queue:
         args += ['-p', queue]
         if 'gpu' in queue.lower():
-            args += ['--gres', 'gpu:P100:2']
+            args += ['--gres', 'gpu:P100:2'] if not gpu_config else ['--gres', gpu_config]
     if job_name:
         args += ['-J', job_name]
     else:
         args += ['-J', cmd]
-    if cpu:
-        args += ['-c', cpu]
+    if output_path:
+        args += ['-o', output_path]
     args += cmd.split(' ') if isinstance(cmd, str) else cmd
     return args
 
