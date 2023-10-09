@@ -13,7 +13,6 @@ if [ -z "$HUBMAP_PYTHON_VERSION" ]; then
     echo "The environment variable HUBMAP_PYTHON_VERSION is not set."
     exit 1
 fi
-python_version="$HUBMAP_PYTHON_VERSION"
 
 # Root directory for newly created conda environments
 conda_env_root="/opt/environments"
@@ -34,12 +33,12 @@ function get_dir_of_this_script () {
 get_dir_of_this_script  # sets $DIR
 cd "$DIR" || exit 1
 
-ENV_SCRIPT="/airflow_environments/env_$(HUBMAP_INSTANCE).sh"
+ENV_SCRIPT="/airflow_environments/env_${HUBMAP_INSTANCE}.sh"
 
 #shellcheck source=./airflow_environments/env_*.sh
-. "$(dirname "$(readlink -f "$0")")$ENV_SCRIPT"
+. "$(dirname "$(readlink -f "$0")")${ENV_SCRIPT}"
 
-echo "$HM_AF_METHOD" "$HM_AF_ENV_NAME"
+echo "${HM_AF_METHOD}" "${HM_AF_ENV_NAME}"
 if [ "${HM_AF_METHOD}" == 'conda' ] ; then
     which conda || export PATH=/hive/users/hive/anaconda3/bin:$PATH
     eval "$(conda shell.bash hook)"
@@ -65,7 +64,7 @@ fi
 if [ "${conda_env_path}" == "" ]; then
     conda_env_path=${conda_env_root}/${HM_AF_ENV_NAME}
     echo 'Creating the conda environment'
-    conda create --yes --prefix "${conda_env_path}" python="${python_version}" pip
+    conda create --yes --prefix "${conda_env_path}" python="${HUBMAP_PYTHON_VERSION}" pip
 else
     echo "Conda environment already exists"
 fi
