@@ -45,6 +45,7 @@ default_args = {
     'retry_delay': timedelta(minutes=1),
     'xcom_push': True,
     'queue': get_queue_resource('reset_submission_to_new'),
+    "executor_config": {"SlurmExecutor": {"slurm_output_path": "/hive/users/hive/airflow-logs/slurm/"}},
     'on_failure_callback': utils.create_dataset_state_error_callback(get_uuid_for_error)
 }
 
