@@ -2,15 +2,14 @@ from typing import List, Tuple, Union, Dict
 import jobs
 from subprocess import run as __run_process
 
-__SQUEUE_PATH = "squeue"
-__SBATCH_PATH = "sbatch"
+__SQUEUE_PATH = 'squeue'
+__SBATCH_PATH = 'sbatch'
 
 
 def __execute_on_shell(cmd, args):
-    print(f"Status {cmd}, {args}")
     process_status = __run_process([cmd] + args, capture_output=True)
     if process_status.returncode > 0:
-        print(f"Status {process_status}")
+        print(f'Status {process_status}')
         raise SlurmCallError()
     output = process_status.stdout.decode()
     return output
@@ -34,20 +33,18 @@ def __list_contains_valid_ids(ids_list):
         raise EmptyListException()
 
 
-def __compose_get_processes_status_cmd(
-    job_ids: Union[List, Tuple] = (), job_name: Union[List, Tuple] = ()
-):
-    cmd = ["--states=all", "-h"]
-    fmt = "%i;%j;%t;%T;%r"
-    cmd += ["--format=%s" % fmt]
+def __compose_get_processes_status_cmd(job_ids: Union[List, Tuple] = (), job_name: Union[List, Tuple] = ()):
+    cmd = ['--states=all', '-h']
+    fmt = '%i;%j;%t;%T;%r'
+    cmd += ['--format=%s' % fmt]
 
     if job_ids:
-        cmd += [",".join(job_ids)]
+        cmd += [','.join(job_ids)]
     else:
-        cmd += ["-a"]
+        cmd += ['-a']
 
     if job_name:
-        cmd += ["-n", ",".join(job_name)]
+        cmd += ['-n', ','.join(job_name)]
 
     return cmd
 
@@ -66,32 +63,25 @@ def __parse_squeue_output(squeue_output) -> List[jobs.SlurmJobStatus]:
     """
     jobs_found = []
     if squeue_output:
-        for line in squeue_output.split("\n"):
+        for line in squeue_output.split('\n'):
             if not line:
                 continue
-            job_id, job_name, status_code, status, reason = line.split(";")
-            jobs_found.append(
-                jobs.SlurmJobStatus(
-                    job_id=job_id,
-                    job_name=job_name,
-                    status_code=status_code,
-                    status=status,
-                    reason=reason,
-                )
-            )
+            job_id, job_name, status_code, status, reason = line.split(';')
+            jobs_found.append(jobs.SlurmJobStatus(job_id=job_id,
+                                                  job_name=job_name,
+                                                  status_code=status_code,
+                                                  status=status,
+                                                  reason=reason))
 
     return jobs_found
 
 
-def __map_job_status_per_jobid(
-    job_status_list: List[jobs.SlurmJobStatus],
-) -> Dict[str, jobs.SlurmJobStatus]:
+def __map_job_status_per_jobid(job_status_list: List[jobs.SlurmJobStatus]) -> Dict[str, jobs.SlurmJobStatus]:
     return {job_status.job_id: job_status for job_status in job_status_list}
 
 
-def get_jobs_status(
-    job_ids: Union[List, Tuple] = (), job_name: Union[List, Tuple] = ()
-) -> Dict[str, jobs.SlurmJobStatus]:
+def get_jobs_status(job_ids: Union[List, Tuple] = (), job_name: Union[List, Tuple] = ()) \
+        -> Dict[str, jobs.SlurmJobStatus]:
     args = __compose_get_processes_status_cmd(job_ids, job_name)
     output = __execute_squeue(args)
     parsed_output = __parse_squeue_output(output)
@@ -104,40 +94,24 @@ def __execute_srun(args):
 
 def __compose_run_job_arguments(cmd, queue=None, executor_config=None, job_name=None):
     gpu_config = None
-    cpu_node = None
     output_path = None
     if executor_config:
-        try:
-            gpu_config = executor_config.get("SlurmExecutor").get("gpu_params")
-        except:
-            pass
-        try:
-            output_path = (
-                executor_config.get("SlurmExecutor").get("slurm_output_path") + "slurm-%j.out"
-            )
-        except:
-            pass
-        try:
-            cpu_node = executor_config.get("SlurmExecutor").get("cpu_node")
-        except:
-            pass
+        gpu_config = executor_config.get('SlurmExecutor').get('gpu_params')
+        output_path = executor_config.get('SlurmExecutor').get('slurm_output_path') + "slurm-%j.out"
         # raise NotImplementedError()
 
     args = []
     if queue:
-        args += ["-p", queue]
-        if "gpu" in queue.lower():
-            args += ["--gres", "gpu:P100:2"] if not gpu_config else ["--gres", gpu_config]
-        else:
-            if cpu_node:
-                args += ["-w", cpu_node]
+        args += ['-p', queue]
+        if 'gpu' in queue.lower():
+            args += ['--gres', 'gpu:P100:2'] if not gpu_config else ['--gres', gpu_config]
     if job_name:
-        args += ["-J", job_name]
+        args += ['-J', job_name]
     else:
-        args += ["-J", cmd]
+        args += ['-J', cmd]
     if output_path:
-        args += ["-o", output_path]
-    args += cmd.split(" ") if isinstance(cmd, str) else cmd
+        args += ['-o', output_path]
+    args += cmd.split(' ') if isinstance(cmd, str) else cmd
     return args
 
 
