@@ -44,6 +44,8 @@ default_args = {
     "retry_delay": timedelta(minutes=1),
     "xcom_push": True,
     "queue": get_queue_resource("celldive_deepcell"),
+    "executor_config": {"SlurmExecutor": {"gpu_params": "gpu:P100:2",
+                                          "slurm_output_path": "/hive/users/hive/airflow-logs/slurm/"}},
     "on_failure_callback": utils.create_dataset_state_error_callback(get_uuid_for_error),
 }
 
