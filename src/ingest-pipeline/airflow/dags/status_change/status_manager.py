@@ -2,58 +2,13 @@ from __future__ import annotations
 
 import json
 import logging
-from enum import Enum
 from functools import cached_property
 from typing import Any, Dict, TypedDict, Union
 
-from update_asana import UpdateAsana
-
 from airflow.providers.http.hooks.http import HttpHook
 
-from .status_utils import get_submission_context
-
-
-class Statuses(str, Enum):
-    # Dataset Hold and Deprecated are not currently in use but are valid for Entity API
-    DATASET_DEPRECATED = "deprecated"
-    DATASET_ERROR = "error"
-    DATASET_HOLD = "hold"
-    DATASET_INVALID = "invalid"
-    DATASET_NEW = "new"
-    DATASET_PROCESSING = "processing"
-    DATASET_PUBLISHED = "published"
-    DATASET_QA = "qa"
-    UPLOAD_ERROR = "error"
-    UPLOAD_INVALID = "invalid"
-    UPLOAD_NEW = "new"
-    UPLOAD_PROCESSING = "processing"
-    UPLOAD_REORGANIZED = "reorganized"
-    UPLOAD_SUBMITTED = "submitted"
-    UPLOAD_VALID = "valid"
-
-
-# Needed some way to disambiguate statuses shared by datasets and uploads
-ENTITY_STATUS_MAP = {
-    "dataset": {
-        "deprecated": Statuses.DATASET_DEPRECATED,
-        "error": Statuses.DATASET_ERROR,
-        "hold": Statuses.DATASET_HOLD,
-        "invalid": Statuses.DATASET_INVALID,
-        "new": Statuses.DATASET_NEW,
-        "processing": Statuses.DATASET_PROCESSING,
-        "published": Statuses.DATASET_PUBLISHED,
-        "qa": Statuses.DATASET_QA,
-    },
-    "upload": {
-        "error": Statuses.UPLOAD_ERROR,
-        "invalid": Statuses.UPLOAD_INVALID,
-        "new": Statuses.UPLOAD_NEW,
-        "processing": Statuses.UPLOAD_PROCESSING,
-        "reorganized": Statuses.UPLOAD_REORGANIZED,
-        "submitted": Statuses.UPLOAD_SUBMITTED,
-        "valid": Statuses.UPLOAD_VALID,
-    },
-}
+from .status_utils import ENTITY_STATUS_MAP, Statuses, get_submission_context
+from .update_asana import UpdateAsana
 
 
 class StatusChangerExtras(TypedDict):

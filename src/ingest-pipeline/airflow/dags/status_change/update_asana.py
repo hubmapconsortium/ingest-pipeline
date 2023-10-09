@@ -1,14 +1,13 @@
 import logging
-import os
 from datetime import datetime
 from functools import cached_property
 
 import asana
 from asana.error import NotFoundError
-from status_manager import StatusChangerException, Statuses
-from status_utils import get_hubmap_id_from_uuid, get_submission_context
 
 from airflow.configuration import conf as airflow_conf
+
+from .status_utils import Statuses, get_hubmap_id_from_uuid, get_submission_context
 
 
 class UpdateAsana:
@@ -114,12 +113,12 @@ class UpdateAsana:
                         gids.append(response["gid"])
             if len(types) > 1:
                 task_gids = [task["gid"] for task in response_list]
-                raise StatusChangerException(
+                raise Exception(
                     f"""Multiple tasks with the entity_type tag 'Dataset' found
                     for HuBMAP ID {self.hubmap_id}. GIDs found: {task_gids}"""
                 )
             elif len(types) == 0:
-                raise StatusChangerException(
+                raise Exception(
                     f"No tasks with type 'Dataset' found for HuBMAP ID {self.hubmap_id}."
                 )
             task_id = gids[0]
@@ -142,7 +141,7 @@ class UpdateAsana:
         and Asana status to be set.
         """
         if self.status not in self.asana_status_map:
-            raise StatusChangerException(
+            raise Exception(
                 f"""Status {self.status} assigned to {self.hubmap_id}
                 not found in asana_status_map. Status not updated."""
             )
@@ -198,7 +197,7 @@ class UpdateAsana:
                 """
             logging.info(f"UPDATE SUCCESSFUL: {response}")
         except Exception as e:
-            raise StatusChangerException(
+            raise Exception(
                 f"""Error occurred while updating Asana status for HuBMAP ID {self.hubmap_id}.
                 Status not updated.
                 Error: {e}"""
@@ -250,7 +249,7 @@ class UpdateAsana:
                              {response.json()}"""
                 )
             except Exception:
-                raise StatusChangerException(
+                raise Exception(
                     f"""Error creating card for dataset {dataset['hubmap_id']},
                     part of reorganized dataset {self.hubmap_id}"""
                 )
