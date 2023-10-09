@@ -36,7 +36,8 @@ default_args = {
     'retries': 1,
     'retry_delay': datetime.timedelta(minutes=1),
     'xcom_push': True,
-    'queue': get_queue_resource('generate_usage_report')
+    'queue': get_queue_resource('generate_usage_report'),
+    "executor_config": {"SlurmExecutor": {"slurm_output_path": "/hive/users/hive/airflow-logs/slurm/"}},
 }
 
 with HMDAG('generate_usage_report',

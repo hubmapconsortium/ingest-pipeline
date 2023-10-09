@@ -44,6 +44,7 @@ default_args = {
     'retry_delay': timedelta(minutes=1),
     'xcom_push': True,
     'queue': get_queue_resource('launch_checksums'),
+    "executor_config": {"SlurmExecutor": {"slurm_output_path": "/hive/users/hive/airflow-logs/slurm/"}},
 }
 
 with HMDAG('launch_checksums',

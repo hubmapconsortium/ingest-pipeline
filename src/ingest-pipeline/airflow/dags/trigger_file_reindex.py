@@ -32,7 +32,8 @@ default_args = {
     'retries': 1,
     'retry_delay': datetime.timedelta(minutes=1),
     'xcom_push': True,
-    'queue': get_queue_resource('trigger_file_reindex')
+    'queue': get_queue_resource('trigger_file_reindex'),
+    "executor_config": {"SlurmExecutor": {"slurm_output_path": "/hive/users/hive/airflow-logs/slurm/"}},
 }
 
 with HMDAG('trigger_file_reindex',
