@@ -119,7 +119,6 @@ class StatusChanger:
             }
         )
 
-    # TODO: checking submission context for every StatusChanger instance will break tests
     def get_status(self, status: str, entity_type: str | None) -> Union[Statuses, None]:
         """
         If status is passed as a string, get the entity type and match

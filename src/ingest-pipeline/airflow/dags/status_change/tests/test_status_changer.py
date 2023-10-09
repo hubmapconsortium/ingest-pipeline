@@ -1,4 +1,5 @@
 import unittest
+from functools import cached_property
 from unittest.mock import patch
 
 from status_manager import StatusChanger, StatusChangerException, Statuses
@@ -6,18 +7,22 @@ from utils import pythonop_set_dataset_state
 
 
 class TestStatusChanger(unittest.TestCase):
-    upload_valid = StatusChanger(
-        "upload_valid_uuid",
-        "upload_valid_token",
-        "Valid",
-        {
-            "extra_fields": {},
-            "extra_options": {},
-        },
-        entity_type="Upload",
-    )
+    @cached_property
+    @patch("status_manager.HttpHook.run")
+    def upload_valid(self, hhr_mock):
+        return StatusChanger(
+            "upload_valid_uuid",
+            "upload_valid_token",
+            "Valid",
+            {
+                "extra_fields": {},
+                "extra_options": {},
+            },
+            entity_type="Upload",
+        )
 
-    def test_unrecognized_status(self):
+    @patch("status_manager.HttpHook.run")
+    def test_unrecognized_status(self, hhr_mock):
         with self.assertRaises(StatusChangerException):
             StatusChanger(
                 "invalid_status_uuid",
@@ -34,7 +39,8 @@ class TestStatusChanger(unittest.TestCase):
         data = self.upload_valid.format_status_data()
         self.assertEqual(data["status"], self.upload_valid.status)
 
-    def test_extra_fields(self):
+    @patch("status_manager.HttpHook.run")
+    def test_extra_fields(self, hhr_mock):
         with_extra_field = StatusChanger(
             "extra_field_uuid",
             "extra_field_token",
@@ -83,14 +89,15 @@ class TestStatusChanger(unittest.TestCase):
         )
         with_extra_option_and_field.set_entity_api_status()
         self.assertIn({"check_response": False}, hhr_mock.call_args.args)
-        self.assertIn('{"status": "Valid", "test_extra_field": true}', hhr_mock.call_args.args)
+        self.assertIn('{"status": "valid", "test_extra_field": true}', hhr_mock.call_args.args)
 
     @patch("status_manager.HttpHook.run")
     def test_valid_status_in_request(self, hhr_mock):
         self.upload_valid.set_entity_api_status()
-        self.assertIn('{"status": "Valid"}', hhr_mock.call_args.args)
+        self.assertIn('{"status": "valid"}', hhr_mock.call_args.args)
 
-    def test_http_conn_id(self):
+    @patch("status_manager.HttpHook.run")
+    def test_http_conn_id(self, hhr_mock):
         with_http_conn_id = StatusChanger(
             "http_conn_uuid",
             "http_conn_token",
@@ -132,7 +139,7 @@ class TestStatusChanger(unittest.TestCase):
         sc_mock.assert_called_with(
             uuid,
             token,
-            Statuses.DATASET_PROCESSING,
+            "Processing",
             {
                 "extra_fields": {"pipeline_message": message},
                 "extra_options": {},
@@ -150,7 +157,7 @@ class TestStatusChanger(unittest.TestCase):
         sc_mock.assert_called_with(
             uuid,
             token,
-            Statuses.DATASET_QA,
+            "QA",
             {
                 "extra_fields": {"pipeline_message": message},
                 "extra_options": {},
