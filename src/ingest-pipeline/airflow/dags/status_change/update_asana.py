@@ -1,47 +1,75 @@
 import logging
 from datetime import datetime
 from functools import cached_property
+from typing import Dict, Optional
 
 import asana
-from asana.error import NotFoundError
+from asana.models.task_response_data import TaskResponseData
+from asana.rest import ApiException
+from status_utils import Statuses, get_hubmap_id_from_uuid, get_submission_context
 
 from airflow.configuration import conf as airflow_conf
 
-from .status_utils import Statuses, get_hubmap_id_from_uuid, get_submission_context
+HUBMAP_ID_FIELD_GID = "1204584344373112"
+PROCESS_STAGE_FIELD_GID = "1204584344373114"
+PROCESS_STAGE_GIDS = {
+    "Process Stage": {
+        "Intake": "1204584344373115",
+        "Pre-Processing": "1204584344373116",
+        "Ready Backlog": "1204584347884579",
+        "Processing": "1204584347884580",
+        "Post-Processing": "1204584347884581",
+        "Publishing": "1204584347884582",
+        "Blocked 🛑": "1204584347884583",
+        "Completed": "1204584347884584",
+    }
+}
+# TODO: parent and entity fields/enums do not yet exist in Asana
+PARENT_FIELD_GID = ""
+ENTITY_TYPE_FIELD_GID = ""
+ENTITY_TYPE_GIDS = {}
 
 
 class UpdateAsana:
     def __init__(
         self,
-        uuid: str | None,
+        uuid: Optional[str],
         token: str,
-        status: Statuses | None,
+        status: Optional[Statuses],
     ):
-        self.workspace = airflow_conf.as_dict()["ASANA_WORKSPACE"]
-        self.project = airflow_conf.as_dict()["ASANA_PROJECT"]
-        self.client = asana.Client.access_token(airflow_conf.as_dict()["AIRFLOW_TOKEN"])
-        self.status = status
-        self.token = token
         self.uuid = uuid
-        self.custom_fields = self.get_custom_fields()
-        self.process_stage_field_gid = self.get_custom_field_gid("Process Stage")
+        self.token = token
+        self.status = status
+        self.workspace = airflow_conf.as_dict()["connections"]["ASANA_WORKSPACE"]
+        self.project = airflow_conf.as_dict()["connections"]["ASANA_PROJECT"]
+        asana_token = airflow_conf.as_dict()["connections"]["ASANA_TOKEN"]
+        # airflow_conf.as_dict() potentially returns a tuple;
+        # this mollifies type-checking and provides a sensible error.
+        assert isinstance(self.workspace, str), "ASANA_WORKSPACE is not a string!"
+        assert isinstance(self.project, str), "ASANA_PROJECT is not a string!"
+        assert isinstance(asana_token, str), "ASANA_TOKEN is not a string!"
+
+        configuration = asana.Configuration()
+        configuration.access_token = asana_token
+        self.client = asana.ApiClient(configuration)
+        self.tasks_client = asana.TasksApi(self.client)
 
     @cached_property
     def asana_status_map(self):
         return {
-            Statuses.DATASET_ERROR: self.process_stage_gids["Blocked 🛑"],
-            Statuses.DATASET_INVALID: self.process_stage_gids["Blocked 🛑"],
-            Statuses.DATASET_NEW: self.process_stage_gids["Intake"],
+            Statuses.DATASET_ERROR: PROCESS_STAGE_GIDS["Blocked 🛑"],
+            Statuses.DATASET_INVALID: PROCESS_STAGE_GIDS["Blocked 🛑"],
+            Statuses.DATASET_NEW: PROCESS_STAGE_GIDS["Intake"],
             Statuses.DATASET_PROCESSING: "",
-            Statuses.DATASET_PUBLISHED: self.process_stage_gids["Publishing"],
-            Statuses.DATASET_QA: self.process_stage_gids["Post-Processing"],
-            Statuses.UPLOAD_ERROR: self.process_stage_gids["Blocked 🛑"],
-            Statuses.UPLOAD_INVALID: self.process_stage_gids["Blocked 🛑"],
-            Statuses.UPLOAD_NEW: self.process_stage_gids["Intake"],
+            Statuses.DATASET_PUBLISHED: PROCESS_STAGE_GIDS["Publishing"],
+            Statuses.DATASET_QA: PROCESS_STAGE_GIDS["Post-Processing"],
+            Statuses.UPLOAD_ERROR: PROCESS_STAGE_GIDS["Blocked 🛑"],
+            Statuses.UPLOAD_INVALID: PROCESS_STAGE_GIDS["Blocked 🛑"],
+            Statuses.UPLOAD_NEW: PROCESS_STAGE_GIDS["Intake"],
             Statuses.UPLOAD_PROCESSING: "",
-            Statuses.UPLOAD_REORGANIZED: self.process_stage_gids["Processing"],
-            Statuses.UPLOAD_SUBMITTED: self.process_stage_gids["Pre-Processing"],
-            Statuses.UPLOAD_VALID: self.process_stage_gids["Pre-Processing"],
+            Statuses.UPLOAD_REORGANIZED: PROCESS_STAGE_GIDS["Processing"],
+            Statuses.UPLOAD_SUBMITTED: PROCESS_STAGE_GIDS["Pre-Processing"],
+            Statuses.UPLOAD_VALID: PROCESS_STAGE_GIDS["Pre-Processing"],
         }
 
     @cached_property
@@ -56,45 +84,15 @@ class UpdateAsana:
         else:
             raise Exception("Cannot fetch data from Entity API. No uuid passed.")
 
-    def get_custom_fields(self):
-        return list(
-            self.client.custom_field_settings.get_custom_field_settings_for_project(self.project)
-        )
-
-    def get_custom_field_gid(self, custom_field_name: str) -> str:
-        for custom_field in self.custom_fields:
-            try:
-                name = custom_field["custom_field"]["name"]
-            except Exception:
-                continue
-            if name == custom_field_name:
-                if name == "Process Stage":
-                    self.process_stage_gids = {}
-                    for stage in custom_field["custom_field"]["enum_options"]:
-                        self.process_stage_gids[stage["name"]] = stage["gid"]
-                elif name == "Entity Type":
-                    self.entity_type_gids = {}
-                    for stage in custom_field["custom_field"]["enum_options"]:
-                        self.process_stage_gids[stage["name"]] = stage["gid"]
-                return custom_field["custom_field"]["gid"]
-        raise Exception(f"Asana custom field {custom_field_name} not found.")
-
     @cached_property
     def get_task_by_hubmap_id(self) -> str:
         """
         Given a HuBMAP ID, find the associated Asana task.
         Fails if a HuBMAP ID is associated with 0 or >1 tasks.
         """
-        hubmap_id_field = self.get_custom_field_gid("HuBMAP ID")
-        response_list = list(
-            self.client.tasks.search_tasks_for_workspace(
-                self.workspace,
-                {
-                    "projects_any": self.project,
-                    f"custom_fields.{hubmap_id_field}.contains": self.hubmap_id,
-                    "opt_fields": ["gid", "custom_fields"],
-                },
-            )
+        custom_field = f"custom_fields_{HUBMAP_ID_FIELD_GID}_contains"
+        response_list = self.tasks_client.search_tasks_for_workspace(
+            self.workspace, **{custom_field: self.hubmap_id}
         )
         response_length = len(response_list)
         if response_length == 1:
@@ -153,28 +151,12 @@ class UpdateAsana:
             return
         elif self.status == Statuses.UPLOAD_REORGANIZED:
             self.create_dataset_cards()
+        body = {"data": {"custom_fields": {PROCESS_STAGE_FIELD_GID: self.get_asana_status}}}
         try:
-            response = self.client.tasks.update_task(
-                self.get_task_by_hubmap_id,
-                {
-                    "custom_fields": {
-                        self.get_custom_field_gid("Process Stage"): self.get_asana_status
-                    },
-                },
-                opt_pretty=True,
-            )
-        # Separating this one out to handle empty string passed as task_id because task wasn't found
-        except NotFoundError as e:
-            logging.info(
-                f"""
-                    Error occurred while updating Asana status for HuBMAP ID {self.hubmap_id};
-                    task ID that was passed was {self.get_task_by_hubmap_id}.
-                    Task status not updated, may need to be updated manually.
-                    Error: {e}
-                """
-            )
-            return
-        except Exception as e:
+            response = self.tasks_client.update_task(body, self.get_task_by_hubmap_id)
+            assert isinstance(response, TaskResponseData)
+            self.check_returned_status(response)
+        except ApiException as e:
             logging.info(
                 f"""
                     Error occurred while updating Asana status for HuBMAP ID {self.hubmap_id}.
@@ -182,15 +164,16 @@ class UpdateAsana:
                     Error: {e}
                 """
             )
-            return
+
+    def check_returned_status(self, response: TaskResponseData) -> None:
         try:
             new_status = list(
                 field["enum_value"]
-                for field in response["custom_fields"]
+                for field in response.to_dict()["data"]["custom_fields"]
                 if field["name"] == "Process Stage"
             )[0]
             assert (
-                self.get_asana_status == new_status["gid"]
+                self.get_asana_status == new_status["enum_value"]["gid"]
             ), f"""
                 Asana status matching Entity API status '{self.status}' not applied
                 to {self.hubmap_id}. Current status in Asana matches GID {new_status['name']}.
@@ -203,14 +186,14 @@ class UpdateAsana:
                 Error: {e}"""
             )
 
-    def convert_utc_timestamp(self, dataset):
+    def convert_utc_timestamp(self, dataset: Dict) -> str:
         # Convert UTC timestamp in milliseconds to readable date
         timestamp = datetime.utcfromtimestamp(int(dataset["created_timestamp"]) / 1000).strftime(
             "%Y%m%d"
         )
         return timestamp
 
-    def create_dataset_cards(self):
+    def create_dataset_cards(self) -> None:
         child_datasets = [dataset for dataset in self.submission_data["datasets"]]
         logging.info(
             f"""Upload {self.hubmap_id} has {len(child_datasets)} child datasets.
@@ -219,38 +202,32 @@ class UpdateAsana:
         for dataset in child_datasets:
             timestamp = self.convert_utc_timestamp(dataset)
             try:
-                response = self.client.tasks.create_task(
+                response = self.tasks_client.create_task(
                     {
-                        "name": f"{dataset['group_name']} | {dataset['ingest_metadata']['metadata']['assay_type']} | {timestamp}",  # noqa
-                        "custom_fields": {
-                            # TODO: should assay type pull from dataset['data_types']
-                            # or dataset['ingest_metadata']['metadata']['assay_type']?
-                            self.get_custom_field_gid("HuBMAP ID"): dataset["hubmap_id"],
-                            # TODO: is "New" correct? Should it be mapped to Intake?
-                            self.get_custom_field_gid("Process Stage"): self.process_stage_gids[
-                                "Intake"
-                            ],
-                            # self.get_custom_field_gid("Entity Type"): self.entity_type_gids[
-                            #     "dataset"
-                            # ],
-                            # TODO: does parent_field_gid need to be extensible for card IDs
-                            # for non-upload groups? is that a separate field or is this actually
-                            # a parent milestone ID field?
-                            # self.get_custom_field_gid("Parent"): self.hubmap_id,
-                        },
-                        "projects": [self.project],
-                    },
-                    opt_pretty=True,
+                        "data": {
+                            # TODO: should assay type pull from dataset['data_types'] instead?
+                            "name": f"{dataset['group_name']} | {dataset['ingest_metadata']['metadata']['assay_type']} | {timestamp}",  # noqa
+                            "custom_fields": {
+                                HUBMAP_ID_FIELD_GID: dataset["hubmap_id"],
+                                PROCESS_STAGE_FIELD_GID: PROCESS_STAGE_GIDS["Intake"],
+                                # ENTITY_TYPE_FIELD_GID: ENTITY_TYPE_GIDS[
+                                #     "dataset"
+                                # ],
+                                # TODO: should this be the parent card ID instead?
+                                # PARENT_FIELD_GID: self.hubmap_id,
+                            },
+                            "projects": [self.project],
+                        }
+                    }
                 )
-                response.raise_for_status()
-                logging.info(
-                    f"""Card created successfully for dataset {dataset['hubmap_id']}.
-                             Response:
-                             {response.json()}"""
-                )
-            except Exception:
+            except ApiException as e:
                 raise Exception(
                     f"""Error creating card for dataset {dataset['hubmap_id']},
-                    part of reorganized dataset {self.hubmap_id}"""
+                    part of reorganized dataset {self.hubmap_id}: {e}"""
                 )
+            logging.info(
+                f"""Card created successfully for dataset {dataset['hubmap_id']}.
+                            Response:
+                            {response}"""
+            )
         logging.info(f"All dataset cards created for upload {self.hubmap_id}")

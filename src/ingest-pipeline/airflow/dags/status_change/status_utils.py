@@ -4,6 +4,11 @@ import traceback
 from enum import Enum
 from typing import Any, Dict
 
+import asana
+from asana.models.custom_field_setting_response_array import (
+    CustomFieldSettingResponseArray,
+)
+from asana.rest import ApiException
 from requests import codes
 from requests.exceptions import HTTPError
 
@@ -121,3 +126,48 @@ ENTITY_STATUS_MAP = {
         "valid": Statuses.UPLOAD_VALID,
     },
 }
+
+
+def get_asana_fields(asana_token: str, project: str) -> None:
+    """
+    Helper function to print data if you need to update the custom fields;
+    needs to be called manually. Assumes a particular shape/organization
+    of the Asana board.
+    From this directory:
+    python -c "import status_utils; status_utils.get_asana_fields('<asana_token>' '<project_gid>')"
+    """
+    configuration = asana.Configuration()
+    configuration.access_token = asana_token
+    client = asana.ApiClient(configuration)
+    api_instance = asana.CustomFieldSettingsApi(client)
+    try:
+        api_response = api_instance.get_custom_field_settings_for_project(project)
+        assert api_response is not None
+        assert isinstance(api_response, CustomFieldSettingResponseArray)
+        assert api_response.data is not None
+    except ApiException as e:
+        print("Exception when calling get_custom_field_settings_for_project: %s\n" % e)
+        return
+    process_stages = {}
+    entity_types = {}
+    for field in api_response.data:
+        custom_field = field.custom_field
+        if custom_field.name == "HuBMAP ID":
+            print(f"HUBMAP_ID_FIELD_GID = '{custom_field.gid}'")
+        elif custom_field.name == "Process Stage":
+            print(f"PROCESS_STAGE_FIELD_GID = '{custom_field.gid}'")
+            process_enums = {}
+            for option in custom_field.enum_options:
+                process_enums[option.name] = option.gid
+            process_stages[custom_field.name] = process_enums
+            print(f"PROCESS_STAGE_GIDS = {process_stages}")
+        # TODO: Below fields do not exist in Asana yet
+        elif custom_field.name == "Parent HuBMAP ID":
+            print(f"PARENT_FIELD_GID = '{custom_field.gid}'")
+        elif custom_field.name == "Entity Type":
+            print(f"ENTITY_TYPE_FIELD_GID = '{custom_field.gid}'")
+            entity_enums = {}
+            for option in custom_field.enum_options:
+                entity_enums[option.name] = option.gid
+            entity_types[custom_field.name] = entity_enums
+            print(f"ENTITY_TYPE_GIDS = {entity_types}")
