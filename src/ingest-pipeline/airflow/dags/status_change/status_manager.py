@@ -8,7 +8,7 @@ from typing import Any, Dict, TypedDict, Union
 from airflow.providers.http.hooks.http import HttpHook
 
 from .status_utils import ENTITY_STATUS_MAP, Statuses, get_submission_context
-from .update_asana import UpdateAsana
+from .update_asana import AsanaException, UpdateAsana
 
 
 class StatusChangerExtras(TypedDict):
@@ -166,7 +166,11 @@ class StatusChanger:
             )
 
     def update_asana(self) -> None:
-        UpdateAsana(self.uuid, self.token, self.status).update_process_stage()
+        try:
+            UpdateAsana(self.uuid, self.token, self.status).update_process_stage()
+        # At least right now, I don't want this to fail the DAG
+        except AsanaException as e:
+            logging.info(f"ERROR in Asana process: {e}")
 
     def send_email(self) -> None:
         # This is underdeveloped and also requires a separate PR

@@ -29,6 +29,10 @@ ENTITY_TYPE_FIELD_GID = ""
 ENTITY_TYPE_GIDS = {}
 
 
+class AsanaException(Exception):
+    pass
+
+
 class UpdateAsana:
     def __init__(
         self,
@@ -81,7 +85,7 @@ class UpdateAsana:
         if self.uuid is not None:
             return get_submission_context(self.token, self.uuid)
         else:
-            raise Exception("Cannot fetch data from Entity API. No uuid passed.")
+            raise AsanaException("Cannot fetch data from Entity API. No uuid passed.")
 
     @cached_property
     def get_task_by_hubmap_id(self) -> Optional[str]:
@@ -102,7 +106,7 @@ class UpdateAsana:
             for response in response_list.data:
                 if response.gid:
                     tasks[response.name] = response.gid
-            raise Exception(
+            raise AsanaException(
                 f"""{response_length} tasks with the HuBMAP ID {self.hubmap_id} found!
                 {f'Task Names & GIDs found: {tasks}'
                  if tasks
@@ -119,7 +123,7 @@ class UpdateAsana:
         and Asana status to be set.
         """
         if self.status not in self.asana_status_map:
-            raise Exception(
+            raise AsanaException(
                 f"""Status {self.status} assigned to {self.hubmap_id}
                 not found in asana_status_map. Status not updated."""
             )
@@ -147,20 +151,20 @@ class UpdateAsana:
 
     def check_returned_status(self, response: TaskResponseData) -> None:
         try:
-            new_status = list(
+            new_status = [
                 field["enum_value"]
                 for field in response.to_dict()["data"]["custom_fields"]
                 if field["name"] == "Process Stage"
-            )[0]
+            ][0]
             assert (
-                self.get_asana_status == new_status["enum_value"]["gid"]
+                self.get_asana_status == new_status["gid"]
             ), f"""
                 Asana status matching Entity API status '{self.status}' not applied
                 to {self.hubmap_id}. Current status in Asana matches GID {new_status['name']}.
                 """
             logging.info(f"UPDATE SUCCESSFUL: {response}")
         except Exception as e:
-            raise Exception(
+            raise AsanaException(
                 f"""Error occurred while updating Asana status for HuBMAP ID {self.hubmap_id}.
                 Status not updated.
                 Error: {e}"""
@@ -201,7 +205,7 @@ class UpdateAsana:
                     }
                 )
             except ApiException as e:
-                raise Exception(
+                raise AsanaException(
                     f"""Error creating card for dataset {dataset['hubmap_id']},
                     part of reorganized dataset {self.hubmap_id}: {e}"""
                 )
