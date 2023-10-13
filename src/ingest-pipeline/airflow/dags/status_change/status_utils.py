@@ -148,8 +148,6 @@ def get_asana_fields(asana_token: str, project: str) -> None:
     except ApiException as e:
         print("Exception when calling get_custom_field_settings_for_project: %s\n" % e)
         return
-    process_stages = {}
-    entity_types = {}
     for field in api_response.data:
         custom_field = field.custom_field
         if custom_field.name == "HuBMAP ID":
@@ -159,8 +157,7 @@ def get_asana_fields(asana_token: str, project: str) -> None:
             process_enums = {}
             for option in custom_field.enum_options:
                 process_enums[option.name] = option.gid
-            process_stages[custom_field.name] = process_enums
-            print(f"PROCESS_STAGE_GIDS = {process_stages}")
+            print(f"PROCESS_STAGE_GIDS = {process_enums}")
         # TODO: Below fields do not exist in Asana yet
         elif custom_field.name == "Parent HuBMAP ID":
             print(f"PARENT_FIELD_GID = '{custom_field.gid}'")
@@ -169,5 +166,4 @@ def get_asana_fields(asana_token: str, project: str) -> None:
             entity_enums = {}
             for option in custom_field.enum_options:
                 entity_enums[option.name] = option.gid
-            entity_types[custom_field.name] = entity_enums
-            print(f"ENTITY_TYPE_GIDS = {entity_types}")
+            print(f"ENTITY_TYPE_GIDS = {entity_enums}")

@@ -192,3 +192,4 @@ class StatusChanger:
             self.set_entity_api_status()
             self.send_email()
             self.update_asana()
+        logging.info("All status change steps completed!")

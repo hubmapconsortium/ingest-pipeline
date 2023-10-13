@@ -13,16 +13,14 @@ from airflow.configuration import conf as airflow_conf
 HUBMAP_ID_FIELD_GID = "1204584344373112"
 PROCESS_STAGE_FIELD_GID = "1204584344373114"
 PROCESS_STAGE_GIDS = {
-    "Process Stage": {
-        "Intake": "1204584344373115",
-        "Pre-Processing": "1204584344373116",
-        "Ready Backlog": "1204584347884579",
-        "Processing": "1204584347884580",
-        "Post-Processing": "1204584347884581",
-        "Publishing": "1204584347884582",
-        "Blocked 🛑": "1204584347884583",
-        "Completed": "1204584347884584",
-    }
+    "Intake": "1204584344373115",
+    "Pre-Processing": "1204584344373116",
+    "Ready Backlog": "1204584347884579",
+    "Processing": "1204584347884580",
+    "Post-Processing": "1204584347884581",
+    "Publishing": "1204584347884582",
+    "Blocked 🛑": "1204584347884583",
+    "Completed": "1204584347884584",
 }
 # TODO: parent and entity fields/enums do not yet exist in Asana
 PARENT_FIELD_GID = ""
