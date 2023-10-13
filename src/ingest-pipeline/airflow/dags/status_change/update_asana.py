@@ -6,11 +6,12 @@ from typing import Dict, Optional
 import asana
 from asana.models.task_response_data import TaskResponseData
 from asana.rest import ApiException
-from status_utils import Statuses, get_hubmap_id_from_uuid, get_submission_context
 
 from airflow.configuration import conf as airflow_conf
 
-HUBMAP_ID_FIELD_GID = "1204584344373112"
+from .status_utils import Statuses, get_hubmap_id_from_uuid, get_submission_context
+
+HUBMAP_ID_FIELD_GID = "1204584344373110"
 PROCESS_STAGE_FIELD_GID = "1204584344373114"
 PROCESS_STAGE_GIDS = {
     "Intake": "1204584344373115",
@@ -83,7 +84,7 @@ class UpdateAsana:
             raise Exception("Cannot fetch data from Entity API. No uuid passed.")
 
     @cached_property
-    def get_task_by_hubmap_id(self) -> str:
+    def get_task_by_hubmap_id(self) -> Optional[str]:
         """
         Given a HuBMAP ID, find the associated Asana task.
         Fails if a HuBMAP ID is associated with 0 or >1 tasks.
@@ -92,43 +93,24 @@ class UpdateAsana:
         response_list = self.tasks_client.search_tasks_for_workspace(
             self.workspace, **{custom_field: self.hubmap_id}
         )
-        response_length = len(response_list)
+        response_length = len(response_list.data)
         if response_length == 1:
-            task_id = response_list[0]["gid"]
-        # TODO: this is not so great
-        elif response_length > 1:
-            types = []
-            gids = []
-            for response in response_list:
-                for field in response["custom_fields"]:
-                    if (
-                        field["name"] == "Entity Type"
-                        and (entity_type := field["enum_value"]["name"]) == "Dataset"
-                    ):
-                        types.append(entity_type)
-                        gids.append(response["gid"])
-            if len(types) > 1:
-                task_gids = [task["gid"] for task in response_list]
-                raise Exception(
-                    f"""Multiple tasks with the entity_type tag 'Dataset' found
-                    for HuBMAP ID {self.hubmap_id}. GIDs found: {task_gids}"""
-                )
-            elif len(types) == 0:
-                raise Exception(
-                    f"No tasks with type 'Dataset' found for HuBMAP ID {self.hubmap_id}."
-                )
-            task_id = gids[0]
-        else:
-            logging.info(
-                f"""
-                Error retrieving task by HuBMAP ID for {self.hubmap_id}!
-                {response_length} results found.
-                Check that a task for the expected HuBMAP ID exists in Asana and that
-                it is formatted '{self.hubmap_id}' with no surrounding whitespace.
+            task_id = response_list.data[0].gid
+            return task_id
+        elif response_length != 1:
+            tasks = {}
+            for response in response_list.data:
+                if response.gid:
+                    tasks[response.name] = response.gid
+            raise Exception(
+                f"""{response_length} tasks with the HuBMAP ID {self.hubmap_id} found!
+                {f'Task Names & GIDs found: {tasks}'
+                 if tasks
+                 else f'''Check that a task for the expected HuBMAP ID
+                 exists in Asana and that it is formatted '{self.hubmap_id}'
+                 with no surrounding whitespace.'''}
                 """
             )
-            return ""
-        return task_id
 
     @cached_property
     def get_asana_status(self) -> str:
