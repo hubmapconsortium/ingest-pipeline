@@ -66,6 +66,7 @@ class UpdateAsana:
             Statuses.DATASET_PROCESSING: "",
             Statuses.DATASET_PUBLISHED: PROCESS_STAGE_GIDS["Publishing"],
             Statuses.DATASET_QA: PROCESS_STAGE_GIDS["Post-Processing"],
+            Statuses.DATASET_SUBMITTED: PROCESS_STAGE_GIDS["Intake"],
             Statuses.UPLOAD_ERROR: PROCESS_STAGE_GIDS["Blocked 🛑"],
             Statuses.UPLOAD_INVALID: PROCESS_STAGE_GIDS["Blocked 🛑"],
             Statuses.UPLOAD_NEW: PROCESS_STAGE_GIDS["Intake"],
@@ -180,17 +181,19 @@ class UpdateAsana:
     def create_dataset_cards(self) -> None:
         child_datasets = [dataset for dataset in self.submission_data["datasets"]]
         logging.info(
-            f"""Upload {self.hubmap_id} has {len(child_datasets)} child datasets.
+            f"""Upload {self.hubmap_id} has {len(child_datasets)} child datasets:
+                {[dataset["uuid"] for dataset in child_datasets]}
             Creating Asana cards..."""
         )
         for dataset in child_datasets:
             timestamp = self.convert_utc_timestamp(dataset)
+            data_types = ", ".join(dataset["data_types"])
             try:
                 response = self.tasks_client.create_task(
                     {
                         "data": {
-                            # TODO: should assay type pull from dataset['data_types'] instead?
-                            "name": f"{dataset['group_name']} | {dataset['ingest_metadata']['metadata']['assay_type']} | {timestamp}",  # noqa
+                            # TODO: should assay type pull from dataset['ingest_metadata']['metadata']['assay_type'] instead?
+                            "name": f"{dataset['group_name']} | {data_types} | {timestamp}",  # noqa
                             "custom_fields": {
                                 HUBMAP_ID_FIELD_GID: dataset["hubmap_id"],
                                 PROCESS_STAGE_FIELD_GID: PROCESS_STAGE_GIDS["Intake"],
