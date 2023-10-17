@@ -24,7 +24,6 @@ PROCESS_STAGE_GIDS = {
     "Completed": "1204584347884584",
 }
 # TODO: parent and entity fields/enums do not yet exist in Asana
-PARENT_FIELD_GID = ""
 ENTITY_TYPE_FIELD_GID = ""
 ENTITY_TYPE_GIDS = {}
 
@@ -88,7 +87,6 @@ class UpdateAsana:
         else:
             raise AsanaException("Cannot fetch data from Entity API. No uuid passed.")
 
-    @cached_property
     def get_task_by_hubmap_id(self) -> Optional[str]:
         """
         Given a HuBMAP ID, find the associated Asana task.
@@ -134,11 +132,12 @@ class UpdateAsana:
     def update_process_stage(self) -> None:
         if self.status in [None, Statuses.UPLOAD_PROCESSING, Statuses.DATASET_PROCESSING]:
             return
-        elif self.status == Statuses.UPLOAD_REORGANIZED:
-            self.create_dataset_cards()
+        elif self.status == Statuses.DATASET_PUBLISHED:
+            self.mark_subtask_complete()
+            return
         body = {"data": {"custom_fields": {PROCESS_STAGE_FIELD_GID: self.get_asana_status}}}
         try:
-            response = self.tasks_client.update_task(body, self.get_task_by_hubmap_id)
+            response = self.tasks_client.update_task(body, self.get_task_by_hubmap_id())
             assert isinstance(response, TaskResponseData)
             self.check_returned_status(response)
         except ApiException as e:
@@ -149,6 +148,10 @@ class UpdateAsana:
                     Error: {e}
                 """
             )
+        if self.status == Statuses.UPLOAD_REORGANIZED:
+            # parent_task = response.json()["gid"]
+            # self.create_dataset_cards(parent_task)
+            pass
 
     def check_returned_status(self, response: TaskResponseData) -> None:
         try:
@@ -178,7 +181,7 @@ class UpdateAsana:
         )
         return timestamp
 
-    def create_dataset_cards(self) -> None:
+    def create_dataset_cards(self, parent_task: str) -> None:
         child_datasets = [dataset for dataset in self.submission_data["datasets"]]
         logging.info(
             f"""Upload {self.hubmap_id} has {len(child_datasets)} child datasets:
@@ -188,24 +191,24 @@ class UpdateAsana:
         for dataset in child_datasets:
             timestamp = self.convert_utc_timestamp(dataset)
             data_types = ", ".join(dataset["data_types"])
+            body = asana.TaskGidSubtasksBody(
+                {
+                    "name": f"{dataset['group_name']} | {data_types} | {timestamp}",
+                    "custom_fields": {
+                        HUBMAP_ID_FIELD_GID: dataset["hubmap_id"],
+                        PROCESS_STAGE_FIELD_GID: PROCESS_STAGE_GIDS["Intake"],
+                        # ENTITY_TYPE_FIELD_GID: ENTITY_TYPE_GIDS[
+                        #     "dataset"
+                        # ],
+                    },
+                    "projects": [self.project],
+                }
+            )
             try:
-                response = self.tasks_client.create_task(
-                    {
-                        "data": {
-                            # TODO: should assay type pull from dataset['ingest_metadata']['metadata']['assay_type'] instead?
-                            "name": f"{dataset['group_name']} | {data_types} | {timestamp}",  # noqa
-                            "custom_fields": {
-                                HUBMAP_ID_FIELD_GID: dataset["hubmap_id"],
-                                PROCESS_STAGE_FIELD_GID: PROCESS_STAGE_GIDS["Intake"],
-                                # ENTITY_TYPE_FIELD_GID: ENTITY_TYPE_GIDS[
-                                #     "dataset"
-                                # ],
-                                # TODO: should this be the parent card ID instead?
-                                # PARENT_FIELD_GID: self.hubmap_id,
-                            },
-                            "projects": [self.project],
-                        }
-                    }
+                # TODO: Asana board needs to filter out datasets
+                response = self.tasks_client.create_subtask_for_task(
+                    body,
+                    task_gid=parent_task,
                 )
             except ApiException as e:
                 raise AsanaException(
@@ -218,3 +221,13 @@ class UpdateAsana:
                             {response}"""
             )
         logging.info(f"All dataset cards created for upload {self.hubmap_id}")
+
+    def mark_subtask_complete(self):
+        """
+        TODO: this depends on how DATASET_PUBLISHED is set
+        The thinking is that all datasets could be set as
+        subtasks and could be checked off as they are published,
+        with an Asana rule that moves an upload card to
+        Publishing after subtasks are checked off.
+        """
+        pass

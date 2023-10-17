@@ -176,7 +176,11 @@ class StatusChanger:
         # This is underdeveloped and also requires a separate PR
         pass
 
-    status_map = {}
+    status_map = {
+        # Should only be used during reorganize, which has
+        # its own process to create a card in update_asana
+        "Statuses.DATASET_SUBMITTED": [set_entity_api_status],
+    }
     """
     Default behavior is to call both set_entity_api_status and update_asana.
     Add any statuses to map that require a different process.
