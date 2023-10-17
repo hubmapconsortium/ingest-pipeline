@@ -8,7 +8,6 @@ import asana
 from asana.models.custom_field_setting_response_array import (
     CustomFieldSettingResponseArray,
 )
-from asana.rest import ApiException
 from requests import codes
 from requests.exceptions import HTTPError
 
@@ -130,6 +129,7 @@ ENTITY_STATUS_MAP = {
 }
 
 
+# TODO: CONVERT BACK TO ASANA 3.2.2
 def get_asana_fields(asana_token: str, project: str) -> None:
     """
     Helper function to print data if you need to update the custom fields;

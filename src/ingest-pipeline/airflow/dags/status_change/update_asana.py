@@ -4,8 +4,6 @@ from functools import cached_property
 from typing import Dict, Optional
 
 import asana
-from asana.models.task_response_data import TaskResponseData
-from asana.rest import ApiException
 
 from airflow.configuration import conf as airflow_conf
 
@@ -50,11 +48,7 @@ class UpdateAsana:
         assert isinstance(self.workspace, str), "ASANA_WORKSPACE is not a string!"
         assert isinstance(self.project, str), "ASANA_PROJECT is not a string!"
         assert isinstance(asana_token, str), "ASANA_TOKEN is not a string!"
-
-        configuration = asana.Configuration()
-        configuration.access_token = asana_token
-        self.client = asana.ApiClient(configuration)
-        self.tasks_client = asana.TasksApi(self.client)
+        self.client = asana.Client.access_token(airflow_conf.as_dict()["ASANA_TOKEN"])
 
     @cached_property
     def asana_status_map(self):
@@ -92,19 +86,24 @@ class UpdateAsana:
         Given a HuBMAP ID, find the associated Asana task.
         Fails if a HuBMAP ID is associated with 0 or >1 tasks.
         """
-        custom_field = f"custom_fields_{HUBMAP_ID_FIELD_GID}_contains"
-        response_list = self.tasks_client.search_tasks_for_workspace(
-            self.workspace, **{custom_field: self.hubmap_id}
+        response_list = list(
+            self.client.tasks.search_tasks_for_workspace(
+                self.workspace,
+                {
+                    "projects_any": self.project,
+                    f"custom_fields.{HUBMAP_ID_FIELD_GID}.contains": self.hubmap_id,
+                },
+            )
         )
-        response_length = len(response_list.data)
+        response_length = len(response_list)
         if response_length == 1:
-            task_id = response_list.data[0].gid
+            task_id = response_list[0]["gid"]
             return task_id
         elif response_length != 1:
             tasks = {}
-            for response in response_list.data:
-                if response.gid:
-                    tasks[response.name] = response.gid
+            for response in response_list:
+                if response["gid"]:
+                    tasks[response["name"]] = response["gid"]
             raise AsanaException(
                 f"""{response_length} tasks with the HuBMAP ID {self.hubmap_id} found!
                 {f'Task Names & GIDs found: {tasks}'
@@ -135,12 +134,11 @@ class UpdateAsana:
         elif self.status == Statuses.DATASET_PUBLISHED:
             self.mark_subtask_complete()
             return
-        body = {"data": {"custom_fields": {PROCESS_STAGE_FIELD_GID: self.get_asana_status}}}
+        body = {"custom_fields": {PROCESS_STAGE_FIELD_GID: self.get_asana_status}}
         try:
-            response = self.tasks_client.update_task(body, self.get_task_by_hubmap_id())
-            assert isinstance(response, TaskResponseData)
+            response = self.client.tasks.update_task(self.get_task_by_hubmap_id(), body)
             self.check_returned_status(response)
-        except ApiException as e:
+        except Exception as e:
             logging.info(
                 f"""
                     Error occurred while updating Asana status for HuBMAP ID {self.hubmap_id}.
@@ -153,11 +151,11 @@ class UpdateAsana:
             # self.create_dataset_cards(parent_task)
             pass
 
-    def check_returned_status(self, response: TaskResponseData) -> None:
+    def check_returned_status(self, response: dict) -> None:
         try:
             new_status = [
                 field["enum_value"]
-                for field in response.to_dict()["data"]["custom_fields"]
+                for field in response["custom_fields"]
                 if field["name"] == "Process Stage"
             ][0]
             assert (
@@ -191,26 +189,24 @@ class UpdateAsana:
         for dataset in child_datasets:
             timestamp = self.convert_utc_timestamp(dataset)
             data_types = ", ".join(dataset["data_types"])
-            body = asana.TaskGidSubtasksBody(
-                {
-                    "name": f"{dataset['group_name']} | {data_types} | {timestamp}",
-                    "custom_fields": {
-                        HUBMAP_ID_FIELD_GID: dataset["hubmap_id"],
-                        PROCESS_STAGE_FIELD_GID: PROCESS_STAGE_GIDS["Intake"],
-                        # ENTITY_TYPE_FIELD_GID: ENTITY_TYPE_GIDS[
-                        #     "dataset"
-                        # ],
-                    },
-                    "projects": [self.project],
-                }
-            )
+            body = {
+                "name": f"{dataset['group_name']} | {data_types} | {timestamp}",
+                "custom_fields": {
+                    HUBMAP_ID_FIELD_GID: dataset["hubmap_id"],
+                    PROCESS_STAGE_FIELD_GID: PROCESS_STAGE_GIDS["Intake"],
+                    # ENTITY_TYPE_FIELD_GID: ENTITY_TYPE_GIDS[
+                    #     "dataset"
+                    # ],
+                },
+                "projects": [self.project],
+            }
             try:
                 # TODO: Asana board needs to filter out datasets
-                response = self.tasks_client.create_subtask_for_task(
+                response = self.client.tasks.create_subtask_for_task(
+                    parent_task,
                     body,
-                    task_gid=parent_task,
                 )
-            except ApiException as e:
+            except Exception as e:
                 raise AsanaException(
                     f"""Error creating card for dataset {dataset['hubmap_id']},
                     part of reorganized dataset {self.hubmap_id}: {e}"""
