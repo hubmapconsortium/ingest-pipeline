@@ -68,7 +68,7 @@ with DAG('test_scan_and_begin_processing',
         pprint(kwargs)
         return 'maybe this will make it run only once'
 
-         
+    # TODO: this code looks potentially out of date? Did not update with StatusManager yet.
     def send_status_msg(**kwargs):
         md_extract_retcode = int(kwargs['ti'].xcom_pull(task_ids="run_md_extract"))
         print('md_extract_retcode: ', md_extract_retcode)
