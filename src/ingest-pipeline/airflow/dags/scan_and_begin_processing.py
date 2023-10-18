@@ -28,7 +28,8 @@ from utils import (
     pythonop_get_dataset_state,
     get_instance_type,
     get_threads_resource,
-    get_environment_instance
+    get_environment_instance,
+    get_auth_tok
     )
 
 from aws_utils import (
@@ -147,7 +148,9 @@ with HMDAG('scan_and_begin_processing',
             # offline=True,  # noqa E265
             add_notes=False,
             ignore_deprecation=True,
-            extra_parameters={'coreuse': get_threads_resource('validate_upload', 'run_validation')}
+            extra_parameters={'coreuse': get_threads_resource('validate_upload', 'run_validation')},
+            token=get_auth_tok(**kwargs),
+            cedar_api_key=airflow_conf.as_dict()["connections"]["CEDAR_API_KEY"],
         )
         # Scan reports an error result
         errors = upload.get_errors(plugin_kwargs=kwargs)
