@@ -7,7 +7,12 @@ import asana
 
 from airflow.configuration import conf as airflow_conf
 
-from .status_utils import Statuses, get_hubmap_id_from_uuid, get_submission_context
+from .status_utils import (
+    Statuses,
+    compile_status_enum,
+    get_hubmap_id_from_uuid,
+    get_submission_context,
+)
 
 HUBMAP_ID_FIELD_GID = "1204584344373110"
 PROCESS_STAGE_FIELD_GID = "1204584344373114"
@@ -48,7 +53,7 @@ class UpdateAsana:
         assert isinstance(self.workspace, str), "ASANA_WORKSPACE is not a string!"
         assert isinstance(self.project, str), "ASANA_PROJECT is not a string!"
         assert isinstance(asana_token, str), "ASANA_TOKEN is not a string!"
-        self.client = asana.Client.access_token(airflow_conf.as_dict()["ASANA_TOKEN"])
+        self.client = asana.Client.access_token(asana_token)
 
     @cached_property
     def asana_status_map(self):
@@ -75,7 +80,7 @@ class UpdateAsana:
             return get_hubmap_id_from_uuid(self.token, self.uuid)
 
     @cached_property
-    def submission_data(self):
+    def submission_data(self) -> Dict:
         if self.uuid is not None:
             return get_submission_context(self.token, self.uuid)
         else:
@@ -129,7 +134,19 @@ class UpdateAsana:
         return asana_status
 
     def update_process_stage(self) -> None:
-        if self.status in [None, Statuses.UPLOAD_PROCESSING, Statuses.DATASET_PROCESSING]:
+        if self.status is None:
+            current_status = self.submission_data["status"]
+            entity_type = self.submission_data["entity_type"]
+            if self.uuid:
+                compile_status_enum(current_status, entity_type, self.uuid)
+            else:
+                raise AsanaException(
+                    f"""Can't retrieve status for {self.uuid}!
+                                     Current status: {current_status}
+                                     Entity type: {entity_type}
+                                     """
+                )
+        if self.status in [Statuses.UPLOAD_PROCESSING, Statuses.DATASET_PROCESSING]:
             return
         elif self.status == Statuses.DATASET_PUBLISHED:
             self.mark_subtask_complete()

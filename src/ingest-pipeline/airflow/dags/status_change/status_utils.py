@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import traceback
 from enum import Enum
-from typing import Any, Dict
+from typing import Any, Dict, Union
 
 import asana
-from asana.models.custom_field_setting_response_array import (
-    CustomFieldSettingResponseArray,
-)
+
+# from asana.models.custom_field_setting_response_array import (
+#     CustomFieldSettingResponseArray,
+# )
 from requests import codes
 from requests.exceptions import HTTPError
 
@@ -129,43 +130,65 @@ ENTITY_STATUS_MAP = {
 }
 
 
-# TODO: CONVERT BACK TO ASANA 3.2.2
-def get_asana_fields(asana_token: str, project: str) -> None:
+def compile_status_enum(status: str, entity_type: str, uuid: str) -> Statuses:
     """
-    Helper function to print data if you need to update the custom fields;
-    needs to be called manually. Assumes a particular shape/organization
-    of the Asana board.
-    From this directory:
-    python -c "import status_utils; status_utils.get_asana_fields('<asana_token>' '<project_gid>')"
+    If status is passed as a string, get the entity type and match
+    to correct entry in ENTITY_STATUS_MAP. Also check current status,
+    because ingest-pipeline will error if you try to set the same status
+    over the existing status.
+    Potential TODO: could stop any operation involving "Published"
+    statuses at this stage.
     """
-    configuration = asana.Configuration()
-    configuration.access_token = asana_token
-    client = asana.ApiClient(configuration)
-    api_instance = asana.CustomFieldSettingsApi(client)
     try:
-        api_response = api_instance.get_custom_field_settings_for_project(project)
-        assert api_response is not None
-        assert isinstance(api_response, CustomFieldSettingResponseArray)
-        assert api_response.data is not None
-    except ApiException as e:
-        print("Exception when calling get_custom_field_settings_for_project: %s\n" % e)
-        return
-    for field in api_response.data:
-        custom_field = field.custom_field
-        if custom_field.name == "HuBMAP ID":
-            print(f"HUBMAP_ID_FIELD_GID = '{custom_field.gid}'")
-        elif custom_field.name == "Process Stage":
-            print(f"PROCESS_STAGE_FIELD_GID = '{custom_field.gid}'")
-            process_enums = {}
-            for option in custom_field.enum_options:
-                process_enums[option.name] = option.gid
-            print(f"PROCESS_STAGE_GIDS = {process_enums}")
-        # TODO: Below fields do not exist in Asana yet
-        elif custom_field.name == "Parent HuBMAP ID":
-            print(f"PARENT_FIELD_GID = '{custom_field.gid}'")
-        elif custom_field.name == "Entity Type":
-            print(f"ENTITY_TYPE_FIELD_GID = '{custom_field.gid}'")
-            entity_enums = {}
-            for option in custom_field.enum_options:
-                entity_enums[option.name] = option.gid
-            print(f"ENTITY_TYPE_GIDS = {entity_enums}")
+        entity_status = ENTITY_STATUS_MAP[entity_type.lower()][status.lower()]
+        return entity_status
+    except KeyError:
+        raise Exception(
+            f"""
+                Could not retrieve status for {uuid}.
+                Check that status is valid for entity type.
+                Status not changed.
+            """
+        )
+
+
+# # TODO: CONVERT BACK TO ASANA 3.2.2
+# def get_asana_fields(asana_token: str, project: str) -> None:
+#     """
+#     Helper function to print data if you need to update the custom fields;
+#     needs to be called manually. Assumes a particular shape/organization
+#     of the Asana board.
+#     From this directory:
+#     python -c "import status_utils; status_utils.get_asana_fields('<asana_token>' '<project_gid>')"
+#     """
+#     configuration = asana.Configuration()
+#     configuration.access_token = asana_token
+#     client = asana.ApiClient(configuration)
+#     api_instance = asana.CustomFieldSettingsApi(client)
+#     try:
+#         api_response = api_instance.get_custom_field_settings_for_project(project)
+#         assert api_response is not None
+#         assert isinstance(api_response, CustomFieldSettingResponseArray)
+#         assert api_response.data is not None
+#     except ApiException as e:
+#         print("Exception when calling get_custom_field_settings_for_project: %s\n" % e)
+#         return
+#     for field in api_response.data:
+#         custom_field = field.custom_field
+#         if custom_field.name == "HuBMAP ID":
+#             print(f"HUBMAP_ID_FIELD_GID = '{custom_field.gid}'")
+#         elif custom_field.name == "Process Stage":
+#             print(f"PROCESS_STAGE_FIELD_GID = '{custom_field.gid}'")
+#             process_enums = {}
+#             for option in custom_field.enum_options:
+#                 process_enums[option.name] = option.gid
+#             print(f"PROCESS_STAGE_GIDS = {process_enums}")
+#         # TODO: Below fields do not exist in Asana yet
+#         elif custom_field.name == "Parent HuBMAP ID":
+#             print(f"PARENT_FIELD_GID = '{custom_field.gid}'")
+#         elif custom_field.name == "Entity Type":
+#             print(f"ENTITY_TYPE_FIELD_GID = '{custom_field.gid}'")
+#             entity_enums = {}
+#             for option in custom_field.enum_options:
+#                 entity_enums[option.name] = option.gid
+#             print(f"ENTITY_TYPE_GIDS = {entity_enums}")

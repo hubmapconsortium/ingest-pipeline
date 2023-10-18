@@ -7,7 +7,12 @@ from typing import Any, Dict, TypedDict, Union
 
 from airflow.providers.http.hooks.http import HttpHook
 
-from .status_utils import ENTITY_STATUS_MAP, Statuses, get_submission_context
+from .status_utils import (
+    ENTITY_STATUS_MAP,
+    Statuses,
+    compile_status_enum,
+    get_submission_context,
+)
 from .update_asana import AsanaException, UpdateAsana
 
 
@@ -96,17 +101,8 @@ class StatusChanger:
                     Error {e}
                     """
                 )
-        try:
-            entity_status = ENTITY_STATUS_MAP[entity_type.lower()][status.lower()]
-        except KeyError:
-            raise StatusChangerException(
-                f"""
-                    Could not retrieve status for {self.uuid}.
-                    Check that status is valid for entity type.
-                    Status not changed.
-                """
-            )
-        return self.check_status(entity_status)
+        if status := compile_status_enum(status, entity_type, self.uuid):
+            return self.check_status(status)
 
     @cached_property
     def entity_data(self):
