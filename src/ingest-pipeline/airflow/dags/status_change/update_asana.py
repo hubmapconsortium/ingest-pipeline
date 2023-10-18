@@ -138,7 +138,7 @@ class UpdateAsana:
             current_status = self.submission_data["status"]
             entity_type = self.submission_data["entity_type"]
             if self.uuid:
-                compile_status_enum(current_status, entity_type, self.uuid)
+                self.status = compile_status_enum(current_status, entity_type, self.uuid)
             else:
                 raise AsanaException(
                     f"""Can't retrieve status for {self.uuid}!
