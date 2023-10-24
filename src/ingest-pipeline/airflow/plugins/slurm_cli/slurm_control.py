@@ -94,10 +94,21 @@ def __execute_srun(args):
 
 def __compose_run_job_arguments(cmd, queue=None, executor_config=None, job_name=None):
     gpu_config = None
+    cpu_node = None
     output_path = None
     if executor_config:
-        gpu_config = executor_config.get('SlurmExecutor').get('gpu_params')
-        output_path = executor_config.get('SlurmExecutor').get('slurm_output_path') + "slurm-%j.out"
+        try:
+            gpu_config = executor_config.get('SlurmExecutor').get('gpu_params')
+        except:
+            pass
+        try:
+            output_path = executor_config.get('SlurmExecutor').get('slurm_output_path') + "slurm-%j.out"
+        except:
+            pass
+        try:
+            cpu_node = executor_config.get('SlurmExecutor').get('cpu_node')
+        except:
+            pass
         # raise NotImplementedError()
 
     args = []
@@ -105,6 +116,8 @@ def __compose_run_job_arguments(cmd, queue=None, executor_config=None, job_name=
         args += ['-p', queue]
         if 'gpu' in queue.lower():
             args += ['--gres', 'gpu:P100:2'] if not gpu_config else ['--gres', gpu_config]
+    if cpu_node:
+        args += ['-w', cpu_node]
     if job_name:
         args += ['-J', job_name]
     else:
