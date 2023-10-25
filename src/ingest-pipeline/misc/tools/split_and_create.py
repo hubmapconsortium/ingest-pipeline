@@ -213,10 +213,19 @@ def populate(row, source_entity, entity_factory, dryrun=False):
             extras_path.mkdir(0o770)
     source_data_path = source_entity.full_path / old_data_path
     for elt in source_data_path.glob('*'):
+        dst_file = kid_path / elt.name
         if dryrun:
-            print(f'rename {elt} to {kid_path / elt.name}')
+            if dst_file.exists() and dst_file.is_dir():
+                for sub_elt in elt.glob('*'):
+                    print(f'rename {sub_elt} to {kid_path / elt.name / sub_elt.name}')
+                continue
+            print(f'rename {elt} to {dst_file}')
         else:
-            elt.rename(kid_path / elt.name)
+            if dst_file.exists() and dst_file.is_dir():
+                for sub_elt in elt.glob('*'):
+                    sub_elt.rename(kid_path / elt.name / sub_elt.name)
+                continue
+            elt.rename(dst_file)
     if dryrun:
         print(f'copy {old_contrib_path} to {extras_path}')
     else:
