@@ -217,7 +217,6 @@ def populate(row, source_entity, entity_factory, dryrun=False):
         if dryrun:
             if dst_file.exists() and dst_file.is_dir():
                 for sub_elt in elt.glob('*'):
-                    sub_elt.rename(kid_path / elt.name / sub_elt.name)
                     print(f'rename {sub_elt} to {kid_path / elt.name / sub_elt.name}')
                 continue
             print(f'rename {elt} to {dst_file}')
