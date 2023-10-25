@@ -37,9 +37,6 @@ from aws_utils import (
 
 from misc.tools.split_and_create import reorganize
 
-sys.path.append(airflow_conf.as_dict()['connections']['SRC_PATH']
-                .strip("'").strip('"'))
-sys.path.pop()
 
 # Following are defaults which can be overridden later on
 default_args = {
