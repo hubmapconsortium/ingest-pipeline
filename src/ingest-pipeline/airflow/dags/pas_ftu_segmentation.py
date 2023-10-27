@@ -95,7 +95,6 @@ with HMDAG(
             *get_cwltool_base_cmd(tmpdir),
             #"--singularity",
             workflow,
-            "--gpus=all",
             "--data_directory",
             data_dir,
             "--tissue_type",
