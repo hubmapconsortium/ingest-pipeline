@@ -7,6 +7,7 @@ __SBATCH_PATH = 'sbatch'
 
 
 def __execute_on_shell(cmd, args):
+    print(f'Status {cmd}, {args}')
     process_status = __run_process([cmd] + args, capture_output=True)
     if process_status.returncode > 0:
         print(f'Status {process_status}')
@@ -116,8 +117,9 @@ def __compose_run_job_arguments(cmd, queue=None, executor_config=None, job_name=
         args += ['-p', queue]
         if 'gpu' in queue.lower():
             args += ['--gres', 'gpu:P100:2'] if not gpu_config else ['--gres', gpu_config]
-    if cpu_node:
-        args += ['-w', cpu_node]
+        else:
+            if cpu_node:
+                args += ['-w', cpu_node]
     if job_name:
         args += ['-J', job_name]
     else:
