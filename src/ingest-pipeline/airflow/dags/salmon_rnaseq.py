@@ -127,7 +127,9 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
                 "--matrix",
                 "expr.h5ad",
                 "--secondary-analysis-matrix",
-                "secondary_analysis.h5ad"
+                "secondary_analysis.h5ad",
+                "--assay",
+                params.assay
             ]
 
             return join_quote_command_str(command)
