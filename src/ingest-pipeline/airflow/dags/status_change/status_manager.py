@@ -21,6 +21,14 @@ class Statuses(str, Enum):
     DATASET_PROCESSING = "processing"
     DATASET_PUBLISHED = "published"
     DATASET_QA = "qa"
+    PUBLICATION_ERROR = "error"
+    PUBLICATION_HOLD = "hold"
+    PUBLICATION_INVALID = "invalid"
+    PUBLICATION_NEW = "new"
+    PUBLICATION_PROCESSING = "processing"
+    PUBLICATION_PUBLISHED = "published"
+    PUBLICATION_QA = "qa"
+    PUBLICATION_SUBMITTED = "submitted"
     UPLOAD_ERROR = "error"
     UPLOAD_INVALID = "invalid"
     UPLOAD_NEW = "new"
@@ -41,6 +49,16 @@ ENTITY_STATUS_MAP = {
         "processing": Statuses.DATASET_PROCESSING,
         "published": Statuses.DATASET_PUBLISHED,
         "qa": Statuses.DATASET_QA,
+    },
+    "publication": {
+        "error": Statuses.PUBLICATION_ERROR,
+        "hold": Statuses.PUBLICATION_HOLD,
+        "invalid": Statuses.PUBLICATION_INVALID,
+        "new": Statuses.PUBLICATION_NEW,
+        "processing": Statuses.PUBLICATION_PROCESSING,
+        "published": Statuses.PUBLICATION_PUBLISHED,
+        "qa": Statuses.PUBLICATION_QA,
+        "submitted": Statuses.PUBLICATION_SUBMITTED,
     },
     "upload": {
         "error": Statuses.UPLOAD_ERROR,
@@ -82,7 +100,7 @@ Example usage, optional params path:
                 "extra_fields": {},
                 "extra_options": {},
             },
-            #optional entity_type="Dataset"|"Upload"
+            #optional entity_type="Dataset"|"Upload"|"Publication"
             #optional http_conn_id="entity_api_connection"
         ).on_status_change()
 """
@@ -93,7 +111,7 @@ class StatusChanger:
         self,
         uuid: str,
         token: str,
-        # TODO: status is currently required; should it be possible
+        # NOTE: status is currently required; should it be possible
         # to add extra info without updating status?
         status: Statuses | str,
         extras: StatusChangerExtras | None = None,
@@ -132,10 +150,10 @@ class StatusChanger:
             try:
                 entity_type = self.entity_data["entity_type"]
                 assert entity_type is not None
-            except KeyError as e:
+            except Exception as e:
                 raise StatusChangerException(
                     f"""
-                    Could not reconcile entity type for {self.uuid} with status '{status}'.
+                    Could not find entity type for {self.uuid}.
                     Error {e}
                     """
                 )
