@@ -2,7 +2,7 @@
 
 # What variables do we need?
 # Define HIVE machines
-#hive_machines=("gpu002", "l001")
+#hive_machines=("l001.hive.psc.edu" "gpu002.pvt.hive.psc.edu")
 hive_machines=()
 #b2_machines=("v004.pvt.bridges2.psc.edu")
 b2_machines=()
@@ -25,7 +25,7 @@ done
 set -x
 for machine in ${hive_machines[@]}; do
        	# Rsync repo to machine
-        rsync -a $repo_dir/ $machine:$repo_dir
+        rsync -a --exclude "src/ingest-pipeline/airflow/logs" $repo_dir/ $machine:$repo_dir
 
        	# If flag set, run the conda environment regenerations
         if $regenerate_env ; then
@@ -36,7 +36,7 @@ done
 # Separate because its easier to loop twice over a small list than insert string checking and manipulation
 for machine in ${b2_machines[@]}; do
         # Rsync repo to machine
-        rsync -a 'ssh -J bridges2.psc.edu' $repo_dir/ $machine:$repo_dir
+        rsync -a --exclude "src/ingest-pipeline/airflow/logs" 'ssh -J bridges2.psc.edu' $repo_dir/ $machine:$repo_dir
 
         # If flag set, run the conda environment regenerations
         if $regenerate_env ; then
