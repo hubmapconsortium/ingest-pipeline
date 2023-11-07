@@ -289,6 +289,20 @@ def get_named_absolute_workflows(**workflow_kwargs: Path) -> Dict[str, Path]:
     return {name: PIPELINE_BASE_DIR / workflow for name, workflow in workflow_kwargs.items()}
 
 
+def get_datatype_organ_based(**kwargs) -> List[str]:
+    dataset_uuid = kwargs["dag_run"].conf["parent_submission_id"][0]
+
+    def my_callable(**kwargs):
+        return dataset_uuid
+
+    ds_rslt = pythonop_get_dataset_state(dataset_uuid_callable=my_callable, **kwargs)
+    organ_list = list(set(ds_rslt["organs"]))
+    organ_code = organ_list[0] if len(organ_list) == 1 else "multi"
+    if organ_code in ["LK", "RK"]:
+        return ["kagel_segmentation"]
+    return ["image_pyramid"]
+
+
 def build_dataset_name(dag_id: str, pipeline_str: str, **kwargs) -> str:
     parent_submission_str = "_".join(get_parent_dataset_uuids_list(**kwargs))
     return f"{dag_id}__{parent_submission_str}__{pipeline_str}"
@@ -689,6 +703,8 @@ def pythonop_send_create_dataset(**kwargs) -> str:
 
     if "dataset_types" in kwargs:
         dataset_types = kwargs["dataset_types"]
+        if callable(dataset_types):
+            dataset_types = dataset_types(**kwargs)
     else:
         dataset_types = kwargs["dataset_types_callable"](**kwargs)
     if not isinstance(dataset_types, list):
