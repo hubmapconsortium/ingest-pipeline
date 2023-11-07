@@ -118,7 +118,7 @@ with HMDAG(
             # offline=True,  # noqa E265
             add_notes=False,
             ignore_deprecation=True,
-            token=get_auth_tok(**kwargs),
+            globus_token=get_auth_tok(**kwargs),
             cedar_api_key=airflow_conf.as_dict()["connections"]["CEDAR_API_KEY"],
         )
         # Scan reports an error result
