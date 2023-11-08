@@ -318,6 +318,17 @@ def get_datatype_previous_version(**kwargs) -> List[str]:
     return ds_rslt["data_types"]
 
 
+def get_dataname_previous_version(**kwargs) -> List[str]:
+    dataset_uuid = kwargs["dag_run"].conf["previous_version_uuid"]
+    assert dataset_uuid is not None, "Missing previous_version_uuid"
+
+    def my_callable(**kwargs):
+        return dataset_uuid
+
+    ds_rslt = pythonop_get_dataset_state(dataset_uuid_callable=my_callable, **kwargs)
+    return ds_rslt["dataset_info"]
+
+
 def get_parent_dataset_paths_list(**kwargs) -> List[Path]:
     path_list = kwargs["dag_run"].conf["parent_lz_path"]
     if not isinstance(path_list, list):
@@ -755,7 +766,8 @@ def pythonop_send_create_dataset(**kwargs) -> str:
                     print(f"response from datasets/{previous_revision_uuid}/file-system-abs-path:")
                     pprint(response_json)
                     raise ValueError(
-                        f"datasets/{previous_revision_uuid}/file-system-abs-path" " did not return a path"
+                        f"datasets/{previous_revision_uuid}/file-system-abs-path"
+                        " did not return a path"
                     )
                 previous_revision_path = response_json["path"]
 
