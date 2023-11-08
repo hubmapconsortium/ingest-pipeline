@@ -703,8 +703,6 @@ def pythonop_send_create_dataset(**kwargs) -> str:
 
     if "dataset_types" in kwargs:
         dataset_types = kwargs["dataset_types"]
-        if callable(dataset_types):
-            dataset_types = dataset_types(**kwargs)
     else:
         dataset_types = kwargs["dataset_types_callable"](**kwargs)
     if not isinstance(dataset_types, list):
