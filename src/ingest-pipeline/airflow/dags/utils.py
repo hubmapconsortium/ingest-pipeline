@@ -915,6 +915,7 @@ def pythonop_get_dataset_state(**kwargs) -> JSONType:
     if ds_rslt["entity_type"] in ["Dataset", "Publication"]:
         assert "data_types" in ds_rslt, f"Dataset status for {uuid} has no data_types"
         data_types = ds_rslt["data_types"]
+        dataset_info = ds_rslt["dataset_info"]
         parent_dataset_uuid_list = [
             ancestor["uuid"]
             for ancestor in ds_rslt["direct_ancestors"]
@@ -924,6 +925,7 @@ def pythonop_get_dataset_state(**kwargs) -> JSONType:
         endpoint = f"datasets/{ds_rslt['uuid']}/file-system-abs-path"
     elif ds_rslt["entity_type"] == "Upload":
         data_types = []
+        dataset_info = ""
         metadata = {}
         endpoint = f"uploads/{ds_rslt['uuid']}/file-system-abs-path"
         parent_dataset_uuid_list = None
@@ -953,6 +955,7 @@ def pythonop_get_dataset_state(**kwargs) -> JSONType:
         "status": ds_rslt["status"],
         "uuid": ds_rslt["uuid"],
         "parent_dataset_uuid_list": parent_dataset_uuid_list,
+        "dataset_info": dataset_info,
         "data_types": data_types,
         "local_directory_full_path": full_path,
         "metadata": metadata,
