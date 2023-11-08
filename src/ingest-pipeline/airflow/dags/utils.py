@@ -214,7 +214,7 @@ class DummyFileMatcher(FileMatcher):
     """
 
     def get_file_metadata(self, file_path: Path) -> ManifestMatch:
-        return True, "", "", False
+        return True, "", "", False, False
 
 
 class HMDAG(DAG):
@@ -305,6 +305,17 @@ def get_parent_dataset_uuid(**kwargs) -> str:
     uuid_set = set(get_parent_dataset_uuids_list(**kwargs))
     assert len(uuid_set) == 1, f"Found {len(uuid_set)} elements, expected 1"
     return uuid_set.pop()
+
+
+def get_datatype_previous_version(**kwargs) -> List[str]:
+    dataset_uuid = kwargs["dag_run"].conf["previous_version_uuid"]
+    assert dataset_uuid is not None, "Missing previous_version_uuid"
+
+    def my_callable(**kwargs):
+        return dataset_uuid
+
+    ds_rslt = pythonop_get_dataset_state(dataset_uuid_callable=my_callable, **kwargs)
+    return ds_rslt["data_types"]
 
 
 def get_parent_dataset_paths_list(**kwargs) -> List[Path]:
@@ -708,6 +719,7 @@ def pythonop_send_create_dataset(**kwargs) -> str:
     dataset_name = kwargs["dataset_name_callable"](**kwargs)
 
     try:
+        previous_revision_path = None
         response = HttpHook("GET", http_conn_id=http_conn_id).run(
             endpoint=f"entities/{source_uuids[0]}",
             headers=headers,
@@ -732,6 +744,21 @@ def pythonop_send_create_dataset(**kwargs) -> str:
             previous_revision_uuid = kwargs["previous_revision_uuid_callable"](**kwargs)
             if previous_revision_uuid is not None:
                 data["previous_revision_uuid"] = previous_revision_uuid
+                response = HttpHook("GET", http_conn_id=http_conn_id).run(
+                    endpoint=f"datasets/{previous_revision_uuid}/file-system-abs-path",
+                    headers=headers,
+                    extra_options={"check_response": False},
+                )
+                response.raise_for_status()
+                response_json = response.json()
+                if "path" not in response_json:
+                    print(f"response from datasets/{previous_revision_uuid}/file-system-abs-path:")
+                    pprint(response_json)
+                    raise ValueError(
+                        f"datasets/{previous_revision_uuid}/file-system-abs-path" " did not return a path"
+                    )
+                previous_revision_path = response_json["path"]
+
         print("data for dataset creation:")
         pprint(data)
         response = HttpHook("POST", http_conn_id=http_conn_id).run(
@@ -770,6 +797,7 @@ def pythonop_send_create_dataset(**kwargs) -> str:
 
     kwargs["ti"].xcom_push(key="group_uuid", value=group_uuid)
     kwargs["ti"].xcom_push(key="derived_dataset_uuid", value=uuid)
+    kwargs["ti"].xcom_push(key="previous_revision_path", value=previous_revision_path)
     return abs_path
 
 

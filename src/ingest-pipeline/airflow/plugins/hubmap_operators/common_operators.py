@@ -79,11 +79,15 @@ class SetDatasetProcessingOperator(PythonOperator):
 class MoveDataOperator(BashOperator):
     # @apply_defaults
     def __init__(self, **kwargs):
-        if kwargs['task_id'] in ['populate_tmpdir']:
+        print(f'Kwargs {kwargs}')
+        if 'populate_tmpdir' in kwargs['task_id']:
             command = """"
             tmp_dir="{{tmp_dir_path(run_id)}}" ; \
-            ds_dir="{{ti.xcom_pull(task_ids="send_create_dataset")}}" ; \
+            ds_dir="{{ti.xcom_pull(task_ids="send_create_dataset", key="previous_revision_path")}}" ; \
             pushd "$ds_dir" ; \
+            popd ; \
+            mkdir "$tmp_dir"/cwl_out/; \
+            pushd "$tmp_dir"/cwl_out/; \
             popd ; \
             mv "$ds_dir"/* "$tmp_dir" >> "$tmp_dir/session.log" 2>&1 ; \
             echo $?
