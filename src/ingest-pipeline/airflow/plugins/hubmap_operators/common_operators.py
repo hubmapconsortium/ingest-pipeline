@@ -89,7 +89,7 @@ class MoveDataOperator(BashOperator):
             mkdir "$tmp_dir"/cwl_out/ ; \
             pushd "$tmp_dir"/cwl_out/ ; \
             popd ; \
-            cp "$ds_dir"/* "$tmp_dir" >> "$tmp_dir/session.log" 2>&1 ; \
+            cp -r "$ds_dir"/* "$tmp_dir/cwl_out/" >> "$tmp_dir/session.log" 2>&1 ; \
             echo $?
             """
         else:
