@@ -83,7 +83,7 @@ with HMDAG(
 
         command = [
             *get_cwltool_base_cmd(tmpdir),
-            cwl_workflows[1],
+            cwl_workflows[0],
             "--reference",
             organ_code,
             "--matrix",
@@ -101,7 +101,7 @@ with HMDAG(
 
         command = [
             *get_cwltool_base_cmd(tmpdir),
-            cwl_workflows[2],
+            cwl_workflows[1],
             "--input_dir",
             # This pipeline invocation runs in a 'hubmap_ui' subdirectory,
             # so use the parent directory as input
@@ -117,7 +117,7 @@ with HMDAG(
 
         command = [
             *get_cwltool_base_cmd(tmpdir),
-            cwl_workflows[3],
+            cwl_workflows[2],
             "--input_dir",
             # This pipeline invocation runs in a 'hubmap_ui' subdirectory,
             # so use the parent directory as input
