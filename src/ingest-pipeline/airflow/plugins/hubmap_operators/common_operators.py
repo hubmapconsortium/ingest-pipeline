@@ -86,8 +86,8 @@ class MoveDataOperator(BashOperator):
             ds_dir="{{ti.xcom_pull(task_ids="send_create_dataset", key="previous_revision_path")}}" ; \
             pushd "$ds_dir" ; \
             popd ; \
-            mkdir "$tmp_dir"/cwl_out/; \
-            pushd "$tmp_dir"/cwl_out/; \
+            mkdir "$tmp_dir"/cwl_out/ ; \
+            pushd "$tmp_dir"/cwl_out/ ; \
             popd ; \
             cp "$ds_dir"/* "$tmp_dir" >> "$tmp_dir/session.log" 2>&1 ; \
             echo $?
