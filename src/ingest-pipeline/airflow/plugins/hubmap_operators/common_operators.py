@@ -81,7 +81,7 @@ class MoveDataOperator(BashOperator):
     def __init__(self, **kwargs):
         print(f'Kwargs {kwargs}')
         if 'populate_tmpdir' in kwargs['task_id']:
-            command = """"
+            command = """
             tmp_dir="{{tmp_dir_path(run_id)}}" ; \
             ds_dir="{{ti.xcom_pull(task_ids="send_create_dataset", key="previous_revision_path")}}" ; \
             pushd "$ds_dir" ; \
