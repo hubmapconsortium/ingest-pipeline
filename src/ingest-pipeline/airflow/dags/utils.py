@@ -299,7 +299,7 @@ def get_datatype_organ_based(**kwargs) -> List[str]:
     organ_list = list(set(ds_rslt["organs"]))
     organ_code = organ_list[0] if len(organ_list) == 1 else "multi"
     if organ_code in ["LK", "RK"]:
-        return ["kagel_segmentation"]
+        return ["Kaggel-1 Glomerulus Segmentation"]
     return ["image_pyramid"]
 
 
