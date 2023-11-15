@@ -1112,23 +1112,26 @@ def get_cwltool_base_cmd(tmpdir: Path) -> List[str]:
     ]
 
 
-def build_provenance_function(cwl_workflows: List[Path], **kwargs):
-    dataset_uuid = kwargs["dag_run"].conf["previous_version_uuid"]
-    assert dataset_uuid is not None, "Missing previous_version_uuid"
+def build_provenance_function(cwl_workflows: List[Path]) -> Callable[..., Dict]:
 
-    def my_callable(**kwargs):
-        return dataset_uuid
+    def build_provenance(**kwargs) -> Dict:
+        dataset_uuid = get_previous_revision_uuid(**kwargs)
+        assert dataset_uuid is not None, "Missing previous_version_uuid"
 
-    ds_rslt = pythonop_get_dataset_state(dataset_uuid_callable=my_callable, **kwargs)
-    data = {}
-    for data in ds_rslt["ingest_metadata"]:
-        if "salmon" in data["origin"]:
-            kwargs["dag_run"].conf["dag_provenance_list"] = data
+        def my_callable(**kwargs):
+            return dataset_uuid
 
-    kwargs["dag_run"].conf["dag_provenance_list"].append = get_git_provenance_list(
-        [*cwl_workflows.remove(Path("salmon-rnaseq", "pipeline.cwl"))]
-    )
-    return data
+        ds_rslt = pythonop_get_dataset_state(dataset_uuid_callable=my_callable, **kwargs)
+        data = {}
+        for data in ds_rslt["ingest_metadata"]:
+            if "salmon" in data["origin"]:
+                kwargs["dag_run"].conf["dag_provenance_list"] = data
+
+        kwargs["dag_run"].conf["dag_provenance_list"].append = get_git_provenance_list(
+            [*cwl_workflows.remove(Path("salmon-rnaseq", "pipeline.cwl"))]
+        )
+        return data
+    return build_provenance
 
 
 def make_send_status_msg_function(
