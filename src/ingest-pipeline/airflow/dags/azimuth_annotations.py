@@ -30,6 +30,7 @@ from utils import (
     get_preserve_scratch_resource,
     get_datatype_previous_version,
     get_dataname_previous_version,
+    build_provenance_function,
 )
 
 
@@ -62,6 +63,7 @@ with HMDAG(
         Path("azimuth-annotate", "pipeline.cwl"),
         Path("portal-containers", "h5ad-to-arrow.cwl"),
         Path("portal-containers", "anndata-to-ui.cwl"),
+        Path("salmon-rnaseq", "pipeline.cwl"),
     )
 
     prepare_cwl1 = DummyOperator(task_id="prepare_cwl1")
@@ -250,6 +252,17 @@ with HMDAG(
             "convert_for_ui_2",
         ],
         cwl_workflows=cwl_workflows,
+        no_provenance=True,
+    )
+
+    build_provenance = build_provenance_function(
+        cwl_workflows=cwl_workflows,
+    )
+
+    t_build_provenance = PythonOperator(
+        task_id="build_provenance",
+        python_callable=build_provenance,
+        provide_context=True,
     )
 
     t_send_status = PythonOperator(
@@ -284,6 +297,7 @@ with HMDAG(
         >> t_convert_for_ui_2
         >> t_maybe_keep_cwl3
         >> t_move_data
+        >> t_build_provenance
         >> t_send_status
         >> t_join
     )
