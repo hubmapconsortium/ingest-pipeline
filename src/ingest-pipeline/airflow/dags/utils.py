@@ -959,7 +959,7 @@ def pythonop_get_dataset_state(**kwargs) -> JSONType:
         "data_types": data_types,
         "local_directory_full_path": full_path,
         "metadata": metadata,
-        "ingest_metadata": ds_rslt.get("ingest_metadata")
+        "ingest_metadata": ds_rslt.get("ingest_metadata"),
     }
 
     if ds_rslt["entity_type"] == "Dataset":
@@ -1114,7 +1114,6 @@ def get_cwltool_base_cmd(tmpdir: Path) -> List[str]:
 
 
 def build_provenance_function(cwl_workflows: List[Path]) -> Callable[..., List]:
-
     def build_provenance(**kwargs) -> List:
         dataset_uuid = get_previous_revision_uuid(**kwargs)
         assert dataset_uuid is not None, "Missing previous_version_uuid"
@@ -1123,13 +1122,18 @@ def build_provenance_function(cwl_workflows: List[Path]) -> Callable[..., List]:
             return dataset_uuid
 
         ds_rslt = pythonop_get_dataset_state(dataset_uuid_callable=my_callable, **kwargs)
-        new_dag_provenance = list(kwargs["dag_run"]["dag_provenance_list"])
-        new_dag_provenance.append(get_git_provenance_list([*cwl_workflows]))
+        new_dag_provenance = (
+            kwargs["dag_run"].conf["dag_provenance_list"]
+            if "dag_provenance_list" in kwargs["dag_run"].conf
+            else []
+        )
+        new_dag_provenance.extend(get_git_provenance_list([*cwl_workflows]))
         for data in ds_rslt["ingest_metadata"]["dag_provenance_list"]:
             if "salmon" in data["origin"]:
                 new_dag_provenance.append(data)
         kwargs["dag_run"].conf["dag_provenance_list"] = new_dag_provenance
         return kwargs["dag_run"].conf["dag_provenance_list"]
+
     return build_provenance
 
 
