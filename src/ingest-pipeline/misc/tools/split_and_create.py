@@ -10,7 +10,6 @@ from shutil import copy2, copytree
 from typing import List, TypeVar
 
 import pandas as pd
-import requests
 from status_change.status_manager import StatusChanger, Statuses
 
 # There has got to be a better solution for this, but I can't find it
@@ -267,7 +266,12 @@ def update_upload_entity(child_uuid_list, source_entity, dryrun=False, verbose=F
         else:
             # Set Upload status to "Reorganized"
             # Set links from Upload to split Datasets
-            print(f"Setting status of {source_entity.uuid} to 'Reorganized'")
+            entity_url = ENDPOINTS[source_entity.entity_factory.instance]["entity_url"]
+            endpoint = f"{entity_url}/entities/{source_entity.uuid}"
+            print(
+                f"Setting status of {source_entity.uuid} to 'Reorganized' at {endpoint}. Child UUIDs:"
+            )
+            pprint(child_uuid_list)
             StatusChanger(
                 source_entity.uuid,
                 source_entity.entity_factory.auth_tok,
@@ -276,34 +280,25 @@ def update_upload_entity(child_uuid_list, source_entity, dryrun=False, verbose=F
                     "extra_fields": {"dataset_uuids_to_link": child_uuid_list},
                     "extra_options": {},
                 },
+                endpoint=endpoint,
                 verbose=verbose,
             ).on_status_change()
-            if not verbose:
-                print(f"{source_entity.uuid} status is Reorganized")
+            print(f"{source_entity.uuid} status is Reorganized")
 
             # TODO: click in with UpdateAsana
-            data = {"status": "Submitted"}
             for uuid in child_uuid_list:
                 endpoint = f"{entity_url}/entities/{uuid}"
-                print(f"sending to {endpoint}: {data}")
-                r = requests.put(
-                    endpoint,
-                    data=json.dumps(data),
-                    headers={
-                        "Authorization": f"Bearer {source_entity.entity_factory.auth_tok}",
-                        "Content-Type": "application/json",
-                        "X-Hubmap-Application": "ingest-pipeline",
-                    },
+                print(f"sending to {endpoint}: dataset {uuid} status is Submitted")
+                StatusChanger(
+                    uuid,
+                    source_entity.entity_factory.auth_tok,
+                    Statuses.DATASET_SUBMITTED,
+                    endpoint=endpoint,
+                    verbose=verbose,
+                ).on_status_change()
+                print(
+                    f"Reorganized new: {uuid} from Upload: {source_entity.uuid} status is Submitted"
                 )
-                if r.status_code >= 300:
-                    r.raise_for_status()
-                if verbose:
-                    print("response:")
-                    pprint(r.json())
-                else:
-                    print(
-                        f"Reorganized new: {uuid} from Upload: {source_entity.uuid} status is Submitted"
-                    )
     else:
         print(
             f"source entity <{source_entity.uuid}> is not an upload,"

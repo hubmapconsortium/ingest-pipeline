@@ -117,11 +117,13 @@ class StatusChanger:
         extras: StatusChangerExtras | None = None,
         entity_type: str | None = None,
         http_conn_id: str = "entity_api_connection",
+        endpoint: str = "",
         verbose: bool = True,
     ):
         self.uuid = uuid
         self.token = token
         self.http_conn_id = http_conn_id
+        self.endpoint = endpoint
         self.verbose = verbose
         self.status = (
             self.check_status(status)
@@ -194,7 +196,10 @@ class StatusChanger:
         return data
 
     def set_entity_api_status(self) -> Dict:
-        endpoint = f"/entities/{self.uuid}"
+        if self.endpoint:
+            endpoint = self.endpoint
+        else:
+            endpoint = f"/entities/{self.uuid}"
         headers = {
             "authorization": "Bearer " + self.token,
             "X-Hubmap-Application": "ingest-pipeline",
