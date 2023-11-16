@@ -1123,12 +1123,11 @@ def build_provenance_function(cwl_workflows: List[Path]) -> Callable[..., Dict]:
 
         ds_rslt = pythonop_get_dataset_state(dataset_uuid_callable=my_callable, **kwargs)
         data = {}
-        for data in ds_rslt["ingest_metadata"]:
+        for data in ds_rslt["ingest_metadata"]["dag_provenance_list"]:
             if "salmon" in data["origin"]:
                 kwargs["dag_run"].conf["dag_provenance_list"] = data
 
-        kwargs["dag_run"].conf["dag_provenance_list"].append = get_git_provenance_list(
-            [*cwl_workflows.remove(Path("salmon-rnaseq", "pipeline.cwl"))]
+        kwargs["dag_run"].conf["dag_provenance_list"].append = get_git_provenance_list([*cwl_workflows]
         )
         return data
     return build_provenance

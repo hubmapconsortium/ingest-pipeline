@@ -65,6 +65,11 @@ with HMDAG(
         Path("portal-containers", "anndata-to-ui.cwl"),
         Path("salmon-rnaseq", "pipeline.cwl"),
     )
+    cwl_workflows_provenance = get_absolute_workflows(
+        Path("azimuth-annotate", "pipeline.cwl"),
+        Path("portal-containers", "h5ad-to-arrow.cwl"),
+        Path("portal-containers", "anndata-to-ui.cwl"),
+    )
 
     prepare_cwl1 = DummyOperator(task_id="prepare_cwl1")
 
@@ -256,7 +261,7 @@ with HMDAG(
     )
 
     build_provenance = build_provenance_function(
-        cwl_workflows=cwl_workflows,
+        cwl_workflows=cwl_workflows_provenance,
     )
 
     t_build_provenance = PythonOperator(
