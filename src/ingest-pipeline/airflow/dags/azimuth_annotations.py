@@ -60,10 +60,10 @@ with HMDAG(
 ) as dag:
     pipeline_name = "azimuth_annotate"
     cwl_workflows = get_absolute_workflows(
+        Path("salmon-rnaseq", "pipeline.cwl"),
         Path("azimuth-annotate", "pipeline.cwl"),
         Path("portal-containers", "h5ad-to-arrow.cwl"),
         Path("portal-containers", "anndata-to-ui.cwl"),
-        Path("salmon-rnaseq", "pipeline.cwl"),
     )
     cwl_workflows_provenance = get_absolute_workflows(
         Path("azimuth-annotate", "pipeline.cwl"),
