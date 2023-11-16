@@ -59,13 +59,13 @@ with HMDAG(
     },
 ) as dag:
     pipeline_name = "azimuth_annotate"
-    cwl_workflows = get_absolute_workflows(
+    cwl_workflows_files = get_absolute_workflows(
         Path("salmon-rnaseq", "pipeline.cwl"),
         Path("azimuth-annotate", "pipeline.cwl"),
         Path("portal-containers", "h5ad-to-arrow.cwl"),
         Path("portal-containers", "anndata-to-ui.cwl"),
     )
-    cwl_workflows_provenance = get_absolute_workflows(
+    cwl_workflows_annotations = get_absolute_workflows(
         Path("azimuth-annotate", "pipeline.cwl"),
         Path("portal-containers", "h5ad-to-arrow.cwl"),
         Path("portal-containers", "anndata-to-ui.cwl"),
@@ -90,7 +90,7 @@ with HMDAG(
 
         command = [
             *get_cwltool_base_cmd(tmpdir),
-            cwl_workflows[0],
+            cwl_workflows_annotations[0],
             "--reference",
             organ_code,
             "--matrix",
@@ -108,7 +108,7 @@ with HMDAG(
 
         command = [
             *get_cwltool_base_cmd(tmpdir),
-            cwl_workflows[1],
+            cwl_workflows_annotations[1],
             "--input_dir",
             # This pipeline invocation runs in a 'hubmap_ui' subdirectory,
             # so use the parent directory as input
@@ -124,7 +124,7 @@ with HMDAG(
 
         command = [
             *get_cwltool_base_cmd(tmpdir),
-            cwl_workflows[2],
+            cwl_workflows_annotations[2],
             "--input_dir",
             # This pipeline invocation runs in a 'hubmap_ui' subdirectory,
             # so use the parent directory as input
@@ -256,12 +256,12 @@ with HMDAG(
             "convert_for_ui",
             "convert_for_ui_2",
         ],
-        cwl_workflows=cwl_workflows,
+        cwl_workflows=cwl_workflows_files,
         no_provenance=True,
     )
 
     build_provenance = build_provenance_function(
-        cwl_workflows=cwl_workflows_provenance,
+        cwl_workflows=cwl_workflows_annotations,
     )
 
     t_build_provenance = PythonOperator(
