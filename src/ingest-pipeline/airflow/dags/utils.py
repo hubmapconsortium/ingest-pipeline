@@ -308,7 +308,7 @@ def get_parent_dataset_uuid(**kwargs) -> str:
 
 
 def get_datatype_previous_version(**kwargs) -> List[str]:
-    dataset_uuid = kwargs["dag_run"].conf["previous_version_uuid"]
+    dataset_uuid = get_previous_revision_uuid(**kwargs)
     assert dataset_uuid is not None, "Missing previous_version_uuid"
 
     def my_callable(**kwargs):
@@ -319,7 +319,7 @@ def get_datatype_previous_version(**kwargs) -> List[str]:
 
 
 def get_dataname_previous_version(**kwargs) -> List[str]:
-    dataset_uuid = kwargs["dag_run"].conf["previous_version_uuid"]
+    dataset_uuid = get_previous_revision_uuid(**kwargs)
     assert dataset_uuid is not None, "Missing previous_version_uuid"
 
     def my_callable(**kwargs):
@@ -327,6 +327,29 @@ def get_dataname_previous_version(**kwargs) -> List[str]:
 
     ds_rslt = pythonop_get_dataset_state(dataset_uuid_callable=my_callable, **kwargs)
     return ds_rslt["dataset_info"]
+
+
+def get_assay_previous_version(**kwargs) -> str:
+    dataset_type = get_datatype_previous_version(**kwargs)[0]
+    if dataset_type == "scRNAseq-10xGenomics-v3":
+        return "10x_v3"
+    if dataset_type == "snRNAseq-10xGenomics-v3":
+        return "10x_v3_sn"
+    if dataset_type == "scRNAseq-10xGenomics-v2":
+        return "10x_v2"
+    if dataset_type == "snRNAseq-10xGenomics-v2":
+        return "10x_v2_sn"
+    if dataset_type == "scRNAseq-10xGenomics":
+        return "10x_v3"
+    if dataset_type == "sciRNAseq":
+        return "sciseq"
+    if dataset_type == "SNAREseq":
+        return "snareseq"
+    if dataset_type == "Slide-seq":
+        return "slideseq"
+
+
+
 
 
 def get_parent_dataset_paths_list(**kwargs) -> List[Path]:
