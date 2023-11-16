@@ -318,7 +318,7 @@ def get_datatype_previous_version(**kwargs) -> List[str]:
     return ds_rslt["data_types"]
 
 
-def get_dataname_previous_version(**kwargs) -> List[str]:
+def get_dataname_previous_version(**kwargs) -> str:
     dataset_uuid = get_previous_revision_uuid(**kwargs)
     assert dataset_uuid is not None, "Missing previous_version_uuid"
 
@@ -330,26 +330,21 @@ def get_dataname_previous_version(**kwargs) -> List[str]:
 
 
 def get_assay_previous_version(**kwargs) -> str:
-    dataset_type = get_datatype_previous_version(**kwargs)[0]
-    if dataset_type == "scRNAseq-10xGenomics-v3":
+    dataset_type = get_dataname_previous_version(**kwargs).split("__")[0]
+    if dataset_type == "salmon_rnaseq_10x":
         return "10x_v3"
-    if dataset_type == "snRNAseq-10xGenomics-v3":
+    if dataset_type == "salmon_rnaseq_10x_sn":
         return "10x_v3_sn"
-    if dataset_type == "scRNAseq-10xGenomics-v2":
+    if dataset_type == "salmon_rnaseq_10x_v2":
         return "10x_v2"
-    if dataset_type == "snRNAseq-10xGenomics-v2":
+    if dataset_type == "salmon_rnaseq_10x_v2_sn":
         return "10x_v2_sn"
-    if dataset_type == "scRNAseq-10xGenomics":
-        return "10x_v3"
-    if dataset_type == "sciRNAseq":
+    if dataset_type == "salmon_rnaseq_sciseq":
         return "sciseq"
-    if dataset_type == "SNAREseq":
+    if dataset_type == "salmon_rnaseq_snareseq":
         return "snareseq"
-    if dataset_type == "Slide-seq":
+    if dataset_type == "salmon_rnaseq_slideseq":
         return "slideseq"
-
-
-
 
 
 def get_parent_dataset_paths_list(**kwargs) -> List[Path]:
