@@ -21,6 +21,7 @@ class Statuses(str, Enum):
     DATASET_PROCESSING = "processing"
     DATASET_PUBLISHED = "published"
     DATASET_QA = "qa"
+    DATASET_SUBMITTED = "submitted"
     PUBLICATION_ERROR = "error"
     PUBLICATION_HOLD = "hold"
     PUBLICATION_INVALID = "invalid"
@@ -49,6 +50,7 @@ ENTITY_STATUS_MAP = {
         "processing": Statuses.DATASET_PROCESSING,
         "published": Statuses.DATASET_PUBLISHED,
         "qa": Statuses.DATASET_QA,
+        "submitted": Statuses.DATASET_SUBMITTED,
     },
     "publication": {
         "error": Statuses.PUBLICATION_ERROR,
@@ -198,14 +200,16 @@ class StatusChanger:
     def set_entity_api_status(self) -> Dict:
         if self.endpoint:
             endpoint = self.endpoint
+            http_conn_id = ""
         else:
             endpoint = f"/entities/{self.uuid}"
+            http_conn_id = self.http_conn_id
         headers = {
             "authorization": "Bearer " + self.token,
             "X-Hubmap-Application": "ingest-pipeline",
             "content-type": "application/json",
         }
-        http_hook = HttpHook("PUT", http_conn_id=self.http_conn_id)
+        http_hook = HttpHook("PUT", http_conn_id=http_conn_id)
         data = self.format_status_data()
         if self.extras["extra_options"].get("check_response") is None:
             self.extras["extra_options"].update({"check_response": True})
