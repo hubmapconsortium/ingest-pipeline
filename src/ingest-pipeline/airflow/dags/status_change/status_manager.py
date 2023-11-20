@@ -119,13 +119,11 @@ class StatusChanger:
         extras: StatusChangerExtras | None = None,
         entity_type: str | None = None,
         http_conn_id: str = "entity_api_connection",
-        endpoint: str = "",
         verbose: bool = True,
     ):
         self.uuid = uuid
         self.token = token
         self.http_conn_id = http_conn_id
-        self.endpoint = endpoint
         self.verbose = verbose
         self.status = (
             self.check_status(status)
@@ -198,18 +196,13 @@ class StatusChanger:
         return data
 
     def set_entity_api_status(self) -> Dict:
-        if self.endpoint:
-            endpoint = self.endpoint
-            http_conn_id = ""
-        else:
-            endpoint = f"/entities/{self.uuid}"
-            http_conn_id = self.http_conn_id
+        endpoint = f"/entities/{self.uuid}"
         headers = {
             "authorization": "Bearer " + self.token,
             "X-Hubmap-Application": "ingest-pipeline",
             "content-type": "application/json",
         }
-        http_hook = HttpHook("PUT", http_conn_id=http_conn_id)
+        http_hook = HttpHook("PUT", http_conn_id=self.http_conn_id)
         data = self.format_status_data()
         if self.extras["extra_options"].get("check_response") is None:
             self.extras["extra_options"].update({"check_response": True})

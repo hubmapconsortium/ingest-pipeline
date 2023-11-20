@@ -266,11 +266,7 @@ def update_upload_entity(child_uuid_list, source_entity, dryrun=False, verbose=F
         else:
             # Set Upload status to "Reorganized"
             # Set links from Upload to split Datasets
-            entity_url = ENDPOINTS[source_entity.entity_factory.instance]["entity_url"]
-            endpoint = f"{entity_url}/entities/{source_entity.uuid}"
-            print(
-                f"Setting status of {source_entity.uuid} to 'Reorganized' at {endpoint}. Child UUIDs:"
-            )
+            print(f"Setting status of {source_entity.uuid} to 'Reorganized'. Child UUIDs:")
             pprint(child_uuid_list)
             StatusChanger(
                 source_entity.uuid,
@@ -280,20 +276,17 @@ def update_upload_entity(child_uuid_list, source_entity, dryrun=False, verbose=F
                     "extra_fields": {"dataset_uuids_to_link": child_uuid_list},
                     "extra_options": {},
                 },
-                endpoint=endpoint,
                 verbose=verbose,
             ).on_status_change()
             print(f"{source_entity.uuid} status is Reorganized")
 
             # TODO: click in with UpdateAsana
             for uuid in child_uuid_list:
-                endpoint = f"{entity_url}/entities/{uuid}"
-                print(f"sending to {endpoint}: dataset {uuid} status is Submitted")
+                print(f"Setting status of dataset {uuid} to Submitted")
                 StatusChanger(
                     uuid,
                     source_entity.entity_factory.auth_tok,
                     Statuses.DATASET_SUBMITTED,
-                    endpoint=endpoint,
                     verbose=verbose,
                 ).on_status_change()
                 print(
