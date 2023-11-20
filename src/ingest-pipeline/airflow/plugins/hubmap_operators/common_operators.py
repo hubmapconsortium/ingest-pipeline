@@ -79,7 +79,6 @@ class SetDatasetProcessingOperator(PythonOperator):
 class MoveDataOperator(BashOperator):
     # @apply_defaults
     def __init__(self, **kwargs):
-        print(f'Kwargs {kwargs}')
         if 'populate_tmpdir' in kwargs['task_id']:
             command = """
             tmp_dir="{{tmp_dir_path(run_id)}}" ; \
