@@ -50,16 +50,15 @@ default_args = {
 
 
 with HMDAG(
-        "pas_ftu_segmentation",
-        schedule_interval=None,
-        is_paused_upon_creation=False,
-        default_args=default_args,
-        user_defined_macros={
-            "tmp_dir_path": get_tmp_dir_path,
-            'preserve_scratch': get_preserve_scratch_resource('pas_ftu_segmentation'),
-        },
+    "pas_ftu_segmentation",
+    schedule_interval=None,
+    is_paused_upon_creation=False,
+    default_args=default_args,
+    user_defined_macros={
+        "tmp_dir_path": get_tmp_dir_path,
+        "preserve_scratch": get_preserve_scratch_resource("pas_ftu_segmentation"),
+    },
 ) as dag:
-
     pipeline_name = "pas-ftu-segmentation-pipeline"
     cwl_workflows = get_named_absolute_workflows(
         segmentation=Path(pipeline_name, "pipeline.cwl"),
@@ -84,13 +83,10 @@ with HMDAG(
         meta_yml_path = workflow.parent / "meta.yaml"
 
         # get organ type
-        ds_rslt = pythonop_get_dataset_state(
-            dataset_uuid_callable=get_dataset_uuid,
-            **kwargs
-        )
+        ds_rslt = pythonop_get_dataset_state(dataset_uuid_callable=get_dataset_uuid, **kwargs)
 
-        organ_list = list(set(ds_rslt['organs']))
-        organ_code = organ_list[0] if len(organ_list) == 1 else 'multi'
+        organ_list = list(set(ds_rslt["organs"]))
+        organ_code = organ_list[0] if len(organ_list) == 1 else "multi"
 
         command = [
             *get_cwltool_base_cmd(tmpdir),
@@ -99,7 +95,7 @@ with HMDAG(
             "--data_directory",
             data_dir,
             "--tissue_type",
-            organ_code
+            organ_code,
         ]
 
         return join_quote_command_str(command)
@@ -131,7 +127,6 @@ with HMDAG(
             "test_op": "pipeline_exec_cwl_segmentation",
         },
     )
-
 
     prepare_cwl_ome_tiff_pyramid = DummyOperator(task_id="prepare_cwl_ome_tiff_pyramid")
 
@@ -278,6 +273,7 @@ with HMDAG(
         ],
         cwl_workflows=list(cwl_workflows.values()),
     )
+
     t_send_status = PythonOperator(
         task_id="send_status_msg", python_callable=send_status_msg, provide_context=True
     )
