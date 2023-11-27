@@ -110,4 +110,7 @@ workflow_map:
   - 'collection_type': 'bulkatacseq_collection'
     'assay_type': 'ATACseq-bulk'
     'workflow': 'bulk_atacseq'
+  - 'collection_type': 'reversioning_annotations'
+    'assay_type': '.*'
+    'workflow': 'azimuth_annotations'
 
