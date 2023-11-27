@@ -12,6 +12,7 @@ import utils
 from utils import (
     localized_assert_json_matches_schema as assert_json_matches_schema,
     HMDAG,
+    get_auth_tok,
     get_queue_resource,
     )
 
@@ -116,7 +117,8 @@ with HMDAG('validation_test',
             upload_ignore_globs='*',
             plugin_directory=plugin_path,
             # offline=True,  # noqa E265
-            add_notes=False
+            add_notes=False,
+            globus_token=get_auth_tok(**kwargs),
         )
         # Scan reports an error result
         report = ingest_validation_tools_error_report.ErrorReport(

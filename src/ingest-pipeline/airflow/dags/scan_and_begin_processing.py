@@ -189,7 +189,7 @@ with HMDAG(
         work_dir="{{tmp_dir_path(run_id)}}" ; \
         cd $work_dir ; \
         env PYTHONPATH=${PYTHONPATH}:$top_dir \
-        python $src_dir/metadata_extract.py --out ./rslt.yml --yaml "$lz_dir" \
+        python $src_dir/metadata_extract.py --out ./rslt.yml --yaml "$lz_dir" --globus_token "{{get_auth_tok(**kwargs)}}" \
           >> session.log 2> error.log ; \
         echo $? ; \
         if [ -s error.log ] ; \

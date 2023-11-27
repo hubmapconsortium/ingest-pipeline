@@ -1,6 +1,5 @@
 #! /usr/bin/env python
 
-import csv
 import os
 from pathlib import Path
 from .tsv_metadata_file import TSVMetadataFile
@@ -37,7 +36,9 @@ class MetadataTSVMetadataFile(TSVMetadataFile):
                 dataset_ignore_globs=ignore_globs,
                 upload_ignore_globs='*',
                 #offline=True,
-                add_notes=False
+                add_notes=False,
+                globus_token=self.kwargs.get("globus_token"),
+                plugin_path=plugin_path
             )
             if upload.get_errors():
                 # Scan reports an error result

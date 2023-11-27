@@ -20,7 +20,7 @@ SCHEMA_BASE_URI = 'http://schemata.hubmapconsortium.org/'
 set_schema_base_path(SCHEMA_BASE_PATH, SCHEMA_BASE_URI)
 
 
-def scan(target_dir, out_fname, schema_fname, yaml_flag=False):
+def scan(target_dir, out_fname, schema_fname, globus_token, yaml_flag=False):
     global _KNOWN_DATA_COLLECTION_TYPES
 
     if _KNOWN_DATA_COLLECTION_TYPES is None:
@@ -37,7 +37,7 @@ def scan(target_dir, out_fname, schema_fname, yaml_flag=False):
         if collection_type.test_match(target_dir):
             print('collector match: ', collection_type.category_name)
             collector = collection_type(target_dir)
-            metadata = collector.filter_metadata(collector.collect_metadata())
+            metadata = collector.filter_metadata(collector.collect_metadata(globus_token=globus_token))
             # print('collector: ', repr(collector))
             # print('metadata: %s' % metadata)
             break
@@ -68,6 +68,12 @@ def main(myargv=None):
     parser.add_argument('dir', default=None, nargs='?',
                         help='directory to scan (defaults to CWD)')
     parser.add_argument('--yaml', default=False, action='store_true')
+    parser.add_argument(
+        "--globus_token",
+        default="",
+        required=False,
+        help="Token for URL checking using Entity API.",
+    )
     ns = parser.parse_args(myargv[1:])
 
     schema_fname = default_schema_path if ns.schema is None else ns.schema
@@ -76,7 +82,7 @@ def main(myargv=None):
     yaml_flag = ns.yaml
     try:
         scan(target_dir=target_dir, out_fname=out_fname, schema_fname=schema_fname,
-             yaml_flag=yaml_flag)
+             globus_token=ns.globus_token, yaml_flag=yaml_flag)
     except (MetadataError, AssertionError) as e:
         sys.exit(f'{type(e).__name__}: {e}')
 

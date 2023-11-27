@@ -4,12 +4,13 @@ class MetadataFile(object):
     """A tool for extracting metadata from a specific file type"""
     category_name = 'Base';
 
-    def __init__(self, path):
+    def __init__(self, path, **kwargs):
         """
         path is the top level directory of the collection
         """
         self.path = path
-    
+        self.kwargs = kwargs
+
     def __str__(self):
         return '<%s MetadataFile>' % self.category_name
 
