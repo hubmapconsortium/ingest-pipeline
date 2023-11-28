@@ -10,6 +10,7 @@ from datetime import datetime, timedelta
 
 from utils import (
     HMDAG,
+    get_auth_tok,
     get_queue_resource,
     get_preserve_scratch_resource,
     create_dataset_state_error_callback,
@@ -110,7 +111,7 @@ with HMDAG('rebuild_metadata',
         print(f'filtered paths: {lz_path}')
         kwargs['dag_run'].conf['lz_path'] = lz_path
         kwargs['dag_run'].conf['src_path'] = airflow_conf.as_dict()['connections']['src_path'].strip("'")
-
+        kwargs['dag_run'].conf['auth_tok'] = get_auth_tok(**kwargs)
 
     t_check_uuids = PythonOperator(
         task_id='check_uuids',
@@ -129,9 +130,10 @@ with HMDAG('rebuild_metadata',
             src_dir="{{dag_run.conf.src_path}}/md" ; \
             top_dir="{{dag_run.conf.src_path}}" ; \
             work_dir="{{tmp_dir_path(run_id)}}" ; \
+            auth_tok="{{dag_run.conf.auth_tok}}" ; \
             cd $work_dir ; \
             env PYTHONPATH=${PYTHONPATH}:$top_dir \
-            python $src_dir/metadata_extract.py --out ./rslt.yml --yaml "$lz_dir" --globus_token "{{get_auth_tok(**kwargs)}}" \
+            python $src_dir/metadata_extract.py --out ./rslt.yml --yaml "$lz_dir" --globus_token '$auth_tok' \
               >> session.log 2> error.log ; \
             echo $? ; \
             if [ -s error.log ] ; \

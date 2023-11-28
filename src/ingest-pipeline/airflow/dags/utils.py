@@ -1240,6 +1240,10 @@ def make_send_status_msg_function(
         status = None
         extra_fields = {}
 
+        def my_callable(**kwargs):
+            return dataset_uuid
+
+        ds_rslt = pythonop_get_dataset_state(dataset_uuid_callable=my_callable, **kwargs)
         if success:
             md = {}
             files_for_provenance = [dag_file, *cwl_workflows]
@@ -1303,10 +1307,6 @@ def make_send_status_msg_function(
                         if __is_true(val=v):
                             contacts.append(contrib)
 
-            def my_callable(**kwargs):
-                return dataset_uuid
-
-            ds_rslt = pythonop_get_dataset_state(dataset_uuid_callable=my_callable, **kwargs)
             if not ds_rslt:
                 status = "QA"
             else:
