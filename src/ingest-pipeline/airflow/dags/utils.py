@@ -1651,6 +1651,35 @@ def find_matching_endpoint(host_url: str) -> str:
     return candidates[0]
 
 
+def get_soft_data_type(dataset_uuid, **kwargs) -> str:
+    """
+    Gets the soft data type for a specific uuid.
+    """
+    endpoint = f'/assaytype/{dataset_uuid}'
+    http_hook = HttpHook('GET', http_conn_id='ingest_api_connection')
+    headers = {
+        "authorization": "Bearer " + get_auth_tok(**kwargs),
+        'content-type': 'application/json',
+        'X-Hubmap-Application': 'ingest-pipeline',
+    }
+    try:
+        response = http_hook.run(endpoint,
+                                 headers=headers)
+        response.raise_for_status()
+        response = response.json()
+        print(f'rule_set response for {dataset_uuid} follows')
+        pprint(response)
+    except HTTPError as e:
+        print(f'ERROR: {e} fetching full path for {dataset_uuid}')
+        if e.response.status_code == codes.unauthorized:
+            raise RuntimeError('ingest_api_connection authorization was rejected?')
+        else:
+            print('benign error')
+            return None
+    assert 'assaytype' in response, f'Could not find matching assaytype for {dataset_uuid}'
+    return response['assaytype']
+
+
 def main():
     """
     This provides some unit tests.  To run it, you will need to define the
