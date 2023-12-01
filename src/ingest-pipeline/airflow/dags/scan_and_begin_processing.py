@@ -19,6 +19,7 @@ from utils import (
     make_send_status_msg_function,
     pythonop_get_dataset_state,
     pythonop_maybe_keep,
+    get_soft_data_type,
 )
 
 from airflow.configuration import conf as airflow_conf
@@ -154,19 +155,23 @@ with HMDAG(
     )
 
     def wrapped_send_status_msg(**kwargs):
+        lz_path, uuid = __get_lzpath_uuid(**kwargs)
         if send_status_msg(**kwargs):
             scanned_md = read_metadata_file(**kwargs)  # Yes, it's getting re-read
             kwargs["ti"].xcom_push(
                 key="collectiontype",
                 value=(scanned_md["collectiontype"] if "collectiontype" in scanned_md else None),
             )
-            if "assay_type" in scanned_md:
-                assay_type = scanned_md["assay_type"]
-            elif "metadata" in scanned_md and "assay_type" in scanned_md["metadata"]:
-                assay_type = scanned_md["metadata"]["assay_type"]
-            else:
-                assay_type = None
-            kwargs["ti"].xcom_push(key="assay_type", value=assay_type)
+            soft_data_type = get_soft_data_type(uuid, **kwargs)
+            print(f'Got {soft_data_type} as the soft_data_type for UUID {uuid}')
+            kwargs["ti"].xcmon_push(key="assay_type", value=soft_data_type)
+            # if "assay_type" in scanned_md:
+            #     assay_type = scanned_md["assay_type"]
+            # elif "metadata" in scanned_md and "assay_type" in scanned_md["metadata"]:
+            #     assay_type = scanned_md["metadata"]["assay_type"]
+            # else:
+            #     assay_type = None
+            # kwargs["ti"].xcom_push(key="assay_type", value=assay_type)
         else:
             kwargs["ti"].xcom_push(key="collectiontype", value=None)
 
