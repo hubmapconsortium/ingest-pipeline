@@ -5,8 +5,13 @@ MICROSCOPY.IMS.ALL = ingest_vanderbilt
 MOCK.MICROSCOPY.IMS.ALL = mock_ingest_vanderbilt
 MOCK.RNASEQ.10X = mock_ingest_rnaseq_10x
 SCAN.AND.BEGIN.PROCESSING = scan_and_begin_processing
+MICROSCOPY.IMS.ALL = ingest_vanderbilt
+MOCK.MICROSCOPY.IMS.ALL = mock_ingest_vanderbilt
+MOCK.RNASEQ.10X = mock_ingest_rnaseq_10x
+SCAN.AND.BEGIN.PROCESSING = scan_and_begin_processing
 VALIDATE.UPLOAD = validate_upload
 REORGANIZE.UPLOAD = reorganize_upload
+REORGANIZE.MULTIASSAY = reorganize_multiassay
 
 [core]
 timezone = US/Eastern

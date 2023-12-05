@@ -15,27 +15,27 @@ from hubmap_commons.hm_auth import AuthHelper
 ENDPOINTS = {
     'PROD': {
         'entity_url': 'https://entity.api.hubmapconsortium.org',
-        'search_url': 'https://search.api.hubmapconsortium.org/v3',
+        'search_url': 'https://ontology.api.hubmapconsortium.org',
         'ingest_url': 'http://hivevm193.psc.edu:7777',
-        'assay_info_url': 'https://search.api.hubmapconsortium.org/v3'
+        'assay_info_url': 'https://ontology.api.hubmapconsortium.org'
         },
     'STAGE': {
         'entity_url': 'https://entity-api.stage.hubmapconsortium.org',
-        'search_url': 'https://search-api.stage.hubmapconsortium.org/v3',
+        'search_url': 'https://ontology-api.stage.hubmapconsortium.org',
         'ingest_url': 'http://hivevm195.psc.edu:7777',
-        'assay_info_url': 'https://search-api.stage.hubmapconsortium.org/v3'
+        'assay_info_url': 'https://ontology-api.dev.hubmapconsortium.org'
         },
     'TEST': {
         'entity_url': 'https://entity-api.test.hubmapconsortium.org',
-        'search_url': 'https://search-api.test.hubmapconsortium.org/v3',
+        'search_url': 'https://ontology-api.test.hubmapconsortium.org',
         'ingest_url': 'http://hivevm192.psc.edu:7777',
-        'assay_info_url': 'https://search-api.test.hubmapconsortium.org/v3'
+        'assay_info_url': 'https://ontology-api.dev.hubmapconsortium.org'
         },
     'DEV': {
         'entity_url': 'https://entity-api.dev.hubmapconsortium.org',
-        'search_url': 'https://search-api.dev.hubmapconsortium.org/v3',
+        'search_url': 'https://ontology-api.dev.hubmapconsortium.org',
         'ingest_url': 'http://hivevm191.psc.edu:7777',
-        'assay_info_url': 'https://search-api.dev.hubmapconsortium.org/v3'
+        'assay_info_url': 'https://ontology-api.dev.hubmapconsortium.org'
         },
     }
 
@@ -709,6 +709,24 @@ class EntityFactory:
         r = requests.post(f'{ingest_url}/datasets',
                           data=json.dumps(data),
                           headers={'Authorization': f'Bearer {self.auth_tok}',
+                                   'Content-Type': 'application/json'})
+        if r.status_code >= 300:
+            r.raise_for_status()
+        return r.json()
+
+    def create_multiassay_components(self,
+                                     datasets,
+                                     direct_ancestor_uuids,
+                                     group_uuid,):
+        ingest_url = ENDPOINTS[self.instance['ingest_url']]
+        data = {"creation_action": "Multi-Assay Split",
+                "group_uuid": group_uuid,
+                "direct_ancestor_uuids": direct_ancestor_uuids,
+                # ToDo datasets components
+                "datasets": [{}]}
+        r = requests.post(f'{ingest_url}/datasets/components',
+                          data=json.dumps(data),
+                          headers={'Authorization': f'Bearer{self.auth_tok}',
                                    'Content-Type': 'application/json'})
         if r.status_code >= 300:
             r.raise_for_status()

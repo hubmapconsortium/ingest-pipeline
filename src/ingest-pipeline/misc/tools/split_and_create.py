@@ -401,6 +401,27 @@ def reorganize(source_uuid, **kwargs) -> None:
     print(json.dumps(dag_config))
 
 
+def reorganize_multiassay(source_uuid, **kwargs) -> None:
+    auth_tok = kwargs["auth_tok"]
+    instance = kwargs["instance"]
+    mode = kwargs["mode"]
+
+    entity_factory = EntityFactory(auth_tok, instance=instance)
+    print(f"Reorganizing {source_uuid}")
+    source_entity = entity_factory.get(source_uuid)
+    if mode in ["all", "stop"]:
+        if hasattr(source_entity, "data_types"):
+            assert isinstance(source_entity.data_types, str)
+            source_data_types = source_entity.data_types
+        else:
+            source_data_types = None
+
+        # ToDo create multi-assay components
+
+    if mode == "stop":
+        return
+
+
 def main():
     """
     main
@@ -412,22 +433,22 @@ def main():
     )
     parser.add_argument(
         "--stop",
-        help=("stop after creating child uuids and writing" f" {simplified_frozen_df_fname}"),
+        help="stop after creating child uuids and writing" f" {simplified_frozen_df_fname}",
         action="store_true",
     )
     parser.add_argument(
         "--unstop",
-        help=("do not create child uuids;" f" read {simplified_frozen_df_fname} and continue"),
+        help="do not create child uuids;" f" read {simplified_frozen_df_fname} and continue",
         action="store_true",
     )
     parser.add_argument(
         "--instance",
-        help=("instance to use." f" One of {list(ENDPOINTS)} (default %(default)s)"),
+        help="instance to use." f" One of {list(ENDPOINTS)} (default %(default)s)",
         default="PROD",
     )
     parser.add_argument(
         "--dryrun",
-        help=("describe the steps that would be taken but" " do not make changes"),
+        help="describe the steps that would be taken but" " do not make changes",
         action="store_true",
     )
     parser.add_argument(
