@@ -8,5 +8,5 @@ HM_AF_CONN_UUID_API_CONNECTION=http://https%3a%2f%2fuuid-api.stage.hubmapconsort
 HM_AF_CONN_FILES_API_CONNECTION=http://https%3a%2f%2ffiles-api.stage.hubmapconsortium.org/
 HM_AF_CONN_SPATIAL_API_CONNECTION=http://https%3a%2f%2fspatial-api.stage.hubmapconsortium.org/
 HM_AF_CONN_CELLS_API_CONNECTION=http://https%3a%2f%2fcells-api.stage.hubmapconsortium.org/
-HM_AF_CONN_SEARCH_API_CONNECTION=http://https%3a%2f%2fsearch-api.stage.hubmapconsortium.org%2fv3/
+HM_AF_CONN_SEARCH_API_CONNECTION=http://https%3a%2f%2fontology-api.dev.hubmapconsortium.org/
 HM_AF_CONN_ENTITY_API_CONNECTION=http://https%3a%2f%2fentity-api.stage.hubmapconsortium.org/
