@@ -307,6 +307,20 @@ def get_parent_dataset_uuid(**kwargs) -> str:
     return uuid_set.pop()
 
 
+def get_datatype_organ_based(**kwargs) -> List[str]:
+    dataset_uuid = get_parent_dataset_uuid(**kwargs)
+
+    def my_callable(**kwargs):
+        return dataset_uuid
+
+    ds_rslt = pythonop_get_dataset_state(dataset_uuid_callable=my_callable, **kwargs)
+    organ_list = list(set(ds_rslt["organs"]))
+    organ_code = organ_list[0] if len(organ_list) == 1 else "multi"
+    if organ_code in ["LK", "RK"]:
+        return ["pas_ftu_segmentation"]
+    return ["image_pyramid"]
+
+
 def get_datatype_previous_version(**kwargs) -> List[str]:
     dataset_uuid = get_previous_revision_uuid(**kwargs)
     assert dataset_uuid is not None, "Missing previous_version_uuid"
