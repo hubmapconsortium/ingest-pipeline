@@ -429,7 +429,7 @@ def main():
     parser = argparse.ArgumentParser()
     simplified_frozen_df_fname = DEFAULT_FROZEN_DF_FNAME.format("")  # no suffix
     parser.add_argument(
-        "uuid", help=("input .txt file containing uuids or" " .csv or .tsv file with uuid column")
+        "uuid", help="input .txt file containing uuids or" " .csv or .tsv file with uuid column"
     )
     parser.add_argument(
         "--stop",
