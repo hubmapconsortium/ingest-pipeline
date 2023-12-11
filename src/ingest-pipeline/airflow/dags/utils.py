@@ -36,7 +36,7 @@ from hubmap_commons.schema_tools import assert_json_matches_schema, set_schema_b
 from hubmap_commons.type_client import TypeClient
 from requests import codes
 from requests.exceptions import HTTPError
-from status_change.status_manager import StatusChanger
+from status_change.status_manager import StatusChanger, StatusChangerException
 
 from airflow import DAG
 from airflow.configuration import conf as airflow_conf
@@ -903,7 +903,7 @@ def restructure_entity_metadata(raw_metadata: JSONType) -> JSONType:
     return md
 
 
-def pythonop_get_dataset_state(**kwargs) -> JSONType:
+def pythonop_get_dataset_state(**kwargs) -> Dict:
     """
     Gets the status JSON structure for a dataset.  Works for Uploads
     and Publications as well as Datasets.
@@ -947,7 +947,7 @@ def pythonop_get_dataset_state(**kwargs) -> JSONType:
     if ds_rslt["entity_type"] in ["Dataset", "Publication"]:
         assert "data_types" in ds_rslt, f"Dataset status for {uuid} has no data_types"
         data_types = ds_rslt["data_types"]
-        dataset_info = ds_rslt["dataset_info"]
+        dataset_info = ds_rslt.get("dataset_info", "")
         parent_dataset_uuid_list = [
             ancestor["uuid"]
             for ancestor in ds_rslt["direct_ancestors"]
@@ -1254,6 +1254,10 @@ def make_send_status_msg_function(
         status = None
         extra_fields = {}
 
+        def my_callable(**kwargs):
+            return dataset_uuid
+
+        ds_rslt = pythonop_get_dataset_state(dataset_uuid_callable=my_callable, **kwargs)
         if success:
             md = {}
             files_for_provenance = [dag_file, *cwl_workflows]
@@ -1317,10 +1321,6 @@ def make_send_status_msg_function(
                         if __is_true(val=v):
                             contacts.append(contrib)
 
-            def my_callable(**kwargs):
-                return dataset_uuid
-
-            ds_rslt = pythonop_get_dataset_state(dataset_uuid_callable=my_callable, **kwargs)
             if not ds_rslt:
                 status = "QA"
             else:
@@ -1368,16 +1368,20 @@ def make_send_status_msg_function(
             }
             return_status = False
         entity_type = ds_rslt.get("entity_type")
-        StatusChanger(
-            dataset_uuid,
-            get_auth_tok(**kwargs),
-            status,
-            {
-                "extra_fields": extra_fields,
-                "extra_options": {},
-            },
-            entity_type=entity_type if entity_type else None,
-        ).on_status_change()
+        if status:
+            try:
+                StatusChanger(
+                    dataset_uuid,
+                    get_auth_tok(**kwargs),
+                    status,
+                    {
+                        "extra_fields": extra_fields,
+                        "extra_options": {},
+                    },
+                    entity_type=entity_type if entity_type else None,
+                ).on_status_change()
+            except StatusChangerException:
+                return_status = False
 
         return return_status
 
