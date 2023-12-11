@@ -947,7 +947,7 @@ def pythonop_get_dataset_state(**kwargs) -> JSONType:
     if ds_rslt["entity_type"] in ["Dataset", "Publication"]:
         assert "data_types" in ds_rslt, f"Dataset status for {uuid} has no data_types"
         data_types = ds_rslt["data_types"]
-        dataset_info = ds_rslt["dataset_info"]
+        dataset_info = ds_rslt.get("dataset_info", "")
         parent_dataset_uuid_list = [
             ancestor["uuid"]
             for ancestor in ds_rslt["direct_ancestors"]
