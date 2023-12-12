@@ -452,7 +452,7 @@ def reorganize_upload_uuid(uuid):
 @csrf.exempt
 @api_bp.route("/multiassay/<uuid>/reorganize", methods=["PUT"])
 # @secured(groups="HuBMAP-read")
-def reorganize_upload_uuid(uuid):
+def reorganize_multiassay_uuid(uuid):
     return generic_invoke_dag_on_uuid(uuid, "reorganize.multiassay")
 
 

@@ -13,6 +13,8 @@ from csv import DictReader
 import pandas as pd
 import requests
 from status_change.status_manager import StatusChanger, Statuses
+from airflow.hooks.http_hook import HttpHook
+
 
 # There has got to be a better solution for this, but I can't find it
 try:
@@ -457,12 +459,24 @@ def read_rows(path: Path, encoding: str) -> List:
     raise message
 
 
+def get_ingest_api_env(env: str) -> str:
+    # TODO: this should be obtained in another way
+    if env in ["dev", "test", "stage"]:
+        return f"https://ingest-api.{env}.hubmapconsortium.org/assaytype"
+    elif env == "prod":
+        return "https://ingest.api.hubmapconsortium.org/assaytype"
+    elif env == "local":
+        return "http://localhost:5000/assaytype"
+    else:
+        raise Exception(f"Environment {env} not found!")
+
+
 def get_assaytype_data(
     row: Dict,
     globus_token: str,
     instance_url,
 ) -> Dict:
-    url = instance_url + "/assaytype"
+    url = get_ingest_api_env(instance_url.lower()) + "/assaytype"
     headers = {
         "Authorization": "Bearer " + globus_token,
         "Content-Type": "application/json",
@@ -472,10 +486,55 @@ def get_assaytype_data(
     return response.json()
 
 
+def create_multiassay_component(
+        source_uuid: str,
+        auth_tok: str,
+        components: list,
+        parent_dir,
+) -> None:
+    headers = {
+        "authorization": "Bearer " + auth_tok,
+        "content-type": "application/json",
+        "X-Hubmap-Application": "ingest-pipeline",
+    }
+
+    response = HttpHook("GET", http_conn_id='entity_api_connection').run(
+        endpoint=f"entities/{source_uuid}",
+        headers=headers,
+        extra_options={"check_response": False},
+    )
+    response.raise_for_status()
+    response_json = response.json()
+    if "group_uuid" not in response_json:
+        print(f"response from GET on entities{source_uuid}:")
+        pprint(response_json)
+        raise ValueError("entities response did not contain group_uuid")
+    parent_group_uuid = response_json["group_uuid"]
+
+    data = {
+        "creation_action": "Multi-Assay Split",
+        "group_uuid": parent_group_uuid,
+        "direct_ancestor_uuids": source_uuid,
+        "datasets": [
+            {
+                "dataset_link_abs_dir": parent_dir,
+                "contains_human_genetic_sequences": component.get("contains_pii", True),
+                "data_types": component.get("assaytype"),
+            } for component in components
+        ],
+    }
+    response = HttpHook("POST", http_conn_id='ingest_api_connection').run(
+        endpoint=f"datasets/components",
+        headers=headers,
+        data=json.dumps(data),
+    )
+    response.raise_for_status()
+
+
 def reorganize_multiassay(source_uuid, **kwargs) -> None:
     auth_tok = kwargs["auth_tok"]
     instance = kwargs["instance"]
-    components_assay = []
+    assay_components = []
     primary_assay = None
 
     entity_factory = EntityFactory(auth_tok, instance=instance)
@@ -492,11 +551,12 @@ def reorganize_multiassay(source_uuid, **kwargs) -> None:
             return
         assay_type = get_assaytype_data(rows[0], auth_tok, instance)
         if not assay_type.get("must_contain"):
-            components_assay.append(assay_type)
+            assay_components.append(assay_type)
         else:
             primary_assay = assay_type
 
     # ToDo create multi-assay components
+    create_multiassay_component(source_uuid, auth_tok, assay_components, source_entity.full_path)
 
 
 def main():

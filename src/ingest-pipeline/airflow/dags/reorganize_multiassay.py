@@ -88,8 +88,8 @@ with HMDAG('reorganize_multiassay',
 
         if ds_rslt['entity_type'] != 'Dataset':
             raise AirflowException(f'{uuid} is not an Dataset')
-        if ds_rslt['status'] not in ['Valid', 'Processing']:
-            raise AirflowException(f"status of Dataset {uuid} is not Valid, or Processing, {ds_rslt['status']}")
+        if ds_rslt['status'] not in ['New', 'Submitted']:
+            raise AirflowException(f"status of Dataset {uuid} is not New, or Submitted, {ds_rslt['status']}")
 
         lz_path = ds_rslt['local_directory_full_path']
         uuid = ds_rslt['uuid']  # 'uuid' may  actually be a DOI
@@ -122,9 +122,9 @@ with HMDAG('reorganize_multiassay',
     )
 
 
-    def split_stage_1(**kwargs):
+    def split(**kwargs):
         uuid = kwargs['ti'].xcom_pull(task_ids='find_uuid', key='uuid')
-        entity_host = HttpHook.get_connection('ingest_api_connection').host
+        entity_host = HttpHook.get_connection('entity_api_connection').host
         try:
             reorganize_multiassay(
                 uuid,
@@ -133,68 +133,28 @@ with HMDAG('reorganize_multiassay',
                 instance=find_matching_endpoint(entity_host),
                 auth_tok=get_auth_tok(**kwargs),
             )
-            kwargs['ti'].xcom_push(key='split_stage_1', value='0')  # signal success
+            kwargs['ti'].xcom_push(key='split', value='0')  # signal success
         except Exception as e:
             print(f'Encountered {e}')
-            kwargs['ti'].xcom_push(key='split_stage_1', value='1')  # signal failure
+            kwargs['ti'].xcom_push(key='split', value='1')  # signal failure
 
 
-    t_split_stage_1 = PythonOperator(
-        task_id='split_stage_1',
-        python_callable=split_stage_1,
+    t_split = PythonOperator(
+        task_id='split',
+        python_callable=split,
         provide_context=True,
         op_kwargs={
         }
     )
 
-    t_maybe_keep_1 = BranchPythonOperator(
-        task_id='maybe_keep_1',
-        python_callable=pythonop_maybe_keep,
-        provide_context=True,
-        op_kwargs={
-            'next_op': 'split_stage_2',
-            'bail_op': 'set_dataset_error',
-            'test_op': 'split_stage_1'
-        }
-    )
-
-
-    def split_stage_2(**kwargs):
-        uuid = kwargs['ti'].xcom_pull(task_ids='find_uuid', key='uuid')
-        entity_host = HttpHook.get_connection('entity_api_connection').host
-        try:
-            reorganize(
-                uuid,
-                mode='unstop',
-                ingest=False,
-                # dryrun=True,
-                dryrun=False,
-                instance=find_matching_endpoint(entity_host),
-                auth_tok=get_auth_tok(**kwargs),
-                frozen_df_fname=_get_frozen_df_path(kwargs['run_id'])
-            )
-            kwargs['ti'].xcom_push(key='split_stage_2', value='0')  # signal success
-        except Exception as e:
-            print(f'Encountered {e}')
-            kwargs['ti'].xcom_push(key='split_stage_2', value='1')  # signal failure
-
-
-    t_split_stage_2 = PythonOperator(
-        task_id='split_stage_2',
-        python_callable=split_stage_2,
-        provide_context=True,
-        op_kwargs={
-        }
-    )
-
-    t_maybe_keep_2 = BranchPythonOperator(
-        task_id='maybe_keep_2',
+    t_maybe_keep = BranchPythonOperator(
+        task_id='maybe_keep',
         python_callable=pythonop_maybe_keep,
         provide_context=True,
         op_kwargs={
             'next_op': 'join',
             'bail_op': 'set_dataset_error',
-            'test_op': 'split_stage_2'
+            'test_op': 'split'
         }
     )
 
@@ -202,10 +162,8 @@ with HMDAG('reorganize_multiassay',
 
     t_join = JoinOperator(task_id='join')
 
-
     def _get_upload_uuid(**kwargs):
         return kwargs['ti'].xcom_pull(task_ids='find_uuid', key='uuid')
-
 
     t_set_dataset_error = PythonOperator(
         task_id='set_dataset_error',
@@ -222,15 +180,12 @@ with HMDAG('reorganize_multiassay',
         t_log_info
         >> t_find_uuid
         >> t_create_tmpdir
-        >> t_split_stage_1
-        >> t_maybe_keep_1
-        >> t_split_stage_2
-        >> t_maybe_keep_2
+        >> t_split
+        >> t_maybe_keep
         >> t_join
         >> t_preserve_info
         >> t_cleanup_tmpdir
      )
 
-    t_maybe_keep_1 >> t_set_dataset_error
-    t_maybe_keep_2 >> t_set_dataset_error
+    t_maybe_keep >> t_set_dataset_error
     t_set_dataset_error >> t_join

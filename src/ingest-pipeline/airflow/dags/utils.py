@@ -782,6 +782,7 @@ def pythonop_send_create_dataset(**kwargs) -> str:
             "data_types": dataset_types,
             "group_uuid": parent_group_uuid,
             "contains_human_genetic_sequences": contains_seq,
+            "creation_action": "Central Process",
         }
         if "previous_revision_uuid_callable" in kwargs:
             previous_revision_uuid = kwargs["previous_revision_uuid_callable"](**kwargs)
