@@ -57,7 +57,7 @@ def _get_frozen_df_wildcard(run_id):
     return str(Path(get_tmp_dir_path(run_id)) / 'frozen_source_df*.tsv')
 
 
-with HMDAG('reorganize_upload',
+with HMDAG('reorganize_multiassay',
            schedule_interval=None,
            is_paused_upon_creation=False,
            default_args=default_args,
@@ -65,7 +65,7 @@ with HMDAG('reorganize_upload',
                'tmp_dir_path': get_tmp_dir_path,
                'frozen_df_path': _get_frozen_df_path,
                'frozen_df_wildcard': _get_frozen_df_wildcard,
-               'preserve_scratch': get_preserve_scratch_resource('reorganize_upload'),
+               'preserve_scratch': get_preserve_scratch_resource('reorganize_multiassay'),
            }) as dag:
     def find_uuid(**kwargs):
         uuid = kwargs['dag_run'].conf['uuid']
@@ -124,17 +124,14 @@ with HMDAG('reorganize_upload',
 
     def split_stage_1(**kwargs):
         uuid = kwargs['ti'].xcom_pull(task_ids='find_uuid', key='uuid')
-        entity_host = HttpHook.get_connection('entity_api_connection').host
+        entity_host = HttpHook.get_connection('ingest_api_connection').host
         try:
             reorganize_multiassay(
                 uuid,
-                mode='stop',
-                ingest=False,
                 # dryrun=True,
                 dryrun=False,
                 instance=find_matching_endpoint(entity_host),
                 auth_tok=get_auth_tok(**kwargs),
-                frozen_df_fname=_get_frozen_df_path(kwargs['run_id'])
             )
             kwargs['ti'].xcom_push(key='split_stage_1', value='0')  # signal success
         except Exception as e:

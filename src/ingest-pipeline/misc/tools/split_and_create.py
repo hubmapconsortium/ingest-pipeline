@@ -7,9 +7,11 @@ import time
 from pathlib import Path
 from pprint import pprint
 from shutil import copy2, copytree
-from typing import List, TypeVar
+from typing import List, TypeVar, Dict
+from csv import DictReader
 
 import pandas as pd
+import requests
 from status_change.status_manager import StatusChanger, Statuses
 
 # There has got to be a better solution for this, but I can't find it
@@ -401,25 +403,100 @@ def reorganize(source_uuid, **kwargs) -> None:
     print(json.dumps(dag_config))
 
 
+def get_context_of_decode_error(e: UnicodeDecodeError) -> str:
+    """
+    >>> try:
+    ...   b'\\xFF'.decode('ascii')
+    ... except UnicodeDecodeError as e:
+    ...   print(get_context_of_decode_error(e))
+    Invalid ascii because ordinal not in range(128): " [ ÿ ] "
+
+    >>> try:
+    ...   b'01234\\xFF6789'.decode('ascii')
+    ... except UnicodeDecodeError as e:
+    ...   print(get_context_of_decode_error(e))
+    Invalid ascii because ordinal not in range(128): "01234 [ ÿ ] 6789"
+
+    >>> try:
+    ...   (b'a string longer than twenty characters\\xFFa string '
+    ...    b'longer than twenty characters').decode('utf-8')
+    ... except UnicodeDecodeError as e:
+    ...   print(get_context_of_decode_error(e))
+    Invalid utf-8 because invalid start byte: "an twenty characters [ ÿ ] a string longer than"
+
+    """
+    buffer = 20
+    codec = "latin-1"  # This is not the actual codec of the string!
+    before = e.object[max(e.start - buffer, 0) : max(e.start, 0)].decode(codec)  # noqa
+    problem = e.object[e.start : e.end].decode(codec)  # noqa
+    after = e.object[e.end : min(e.end + buffer, len(e.object))].decode(codec)  # noqa
+    in_context = f"{before} [ {problem} ] {after}"
+    return f'Invalid {e.encoding} because {e.reason}: "{in_context}"'
+
+
+def dict_reader_wrapper(path, encoding: str) -> list:
+    with open(path, encoding=encoding) as f:
+        rows = list(DictReader(f, dialect="excel-tab"))
+    return rows
+
+
+def read_rows(path: Path, encoding: str) -> List:
+    if not Path(path).exists():
+        message = {"File does not exist": f"{path}"}
+        raise message
+    try:
+        rows = dict_reader_wrapper(path, encoding)
+        if not rows:
+            message = {"File has no data rows": f"{path}"}
+        else:
+            return rows
+    except IsADirectoryError:
+        message = {"Expected a TSV, but found a directory": f"{path}"}
+    except UnicodeDecodeError as e:
+        message = {"Decode Error": get_context_of_decode_error(e)}
+    raise message
+
+
+def get_assaytype_data(
+    row: Dict,
+    globus_token: str,
+    instance_url,
+) -> Dict:
+    url = instance_url + "/assaytype"
+    headers = {
+        "Authorization": "Bearer " + globus_token,
+        "Content-Type": "application/json",
+    }
+    response = requests.post(url, headers=headers, data=json.dumps(row))
+    response.raise_for_status()
+    return response.json()
+
+
 def reorganize_multiassay(source_uuid, **kwargs) -> None:
     auth_tok = kwargs["auth_tok"]
     instance = kwargs["instance"]
-    mode = kwargs["mode"]
+    components_assay = []
+    primary_assay = None
 
     entity_factory = EntityFactory(auth_tok, instance=instance)
-    print(f"Reorganizing {source_uuid}")
+    print(f"Creating components {source_uuid}")
     source_entity = entity_factory.get(source_uuid)
-    if mode in ["all", "stop"]:
-        if hasattr(source_entity, "data_types"):
-            assert isinstance(source_entity.data_types, str)
-            source_data_types = source_entity.data_types
+
+    # ToDo identify multi-assay components
+    source_metadata_files = list(source_entity.full_path.glob("*metadata.tsv"))
+    for metadata_file in source_metadata_files:
+        try:
+            rows = read_rows(metadata_file, encoding="UTF-8")
+        except Exception as e:
+            print(f"Error {e} reading metadata {metadata_file}")
+            return
+        assay_type = get_assaytype_data(rows[0], auth_tok, instance)
+        if not assay_type.get("must_contain"):
+            components_assay.append(assay_type)
         else:
-            source_data_types = None
+            primary_assay = assay_type
 
-        # ToDo create multi-assay components
-
-    if mode == "stop":
-        return
+    # ToDo create multi-assay components
 
 
 def main():
