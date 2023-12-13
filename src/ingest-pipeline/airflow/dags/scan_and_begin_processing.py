@@ -193,7 +193,7 @@ with HMDAG(
         src_dir="{{dag_run.conf.src_path}}/md" ; \
         top_dir="{{dag_run.conf.src_path}}" ; \
         work_dir="{{tmp_dir_path(run_id)}}" ; \
-        auth_tok="{{auth_tok(dag_run.conf)}}" ; \
+        echo $auth_tok ; \
         cd $work_dir ; \
         env PYTHONPATH=${PYTHONPATH}:$top_dir \
         python $src_dir/metadata_extract.py --out ./rslt.yml --yaml "$lz_dir" \
@@ -204,6 +204,13 @@ with HMDAG(
         else rm error.log ; \
         fi
         """,
+        env={
+            'auth_tok': (
+                utils.encrypt_tok(airflow_conf.as_dict()
+                                  ['connections']['APP_CLIENT_SECRET'])
+                .decode()
+                ),
+            }
     )
 
     t_md_consistency_tests = PythonOperator(
