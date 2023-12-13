@@ -53,6 +53,8 @@ class MultiassayMetadataTSVDataCollection(DataCollection):
         assert self.offsetdir is not None, 'Wrong dataset type?'
 
     def collect_metadata(self):
+        auth_tok = os.getenv('auth_tok')
+        print(f'THIS IS THE AUTH TOK {auth_tok}')
         md_type_tbl = self.get_md_type_tbl()
         rslt = {}
         cl = []
@@ -60,6 +62,8 @@ class MultiassayMetadataTSVDataCollection(DataCollection):
             print('collect match %s' % match.format(offsetdir=self.offsetdir))
             for fpath in glob.iglob(os.path.join(self.topdir,
                                                  match.format(offsetdir=self.offsetdir))):
+                # Send the metadata file through to the assay classifier to see whether it's the multi-assay metadata or not.
+                # If it is a multi-assay, cl.extend
                 print('collect from path %s' % fpath)
                 this_md = md_type_tbl[md_type](fpath).collect_metadata()
                 if this_md is not None:
@@ -70,7 +74,6 @@ class MultiassayMetadataTSVDataCollection(DataCollection):
                         assert isinstance(this_md, list), 'metadata.tsv did not produce a list'
                         cl.extend(this_md)
 
-        # Send the metadata file through to the assay classifier to see whether it's the multi-assay metadata or not.
 
         print(cl)
         rslt['components'] = cl

@@ -68,6 +68,9 @@ def main(myargv=None):
     parser.add_argument('dir', default=None, nargs='?',
                         help='directory to scan (defaults to CWD)')
     parser.add_argument('--yaml', default=False, action='store_true')
+    # you first need to define the macro (like tmp_dir_path in scan_and_begin_processing.py) in the
+    # DAG definition and then use it on the bashoperator like a ninja template var.
+    # Grab the token from the ENV
     ns = parser.parse_args(myargv[1:])
 
     schema_fname = default_schema_path if ns.schema is None else ns.schema

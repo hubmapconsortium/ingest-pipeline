@@ -68,6 +68,7 @@ with HMDAG(
     user_defined_macros={
         "tmp_dir_path": utils.get_tmp_dir_path,
         "preserve_scratch": get_preserve_scratch_resource("scan_and_begin_processing"),
+        "auth_tok": utils.get_auth_tok
     },
 ) as dag:
 
@@ -192,6 +193,7 @@ with HMDAG(
         src_dir="{{dag_run.conf.src_path}}/md" ; \
         top_dir="{{dag_run.conf.src_path}}" ; \
         work_dir="{{tmp_dir_path(run_id)}}" ; \
+        auth_tok="{{auth_tok(**kwargs)}}" ; \
         cd $work_dir ; \
         env PYTHONPATH=${PYTHONPATH}:$top_dir \
         python $src_dir/metadata_extract.py --out ./rslt.yml --yaml "$lz_dir" \
