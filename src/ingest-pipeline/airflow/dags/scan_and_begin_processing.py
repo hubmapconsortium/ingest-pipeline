@@ -195,11 +195,11 @@ with HMDAG(
         work_dir="{{tmp_dir_path(run_id)}}" ; \
         echo $auth_tok ; \
         cd $work_dir ; \
-        echo $PYTHONPATH ;\
         env PYTHONPATH=${PYTHONPATH}:$top_dir \
         python $src_dir/metadata_extract.py --out ./rslt.yml --yaml "$lz_dir" \
           >> session.log 2> error.log ; \
         echo $? ; \
+        echo $PYTHONPATH ; \
         if [ -s error.log ] ; \
         then echo 'ERROR!' `cat error.log` >> session.log ; \
         else rm error.log ; \
