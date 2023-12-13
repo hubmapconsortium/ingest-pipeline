@@ -476,7 +476,7 @@ def get_assaytype_data(
     globus_token: str,
     instance_url,
 ) -> Dict:
-    url = get_ingest_api_env(instance_url.lower()) + "/assaytype"
+    url = get_ingest_api_env(instance_url.lower())
     headers = {
         "Authorization": "Bearer " + globus_token,
         "Content-Type": "application/json",
@@ -487,10 +487,10 @@ def get_assaytype_data(
 
 
 def create_multiassay_component(
-        source_uuid: str,
-        auth_tok: str,
-        components: list,
-        parent_dir,
+    source_uuid: str,
+    auth_tok: str,
+    components: list,
+    parent_dir: str,
 ) -> None:
     headers = {
         "authorization": "Bearer " + auth_tok,
@@ -498,7 +498,7 @@ def create_multiassay_component(
         "X-Hubmap-Application": "ingest-pipeline",
     }
 
-    response = HttpHook("GET", http_conn_id='entity_api_connection').run(
+    response = HttpHook("GET", http_conn_id="entity_api_connection").run(
         endpoint=f"entities/{source_uuid}",
         headers=headers,
         extra_options={"check_response": False},
@@ -518,12 +518,13 @@ def create_multiassay_component(
         "datasets": [
             {
                 "dataset_link_abs_dir": parent_dir,
-                "contains_human_genetic_sequences": component.get("contains_pii", True),
+                "contains_human_genetic_sequences": component.get("contains-pii", True),
                 "data_types": component.get("assaytype"),
-            } for component in components
+            }
+            for component in components
         ],
     }
-    response = HttpHook("POST", http_conn_id='ingest_api_connection').run(
+    response = HttpHook("POST", http_conn_id="ingest_api_connection").run(
         endpoint=f"datasets/components",
         headers=headers,
         data=json.dumps(data),
@@ -531,7 +532,7 @@ def create_multiassay_component(
     response.raise_for_status()
 
 
-def reorganize_multiassay(source_uuid, **kwargs) -> None:
+def reorganize_multiassay(source_uuid, verbose=False, **kwargs) -> None:
     auth_tok = kwargs["auth_tok"]
     instance = kwargs["instance"]
     assay_components = []
@@ -550,13 +551,24 @@ def reorganize_multiassay(source_uuid, **kwargs) -> None:
             print(f"Error {e} reading metadata {metadata_file}")
             return
         assay_type = get_assaytype_data(rows[0], auth_tok, instance)
-        if not assay_type.get("must_contain"):
+        if not assay_type.get("must-contain"):
+            print(f"Component {assay_type}")
             assay_components.append(assay_type)
         else:
             primary_assay = assay_type
+            print(f"Primary {primary_assay}")
 
     # ToDo create multi-assay components
-    create_multiassay_component(source_uuid, auth_tok, assay_components, source_entity.full_path)
+    create_multiassay_component(
+        source_uuid, auth_tok, assay_components, str(source_entity.full_path)
+    )
+    StatusChanger(
+        source_entity.uuid,
+        source_entity.entity_factory.auth_tok,
+        Statuses.DATASET_SUBMITTED,
+        verbose=verbose,
+    ).on_status_change()
+    print(f"{source_entity.uuid} status is Submitted")
 
 
 def main():
