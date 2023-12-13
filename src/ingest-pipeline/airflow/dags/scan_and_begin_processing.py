@@ -194,6 +194,7 @@ with HMDAG(
         top_dir="{{dag_run.conf.src_path}}" ; \
         work_dir="{{tmp_dir_path(run_id)}}" ; \
         cd $work_dir ; \
+        which python ; \
         env PYTHONPATH=${PYTHONPATH}:$top_dir \
         python $src_dir/metadata_extract.py --out ./rslt.yml --yaml "$lz_dir" \
           >> session.log 2> error.log ; \
