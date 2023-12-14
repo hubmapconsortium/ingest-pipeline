@@ -59,7 +59,7 @@ class MultiassayMetadataTSVDataCollection(DataCollection):
     def collect_metadata(self):
         auth_tok = os.getenv('AUTH_TOK')
         print(f'THIS IS THE AUTH TOK {auth_tok}')
-        ingest_api_url = os.getenv('INGEST_API_URL')
+        ingest_api_url = os.getenv('HM_AF_CONN_INGEST_API_CONNECTION')
         print(f'THIS IS THE INGEST API URL {ingest_api_url}')
         md_type_tbl = self.get_md_type_tbl()
         rslt = {}
