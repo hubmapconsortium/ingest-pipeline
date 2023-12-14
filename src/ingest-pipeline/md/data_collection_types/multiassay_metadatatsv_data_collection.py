@@ -9,6 +9,7 @@ import os
 import glob
 import json
 
+import requests
 from requests import codes
 from requests.exceptions import HTTPError
 from type_base import MetadataError
