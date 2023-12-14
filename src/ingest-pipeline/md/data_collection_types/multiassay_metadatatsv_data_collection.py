@@ -7,9 +7,13 @@ It is intended as a convenience for developers.
 
 import os
 import glob
+import json
 
+from requests import codes
+from requests.exceptions import HTTPError
 from type_base import MetadataError
 from data_collection import DataCollection
+from airflow.hooks.http_hook import HttpHook
 
 
 class MultiassayMetadataTSVDataCollection(DataCollection):
@@ -62,17 +66,44 @@ class MultiassayMetadataTSVDataCollection(DataCollection):
             print('collect match %s' % match.format(offsetdir=self.offsetdir))
             for fpath in glob.iglob(os.path.join(self.topdir,
                                                  match.format(offsetdir=self.offsetdir))):
-                # Send the metadata file through to the assay classifier to see whether it's the multi-assay metadata or not.
-                # If it is a multi-assay, cl.extend
                 print('collect from path %s' % fpath)
                 this_md = md_type_tbl[md_type](fpath).collect_metadata()
+                fname = os.path.basename(fpath)
+
                 if this_md is not None:
-                    print(this_md)
+                    # Send the metadata file through to the assay classifier to see whether it's the multi-assay metadata or not.
+                    # If it is a multi-assay, cl.extend
                     rslt[os.path.relpath(fpath, self.topdir)] = this_md
-                    fname = os.path.basename(fpath)
+                    endpoint = f'/assaytype'
+                    http_hook = HttpHook('POST', http_conn_id='ingest_api_connection')
+                    headers = {
+                        "authorization": f"Bearer {auth_tok}",
+                        'content-type': 'application/json',
+                        'X-Hubmap-Application': 'ingest-pipeline',
+                    }
+
+                    try:
+                        response = http_hook.run(endpoint,
+                                                 headers=headers,
+                                                 data=json.dumps(this_md))
+                        response.raise_for_status()
+                        response = response.json()
+                    except HTTPError as e:
+                        if e.response.status_code == codes.unauthorized:
+                            raise RuntimeError('ingest_api_connection authorization was rejected?')
+                        else:
+                            print('benign error')
+                            return None
+
                     if 'metadata' in fname and fname.endswith('.tsv'):
                         assert isinstance(this_md, list), 'metadata.tsv did not produce a list'
-                        cl.extend(this_md)
+                        if 'must-contain' in response:
+                            print('MULTI ASSAY FOUND')
+                            print(this_md)
+                            cl.extend(this_md)
+                        else:
+                            print('NON MULTI ASSAY FOUND')
+                            print(this_md)
 
 
         print(cl)
