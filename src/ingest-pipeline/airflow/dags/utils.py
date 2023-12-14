@@ -1280,9 +1280,6 @@ def make_send_status_msg_function(
             if metadata_fun:
                 md["metadata"] = metadata_fun(**kwargs)
 
-            print("md is")
-            print(md)
-
             thumbnail_file_abs_path = []
             if dataset_lz_path_fun:
                 dataset_dir_abs_path = dataset_lz_path_fun(**kwargs)
