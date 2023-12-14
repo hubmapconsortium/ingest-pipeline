@@ -17,7 +17,7 @@ from data_collection import DataCollection
 
 
 class MultiassayMetadataTSVDataCollection(DataCollection):
-    category_name = 'MULTIASSAYMETADATATSV';
+    category_name = 'MULTIASSAYMETADATATSV'
     match_priority = 2.0  # >= 0.0; higher is better
     top_target = None
     dir_regex = None
@@ -96,8 +96,6 @@ class MultiassayMetadataTSVDataCollection(DataCollection):
                         if 'must-contain' in response:
                             print('MULTI ASSAY FOUND')
                             for rec in this_md:
-                                for key in ['dataset_type', 'data_path', 'contributors_path']:
-                                    assert key in rec, 'metadata.tsv does not have a "{}" column'.format(key)
                                 this_dict = {'metadata': rec}
                                 for sub_key, dict_key in [('contributors_path', 'contributors'),
                                                           ('antibodies_path', 'antibodies')]:
