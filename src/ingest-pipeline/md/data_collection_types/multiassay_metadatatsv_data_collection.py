@@ -98,7 +98,7 @@ class MultiassayMetadataTSVDataCollection(DataCollection):
                             cl.extend(this_md)
                         else:
                             print('NON MULTI ASSAY FOUND')
-                            print(this_md)
+                        print(this_md)
 
 
         rslt['components'] = cl
