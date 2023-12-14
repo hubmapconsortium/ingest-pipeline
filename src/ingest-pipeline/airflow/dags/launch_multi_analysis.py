@@ -107,17 +107,6 @@ with HMDAG('launch_multi_analysis',
             soft_data_type = get_soft_data_type(uuid, **kwargs)
             print(f'Got {soft_data_type} as the soft_data_type for UUID {uuid}')
             filtered_data_types.append(soft_data_type)
-            # if isinstance(dt, list):
-            #     if dt:
-            #         if len(dt) == 1:
-            #             filtered_data_types.append(dt[0])
-            #         else:
-            #             filtered_data_types.append(tuple(dt))
-            #     else:
-            #         raise AirflowException(f'Dataset data_types for {uuid} is empty')
-            # else:
-            #     filtered_data_types.append(dt)
-
             filtered_path_l.append(lz_path)
             filtered_uuid_l.append(uuid)
             filtered_md_l.append(metadata)
