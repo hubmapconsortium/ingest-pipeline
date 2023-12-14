@@ -165,7 +165,7 @@ with HMDAG(
             )
             soft_data_type = get_soft_data_type(uuid, **kwargs)
             print(f'Got {soft_data_type} as the soft_data_type for UUID {uuid}')
-            kwargs["ti"].xcmon_push(key="assay_type", value=soft_data_type)
+            kwargs["ti"].xcom_push(key="assay_type", value=soft_data_type)
             # if "assay_type" in scanned_md:
             #     assay_type = scanned_md["assay_type"]
             # elif "metadata" in scanned_md and "assay_type" in scanned_md["metadata"]:
