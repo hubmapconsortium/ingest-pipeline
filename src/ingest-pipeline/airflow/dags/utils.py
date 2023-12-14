@@ -1594,22 +1594,6 @@ def _get_type_client() -> TypeClient:
     return TYPE_CLIENT
 
 
-def _canonicalize_assay_type_if_possible(assay_type: StrOrListStr) -> StrOrListStr:
-    """
-    Attempt to look up the assay type (or each element if it is a list) and
-    return the canonical version.
-    """
-    if isinstance(assay_type, list):
-        return [_canonicalize_assay_type_if_possible(elt) for elt in assay_type]
-    else:
-        try:
-            type_info = _get_type_client().getAssayType(assay_type)
-            assay_type = type_info.name
-        except Exception:
-            pass
-        return assay_type
-
-
 def downstream_workflow_iter(collectiontype: str, assay_type: StrOrListStr) -> Iterable[str]:
     """
     Returns an iterator over zero or more workflow names matching the given
@@ -1617,7 +1601,6 @@ def downstream_workflow_iter(collectiontype: str, assay_type: StrOrListStr) -> I
     a known workflow, e.g. an Airflow DAG implemented by workflow_name.py .
     """
     collectiontype = collectiontype or ""
-    assay_type = _canonicalize_assay_type_if_possible(assay_type)
     assay_type = assay_type or ""
     for ct_re, at_re, workflow in _get_workflow_map():
         if isinstance(assay_type, str):
