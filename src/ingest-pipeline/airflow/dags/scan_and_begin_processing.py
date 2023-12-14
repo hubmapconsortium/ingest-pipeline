@@ -205,10 +205,13 @@ with HMDAG(
         """,
         env={
             'auth_tok': (
-                utils.encrypt_tok(airflow_conf.as_dict()
-                                  ['connections']['APP_CLIENT_SECRET'])
-                .decode()
-                ),
+              utils.get_auth_tok(
+                  **{
+                      'crypt_auth_tok': utils.encrypt_tok(
+                          airflow_conf.as_dict()['connections']['APP_CLIENT_SECRET']).decode()
+                  }
+              )
+            ),
             'PYTHON_EXE': os.environ["CONDA_PREFIX"] + "/bin/python",
             }
     )
