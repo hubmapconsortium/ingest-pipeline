@@ -58,9 +58,7 @@ class MultiassayMetadataTSVDataCollection(DataCollection):
 
     def collect_metadata(self):
         auth_tok = os.getenv('AUTH_TOK')
-        print(f'THIS IS THE AUTH TOK {auth_tok}')
         ingest_api_url = os.getenv('INGEST_API_URL')
-        print(f'THIS IS THE INGEST API URL {ingest_api_url}')
         md_type_tbl = self.get_md_type_tbl()
         rslt = {}
         cl = []
@@ -86,7 +84,6 @@ class MultiassayMetadataTSVDataCollection(DataCollection):
                         response = requests.post(f'{ingest_api_url}assaytype', headers=headers,
                                                  data=json.dumps(this_md[0]))
                         response = response.json()
-                        print(json.dumps(response))
                     except HTTPError as e:
                         if e.response.status_code == codes.unauthorized:
                             raise RuntimeError('ingest_api_connection authorization was rejected?')
@@ -98,14 +95,12 @@ class MultiassayMetadataTSVDataCollection(DataCollection):
                         assert isinstance(this_md, list), 'metadata.tsv did not produce a list'
                         if 'must-contain' in response:
                             print('MULTI ASSAY FOUND')
-                            print(this_md)
                             cl.extend(this_md)
                         else:
                             print('NON MULTI ASSAY FOUND')
                             print(this_md)
 
 
-        print(cl)
         rslt['components'] = cl
         rslt['collectiontype'] = 'multiassay_metadatatsv'
         return rslt
