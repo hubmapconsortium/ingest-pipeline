@@ -83,8 +83,8 @@ class MultiassayMetadataTSVDataCollection(DataCollection):
                     }
 
                     try:
-                        response = requests.post(f'{ingest_api_url}/assaytype', headers=headers,
-                                                 data=json.dumps(this_md))
+                        response = requests.post(f'{ingest_api_url}assaytype', headers=headers,
+                                                 data=json.dumps(this_md[0]))
                         response = response.json()
                         print(json.dumps(response))
                     except HTTPError as e:
