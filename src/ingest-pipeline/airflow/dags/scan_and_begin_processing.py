@@ -214,7 +214,7 @@ with HMDAG(
               )
             ),
             'PYTHON_EXE': os.environ["CONDA_PREFIX"] + "/bin/python",
-            'INGEST_API_URL': HttpHook('POST', http_conn_id='ingest_api_connection').base_url
+            'INGEST_API_URL': HttpHook('POST', http_conn_id='ingest_api_connection').url_from_endpoint('assaytype')
         }
     )
 
