@@ -34,6 +34,10 @@ from submodules import ingest_validation_tests, ingest_validation_tools_error_re
 
 sys.path.pop()
 
+def get_soft_type_url():
+    hook = HttpHook('POST', http_conn_id='ingest_api_connection')
+    return hook.url_from_endpoint('assaytype')
+
 
 def get_dataset_uuid(**kwargs):
     lz_path, uuid = __get_lzpath_uuid(**kwargs)
@@ -214,7 +218,7 @@ with HMDAG(
               )
             ),
             'PYTHON_EXE': os.environ["CONDA_PREFIX"] + "/bin/python",
-            'INGEST_API_URL': HttpHook('POST', http_conn_id='ingest_api_connection').url_from_endpoint('assaytype')
+            'INGEST_API_URL': get_soft_type_url()
         }
     )
 
