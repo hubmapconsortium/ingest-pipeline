@@ -26,6 +26,7 @@ from airflow.configuration import conf as airflow_conf
 from airflow.exceptions import AirflowException
 from airflow.operators.bash import BashOperator
 from airflow.operators.python import BranchPythonOperator, PythonOperator
+from airflow.hooks.http_hook import HttpHook
 
 sys.path.append(airflow_conf.as_dict()["connections"]["SRC_PATH"].strip("'").strip('"'))
 from submodules import ingest_validation_tools_upload  # noqa E402
@@ -204,7 +205,7 @@ with HMDAG(
         fi
         """,
         env={
-            'auth_tok': (
+            'AUTH_TOK': (
               utils.get_auth_tok(
                   **{
                       'crypt_auth_tok': utils.encrypt_tok(
@@ -213,7 +214,8 @@ with HMDAG(
               )
             ),
             'PYTHON_EXE': os.environ["CONDA_PREFIX"] + "/bin/python",
-            }
+            'INGEST_API_URL': HttpHook('POST', http_conn_id='ingest_api_connection').base_url
+        }
     )
 
     t_md_consistency_tests = PythonOperator(

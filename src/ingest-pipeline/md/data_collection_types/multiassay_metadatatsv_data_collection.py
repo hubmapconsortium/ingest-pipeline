@@ -13,7 +13,6 @@ from requests import codes
 from requests.exceptions import HTTPError
 from type_base import MetadataError
 from data_collection import DataCollection
-from airflow.hooks.http_hook import HttpHook
 
 
 class MultiassayMetadataTSVDataCollection(DataCollection):
@@ -57,8 +56,10 @@ class MultiassayMetadataTSVDataCollection(DataCollection):
         assert self.offsetdir is not None, 'Wrong dataset type?'
 
     def collect_metadata(self):
-        auth_tok = os.getenv('auth_tok')
+        auth_tok = os.getenv('AUTH_TOK')
         print(f'THIS IS THE AUTH TOK {auth_tok}')
+        ingest_api_url = os.getenv('INGEST_API_URL')
+        print(f'THIS IS THE INGEST API URL {ingest_api_url}')
         md_type_tbl = self.get_md_type_tbl()
         rslt = {}
         cl = []
@@ -74,8 +75,6 @@ class MultiassayMetadataTSVDataCollection(DataCollection):
                     # Send the metadata file through to the assay classifier to see whether it's the multi-assay metadata or not.
                     # If it is a multi-assay, cl.extend
                     rslt[os.path.relpath(fpath, self.topdir)] = this_md
-                    endpoint = f'/assaytype'
-                    http_hook = HttpHook('POST', http_conn_id='ingest_api_connection')
                     headers = {
                         "authorization": f"Bearer {auth_tok}",
                         'content-type': 'application/json',
@@ -83,11 +82,10 @@ class MultiassayMetadataTSVDataCollection(DataCollection):
                     }
 
                     try:
-                        response = http_hook.run(endpoint,
-                                                 headers=headers,
+                        response = requests.post(f'{ingest_api_url}/assaytype', headers=headers,
                                                  data=json.dumps(this_md))
-                        response.raise_for_status()
                         response = response.json()
+                        print(json.dumps(response))
                     except HTTPError as e:
                         if e.response.status_code == codes.unauthorized:
                             raise RuntimeError('ingest_api_connection authorization was rejected?')
