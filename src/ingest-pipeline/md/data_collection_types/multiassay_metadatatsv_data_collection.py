@@ -95,7 +95,22 @@ class MultiassayMetadataTSVDataCollection(DataCollection):
                         assert isinstance(this_md, list), 'metadata.tsv did not produce a list'
                         if 'must-contain' in response:
                             print('MULTI ASSAY FOUND')
-                            cl.extend(this_md)
+                            for rec in this_md:
+                                for key in ['dataset_type', 'data_path', 'contributors_path']:
+                                    assert key in rec, 'metadata.tsv does not have a "{}" column'.format(key)
+                                this_dict = {'metadata': rec}
+                                for sub_key, dict_key in [('contributors_path', 'contributors'),
+                                                          ('antibodies_path', 'antibodies')]:
+                                    if sub_key in rec:
+                                        assert rec[sub_key].endswith('.tsv'), ('TSV file expected, received "{}"'
+                                                                               .format(rec[sub_key]))
+                                        sub_path = os.path.join(os.path.dirname(fpath),
+                                                                rec[sub_key])
+                                        sub_parser = md_type_tbl['TSV'](sub_path)
+                                        sub_md = sub_parser.collect_metadata()
+                                        this_dict[dict_key] = sub_md
+                                cl.append(this_dict)
+                                print(this_dict)
                         else:
                             print('NON MULTI ASSAY FOUND')
                         print(this_md)
