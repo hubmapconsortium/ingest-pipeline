@@ -14,6 +14,7 @@ from utils import (
     HMDAG,
     get_queue_resource,
     get_preserve_scratch_resource,
+    get_soft_data_type
 )
 
 
@@ -102,17 +103,9 @@ with HMDAG('launch_multi_analysis',
         filtered_md_l = []
         for uuid in uuid_l:
             uuid, dt, lz_path, metadata = check_one_uuid(uuid, **kwargs)
-            if isinstance(dt, list):
-                if dt:
-                    if len(dt) == 1:
-                        filtered_data_types.append(dt[0])
-                    else:
-                        filtered_data_types.append(tuple(dt))
-                else:
-                    raise AirflowException(f'Dataset data_types for {uuid} is empty')
-            else:
-                filtered_data_types.append(dt)
-
+            soft_data_type = get_soft_data_type(uuid, **kwargs)
+            print(f'Got {soft_data_type} as the soft_data_type for UUID {uuid}')
+            filtered_data_types.append(soft_data_type)
             filtered_path_l.append(lz_path)
             filtered_uuid_l.append(uuid)
             filtered_md_l.append(metadata)

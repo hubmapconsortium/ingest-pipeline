@@ -1594,22 +1594,6 @@ def _get_type_client() -> TypeClient:
     return TYPE_CLIENT
 
 
-def _canonicalize_assay_type_if_possible(assay_type: StrOrListStr) -> StrOrListStr:
-    """
-    Attempt to look up the assay type (or each element if it is a list) and
-    return the canonical version.
-    """
-    if isinstance(assay_type, list):
-        return [_canonicalize_assay_type_if_possible(elt) for elt in assay_type]
-    else:
-        try:
-            type_info = _get_type_client().getAssayType(assay_type)
-            assay_type = type_info.name
-        except Exception:
-            pass
-        return assay_type
-
-
 def downstream_workflow_iter(collectiontype: str, assay_type: StrOrListStr) -> Iterable[str]:
     """
     Returns an iterator over zero or more workflow names matching the given
@@ -1617,7 +1601,6 @@ def downstream_workflow_iter(collectiontype: str, assay_type: StrOrListStr) -> I
     a known workflow, e.g. an Airflow DAG implemented by workflow_name.py .
     """
     collectiontype = collectiontype or ""
-    assay_type = _canonicalize_assay_type_if_possible(assay_type)
     assay_type = assay_type or ""
     for ct_re, at_re, workflow in _get_workflow_map():
         if isinstance(assay_type, str):
@@ -1667,6 +1650,35 @@ def find_matching_endpoint(host_url: str) -> str:
     ]
     assert len(candidates) == 1, f"Found {candidates}, expected 1 match"
     return candidates[0]
+
+
+def get_soft_data_type(dataset_uuid, **kwargs) -> str:
+    """
+    Gets the soft data type for a specific uuid.
+    """
+    endpoint = f'/assaytype/{dataset_uuid}'
+    http_hook = HttpHook('GET', http_conn_id='ingest_api_connection')
+    headers = {
+        "authorization": "Bearer " + get_auth_tok(**kwargs),
+        'content-type': 'application/json',
+        'X-Hubmap-Application': 'ingest-pipeline',
+    }
+    try:
+        response = http_hook.run(endpoint,
+                                 headers=headers)
+        response.raise_for_status()
+        response = response.json()
+        print(f'rule_set response for {dataset_uuid} follows')
+        pprint(response)
+    except HTTPError as e:
+        print(f'ERROR: {e} fetching full path for {dataset_uuid}')
+        if e.response.status_code == codes.unauthorized:
+            raise RuntimeError('ingest_api_connection authorization was rejected?')
+        else:
+            print('benign error')
+            return None
+    assert 'assaytype' in response, f'Could not find matching assaytype for {dataset_uuid}'
+    return response['assaytype']
 
 
 def main():
