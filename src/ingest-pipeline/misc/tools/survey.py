@@ -612,7 +612,7 @@ class EntityFactory:
         assert (instance is None
                 or instance in ['PROD', 'STAGE', 'TEST', 'DEV']), 'invalid instance'
         self.instance = instance or 'PROD'
-        self.type_client = TypeClient(ENDPOINTS[self.instance]['assay_info_url'])
+        # self.type_client = TypeClient(ENDPOINTS[self.instance]['assay_info_url'])
 
     def fetch_new_dataset_table(self):
         """
@@ -702,7 +702,7 @@ class EntityFactory:
         ingest_url = ENDPOINTS[self.instance]['ingest_url']
         data = {"provider_info": provider_info,
                 "contains_human_genetic_sequences": contains_human_genetic_sequences,
-                "data_types": [assay_type],
+                "dataset_type": assay_type,
                 "direct_ancestor_uuids": direct_ancestor_uuids,
                 "group_uuid": group_uuid,
                 "description": description}

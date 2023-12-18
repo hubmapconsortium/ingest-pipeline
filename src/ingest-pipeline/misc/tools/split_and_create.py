@@ -11,6 +11,7 @@ from typing import List, TypeVar
 
 import pandas as pd
 from status_change.status_manager import StatusChanger, Statuses
+from extra_utils import SoftAssayClient
 
 # There has got to be a better solution for this, but I can't find it
 try:
@@ -87,20 +88,25 @@ def create_fake_uuid_generator():
         yield rslt
 
 
-def get_canonical_assay_type(row, entity_factory, default_type):
-    """
-    Convert assay type to canonical form, with fallback
-    """
-    try:
-        rslt = entity_factory.type_client.getAssayType(row["assay_type"]).name
-    except Exception:
-        print(f"fallback {row['assay_type']} {default_type}")
-        rslt = FALLBACK_ASSAY_TYPE_TRANSLATIONS.get(row["assay_type"], default_type)
-    print(f"{row['assay_type']} -> {rslt}")
-    return rslt
+# def get_canonical_assay_type(row, entity_factory, default_type):
+#     """
+#     Convert assay type to canonical form, with fallback
+#     """
+#     try:
+#         rslt = entity_factory.type_client.getAssayType(row["assay_type"]).name
+#     except Exception:
+#         print(f"fallback {row['assay_type']} {default_type}")
+#         rslt = FALLBACK_ASSAY_TYPE_TRANSLATIONS.get(row["assay_type"], default_type)
+#     print(f"{row['assay_type']} -> {rslt}")
+#     return rslt
 
 
-def create_new_uuid(row, source_entity, entity_factory, dryrun=False):
+def get_canonical_assay_type(row, assaytype):
+    print(f"Returning {assaytype} for {row['assay_type']}")
+    return assaytype
+
+
+def create_new_uuid(row, source_entity, entity_factory, primary_entity, dryrun=False):
     """
     Use the entity_factory to create a new dataset, with safety checks
     """
@@ -123,13 +129,7 @@ def create_new_uuid(row, source_entity, entity_factory, dryrun=False):
             info_txt_root = f"Upload {source_entity.prop_dct['hubmap_id']}"
     assert info_txt_root is not None, "Expected a Dataset or an Upload"
     info_txt = info_txt_root + " : " + rec_identifier
-    try:
-        type_info = entity_factory.type_client.getAssayType(canonical_assay_type)
-    except Exception:
-        print(f"tried {orig_assay_type}, canoncal version {canonical_assay_type}")
-        print(f"options are {list(entity_factory.type_client.iterAssayNames())}")
-        type_info = entity_factory.type_client.getAssayType(orig_assay_type)
-    contains_human_genetic_sequences = type_info.contains_pii
+    contains_human_genetic_sequences = primary_entity.get("contains-pii")
     # Check consistency in case this is a Dataset, which will have this info
     if "contains_human_genetic_sequences" in source_entity.prop_dct:
         assert (
@@ -344,25 +344,28 @@ def reorganize(source_uuid, **kwargs) -> None:
     print(f"Decomposing {source_uuid}")
     source_entity = entity_factory.get(source_uuid)
     if mode in ["all", "stop"]:
-        if hasattr(source_entity, "data_types"):
+        if hasattr(source_entity, "dataset_type"):
+            # ToDo: review this change to dataset_type
             assert isinstance(source_entity.data_types, str)
             source_data_types = source_entity.data_types
         else:
             source_data_types = None
-        source_metadata_files = list(source_entity.full_path.glob("*metadata.tsv"))
-        for src_idx, smf in enumerate(source_metadata_files):
+        full_entity = SoftAssayClient(
+            list(source_entity.full_path.glob("*metadata.tsv")), instance, auth_tok
+        )
+        for src_idx, smf in enumerate(full_entity.primary_assay.get("metadata_file")):
             source_df = pd.read_csv(smf, sep="\t")
             source_df["canonical_assay_type"] = source_df.apply(
                 get_canonical_assay_type,
                 axis=1,
-                entity_factory=entity_factory,
-                default_type=source_data_types,
+                assay_type=full_entity.primary_assay.get("assaytype"),
             )
             source_df["new_uuid"] = source_df.apply(
                 create_new_uuid,
                 axis=1,
                 source_entity=source_entity,
                 entity_factory=entity_factory,
+                primary_entity=full_entity.primary_assay,
                 dryrun=dryrun,
             )
             source_df = apply_special_case_transformations(source_df, source_data_types)
@@ -377,8 +380,10 @@ def reorganize(source_uuid, **kwargs) -> None:
     if mode in ["all", "unstop"]:
         dag_config = {"uuid_list": [], "collection_type": ""}
         child_uuid_list = []
-        source_metadata_files = list(source_entity.full_path.glob("*metadata.tsv"))
-        for src_idx, _ in enumerate(source_metadata_files):
+        full_entity = SoftAssayClient(
+            list(source_entity.full_path.glob("*metadata.tsv")), instance, auth_tok
+        )
+        for src_idx, _ in enumerate(full_entity.primary_assay.get("metadata_file")):
             this_frozen_df_fname = frozen_df_fname.format("_" + str(src_idx))
             source_df = pd.read_csv(this_frozen_df_fname, sep="\t")
             print(f"read {this_frozen_df_fname}")

@@ -84,7 +84,7 @@ with HMDAG('reorganize_upload',
         print('ds_rslt:')
         pprint(ds_rslt)
 
-        for key in ['entity_type', 'status', 'uuid', 'data_types',
+        for key in ['entity_type', 'status', 'uuid', 'dataset_type',
                     'local_directory_full_path']:
             assert key in ds_rslt, f"Dataset status for {uuid} has no {key}"
 
