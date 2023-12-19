@@ -42,6 +42,7 @@ class SoftAssayClient:
     def __init__(self, metadata_files: List, auth_tok: str):
         self.assay_components = []
         self.primary_assay = {}
+        self.is_multiassay = True
         for metadata_file in metadata_files:
             try:
                 rows = self.__read_rows(metadata_file, encoding="UTF-8")
@@ -69,6 +70,7 @@ class SoftAssayClient:
                 print(f"Primary {self.primary_assay}")
         if not self.primary_assay and len(self.assay_components) == 1:
             self.primary_assay = self.assay_components.pop()
+            self.is_multiassay = False
 
     def __get_assaytype_data(
         self,

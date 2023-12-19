@@ -369,6 +369,7 @@ def reorganize(source_uuid, **kwargs) -> Any[list, None]:
     verbose = kwargs.get("verbose", False)
     dag_config = {}
     child_uuid_list = []
+    is_multiassay = False
 
     entity_factory = EntityFactory(auth_tok, instance=instance)
 
@@ -437,7 +438,7 @@ def reorganize(source_uuid, **kwargs) -> Any[list, None]:
                         time.sleep(30)
 
     print(json.dumps(dag_config))
-    return child_uuid_list, False
+    return child_uuid_list, full_entity.is_multiassay
 
 
 def main():
