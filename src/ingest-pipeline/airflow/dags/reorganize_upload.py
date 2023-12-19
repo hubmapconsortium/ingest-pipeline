@@ -178,9 +178,7 @@ with HMDAG(
                 def my_callable(**kwargs):
                     return uuid
 
-                ds_rslt = pythonop_get_dataset_state(
-                    dataset_uuid_callable=my_callable, **kwargs
-                )
+                ds_rslt = pythonop_get_dataset_state(dataset_uuid_callable=my_callable, **kwargs)
                 if not ds_rslt:
                     raise AirflowException(f"Invalid uuid/doi for group: {uuid}")
                 print("ds_rslt:")
@@ -205,15 +203,13 @@ with HMDAG(
                 work_dirs.append(ds_rslt["local_directory_full_path"])
             work_dirs = " ".join(work_dirs)
             kwargs["ti"].xcom_push(key="child_work_dirs", value=work_dirs)
+            kwargs["ti"].xcom_push(key="child_uuid_list", value=child_uuid_list)
         except Exception as e:
             print(f"Encountered {e}")
             kwargs["ti"].xcom_push(key="split_stage_2", value="1")  # signal failure
 
     t_split_stage_2 = PythonOperator(
-        task_id="split_stage_2",
-        python_callable=split_stage_2,
-        provide_context=True,
-        op_kwargs={}
+        task_id="split_stage_2", python_callable=split_stage_2, provide_context=True, op_kwargs={}
     )
 
     t_maybe_keep_2 = BranchPythonOperator(
@@ -258,7 +254,7 @@ with HMDAG(
             ),
             "PYTHON_EXE": os.environ["CONDA_PREFIX"] + "/bin/python",
             "INGEST_API_URL": os.environ["AIRFLOW_CONN_INGEST_API_CONNECTION"],
-            "WORK_DIRS": t_split_stage_2.xcom_pull("child_work_dirs")
+            "WORK_DIRS": t_split_stage_2.xcom_pull("child_work_dirs"),
         },
     )
 
@@ -266,8 +262,10 @@ with HMDAG(
         task_id="md_consistency_tests",
         python_callable=utils.pythonop_md_consistency_tests,
         provide_context=True,
-        op_kwargs={"metadata_fname": "rslt.yml",
-                   "work_dirs": t_split_stage_2.xcom_pull("child_work_dirs")},
+        op_kwargs={
+            "metadata_fname": "rslt.yml",
+            "uuid_list": t_split_stage_2.xcom_pull("child_uuid_list"),
+        },
     )
 
     t_log_info = LogInfoOperator(task_id="log_info")
@@ -295,10 +293,13 @@ with HMDAG(
         >> t_maybe_keep_2
         >> t_run_md_extract
         >> t_md_consistency_tests
+        # ToDo:
+        #  Send extracted metadata.
         >> t_join
         >> t_preserve_info
         >> t_cleanup_tmpdir
-        # ToDo: multiassay downstream for create dataset components and build metadata
+        # ToDo:
+        #  multiassay downstream for create dataset components and build metadata.
     )
 
     t_maybe_keep_1 >> t_set_dataset_error

@@ -1082,11 +1082,11 @@ def pythonop_md_consistency_tests(**kwargs) -> int:
     Perform simple consistency checks of the metadata stored as YAML in kwargs['metadata_fname'].
     This includes accessing the UUID api via its Airflow connection ID to verify uuids.
     """
-    if "work_dirs" in kwargs and kwargs["work_dirs"]:
-        for work_dir in kwargs["work_dirs"]:
+    if "uuid_list" in kwargs:
+        for uuid in kwargs["uuid_list"]:
             md_path = join(
                 get_tmp_dir_path(kwargs["rund_id"]),
-                work_dir.split("/")[-1] + "-" + kwargs["metadata_fname"],
+                uuid + "-" + kwargs["metadata_fname"],
             )
             if exists(md_path):
                 with open(md_path, "r") as f:
