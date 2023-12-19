@@ -62,7 +62,7 @@ class CustomOAuthView(AuthOAuthView):
         self.globus_oauth.oauth2_start_flow(redirect_url)
 
         if 'code' not in request.args:
-            auth_uri = self.globus_oauth.oauth2_get_authorize_url(query_params  ={
+            auth_uri = self.globus_oauth.oauth2_get_authorize_url(query_params={
                 "scope": "openid profile email urn:globus:auth:scope:transfer.api.globus.org:all "
                          "urn:globus:auth:scope:auth.globus.org:view_identities "
                          "urn:globus:auth:scope:groups.api.globus.org:all"})

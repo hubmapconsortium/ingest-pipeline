@@ -115,7 +115,6 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
             command = [
                 *get_cwltool_base_cmd(tmpdir),
                 "--relax-path-checks",
-                "--debug",
                 "--outdir",
                 tmpdir / "cwl_out",
                 "--parallel",
@@ -153,7 +152,9 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
                 "--matrix",
                 "expr.h5ad",
                 "--secondary-analysis-matrix",
-                "secondary_analysis.h5ad"
+                "secondary_analysis.h5ad",
+                "--assay",
+                params.assay
             ]
 
             return join_quote_command_str(command)

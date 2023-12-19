@@ -1,0 +1,19 @@
+'$schema': 'http://json-schema.org/schema#'
+'$id': 'http://schemata.hubmapconsortium.org/export_and_backup_schema.yml'
+'title': 'export_and_backup metadata schema'
+'description': 'export_and_backup metadata schema'
+
+'allOf': [{'$ref': '#/definitions/export_and_backup'}]
+
+'definitions':
+
+  'export_and_backup':
+     'type': 'object'
+     'properties':
+        'uuids':
+          'type': 'array'
+          'items':
+            'type': 'string'
+            'description': 'a dataset uuid or DOI'
+          'minItems': 1
+     'required': ['uuids']
