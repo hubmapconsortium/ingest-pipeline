@@ -1,5 +1,6 @@
 import os
 import yaml
+import utils
 from pprint import pprint
 
 from airflow.operators.bash import BashOperator
@@ -131,14 +132,26 @@ with HMDAG('rebuild_metadata',
             work_dir="{{tmp_dir_path(run_id)}}" ; \
             cd $work_dir ; \
             env PYTHONPATH=${PYTHONPATH}:$top_dir \
-            python $src_dir/metadata_extract.py --out ./rslt.yml --yaml "$lz_dir" \
+            ${PYTHON_EXE} $src_dir/metadata_extract.py --out ./rslt.yml --yaml "$lz_dir" \
               >> session.log 2> error.log ; \
             echo $? ; \
             if [ -s error.log ] ; \
             then echo 'ERROR!' `cat error.log` >> session.log ; \
             else rm error.log ; \
             fi
-            """
+            """,
+        env={
+            'AUTH_TOK': (
+                utils.get_auth_tok(
+                    **{
+                        'crypt_auth_tok': utils.encrypt_tok(
+                            airflow_conf.as_dict()['connections']['APP_CLIENT_SECRET']).decode()
+                    }
+                )
+            ),
+            'PYTHON_EXE': os.environ["CONDA_PREFIX"] + "/bin/python",
+            'INGEST_API_URL': os.environ["AIRFLOW_CONN_INGEST_API_CONNECTION"]
+        }
     )
 
     t_md_consistency_tests = PythonOperator(
