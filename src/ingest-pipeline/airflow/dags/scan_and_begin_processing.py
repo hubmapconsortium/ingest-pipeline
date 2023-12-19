@@ -19,14 +19,12 @@ from utils import (
     make_send_status_msg_function,
     pythonop_get_dataset_state,
     pythonop_maybe_keep,
-    get_soft_data_type,
 )
 
 from airflow.configuration import conf as airflow_conf
 from airflow.exceptions import AirflowException
 from airflow.operators.bash import BashOperator
 from airflow.operators.python import BranchPythonOperator, PythonOperator
-from airflow.hooks.http_hook import HttpHook
 
 sys.path.append(airflow_conf.as_dict()["connections"]["SRC_PATH"].strip("'").strip('"'))
 from submodules import ingest_validation_tools_upload  # noqa E402
@@ -68,7 +66,7 @@ with HMDAG(
     default_args=default_args,
     user_defined_macros={
         "tmp_dir_path": utils.get_tmp_dir_path,
-        "preserve_scratch": get_preserve_scratch_resource("scan_and_begin_processing")
+        "preserve_scratch": get_preserve_scratch_resource("scan_and_begin_processing"),
     },
 ) as dag:
 
@@ -121,6 +119,7 @@ with HMDAG(
             add_notes=False,
             ignore_deprecation=True,
             globus_token=get_auth_tok(**kwargs),
+            cedar_api_key=airflow_conf.as_dict()["connections"]["CEDAR_API_KEY"],
         )
         # Scan reports an error result
         errors = upload.get_errors(plugin_kwargs=kwargs)
@@ -155,16 +154,19 @@ with HMDAG(
     )
 
     def wrapped_send_status_msg(**kwargs):
-        lz_path, uuid = __get_lzpath_uuid(**kwargs)
         if send_status_msg(**kwargs):
             scanned_md = read_metadata_file(**kwargs)  # Yes, it's getting re-read
             kwargs["ti"].xcom_push(
                 key="collectiontype",
                 value=(scanned_md["collectiontype"] if "collectiontype" in scanned_md else None),
             )
-            soft_data_type = get_soft_data_type(uuid, **kwargs)
-            print(f'Got {soft_data_type} as the soft_data_type for UUID {uuid}')
-            kwargs["ti"].xcom_push(key="assay_type", value=soft_data_type)
+            if "assay_type" in scanned_md:
+                assay_type = scanned_md["assay_type"]
+            elif "metadata" in scanned_md and "assay_type" in scanned_md["metadata"]:
+                assay_type = scanned_md["metadata"]["assay_type"]
+            else:
+                assay_type = None
+            kwargs["ti"].xcom_push(key="assay_type", value=assay_type)
         else:
             kwargs["ti"].xcom_push(key="collectiontype", value=None)
 
@@ -188,7 +190,7 @@ with HMDAG(
         work_dir="{{tmp_dir_path(run_id)}}" ; \
         cd $work_dir ; \
         env PYTHONPATH=${PYTHONPATH}:$top_dir \
-        ${PYTHON_EXE} $src_dir/metadata_extract.py --out ./rslt.yml --yaml "$lz_dir" \
+        python $src_dir/metadata_extract.py --out ./rslt.yml --yaml "$lz_dir" \
           >> session.log 2> error.log ; \
         echo $? ; \
         if [ -s error.log ] ; \
@@ -196,18 +198,6 @@ with HMDAG(
         else rm error.log ; \
         fi
         """,
-        env={
-            'AUTH_TOK': (
-              utils.get_auth_tok(
-                  **{
-                      'crypt_auth_tok': utils.encrypt_tok(
-                          airflow_conf.as_dict()['connections']['APP_CLIENT_SECRET']).decode()
-                  }
-              )
-            ),
-            'PYTHON_EXE': os.environ["CONDA_PREFIX"] + "/bin/python",
-            'INGEST_API_URL': os.environ["AIRFLOW_CONN_INGEST_API_CONNECTION"]
-        }
     )
 
     t_md_consistency_tests = PythonOperator(

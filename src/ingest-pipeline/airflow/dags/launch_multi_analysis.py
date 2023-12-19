@@ -14,17 +14,14 @@ from utils import (
     HMDAG,
     get_queue_resource,
     get_preserve_scratch_resource,
-    get_soft_data_type
 )
-
-from extra_utils import check_link_published_drvs
 
 
 def get_uuid_for_error(**kwargs):
     """
     Return the uuid for the derived dataset if it exists, and of the parent dataset otherwise.
     """
-    return ''
+    return None
 
 
 default_args = {
@@ -51,7 +48,7 @@ with HMDAG('launch_multi_analysis',
                'preserve_scratch': get_preserve_scratch_resource('launch_multi_analysis')
            }) as dag:
 
-    def check_one_uuid(uuid: str, previous_version_uuid: str, avoid_previous_version: bool, **kwargs):
+    def check_one_uuid(uuid, **kwargs):
         """
         Look up information on the given uuid or HuBMAP identifier.
         Returns:
@@ -79,13 +76,8 @@ with HMDAG('launch_multi_analysis',
             dt = ast.literal_eval(dt)
             print(f'parsed dt: {dt}')
 
-        if not previous_version_uuid and not avoid_previous_version:
-            previous_status, previous_uuid = check_link_published_drvs(uuid)
-            if previous_status:
-                previous_version_uuid = previous_uuid
-
         return (ds_rslt['uuid'], dt, ds_rslt['local_directory_full_path'],
-                ds_rslt['metadata'], previous_version_uuid)
+                ds_rslt['metadata'])
 
 
     def check_uuids(**kwargs):
@@ -102,23 +94,30 @@ with HMDAG('launch_multi_analysis',
         
         uuid_l = kwargs['dag_run'].conf['uuid_list']
         collection_type = kwargs['dag_run'].conf['collection_type']
-        prev_version_uuid = kwargs['dag_run'].conf.get('previous_version_uuid', None)
-        avoid_previous_version = kwargs['dag_run'].conf.get('avoid_previous_version_find', False)
+        prev_version_uuid = kwargs['dag_run'].conf.get('previous_version_uuid',
+                                                       None)
         filtered_uuid_l = []
         filtered_path_l = []
         filtered_data_types = []
         filtered_md_l = []
         for uuid in uuid_l:
-            uuid, dt, lz_path, metadata, prev_version_uuid = check_one_uuid(uuid, prev_version_uuid,
-                                                                            avoid_previous_version, **kwargs)
-            soft_data_type = get_soft_data_type(uuid, **kwargs)
-            print(f'Got {soft_data_type} as the soft_data_type for UUID {uuid}')
-            filtered_data_types.append(soft_data_type)
+            uuid, dt, lz_path, metadata = check_one_uuid(uuid, **kwargs)
+            if isinstance(dt, list):
+                if dt:
+                    if len(dt) == 1:
+                        filtered_data_types.append(dt[0])
+                    else:
+                        filtered_data_types.append(tuple(dt))
+                else:
+                    raise AirflowException(f'Dataset data_types for {uuid} is empty')
+            else:
+                filtered_data_types.append(dt)
+
             filtered_path_l.append(lz_path)
             filtered_uuid_l.append(uuid)
             filtered_md_l.append(metadata)
         if prev_version_uuid is not None:
-            prev_version_uuid = check_one_uuid(prev_version_uuid, '', False, **kwargs)[0]
+            prev_version_uuid = check_one_uuid(prev_version_uuid, **kwargs)[0]
         # print(f'Finished uuid {uuid}')
         print(f'filtered data types: {filtered_data_types}')
         print(f'filtered paths: {filtered_path_l}')

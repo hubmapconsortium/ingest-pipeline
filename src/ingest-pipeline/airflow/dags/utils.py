@@ -36,7 +36,7 @@ from hubmap_commons.schema_tools import assert_json_matches_schema, set_schema_b
 from hubmap_commons.type_client import TypeClient
 from requests import codes
 from requests.exceptions import HTTPError
-from status_change.status_manager import StatusChanger, StatusChangerException
+from status_change.status_manager import StatusChanger
 
 from airflow import DAG
 from airflow.configuration import conf as airflow_conf
@@ -903,7 +903,7 @@ def restructure_entity_metadata(raw_metadata: JSONType) -> JSONType:
     return md
 
 
-def pythonop_get_dataset_state(**kwargs) -> Dict:
+def pythonop_get_dataset_state(**kwargs) -> JSONType:
     """
     Gets the status JSON structure for a dataset.  Works for Uploads
     and Publications as well as Datasets.
@@ -947,7 +947,7 @@ def pythonop_get_dataset_state(**kwargs) -> Dict:
     if ds_rslt["entity_type"] in ["Dataset", "Publication"]:
         assert "data_types" in ds_rslt, f"Dataset status for {uuid} has no data_types"
         data_types = ds_rslt["data_types"]
-        dataset_info = ds_rslt.get("dataset_info", "")
+        dataset_info = ds_rslt["dataset_info"]
         parent_dataset_uuid_list = [
             ancestor["uuid"]
             for ancestor in ds_rslt["direct_ancestors"]
@@ -1254,10 +1254,6 @@ def make_send_status_msg_function(
         status = None
         extra_fields = {}
 
-        def my_callable(**kwargs):
-            return dataset_uuid
-
-        ds_rslt = pythonop_get_dataset_state(dataset_uuid_callable=my_callable, **kwargs)
         if success:
             md = {}
             files_for_provenance = [dag_file, *cwl_workflows]
@@ -1321,6 +1317,10 @@ def make_send_status_msg_function(
                         if __is_true(val=v):
                             contacts.append(contrib)
 
+            def my_callable(**kwargs):
+                return dataset_uuid
+
+            ds_rslt = pythonop_get_dataset_state(dataset_uuid_callable=my_callable, **kwargs)
             if not ds_rslt:
                 status = "QA"
             else:
@@ -1368,20 +1368,16 @@ def make_send_status_msg_function(
             }
             return_status = False
         entity_type = ds_rslt.get("entity_type")
-        if status:
-            try:
-                StatusChanger(
-                    dataset_uuid,
-                    get_auth_tok(**kwargs),
-                    status,
-                    {
-                        "extra_fields": extra_fields,
-                        "extra_options": {},
-                    },
-                    entity_type=entity_type if entity_type else None,
-                ).on_status_change()
-            except StatusChangerException:
-                return_status = False
+        StatusChanger(
+            dataset_uuid,
+            get_auth_tok(**kwargs),
+            status,
+            {
+                "extra_fields": extra_fields,
+                "extra_options": {},
+            },
+            entity_type=entity_type if entity_type else None,
+        ).on_status_change()
 
         return return_status
 
@@ -1594,6 +1590,22 @@ def _get_type_client() -> TypeClient:
     return TYPE_CLIENT
 
 
+def _canonicalize_assay_type_if_possible(assay_type: StrOrListStr) -> StrOrListStr:
+    """
+    Attempt to look up the assay type (or each element if it is a list) and
+    return the canonical version.
+    """
+    if isinstance(assay_type, list):
+        return [_canonicalize_assay_type_if_possible(elt) for elt in assay_type]
+    else:
+        try:
+            type_info = _get_type_client().getAssayType(assay_type)
+            assay_type = type_info.name
+        except Exception:
+            pass
+        return assay_type
+
+
 def downstream_workflow_iter(collectiontype: str, assay_type: StrOrListStr) -> Iterable[str]:
     """
     Returns an iterator over zero or more workflow names matching the given
@@ -1601,6 +1613,7 @@ def downstream_workflow_iter(collectiontype: str, assay_type: StrOrListStr) -> I
     a known workflow, e.g. an Airflow DAG implemented by workflow_name.py .
     """
     collectiontype = collectiontype or ""
+    assay_type = _canonicalize_assay_type_if_possible(assay_type)
     assay_type = assay_type or ""
     for ct_re, at_re, workflow in _get_workflow_map():
         if isinstance(assay_type, str):
@@ -1650,35 +1663,6 @@ def find_matching_endpoint(host_url: str) -> str:
     ]
     assert len(candidates) == 1, f"Found {candidates}, expected 1 match"
     return candidates[0]
-
-
-def get_soft_data_type(dataset_uuid, **kwargs) -> str:
-    """
-    Gets the soft data type for a specific uuid.
-    """
-    endpoint = f'/assaytype/{dataset_uuid}'
-    http_hook = HttpHook('GET', http_conn_id='ingest_api_connection')
-    headers = {
-        "authorization": "Bearer " + get_auth_tok(**kwargs),
-        'content-type': 'application/json',
-        'X-Hubmap-Application': 'ingest-pipeline',
-    }
-    try:
-        response = http_hook.run(endpoint,
-                                 headers=headers)
-        response.raise_for_status()
-        response = response.json()
-        print(f'rule_set response for {dataset_uuid} follows')
-        pprint(response)
-    except HTTPError as e:
-        print(f'ERROR: {e} fetching full path for {dataset_uuid}')
-        if e.response.status_code == codes.unauthorized:
-            raise RuntimeError('ingest_api_connection authorization was rejected?')
-        else:
-            print('benign error')
-            return None
-    assert 'assaytype' in response, f'Could not find matching assaytype for {dataset_uuid}'
-    return response['assaytype']
 
 
 def main():
