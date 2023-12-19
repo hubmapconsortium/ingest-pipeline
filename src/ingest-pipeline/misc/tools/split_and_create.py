@@ -173,7 +173,7 @@ def create_new_uuid(row, source_entity, entity_factory, primary_entity, dryrun=F
         return rslt["uuid"]
 
 
-def populate(row, source_entity, entity_factory, dryrun=False):
+def populate(row, source_entity, entity_factory, dryrun=False, components=None):
     """
     Build the contents of the newly created dataset using info from the parent
     """
@@ -199,8 +199,32 @@ def populate(row, source_entity, entity_factory, dryrun=False):
         print(row_df)
     else:
         kid_path = Path(entity_factory.get_full_path(uuid))
+
     row_df.to_csv(kid_path / f"{uuid}-metadata.tsv", header=True, sep="\t", index=False)
     extras_path = kid_path / "extras"
+
+    # ToDo read all component metadata files find the matching row for old_data_path and then refactor info
+    #  as main metadata above before creating the new component metadata tsv
+    if components is not None:
+        for component in components:
+            component_df = pd.read_csv(component.get("metadata-file"))
+            row_component = component_df.query(f'data_path=="{old_data_path}"')
+            assert len(row_component) == 0, f"No matching metadata found for {component.get('assaytype')}"
+            old_component_data_path = row_component["data_path"]
+            row_component["data_path"] = "."
+            old_component_contrib_path = Path(row_component["contributors_path"])
+            new_component_contrib_path = Path("extras") / old_component_contrib_path.name
+            row_component["contributors_path"] = str(new_component_contrib_path)
+            if "antibodies_path" in row_component:
+                old_component_antibodies_path = Path(row["antibodies_path"])
+                new_component_antibodies_path = Path("extras") / old_component_antibodies_path.name
+                row_component["antibodies_path"] = str(new_component_antibodies_path)
+                if dryrun:
+                    print(f"copy {old_component_antibodies_path} to {extras_path}")
+                else:
+                    copy2(source_entity.full_path / old_component_antibodies_path, extras_path)
+            row_component.to_csv(kid_path / f"{component.get('assaytype')}-metadata.csv", header=True, sep="\t",
+                                 index=False)
     if extras_path.exists():
         assert extras_path.is_dir(), f"{extras_path} is not a directory"
     else:
@@ -353,7 +377,7 @@ def reorganize(source_uuid, **kwargs) -> None:
         full_entity = SoftAssayClient(
             list(source_entity.full_path.glob("*metadata.tsv")), instance, auth_tok
         )
-        for src_idx, smf in enumerate(full_entity.primary_assay.get("metadata_file")):
+        for src_idx, smf in enumerate(full_entity.primary_assay.get("metadata-file")):
             source_df = pd.read_csv(smf, sep="\t")
             source_df["canonical_assay_type"] = source_df.apply(
                 get_canonical_assay_type,
@@ -383,7 +407,7 @@ def reorganize(source_uuid, **kwargs) -> None:
         full_entity = SoftAssayClient(
             list(source_entity.full_path.glob("*metadata.tsv")), instance, auth_tok
         )
-        for src_idx, _ in enumerate(full_entity.primary_assay.get("metadata_file")):
+        for src_idx, _ in enumerate(full_entity.primary_assay.get("metadata-file")):
             this_frozen_df_fname = frozen_df_fname.format("_" + str(src_idx))
             source_df = pd.read_csv(this_frozen_df_fname, sep="\t")
             print(f"read {this_frozen_df_fname}")
@@ -391,7 +415,7 @@ def reorganize(source_uuid, **kwargs) -> None:
             for _, row in source_df.iterrows():
                 dag_config["uuid_list"].append(row["new_uuid"])
                 child_uuid_list.append(row["new_uuid"])
-                populate(row, source_entity, entity_factory, dryrun=dryrun)
+                populate(row, source_entity, entity_factory, dryrun=dryrun, components=full_entity.assay_components)
 
         update_upload_entity(child_uuid_list, source_entity, dryrun=dryrun, verbose=verbose)
 
