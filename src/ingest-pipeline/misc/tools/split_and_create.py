@@ -7,7 +7,7 @@ import time
 from pathlib import Path
 from pprint import pprint
 from shutil import copy2, copytree
-from typing import List, TypeVar
+from typing import List, TypeVar, Any
 
 import pandas as pd
 from status_change.status_manager import StatusChanger, Statuses
@@ -209,7 +209,9 @@ def populate(row, source_entity, entity_factory, dryrun=False, components=None):
         for component in components:
             component_df = pd.read_csv(component.get("metadata-file"))
             row_component = component_df.query(f'data_path=="{old_data_path}"')
-            assert len(row_component) == 0, f"No matching metadata found for {component.get('assaytype')}"
+            assert (
+                len(row_component) == 0
+            ), f"No matching metadata found for {component.get('assaytype')}"
             old_component_data_path = row_component["data_path"]
             row_component["data_path"] = "."
             old_component_contrib_path = Path(row_component["contributors_path"])
@@ -223,8 +225,12 @@ def populate(row, source_entity, entity_factory, dryrun=False, components=None):
                     print(f"copy {old_component_antibodies_path} to {extras_path}")
                 else:
                     copy2(source_entity.full_path / old_component_antibodies_path, extras_path)
-            row_component.to_csv(kid_path / f"{component.get('assaytype')}-metadata.csv", header=True, sep="\t",
-                                 index=False)
+            row_component.to_csv(
+                kid_path / f"{component.get('assaytype')}-metadata.csv",
+                header=True,
+                sep="\t",
+                index=False,
+            )
     if extras_path.exists():
         assert extras_path.is_dir(), f"{extras_path} is not a directory"
     else:
@@ -339,7 +345,7 @@ def submit_uuid(uuid, entity_factory, dryrun=False):
         return rslt
 
 
-def reorganize(source_uuid, **kwargs) -> None:
+def reorganize(source_uuid, **kwargs) -> Any[list, None]:
     """
     Carry out the reorganization.  Parameters and kwargs are:
 
@@ -362,11 +368,15 @@ def reorganize(source_uuid, **kwargs) -> None:
     frozen_df_fname = kwargs["frozen_df_fname"]
     verbose = kwargs.get("verbose", False)
     dag_config = {}
+    child_uuid_list = []
 
     entity_factory = EntityFactory(auth_tok, instance=instance)
 
     print(f"Decomposing {source_uuid}")
     source_entity = entity_factory.get(source_uuid)
+    full_entity = SoftAssayClient(
+        list(source_entity.full_path.glob("*metadata.tsv")), instance, auth_tok
+    )
     if mode in ["all", "stop"]:
         if hasattr(source_entity, "dataset_type"):
             # ToDo: review this change to dataset_type
@@ -374,9 +384,6 @@ def reorganize(source_uuid, **kwargs) -> None:
             source_data_types = source_entity.data_types
         else:
             source_data_types = None
-        full_entity = SoftAssayClient(
-            list(source_entity.full_path.glob("*metadata.tsv")), instance, auth_tok
-        )
         for src_idx, smf in enumerate(full_entity.primary_assay.get("metadata-file")):
             source_df = pd.read_csv(smf, sep="\t")
             source_df["canonical_assay_type"] = source_df.apply(
@@ -403,10 +410,6 @@ def reorganize(source_uuid, **kwargs) -> None:
 
     if mode in ["all", "unstop"]:
         dag_config = {"uuid_list": [], "collection_type": ""}
-        child_uuid_list = []
-        full_entity = SoftAssayClient(
-            list(source_entity.full_path.glob("*metadata.tsv")), instance, auth_tok
-        )
         for src_idx, _ in enumerate(full_entity.primary_assay.get("metadata-file")):
             this_frozen_df_fname = frozen_df_fname.format("_" + str(src_idx))
             source_df = pd.read_csv(this_frozen_df_fname, sep="\t")
@@ -415,7 +418,13 @@ def reorganize(source_uuid, **kwargs) -> None:
             for _, row in source_df.iterrows():
                 dag_config["uuid_list"].append(row["new_uuid"])
                 child_uuid_list.append(row["new_uuid"])
-                populate(row, source_entity, entity_factory, dryrun=dryrun, components=full_entity.assay_components)
+                populate(
+                    row,
+                    source_entity,
+                    entity_factory,
+                    dryrun=dryrun,
+                    components=full_entity.assay_components,
+                )
 
         update_upload_entity(child_uuid_list, source_entity, dryrun=dryrun, verbose=verbose)
 
@@ -428,6 +437,7 @@ def reorganize(source_uuid, **kwargs) -> None:
                         time.sleep(30)
 
     print(json.dumps(dag_config))
+    return child_uuid_list, False
 
 
 def main():

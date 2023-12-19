@@ -686,6 +686,24 @@ def pythonop_maybe_keep(**kwargs) -> str:
         return bail_op
 
 
+def pythonop_maybe_multiassay(**kwargs) -> str:
+    """
+    accepts the following via the caller's op_kwargs:
+    'next_op': the operator to call on success
+    'bail_op': the operator to which to bail on failure (default 'no_keep')
+    'test_op': the operator providing the success code
+    """
+    bail_op = kwargs["bail_op"] if "bail_op" in kwargs else "no_keep"
+    test_op = kwargs["test_op"]
+    retcode = int(kwargs["ti"].xcom_pull(task_ids=test_op))
+    print("%s: %s\n" % (test_op, retcode))
+    multiassay = kwargs["ti"].xcom_pull(task_ids=test_op, key="child_work_dirs")
+    if retcode == 0 and multiassay is not None:
+        return kwargs["next_op"]
+    else:
+        return bail_op
+
+
 def get_auth_tok(**kwargs) -> str:
     """
     Recover the authorization token from the environment, and
@@ -1064,6 +1082,36 @@ def pythonop_md_consistency_tests(**kwargs) -> int:
     Perform simple consistency checks of the metadata stored as YAML in kwargs['metadata_fname'].
     This includes accessing the UUID api via its Airflow connection ID to verify uuids.
     """
+    if "work_dirs" in kwargs and kwargs["work_dirs"]:
+        for work_dir in kwargs["work_dirs"]:
+            md_path = join(
+                get_tmp_dir_path(kwargs["rund_id"]),
+                work_dir.split("/")[-1] + "-" + kwargs["metadata_fname"],
+            )
+            if exists(md_path):
+                with open(md_path, "r") as f:
+                    md = yaml.safe_load(f)
+                #     print('metadata from {} follows:'.format(md_path))
+                #     pprint(md)
+                if "_from_metadatatsv" in md and md["_from_metadatatsv"]:
+                    try:
+                        for elt in ["tissue_id", "donor_id"]:
+                            assert elt in md, "metadata is missing {}".format(elt)
+                        assert md["tissue_id"].startswith(
+                            md["donor_id"] + "-"
+                        ), "tissue_id does not match"
+                        assert_id_known(md["tissue_id"], **kwargs)
+                        return 0
+                    except AssertionError as e:
+                        kwargs["ti"].xcom_push(
+                            key="err_msg", value="Assertion Failed: {}".format(e)
+                        )
+                        return 1
+                else:
+                    return 0
+            else:
+                kwargs["ti"].xcom_push(key="err_msg", value="Expected metadata file is missing")
+                return 1
     md_path = join(get_tmp_dir_path(kwargs["run_id"]), kwargs["metadata_fname"])
     if exists(md_path):
         with open(md_path, "r") as f:
@@ -1656,29 +1704,28 @@ def get_soft_data_type(dataset_uuid, **kwargs) -> str:
     """
     Gets the soft data type for a specific uuid.
     """
-    endpoint = f'/assaytype/{dataset_uuid}'
-    http_hook = HttpHook('GET', http_conn_id='ingest_api_connection')
+    endpoint = f"/assaytype/{dataset_uuid}"
+    http_hook = HttpHook("GET", http_conn_id="ingest_api_connection")
     headers = {
         "authorization": "Bearer " + get_auth_tok(**kwargs),
-        'content-type': 'application/json',
-        'X-Hubmap-Application': 'ingest-pipeline',
+        "content-type": "application/json",
+        "X-Hubmap-Application": "ingest-pipeline",
     }
     try:
-        response = http_hook.run(endpoint,
-                                 headers=headers)
+        response = http_hook.run(endpoint, headers=headers)
         response.raise_for_status()
         response = response.json()
-        print(f'rule_set response for {dataset_uuid} follows')
+        print(f"rule_set response for {dataset_uuid} follows")
         pprint(response)
     except HTTPError as e:
-        print(f'ERROR: {e} fetching full path for {dataset_uuid}')
+        print(f"ERROR: {e} fetching full path for {dataset_uuid}")
         if e.response.status_code == codes.unauthorized:
-            raise RuntimeError('ingest_api_connection authorization was rejected?')
+            raise RuntimeError("ingest_api_connection authorization was rejected?")
         else:
-            print('benign error')
+            print("benign error")
             return None
-    assert 'assaytype' in response, f'Could not find matching assaytype for {dataset_uuid}'
-    return response['assaytype']
+    assert "assaytype" in response, f"Could not find matching assaytype for {dataset_uuid}"
+    return response["assaytype"]
 
 
 def main():
