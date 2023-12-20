@@ -1,5 +1,6 @@
 import utils
 import os
+import yaml
 from pathlib import Path
 from pprint import pprint
 from datetime import datetime, timedelta
@@ -20,7 +21,7 @@ from hubmap_operators.common_operators import (
 
 from utils import (
     pythonop_maybe_keep,
-    pythonop_maybe_multiassay,
+    make_send_status_msg_function,
     get_tmp_dir_path,
     get_auth_tok,
     pythonop_get_dataset_state,
@@ -29,6 +30,7 @@ from utils import (
     HMDAG,
     get_queue_resource,
     get_preserve_scratch_resource,
+    get_soft_data_type,
 )
 
 from misc.tools.split_and_create import reorganize
@@ -62,6 +64,23 @@ def _get_frozen_df_wildcard(run_id):
     return str(Path(get_tmp_dir_path(run_id)) / "frozen_source_df*.tsv")
 
 
+def get_dataset_lz_path(uuid: str, **kwargs) -> str:
+    def my_callable(**kwargs):
+        return uuid
+
+    ds_rslt = pythonop_get_dataset_state(dataset_uuid_callable=my_callable, **kwargs)
+    if not ds_rslt:
+        raise AirflowException(f"Invalid uuid/doi for group: {uuid}")
+    print("ds_rslt:")
+    pprint(ds_rslt)
+
+    return ds_rslt["local_directory_full_path"]
+
+
+def get_dataset_uuid(**kwargs):
+    return kwargs["uuid"]
+
+
 with HMDAG(
     "reorganize_upload",
     schedule_interval=None,
@@ -74,6 +93,38 @@ with HMDAG(
         "preserve_scratch": get_preserve_scratch_resource("reorganize_upload"),
     },
 ) as dag:
+
+    def read_metadata_file(uuid, **kwargs):
+        md_fname = os.path.join(utils.get_tmp_dir_path(kwargs["run_id"]), uuid + "-" + "rslt.yml")
+        with open(md_fname, "r") as f:
+            scanned_md = yaml.safe_load(f)
+        return scanned_md
+
+    def __get_lzpath_uuid(**kwargs):
+        if "lz_path" in kwargs["dag_run"].conf and "submission_id" in kwargs["dag_run"].conf:
+            # These conditions are set by the hubap_api plugin when this DAG
+            # is invoked from the ingest user interface
+            lz_path = kwargs["dag_run"].conf["lz_path"]
+            uuid = kwargs["dag_run"].conf["submission_id"]
+        elif "parent_submission_id" in kwargs["dag_run"].conf:
+            # These conditions are met when this DAG is triggered via
+            # the launch_multi_analysis DAG.
+            uuid_list = kwargs["dag_run"].conf["parent_submission_id"]
+            assert len(uuid_list) == 1, f"{dag.dag_id} can only handle one uuid at a time"
+
+            def my_callable(**kwargs):
+                return uuid_list[0]
+
+            ds_rslt = pythonop_get_dataset_state(dataset_uuid_callable=my_callable, **kwargs)
+            if not ds_rslt:
+                raise AirflowException(f"Invalid uuid/doi for group: {uuid_list}")
+            if not "local_directory_full_path" in ds_rslt:
+                raise AirflowException(f"Dataset status for {uuid_list[0]} has no full path")
+            lz_path = ds_rslt["local_directory_full_path"]
+            uuid = uuid_list[0]  # possibly translating a HuBMAP ID
+        else:
+            raise AirflowException("The dag_run does not contain enough information")
+        return lz_path, uuid
 
     def find_uuid(**kwargs):
         uuid = kwargs["dag_run"].conf["uuid"]
@@ -268,6 +319,33 @@ with HMDAG(
         },
     )
 
+    send_status_msg = make_send_status_msg_function(
+        dag_file=__file__,
+        retcode_ops=["run_validation", "run_md_extract", "md_consistency_tests"],
+        cwl_workflows=[],
+        dataset_uuid_fun=get_dataset_uuid,
+        dataset_lz_path_fun=get_dataset_lz_path,
+        metadata_fun=read_metadata_file,
+        include_file_metadata=False,
+    )
+
+    def wrapped_send_status_msg(**kwargs):
+        for uuid in kwargs["ti"].xcom_pull(task_ids="split_stage_2", key="uuid_list"):
+            if send_status_msg(uuid, get_dataset_lz_path(uuid)):
+                scanned_md = read_metadata_file(**kwargs)  # Yes, it's getting re-read
+                print(f"Got CollectionType {scanned_md['collectiontype'] if 'collectiontype' in scanned_md else None} ")
+                soft_data_type = get_soft_data_type(uuid, **kwargs)
+                print(f"Got {soft_data_type} as the soft_data_type for UUID {uuid}")
+            else:
+                print(f"Something went wrong!!")
+
+    t_send_status = PythonOperator(
+        task_id="send_status_msg",
+        python_callable=wrapped_send_status_msg,
+        provide_context=True,
+        trigger_rule="all_done",
+    )
+
     t_log_info = LogInfoOperator(task_id="log_info")
 
     t_join = JoinOperator(task_id="join")
@@ -293,8 +371,7 @@ with HMDAG(
         >> t_maybe_keep_2
         >> t_run_md_extract
         >> t_md_consistency_tests
-        # ToDo:
-        #  Send extracted metadata.
+        >> t_send_status
         >> t_join
         >> t_preserve_info
         >> t_cleanup_tmpdir
