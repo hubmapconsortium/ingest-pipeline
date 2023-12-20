@@ -1,3 +1,6 @@
+import pytz
+from airflow.api.common.trigger_dag import trigger_dag
+
 import utils
 import os
 import yaml
@@ -34,6 +37,7 @@ from utils import (
 )
 
 from misc.tools.split_and_create import reorganize
+from hubmap_operators.flex_multi_dag_run import FlexMultiDagRunOperator
 
 
 # Following are defaults which can be overridden later on
@@ -330,10 +334,12 @@ with HMDAG(
     )
 
     def wrapped_send_status_msg(**kwargs):
-        for uuid in kwargs["ti"].xcom_pull(task_ids="split_stage_2", key="uuid_list"):
+        for uuid in kwargs["ti"].xcom_pull(task_ids="split_stage_2", key="child_uuid_list"):
             if send_status_msg(uuid, get_dataset_lz_path(uuid)):
                 scanned_md = read_metadata_file(**kwargs)  # Yes, it's getting re-read
-                print(f"Got CollectionType {scanned_md['collectiontype'] if 'collectiontype' in scanned_md else None} ")
+                print(
+                    f"Got CollectionType {scanned_md['collectiontype'] if 'collectiontype' in scanned_md else None} "
+                )
                 soft_data_type = get_soft_data_type(uuid, **kwargs)
                 print(f"Got {soft_data_type} as the soft_data_type for UUID {uuid}")
             else:
@@ -349,6 +355,57 @@ with HMDAG(
     t_log_info = LogInfoOperator(task_id="log_info")
 
     t_join = JoinOperator(task_id="join")
+
+    def flex_maybe_multiassay_spawn(**kwargs):
+        """
+        This is a generator which returns appropriate DagRunOrders
+        """
+        print("kwargs:")
+        pprint(kwargs)
+        print("dag_run conf:")
+        ctx = kwargs["dag_run"].conf
+        pprint(ctx)
+        dag_id = "reorganize_multiassay"
+        process = "reorganize.multiassay"
+
+        is_multiassy = kwargs["ti"].xcom_pull(task_ids="split_stage_2", key="is_multiassy")
+        if is_multiassy:
+            run_validation_retcode = int(kwargs["ti"].xcom_pull(task_ids="run_validation"))
+            md_extract_retcode = kwargs["ti"].xcom_pull(task_ids="run_md_extract")
+            md_extract_retcode = int(md_extract_retcode or "0")
+            md_consistency_retcode = kwargs["ti"].xcom_pull(task_ids="md_consistency_tests")
+            md_consistency_retcode = int(md_consistency_retcode or "0")
+            if (
+                run_validation_retcode == 0
+                and md_extract_retcode == 0
+                and md_consistency_retcode == 0
+            ):
+                for uuid in kwargs["ti"].xcom_pull(
+                    task_ids="split_stage_2", key="child_uuid_list"
+                ):
+                    execution_date = datetime.now(pytz.timezone(airflow_conf.as_dict("core", "timezone")))
+                    run_id = "{}_{}_{}".format(uuid, process, execution_date.isoformat())
+                    conf = {
+                        "process": process,
+                        "dag_id": dag_id,
+                        "run_id": run_id,
+                        "crypt_auth_tok": get_auth_tok(**kwargs),
+                        "src_path": airflow_conf.as_dict("connections", "SRC_PATH"),
+                        "uuid": uuid,
+                    }
+                    print(f"Triggering reorganization for UUID {uuid}")
+                    trigger_dag(dag_id, run_id, conf, execution_date=execution_date)
+            else:
+                return None
+        else:
+            return None
+
+    t_maybe_multiassay_spawn = FlexMultiDagRunOperator(
+        task_id="flex_maybe_spawn",
+        dag=dag,
+        trigger_dag_id="scan_and_begin_processing",
+        python_callable=flex_maybe_multiassay_spawn,
+    )
 
     def _get_upload_uuid(**kwargs):
         return kwargs["ti"].xcom_pull(task_ids="find_uuid", key="uuid")
@@ -375,8 +432,7 @@ with HMDAG(
         >> t_join
         >> t_preserve_info
         >> t_cleanup_tmpdir
-        # ToDo:
-        #  multiassay downstream for create dataset components and build metadata.
+        >> t_maybe_multiassay_spawn
     )
 
     t_maybe_keep_1 >> t_set_dataset_error

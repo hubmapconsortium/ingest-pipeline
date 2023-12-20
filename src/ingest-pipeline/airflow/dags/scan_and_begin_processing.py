@@ -26,7 +26,6 @@ from airflow.configuration import conf as airflow_conf
 from airflow.exceptions import AirflowException
 from airflow.operators.bash import BashOperator
 from airflow.operators.python import BranchPythonOperator, PythonOperator
-from airflow.hooks.http_hook import HttpHook
 
 sys.path.append(airflow_conf.as_dict()["connections"]["SRC_PATH"].strip("'").strip('"'))
 from submodules import ingest_validation_tools_upload  # noqa E402
@@ -68,7 +67,7 @@ with HMDAG(
     default_args=default_args,
     user_defined_macros={
         "tmp_dir_path": utils.get_tmp_dir_path,
-        "preserve_scratch": get_preserve_scratch_resource("scan_and_begin_processing")
+        "preserve_scratch": get_preserve_scratch_resource("scan_and_begin_processing"),
     },
 ) as dag:
 
@@ -163,7 +162,7 @@ with HMDAG(
                 value=(scanned_md["collectiontype"] if "collectiontype" in scanned_md else None),
             )
             soft_data_type = get_soft_data_type(uuid, **kwargs)
-            print(f'Got {soft_data_type} as the soft_data_type for UUID {uuid}')
+            print(f"Got {soft_data_type} as the soft_data_type for UUID {uuid}")
             kwargs["ti"].xcom_push(key="assay_type", value=soft_data_type)
         else:
             kwargs["ti"].xcom_push(key="collectiontype", value=None)
@@ -197,17 +196,18 @@ with HMDAG(
         fi
         """,
         env={
-            'AUTH_TOK': (
-              utils.get_auth_tok(
-                  **{
-                      'crypt_auth_tok': utils.encrypt_tok(
-                          airflow_conf.as_dict()['connections']['APP_CLIENT_SECRET']).decode()
-                  }
-              )
+            "AUTH_TOK": (
+                utils.get_auth_tok(
+                    **{
+                        "crypt_auth_tok": utils.encrypt_tok(
+                            airflow_conf.as_dict()["connections"]["APP_CLIENT_SECRET"]
+                        ).decode()
+                    }
+                )
             ),
-            'PYTHON_EXE': os.environ["CONDA_PREFIX"] + "/bin/python",
-            'INGEST_API_URL': os.environ["AIRFLOW_CONN_INGEST_API_CONNECTION"]
-        }
+            "PYTHON_EXE": os.environ["CONDA_PREFIX"] + "/bin/python",
+            "INGEST_API_URL": os.environ["AIRFLOW_CONN_INGEST_API_CONNECTION"],
+        },
     )
 
     t_md_consistency_tests = PythonOperator(

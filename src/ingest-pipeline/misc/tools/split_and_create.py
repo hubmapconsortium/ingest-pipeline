@@ -11,6 +11,7 @@ from typing import List, TypeVar, Any
 
 import pandas as pd
 from status_change.status_manager import StatusChanger, Statuses
+from airflow.hooks.http_hook import HttpHook
 from extra_utils import SoftAssayClient
 
 # There has got to be a better solution for this, but I can't find it
@@ -439,6 +440,75 @@ def reorganize(source_uuid, **kwargs) -> Any[list, None]:
 
     print(json.dumps(dag_config))
     return child_uuid_list, full_entity.is_multiassay
+
+
+def create_multiassay_component(
+    source_uuid: str,
+    auth_tok: str,
+    components: list,
+    parent_dir: str,
+) -> None:
+    headers = {
+        "authorization": "Bearer " + auth_tok,
+        "content-type": "application/json",
+        "X-Hubmap-Application": "ingest-pipeline",
+    }
+
+    response = HttpHook("GET", http_conn_id="entity_api_connection").run(
+        endpoint=f"entities/{source_uuid}",
+        headers=headers,
+        extra_options={"check_response": False},
+    )
+    response.raise_for_status()
+    response_json = response.json()
+    if "group_uuid" not in response_json:
+        print(f"response from GET on entities{source_uuid}:")
+        pprint(response_json)
+        raise ValueError("entities response did not contain group_uuid")
+    parent_group_uuid = response_json["group_uuid"]
+
+    data = {
+        "creation_action": "Multi-Assay Split",
+        "group_uuid": parent_group_uuid,
+        "direct_ancestor_uuids": source_uuid,
+        "datasets": [
+            {
+                "dataset_link_abs_dir": parent_dir,
+                "contains_human_genetic_sequences": component.get("contains-pii"),
+                "data_types": component.get("assaytype"),
+            }
+            for component in components
+        ],
+    }
+    response = HttpHook("POST", http_conn_id="ingest_api_connection").run(
+        endpoint=f"datasets/components",
+        headers=headers,
+        data=json.dumps(data),
+    )
+    response.raise_for_status()
+
+
+def reorganize_multiassay(source_uuid, verbose=False, **kwargs) -> None:
+    auth_tok = kwargs["auth_tok"]
+    instance = kwargs["instance"]
+
+    entity_factory = EntityFactory(auth_tok, instance=instance)
+    print(f"Creating components {source_uuid}")
+
+    source_entity = entity_factory.get(source_uuid)
+    full_entity = SoftAssayClient(
+        list(source_entity.full_path.glob("*metadata.tsv")), instance, auth_tok
+    )
+    create_multiassay_component(
+        source_uuid, auth_tok, full_entity.assay_components, str(source_entity.full_path)
+    )
+    StatusChanger(
+        source_entity.uuid,
+        source_entity.entity_factory.auth_tok,
+        Statuses.DATASET_SUBMITTED,
+        verbose=verbose,
+    ).on_status_change()
+    print(f"{source_entity.uuid} status is Submitted")
 
 
 def main():
