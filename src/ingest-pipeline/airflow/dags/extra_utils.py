@@ -4,7 +4,6 @@ from pathlib import Path
 from csv import DictReader
 
 from airflow.providers.http.hooks.http import HttpHook
-from airflow.configuration import conf as airflow_conf
 from pprint import pprint
 from typing import Tuple
 
@@ -13,11 +12,7 @@ def check_link_published_drvs(uuid: str) -> Tuple[bool, str]:
     needs_previous_version = False
     published_uuid = ""
     endpoint = f"/children/{uuid}"
-    auth_tok = "".join(
-        e for e in airflow_conf.as_dict()["connections"]["APP_CLIENT_SECRET"] if e.isalnum()
-    )
     headers = {
-        "authorization": "Bearer " + auth_tok,
         "content-type": "application/json",
         "X-Hubmap-Application": "ingest-pipeline",
     }

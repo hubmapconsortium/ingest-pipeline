@@ -333,7 +333,7 @@ with HMDAG(
 
     def flex_maybe_multiassay_spawn(**kwargs):
         """
-        This is a generator which returns appropriate DagRunOrders
+        This will tigger DAG Runs if the upload was a MultiAssay to create its components a build basic metadata
         """
         print("kwargs:")
         pprint(kwargs)
