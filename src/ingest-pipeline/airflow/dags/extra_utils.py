@@ -50,24 +50,18 @@ class SoftAssayClient:
                 print(f"Error {e} reading metadata {metadata_file}")
                 return
             assay_type = self.__get_assaytype_data(row=rows[0], auth_tok=auth_tok)
+            data_component = {
+                "assaytype": assay_type.get("assaytype"),
+                "contains-pii": assay_type.get("contains-pii", True),
+                "primary": assay_type.get("primary", False),
+                "metadata-file": metadata_file,
+            }
             if not assay_type.get("must-contain"):
                 print(f"Component {assay_type}")
-                data_component = {
-                    "assaytype": assay_type.get("assaytype"),
-                    "contains-pii": assay_type.get("contains-pii", True),
-                    "primary": assay_type.get("primary", False),
-                    "metadata-file": metadata_file,
-                }
                 self.assay_components.append(data_component)
             else:
-                data_component = {
-                    "assaytype": assay_type.get("assaytype"),
-                    "contains-pii": assay_type.get("contains-pii", True),
-                    "primary": assay_type.get("primary", False),
-                    "metadata-file": metadata_file,
-                }
+                print(f"Primary {assay_type}")
                 self.primary_assay = data_component
-                print(f"Primary {self.primary_assay}")
         if not self.primary_assay and len(self.assay_components) == 1:
             self.primary_assay = self.assay_components.pop()
             self.is_multiassay = False
