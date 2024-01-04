@@ -204,14 +204,12 @@ def populate(row, source_entity, entity_factory, dryrun=False, components=None):
     row_df.to_csv(kid_path / f"{uuid}-metadata.tsv", header=True, sep="\t", index=False)
     extras_path = kid_path / "extras"
 
-    # ToDo read all component metadata files find the matching row for old_data_path and then refactor info
-    #  as main metadata above before creating the new component metadata tsv
     if components is not None:
         for component in components:
-            component_df = pd.read_csv(component.get("metadata-file"))
+            component_df = pd.read_csv(component.get("metadata-file"), sep="\t")
             row_component = component_df.query(f'data_path=="{old_data_path}"')
             assert (
-                len(row_component) == 0
+                len(row_component) == 1
             ), f"No matching metadata found for {component.get('assaytype')}"
             old_component_data_path = row_component["data_path"]
             row_component["data_path"] = "."

@@ -104,31 +104,6 @@ with HMDAG(
             scanned_md = yaml.safe_load(f)
         return scanned_md
 
-    def __get_lzpath_uuid(**kwargs):
-        if "lz_path" in kwargs["dag_run"].conf and "submission_id" in kwargs["dag_run"].conf:
-            # These conditions are set by the hubap_api plugin when this DAG
-            # is invoked from the ingest user interface
-            lz_path = kwargs["dag_run"].conf["lz_path"]
-            uuid = kwargs["dag_run"].conf["submission_id"]
-        elif "parent_submission_id" in kwargs["dag_run"].conf:
-            # These conditions are met when this DAG is triggered via
-            # the launch_multi_analysis DAG.
-            uuid_list = kwargs["dag_run"].conf["parent_submission_id"]
-            assert len(uuid_list) == 1, f"{dag.dag_id} can only handle one uuid at a time"
-
-            def my_callable(**kwargs):
-                return uuid_list[0]
-
-            ds_rslt = pythonop_get_dataset_state(dataset_uuid_callable=my_callable, **kwargs)
-            if not ds_rslt:
-                raise AirflowException(f"Invalid uuid/doi for group: {uuid_list}")
-            if not "local_directory_full_path" in ds_rslt:
-                raise AirflowException(f"Dataset status for {uuid_list[0]} has no full path")
-            lz_path = ds_rslt["local_directory_full_path"]
-            uuid = uuid_list[0]  # possibly translating a HuBMAP ID
-        else:
-            raise AirflowException("The dag_run does not contain enough information")
-        return lz_path, uuid
 
     def find_uuid(**kwargs):
         uuid = kwargs["dag_run"].conf["uuid"]
