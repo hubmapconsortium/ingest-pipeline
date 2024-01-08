@@ -7,7 +7,7 @@ import time
 from pathlib import Path
 from pprint import pprint
 from shutil import copy2, copytree
-from typing import List, TypeVar, Any
+from typing import List, TypeVar, Union
 
 import pandas as pd
 from status_change.status_manager import StatusChanger, Statuses
@@ -344,7 +344,7 @@ def submit_uuid(uuid, entity_factory, dryrun=False):
         return rslt
 
 
-def reorganize(source_uuid, **kwargs) -> Any[list, None]:
+def reorganize(source_uuid, **kwargs) -> Union[list, None]:
     """
     Carry out the reorganization.  Parameters and kwargs are:
 
