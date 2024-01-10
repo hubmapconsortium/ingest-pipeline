@@ -1651,35 +1651,36 @@ def find_matching_endpoint(host_url: str) -> str:
     assert len(candidates) == 1, f"Found {candidates}, expected 1 match"
     return candidates[0]
 
-
-def get_soft_data_type(dataset_uuid, **kwargs) -> str:
+def get_soft_data(dataset_uuid, **kwargs) -> dict:
     """
     Gets the soft data type for a specific uuid.
     """
-    endpoint = f'/assaytype/{dataset_uuid}'
-    http_hook = HttpHook('GET', http_conn_id='ingest_api_connection')
+    endpoint = f"/assaytype/{dataset_uuid}"
+    http_hook = HttpHook("GET", http_conn_id="ingest_api_connection")
     headers = {
         "authorization": "Bearer " + get_auth_tok(**kwargs),
-        'content-type': 'application/json',
-        'X-Hubmap-Application': 'ingest-pipeline',
+        "content-type": "application/json",
+        "X-Hubmap-Application": "ingest-pipeline",
     }
     try:
-        response = http_hook.run(endpoint,
-                                 headers=headers)
+        response = http_hook.run(endpoint, headers=headers)
         response.raise_for_status()
         response = response.json()
-        print(f'rule_set response for {dataset_uuid} follows')
+        print(f"rule_set response for {dataset_uuid} follows")
         pprint(response)
     except HTTPError as e:
-        print(f'ERROR: {e} fetching full path for {dataset_uuid}')
+        print(f"ERROR: {e} fetching full path for {dataset_uuid}")
         if e.response.status_code == codes.unauthorized:
-            raise RuntimeError('ingest_api_connection authorization was rejected?')
+            raise RuntimeError("ingest_api_connection authorization was rejected?")
         else:
-            print('benign error')
+            print("benign error")
             return None
-    assert 'assaytype' in response, f'Could not find matching assaytype for {dataset_uuid}'
-    return response['assaytype']
+    return response
 
+def get_soft_data_assaytype(dataset_uuid, **kwargs) -> str:
+    soft_data = get_soft_data(dataset_uuid, **kwargs)
+    assert "assaytype" in soft_data, f"Could not find matching assaytype for {dataset_uuid}"
+    return soft_data["assaytype"]
 
 def main():
     """
