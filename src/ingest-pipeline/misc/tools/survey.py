@@ -712,6 +712,7 @@ class EntityFactory:
                           headers={'Authorization': f'Bearer {self.auth_tok}',
                                    'Content-Type': 'application/json'})
         if r.status_code >= 300:
+            print(f'Error creating dataset {r.json()}')
             r.raise_for_status()
         return r.json()
 

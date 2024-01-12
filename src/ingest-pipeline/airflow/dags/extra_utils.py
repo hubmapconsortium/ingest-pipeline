@@ -47,7 +47,6 @@ class SoftAssayClient:
             assay_type = self.__get_assaytype_data(row=rows[0], auth_tok=auth_tok)
             data_component = {
                 "assaytype": assay_type.get("assaytype"),
-                "assayname": assay_type.get("description"),
                 "contains-pii": assay_type.get("contains-pii", True),
                 "primary": assay_type.get("primary", False),
                 "metadata-file": metadata_file,
