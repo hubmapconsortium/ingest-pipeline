@@ -97,7 +97,7 @@ with HMDAG('rebuild_multiple_metadata',
 
     t_get_primary_dataset_uuids = PythonOperator(
         task_id='get_primary_dataset_uuids',
-        python_callable=get_primary_dataset_uuids(),
+        python_callable=get_primary_dataset_uuids,
         provide_context=True
     )
 
@@ -106,7 +106,7 @@ with HMDAG('rebuild_multiple_metadata',
 
     t_get_processed_dataset_uuids = PythonOperator(
         task_id='get_processed_dataset_uuids',
-        python_callable=get_processed_dataset_uuids(),
+        python_callable=get_processed_dataset_uuids,
         provide_context=True
     )
 
