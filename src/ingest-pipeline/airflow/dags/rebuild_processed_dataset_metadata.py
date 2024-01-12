@@ -1,16 +1,17 @@
 import os
 import yaml
+import utils
 from pprint import pprint
 
 from airflow.operators.bash import BashOperator
 from airflow.operators.python import PythonOperator
+from airflow.operators.empty import EmptyOperator
 from airflow.exceptions import AirflowException
 from airflow.configuration import conf as airflow_conf
 from datetime import datetime, timedelta
 
 from utils import (
     HMDAG,
-    get_auth_tok,
     get_queue_resource,
     get_preserve_scratch_resource,
     create_dataset_state_error_callback,
@@ -111,7 +112,7 @@ with HMDAG('rebuild_metadata',
         print(f'filtered paths: {lz_path}')
         kwargs['dag_run'].conf['lz_path'] = lz_path
         kwargs['dag_run'].conf['src_path'] = airflow_conf.as_dict()['connections']['src_path'].strip("'")
-        kwargs['dag_run'].conf['auth_tok'] = get_auth_tok(**kwargs)
+
 
     t_check_uuids = PythonOperator(
         task_id='check_uuids',
@@ -130,17 +131,28 @@ with HMDAG('rebuild_metadata',
             src_dir="{{dag_run.conf.src_path}}/md" ; \
             top_dir="{{dag_run.conf.src_path}}" ; \
             work_dir="{{tmp_dir_path(run_id)}}" ; \
-            auth_tok="{{dag_run.conf.auth_tok}}" ; \
             cd $work_dir ; \
             env PYTHONPATH=${PYTHONPATH}:$top_dir \
-            python $src_dir/metadata_extract.py --out ./rslt.yml --yaml "$lz_dir" --globus_token '$auth_tok' \
+            ${PYTHON_EXE} $src_dir/metadata_extract.py --out ./rslt.yml --yaml "$lz_dir" \
               >> session.log 2> error.log ; \
             echo $? ; \
             if [ -s error.log ] ; \
             then echo 'ERROR!' `cat error.log` >> session.log ; \
             else rm error.log ; \
             fi
-            """
+            """,
+        env={
+            'AUTH_TOK': (
+                utils.get_auth_tok(
+                    **{
+                        'crypt_auth_tok': utils.encrypt_tok(
+                            airflow_conf.as_dict()['connections']['APP_CLIENT_SECRET']).decode()
+                    }
+                )
+            ),
+            'PYTHON_EXE': os.environ["CONDA_PREFIX"] + "/bin/python",
+            'INGEST_API_URL': os.environ["AIRFLOW_CONN_INGEST_API_CONNECTION"]
+        }
     )
 
     t_md_consistency_tests = PythonOperator(
@@ -197,4 +209,11 @@ with HMDAG('rebuild_metadata',
 
     t_cleanup_tmpdir = CleanupTmpDirOperator(task_id='cleanup_temp_dir')
 
-    t_check_uuids >> t_create_tmpdir >> t_run_md_extract >> t_md_consistency_tests >> t_send_status >> t_cleanup_tmpdir
+    # t_check_uuids >> t_create_tmpdir >> t_run_md_extract >> t_md_consistency_tests >> t_send_status >> t_cleanup_tmpdir
+
+    # For now we just want to use the empty operator to test and make sure the rebuild multiple is working as expected.
+    t_empty_operator = EmptyOperator(
+        task_id='empty_operator'
+    )
+
+    t_empty_operator

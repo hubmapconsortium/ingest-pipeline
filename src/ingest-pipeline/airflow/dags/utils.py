@@ -36,7 +36,7 @@ from hubmap_commons.schema_tools import assert_json_matches_schema, set_schema_b
 from hubmap_commons.type_client import TypeClient
 from requests import codes
 from requests.exceptions import HTTPError
-from status_change.status_manager import StatusChanger
+from status_change.status_manager import StatusChanger, StatusChangerException
 
 from airflow import DAG
 from airflow.configuration import conf as airflow_conf
@@ -686,6 +686,24 @@ def pythonop_maybe_keep(**kwargs) -> str:
         return bail_op
 
 
+def pythonop_maybe_multiassay(**kwargs) -> str:
+    """
+    accepts the following via the caller's op_kwargs:
+    'next_op': the operator to call on success
+    'bail_op': the operator to which to bail on failure (default 'no_keep')
+    'test_op': the operator providing the success code
+    """
+    bail_op = kwargs["bail_op"] if "bail_op" in kwargs else "no_keep"
+    test_op = kwargs["test_op"]
+    retcode = int(kwargs["ti"].xcom_pull(task_ids=test_op))
+    print("%s: %s\n" % (test_op, retcode))
+    multiassay = kwargs["ti"].xcom_pull(task_ids=test_op, key="child_work_dirs")
+    if retcode == 0 and multiassay is not None:
+        return kwargs["next_op"]
+    else:
+        return bail_op
+
+
 def get_auth_tok(**kwargs) -> str:
     """
     Recover the authorization token from the environment, and
@@ -782,6 +800,7 @@ def pythonop_send_create_dataset(**kwargs) -> str:
             "data_types": dataset_types,
             "group_uuid": parent_group_uuid,
             "contains_human_genetic_sequences": contains_seq,
+            "creation_action": "Central Process"
         }
         if "previous_revision_uuid_callable" in kwargs:
             previous_revision_uuid = kwargs["previous_revision_uuid_callable"](**kwargs)
@@ -903,7 +922,7 @@ def restructure_entity_metadata(raw_metadata: JSONType) -> JSONType:
     return md
 
 
-def pythonop_get_dataset_state(**kwargs) -> JSONType:
+def pythonop_get_dataset_state(**kwargs) -> Dict:
     """
     Gets the status JSON structure for a dataset.  Works for Uploads
     and Publications as well as Datasets.
@@ -947,7 +966,7 @@ def pythonop_get_dataset_state(**kwargs) -> JSONType:
     if ds_rslt["entity_type"] in ["Dataset", "Publication"]:
         assert "data_types" in ds_rslt, f"Dataset status for {uuid} has no data_types"
         data_types = ds_rslt["data_types"]
-        dataset_info = ds_rslt["dataset_info"]
+        dataset_info = ds_rslt.get("dataset_info", "")
         parent_dataset_uuid_list = [
             ancestor["uuid"]
             for ancestor in ds_rslt["direct_ancestors"]
@@ -1064,6 +1083,36 @@ def pythonop_md_consistency_tests(**kwargs) -> int:
     Perform simple consistency checks of the metadata stored as YAML in kwargs['metadata_fname'].
     This includes accessing the UUID api via its Airflow connection ID to verify uuids.
     """
+    if "uuid_list" in kwargs:
+        for uuid in kwargs["uuid_list"]:
+            md_path = join(
+                get_tmp_dir_path(kwargs["rund_id"]),
+                uuid + "-" + kwargs["metadata_fname"],
+            )
+            if exists(md_path):
+                with open(md_path, "r") as f:
+                    md = yaml.safe_load(f)
+                #     print('metadata from {} follows:'.format(md_path))
+                #     pprint(md)
+                if "_from_metadatatsv" in md and md["_from_metadatatsv"]:
+                    try:
+                        for elt in ["tissue_id", "donor_id"]:
+                            assert elt in md, "metadata is missing {}".format(elt)
+                        assert md["tissue_id"].startswith(
+                            md["donor_id"] + "-"
+                        ), "tissue_id does not match"
+                        assert_id_known(md["tissue_id"], **kwargs)
+                        return 0
+                    except AssertionError as e:
+                        kwargs["ti"].xcom_push(
+                            key="err_msg", value="Assertion Failed: {}".format(e)
+                        )
+                        return 1
+                else:
+                    return 0
+            else:
+                kwargs["ti"].xcom_push(key="err_msg", value="Expected metadata file is missing")
+                return 1
     md_path = join(get_tmp_dir_path(kwargs["run_id"]), kwargs["metadata_fname"])
     if exists(md_path):
         with open(md_path, "r") as f:
@@ -1368,16 +1417,20 @@ def make_send_status_msg_function(
             }
             return_status = False
         entity_type = ds_rslt.get("entity_type")
-        StatusChanger(
-            dataset_uuid,
-            get_auth_tok(**kwargs),
-            status,
-            {
-                "extra_fields": extra_fields,
-                "extra_options": {},
-            },
-            entity_type=entity_type if entity_type else None,
-        ).on_status_change()
+        if status:
+            try:
+                StatusChanger(
+                    dataset_uuid,
+                    get_auth_tok(**kwargs),
+                    status,
+                    {
+                        "extra_fields": extra_fields,
+                        "extra_options": {},
+                    },
+                    entity_type=entity_type if entity_type else None,
+                ).on_status_change()
+            except StatusChangerException:
+                return_status = False
 
         return return_status
 
@@ -1590,22 +1643,6 @@ def _get_type_client() -> TypeClient:
     return TYPE_CLIENT
 
 
-def _canonicalize_assay_type_if_possible(assay_type: StrOrListStr) -> StrOrListStr:
-    """
-    Attempt to look up the assay type (or each element if it is a list) and
-    return the canonical version.
-    """
-    if isinstance(assay_type, list):
-        return [_canonicalize_assay_type_if_possible(elt) for elt in assay_type]
-    else:
-        try:
-            type_info = _get_type_client().getAssayType(assay_type)
-            assay_type = type_info.name
-        except Exception:
-            pass
-        return assay_type
-
-
 def downstream_workflow_iter(collectiontype: str, assay_type: StrOrListStr) -> Iterable[str]:
     """
     Returns an iterator over zero or more workflow names matching the given
@@ -1613,7 +1650,6 @@ def downstream_workflow_iter(collectiontype: str, assay_type: StrOrListStr) -> I
     a known workflow, e.g. an Airflow DAG implemented by workflow_name.py .
     """
     collectiontype = collectiontype or ""
-    assay_type = _canonicalize_assay_type_if_possible(assay_type)
     assay_type = assay_type or ""
     for ct_re, at_re, workflow in _get_workflow_map():
         if isinstance(assay_type, str):
@@ -1664,6 +1700,36 @@ def find_matching_endpoint(host_url: str) -> str:
     assert len(candidates) == 1, f"Found {candidates}, expected 1 match"
     return candidates[0]
 
+def get_soft_data(dataset_uuid, **kwargs) -> dict:
+    """
+    Gets the soft data type for a specific uuid.
+    """
+    endpoint = f"/assaytype/{dataset_uuid}"
+    http_hook = HttpHook("GET", http_conn_id="ingest_api_connection")
+    headers = {
+        "authorization": "Bearer " + get_auth_tok(**kwargs),
+        "content-type": "application/json",
+        "X-Hubmap-Application": "ingest-pipeline",
+    }
+    try:
+        response = http_hook.run(endpoint, headers=headers)
+        response.raise_for_status()
+        response = response.json()
+        print(f"rule_set response for {dataset_uuid} follows")
+        pprint(response)
+    except HTTPError as e:
+        print(f"ERROR: {e} fetching full path for {dataset_uuid}")
+        if e.response.status_code == codes.unauthorized:
+            raise RuntimeError("ingest_api_connection authorization was rejected?")
+        else:
+            print("benign error")
+            return None
+    return response
+
+def get_soft_data_assaytype(dataset_uuid, **kwargs) -> str:
+    soft_data = get_soft_data(dataset_uuid, **kwargs)
+    assert "assaytype" in soft_data, f"Could not find matching assaytype for {dataset_uuid}"
+    return soft_data["assaytype"]
 
 def main():
     """
