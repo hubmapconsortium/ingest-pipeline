@@ -103,7 +103,7 @@ def create_fake_uuid_generator():
 
 
 def get_canonical_assay_type(row, assaytype):
-    print(f"Returning {assaytype} for {row['assay_type']}")
+    print(f"Returning {assaytype} for {row['assay_type'] if hasattr(row, 'assay_type') else row['dataset_type']}")
     return assaytype
 
 
@@ -113,7 +113,7 @@ def create_new_uuid(row, source_entity, entity_factory, primary_entity, dryrun=F
     """
     global FAKE_UUID_GENERATOR
     canonical_assay_type = row["canonical_assay_type"]
-    orig_assay_type = row["assay_type"]
+    orig_assay_type = row["assay_type"] if hasattr(row, 'assay_type') else row['dataset_type']
     rec_identifier = row["data_path"].strip("/")
     assert rec_identifier and rec_identifier != ".", "Bad data_path!"
     info_txt_root = None
@@ -146,7 +146,7 @@ def create_new_uuid(row, source_entity, entity_factory, primary_entity, dryrun=F
         description = source_entity.prop_dct["lab_dataset_id"] + " : " + rec_identifier
     else:
         description = ": " + rec_identifier
-    sample_id_list = row["tissue_id"]
+    sample_id_list = row["tissue_id"] if hasattr(row, 'tissue_id') else row["parent_sample_id"]
     direct_ancestor_uuids = []
     for sample_id in sample_id_list.split(","):
         sample_id = sample_id.strip()
@@ -375,7 +375,7 @@ def reorganize(source_uuid, **kwargs) -> Union[list, None]:
     print(f"Decomposing {source_uuid}")
     source_entity = entity_factory.get(source_uuid)
     full_entity = SoftAssayClient(
-        list(source_entity.full_path.glob("*metadata.tsv")), instance, auth_tok
+        list(source_entity.full_path.glob("*metadata.tsv")), auth_tok,
     )
     if mode in ["all", "stop"]:
         if hasattr(source_entity, "dataset_type"):
@@ -389,7 +389,7 @@ def reorganize(source_uuid, **kwargs) -> Union[list, None]:
             source_df["canonical_assay_type"] = source_df.apply(
                 get_canonical_assay_type,
                 axis=1,
-                assay_type=full_entity.primary_assay.get("assaytype"),
+                assaytype=full_entity.primary_assay.get("assayname"),
             )
             source_df["new_uuid"] = source_df.apply(
                 create_new_uuid,

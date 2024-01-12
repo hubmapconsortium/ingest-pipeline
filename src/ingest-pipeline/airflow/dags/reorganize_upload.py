@@ -172,7 +172,10 @@ with HMDAG(
             kwargs["ti"].xcom_push(key="split_stage_1", value="1")  # signal failure
 
     t_split_stage_1 = PythonOperator(
-        task_id="split_stage_1", python_callable=split_stage_1, provide_context=True, op_kwargs={}
+        task_id="split_stage_1",
+        python_callable=split_stage_1,
+        provide_context=True,
+        op_kwargs={}
     )
 
     t_maybe_keep_1 = BranchPythonOperator(
@@ -259,8 +262,9 @@ with HMDAG(
             src_dir="{{dag_run.conf.src_path}}/md" ; \
             top_dir="{{dag_run.conf.src_path}}" ; \
             work_dir="{{tmp_dir_path(run_id)}}" ; \
-            cd $work_dir ; \
+            env WORK_DIRS="{{ti.xcom_pull(task_ids='split_stage_2', key='child_work_dirs')}}" \
             env PYTHONPATH=${PYTHONPATH}:$top_dir \
+            cd $work_dir ; \
             for lz_dir in ${WORK_DIRS[@]}; \
             do;
             ${PYTHON_EXE} $src_dir/metadata_extract.py --out ./${lz_dir##*/}-rslt.yml --yaml "$lz_dir" \
@@ -284,9 +288,11 @@ with HMDAG(
             ),
             "PYTHON_EXE": os.environ["CONDA_PREFIX"] + "/bin/python",
             "INGEST_API_URL": os.environ["AIRFLOW_CONN_INGEST_API_CONNECTION"],
-            "WORK_DIRS": t_split_stage_2.xcom_pull("child_work_dirs"),
         },
     )
+
+    def xcom_consistency_puller(**kwargs):
+        return kwargs["ti"].xcom_pull(task_ids="split_stage_2", key="child_uuid_list")
 
     t_md_consistency_tests = PythonOperator(
         task_id="md_consistency_tests",
@@ -294,7 +300,7 @@ with HMDAG(
         provide_context=True,
         op_kwargs={
             "metadata_fname": "rslt.yml",
-            "uuid_list": t_split_stage_2.xcom_pull("child_uuid_list"),
+            "uuid_list": xcom_consistency_puller,
         },
     )
 
