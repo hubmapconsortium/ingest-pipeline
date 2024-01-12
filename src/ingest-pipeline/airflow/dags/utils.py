@@ -246,7 +246,10 @@ class HMDAG(DAG):
         """
         res_queue = get_queue_resource(self.dag_id, task.task_id)
         if res_queue is not None:
-            task.queue = res_queue
+            try:
+                task.queue = res_queue
+            except Exception as e:
+                print(repr(e))
         super().add_task(task)
 
 
