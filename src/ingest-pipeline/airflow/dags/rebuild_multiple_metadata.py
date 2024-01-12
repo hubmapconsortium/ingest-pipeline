@@ -1,12 +1,7 @@
-import os
-import yaml
-import utils
 from pprint import pprint
 
-from airflow.operators.bash import BashOperator
 from airflow.operators.python import PythonOperator
 from airflow.operators.trigger_dagrun import TriggerDagRunOperator
-from airflow.exceptions import AirflowException
 from airflow.configuration import conf as airflow_conf
 from datetime import datetime, timedelta
 
@@ -16,17 +11,8 @@ from utils import (
     get_preserve_scratch_resource,
     get_soft_data,
     create_dataset_state_error_callback,
-    pythonop_md_consistency_tests,
-    make_send_status_msg_function,
     get_tmp_dir_path,
-    localized_assert_json_matches_schema as assert_json_matches_schema,
-    pythonop_get_dataset_state,
     encrypt_tok,
-)
-
-from hubmap_operators.common_operators import (
-    CreateTmpDirOperator,
-    CleanupTmpDirOperator,
 )
 
 
@@ -35,15 +21,6 @@ def get_uuid_for_error(**kwargs):
     Return the uuid for the derived dataset if it exists, and of the parent dataset otherwise.
     """
     return None
-
-
-def get_dataset_uuid(**kwargs):
-    return kwargs['dag_run'].conf['uuid']
-
-
-def get_dataset_lz_path(**kwargs):
-    ctx = kwargs['dag_run'].conf
-    return ctx['lz_path']
 
 
 default_args = {
@@ -55,8 +32,6 @@ default_args = {
     'email_on_retry': False,
     'retries': 1,
     'retry_delay': timedelta(minutes=1),
-    'xcom_push': True,
-    'queue': get_queue_resource('rebuild_metadata'),
     'on_failure_callback': create_dataset_state_error_callback(get_uuid_for_error)
 }
 
@@ -86,6 +61,7 @@ with HMDAG('rebuild_multiple_metadata',
         task_id='build_dataset_lists',
         python_callable=build_dataset_lists,
         provide_context=True,
+        queue= get_queue_resource('rebuild_metadata'),
         op_kwargs={
             'crypt_auth_tok': encrypt_tok(airflow_conf.as_dict()
                                           ['connections']['APP_CLIENT_SECRET']).decode(),
@@ -107,17 +83,18 @@ with HMDAG('rebuild_multiple_metadata',
     t_get_processed_dataset_uuids = PythonOperator(
         task_id='get_processed_dataset_uuids',
         python_callable=get_processed_dataset_uuids,
+        queue= get_queue_resource('rebuild_metadata'),
         provide_context=True
     )
 
-    t_launch_rebuild_primary_dataset_metadata = TriggerDagRunOperator().partial(
+    t_launch_rebuild_primary_dataset_metadata = TriggerDagRunOperator.partial(
         task_id="trigger_rebuild_primary_dataset_metadata",
         trigger_dag_id="rebuild_primary_dataset_metadata",
     ).expand(
         conf=t_get_primary_dataset_uuids.output
     )
 
-    t_launch_rebuild_processed_dataset_metadata = TriggerDagRunOperator().partial(
+    t_launch_rebuild_processed_dataset_metadata = TriggerDagRunOperator.partial(
         task_id="trigger_rebuild_processed_dataset_metadata",
         trigger_dag_id="rebuild_processed_dataset_metadata",
     ).expand(
