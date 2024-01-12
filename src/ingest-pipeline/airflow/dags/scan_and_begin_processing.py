@@ -188,7 +188,7 @@ with HMDAG(
         auth_tok="{{dag_run.conf.auth_tok}}" ; \
         cd $work_dir ; \
         env PYTHONPATH=${PYTHONPATH}:$top_dir \
-        ${PYTHON_EXE} $src_dir/metadata_extract.py --out ./rslt.yml --yaml --globus_token '$auth_tok' \
+        ${PYTHON_EXE} $src_dir/metadata_extract.py --out ./rslt.yml --yaml "$lz_dir" --globus_token '$auth_tok' \
           >> session.log 2> error.log ; \
         echo $? ; \
         if [ -s error.log ] ; \
