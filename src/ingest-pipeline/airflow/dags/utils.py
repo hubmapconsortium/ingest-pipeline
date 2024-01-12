@@ -1725,8 +1725,7 @@ def get_soft_data_type(dataset_uuid, **kwargs) -> str:
         else:
             print("benign error")
             return None
-    assert "assaytype" in response, f"Could not find matching assaytype for {dataset_uuid}"
-    return response["assaytype"]
+    return response
 
 
 def main():

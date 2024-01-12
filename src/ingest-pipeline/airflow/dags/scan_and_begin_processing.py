@@ -161,9 +161,9 @@ with HMDAG(
                 key="collectiontype",
                 value=(scanned_md["collectiontype"] if "collectiontype" in scanned_md else None),
             )
-            soft_data_type = get_soft_data_type(uuid, **kwargs)
-            print(f"Got {soft_data_type} as the soft_data_type for UUID {uuid}")
-            kwargs["ti"].xcom_push(key="assay_type", value=soft_data_type)
+            soft_data_assaytype = get_soft_data_assaytype(uuid, **kwargs)
+            print(f"Got {soft_data_assaytype} as the soft_data_assaytype for UUID {uuid}")
+            kwargs["ti"].xcom_push(key="assay_type", value=soft_data_assaytype)
         else:
             kwargs["ti"].xcom_push(key="collectiontype", value=None)
 
