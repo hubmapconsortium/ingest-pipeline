@@ -59,7 +59,7 @@ default_args = {
     'on_failure_callback': create_dataset_state_error_callback(get_uuid_for_error)
 }
 
-with HMDAG('rebuild_metadata',
+with HMDAG('rebuild_processed_dataset_metadata',
            schedule_interval=None,
            is_paused_upon_creation=False,
            default_args=default_args,
