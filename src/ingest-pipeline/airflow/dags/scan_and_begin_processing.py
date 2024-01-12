@@ -19,7 +19,7 @@ from utils import (
     make_send_status_msg_function,
     pythonop_get_dataset_state,
     pythonop_maybe_keep,
-    get_soft_data_type,
+    get_soft_data_assaytype,
 )
 
 from airflow.configuration import conf as airflow_conf

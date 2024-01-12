@@ -1700,8 +1700,7 @@ def find_matching_endpoint(host_url: str) -> str:
     assert len(candidates) == 1, f"Found {candidates}, expected 1 match"
     return candidates[0]
 
-
-def get_soft_data_type(dataset_uuid, **kwargs) -> str:
+def get_soft_data(dataset_uuid, **kwargs) -> dict:
     """
     Gets the soft data type for a specific uuid.
     """
@@ -1727,6 +1726,10 @@ def get_soft_data_type(dataset_uuid, **kwargs) -> str:
             return None
     return response
 
+def get_soft_data_assaytype(dataset_uuid, **kwargs) -> str:
+    soft_data = get_soft_data(dataset_uuid, **kwargs)
+    assert "assaytype" in soft_data, f"Could not find matching assaytype for {dataset_uuid}"
+    return soft_data["assaytype"]
 
 def main():
     """
