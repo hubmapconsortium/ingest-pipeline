@@ -13,6 +13,7 @@ from utils import (
     create_dataset_state_error_callback,
     get_tmp_dir_path,
     encrypt_tok,
+    pythonop_get_dataset_state,
 )
 
 
@@ -52,10 +53,24 @@ with HMDAG('rebuild_multiple_metadata',
         pprint(kwargs['dag_run'].conf)
         for uuid in kwargs['dag_run'].conf['uuids']:
             soft_data = get_soft_data(uuid, **kwargs)
-            if soft_data.get('primary'):
-                kwargs['dag_run'].conf['primary_datasets'].append(uuid)
+
+            # If we got nothing back from soft_data, then let's try to determine using entity_api
+            if soft_data:
+                if soft_data.get('primary'):
+                    kwargs['dag_run'].conf['primary_datasets'].append(uuid)
+                else:
+                    kwargs['dag_run'].conf['processed_datasets'].append(uuid)
             else:
-                kwargs['dag_run'].conf['processed_datasets'].append(uuid)
+                my_callable = lambda **kwargs: uuid
+                ds_rslt = pythonop_get_dataset_state(dataset_uuid_callable=my_callable, **kwargs)
+                if ds_rslt.get("dataset_info"):
+                    # dataset_info should only be populated for processed_datasets
+                    print(ds_rslt.get("dataset_info"))
+                    kwargs['dag_run'].conf['processed_datasets'].append(uuid)
+                else:
+                    kwargs['dag_run'].conf['primary_datasets'].append(uuid)
+
+
 
     t_build_dataset_lists = PythonOperator(
         task_id='build_dataset_lists',
