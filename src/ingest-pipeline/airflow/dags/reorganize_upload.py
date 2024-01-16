@@ -81,10 +81,6 @@ def get_dataset_lz_path(uuid: str, **kwargs) -> str:
     return ds_rslt["local_directory_full_path"]
 
 
-def get_dataset_uuid(**kwargs):
-    return kwargs["uuid"]
-
-
 with HMDAG(
     "reorganize_upload",
     schedule_interval=None,
@@ -311,35 +307,6 @@ with HMDAG(
         },
     )
 
-    send_status_msg = make_send_status_msg_function(
-        dag_file=__file__,
-        retcode_ops=["run_validation", "run_md_extract", "md_consistency_tests"],
-        cwl_workflows=[],
-        dataset_uuid_fun=get_dataset_uuid,
-        dataset_lz_path_fun=get_dataset_lz_path,
-        metadata_fun=read_metadata_file,
-        include_file_metadata=False,
-    )
-
-    def wrapped_send_status_msg(**kwargs):
-        for uuid in kwargs["ti"].xcom_pull(task_ids="split_stage_2", key="child_uuid_list"):
-            if send_status_msg(uuid, get_dataset_lz_path(uuid)):
-                scanned_md = read_metadata_file(**kwargs)  # Yes, it's getting re-read
-                print(
-                    f"Got CollectionType {scanned_md['collectiontype'] if 'collectiontype' in scanned_md else None} "
-                )
-                soft_data_type = get_soft_data_type(uuid, **kwargs)
-                print(f"Got {soft_data_type} as the soft_data_type for UUID {uuid}")
-            else:
-                print(f"Something went wrong!!")
-
-    t_send_status = PythonOperator(
-        task_id="send_status_msg",
-        python_callable=wrapped_send_status_msg,
-        provide_context=True,
-        trigger_rule="all_done",
-    )
-
     t_log_info = LogInfoOperator(task_id="log_info")
 
     t_join = JoinOperator(task_id="join")
@@ -416,7 +383,6 @@ with HMDAG(
         >> t_maybe_keep_2
         >> t_run_md_extract
         >> t_md_consistency_tests
-        >> t_send_status
         >> t_join
         >> t_preserve_info
         >> t_cleanup_tmpdir
