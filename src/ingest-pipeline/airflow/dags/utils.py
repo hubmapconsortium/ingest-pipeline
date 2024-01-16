@@ -1084,9 +1084,9 @@ def pythonop_md_consistency_tests(**kwargs) -> int:
     This includes accessing the UUID api via its Airflow connection ID to verify uuids.
     """
     if "uuid_list" in kwargs:
-        for uuid in kwargs["uuid_list"]:
+        for uuid in kwargs["uuid_list"](**kwargs):
             md_path = join(
-                get_tmp_dir_path(kwargs["rund_id"]),
+                get_tmp_dir_path(kwargs["run_id"]),
                 uuid + "-" + kwargs["metadata_fname"],
             )
             if exists(md_path):
