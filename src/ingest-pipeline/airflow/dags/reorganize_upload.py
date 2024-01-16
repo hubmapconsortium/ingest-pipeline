@@ -135,7 +135,10 @@ with HMDAG(
         kwargs["ti"].xcom_push(key="uuid", value=uuid)
 
     t_find_uuid = PythonOperator(
-        task_id="find_uuid", python_callable=find_uuid, provide_context=True, op_kwargs={}
+        task_id="find_uuid",
+        python_callable=find_uuid,
+        provide_context=True,
+        op_kwargs={}
     )
 
     t_create_tmpdir = CreateTmpDirOperator(task_id="create_tmpdir")
@@ -242,7 +245,10 @@ with HMDAG(
             kwargs["ti"].xcom_push(key="split_stage_2", value="1")  # signal failure
 
     t_split_stage_2 = PythonOperator(
-        task_id="split_stage_2", python_callable=split_stage_2, provide_context=True, op_kwargs={}
+        task_id="split_stage_2",
+        python_callable=split_stage_2,
+        provide_context=True,
+        op_kwargs={}
     )
 
     t_maybe_keep_2 = BranchPythonOperator(
@@ -253,6 +259,7 @@ with HMDAG(
             "next_op": "run_md_extract",
             "bail_op": "set_dataset_error",
             "test_op": "split_stage_2",
+            "test_key": "split_stage_2",
         },
     )
 
@@ -262,11 +269,11 @@ with HMDAG(
             src_dir="{{dag_run.conf.src_path}}/md" ; \
             top_dir="{{dag_run.conf.src_path}}" ; \
             work_dir="{{tmp_dir_path(run_id)}}" ; \
-            env WORK_DIRS="{{ti.xcom_pull(task_ids='split_stage_2', key='child_work_dirs')}}" \
-            env PYTHONPATH=${PYTHONPATH}:$top_dir \
             cd $work_dir ; \
+            export WORK_DIRS="{{ti.xcom_pull(task_ids='split_stage_2', key='child_work_dirs')}}"; \
             for lz_dir in ${WORK_DIRS[@]}; \
-            do;
+            do \
+            env PYTHONPATH=${PYTHONPATH}:$top_dir \
             ${PYTHON_EXE} $src_dir/metadata_extract.py --out ./${lz_dir##*/}-rslt.yml --yaml "$lz_dir" \
               >> session.log 2> error.log ;\
             echo $? ; \
