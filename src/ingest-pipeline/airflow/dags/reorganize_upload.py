@@ -24,7 +24,6 @@ from hubmap_operators.common_operators import (
 
 from utils import (
     pythonop_maybe_keep,
-    make_send_status_msg_function,
     get_tmp_dir_path,
     get_auth_tok,
     pythonop_get_dataset_state,
@@ -33,7 +32,6 @@ from utils import (
     HMDAG,
     get_queue_resource,
     get_preserve_scratch_resource,
-    get_soft_data_type,
 )
 
 from misc.tools.split_and_create import reorganize
@@ -232,8 +230,8 @@ with HMDAG(
                         f"status of Upload {uuid} is not New, or Submitted, {ds_rslt['status']}"
                     )
 
-                work_dirs.append(ds_rslt["local_directory_full_path"])
-            work_dirs = " ".join(work_dirs)
+                work_dirs.append("'{}'".format(ds_rslt["local_directory_full_path"]))
+            work_dirs = "({})".format(" ".join(work_dirs))
             kwargs["ti"].xcom_push(key="child_work_dirs", value=work_dirs)
             kwargs["ti"].xcom_push(key="child_uuid_list", value=child_uuid_list)
         except Exception as e:
@@ -325,33 +323,21 @@ with HMDAG(
 
         is_multiassy = kwargs["ti"].xcom_pull(task_ids="split_stage_2", key="is_multiassy")
         if is_multiassy:
-            run_validation_retcode = int(kwargs["ti"].xcom_pull(task_ids="run_validation"))
-            md_extract_retcode = kwargs["ti"].xcom_pull(task_ids="run_md_extract")
-            md_extract_retcode = int(md_extract_retcode or "0")
-            md_consistency_retcode = kwargs["ti"].xcom_pull(task_ids="md_consistency_tests")
-            md_consistency_retcode = int(md_consistency_retcode or "0")
-            if (
-                run_validation_retcode == 0
-                and md_extract_retcode == 0
-                and md_consistency_retcode == 0
+            for uuid in kwargs["ti"].xcom_pull(
+                task_ids="split_stage_2", key="child_uuid_list"
             ):
-                for uuid in kwargs["ti"].xcom_pull(
-                    task_ids="split_stage_2", key="child_uuid_list"
-                ):
-                    execution_date = datetime.now(pytz.timezone(airflow_conf.as_dict("core", "timezone")))
-                    run_id = "{}_{}_{}".format(uuid, process, execution_date.isoformat())
-                    conf = {
-                        "process": process,
-                        "dag_id": dag_id,
-                        "run_id": run_id,
-                        "crypt_auth_tok": get_auth_tok(**kwargs),
-                        "src_path": airflow_conf.as_dict("connections", "SRC_PATH"),
-                        "uuid": uuid,
-                    }
-                    print(f"Triggering reorganization for UUID {uuid}")
-                    trigger_dag(dag_id, run_id, conf, execution_date=execution_date)
-            else:
-                return None
+                execution_date = datetime.now(pytz.timezone(airflow_conf.as_dict("core", "timezone")))
+                run_id = "{}_{}_{}".format(uuid, process, execution_date.isoformat())
+                conf = {
+                    "process": process,
+                    "dag_id": dag_id,
+                    "run_id": run_id,
+                    "crypt_auth_tok": get_auth_tok(**kwargs),
+                    "src_path": airflow_conf.as_dict("connections", "SRC_PATH"),
+                    "uuid": uuid,
+                }
+                print(f"Triggering reorganization for UUID {uuid}")
+                trigger_dag(dag_id, run_id, conf, execution_date=execution_date)
         else:
             return None
 
@@ -381,8 +367,6 @@ with HMDAG(
         >> t_maybe_keep_1
         >> t_split_stage_2
         >> t_maybe_keep_2
-        >> t_run_md_extract
-        >> t_md_consistency_tests
         >> t_join
         >> t_preserve_info
         >> t_cleanup_tmpdir
