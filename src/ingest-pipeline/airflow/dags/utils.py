@@ -1102,17 +1102,18 @@ def pythonop_md_consistency_tests(**kwargs) -> int:
                             md["donor_id"] + "-"
                         ), "tissue_id does not match"
                         assert_id_known(md["tissue_id"], **kwargs)
-                        return 0
+                        continue
                     except AssertionError as e:
                         kwargs["ti"].xcom_push(
                             key="err_msg", value="Assertion Failed: {}".format(e)
                         )
                         return 1
                 else:
-                    return 0
+                    continue
             else:
                 kwargs["ti"].xcom_push(key="err_msg", value="Expected metadata file is missing")
                 return 1
+        return 0
     md_path = join(get_tmp_dir_path(kwargs["run_id"]), kwargs["metadata_fname"])
     if exists(md_path):
         with open(md_path, "r") as f:
@@ -1708,7 +1709,6 @@ def get_soft_data_type(dataset_uuid, **kwargs) -> str:
     endpoint = f"/assaytype/{dataset_uuid}"
     http_hook = HttpHook("GET", http_conn_id="ingest_api_connection")
     headers = {
-        "authorization": "Bearer " + get_auth_tok(**kwargs),
         "content-type": "application/json",
         "X-Hubmap-Application": "ingest-pipeline",
     }
