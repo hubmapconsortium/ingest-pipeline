@@ -1,8 +1,5 @@
 #! /usr/bin/env python
 
-import os
-import json
-
 from metadata_file import MetadataFile
 import data_file_types
 
@@ -11,9 +8,9 @@ _MD_TYPE_TBL = None  # lazy initialization
 
 
 class DataCollection(object):
-    category_name = 'Base'
-    match_priority = -1.0 # normally >= 0.0, higher is better
-    
+    category_name = "Base"
+    match_priority = -1.0  # normally >= 0.0, higher is better
+
     @classmethod
     def test_match(cls, path):
         """
@@ -39,15 +36,15 @@ class DataCollection(object):
         path is the top level directory of the collection
         """
         self.topdir = path
-    
+
     def __str__(self):
-        return '<%s DataCollectionCategory>' % self.category_name
+        return "<%s DataCollectionCategory>" % self.category_name
 
     def __repr__(self):
-        return '<%s(%s)>' % (type(self).__name__, self.topdir)
+        return "<%s(%s)>" % (type(self).__name__, self.topdir)
 
     def collect_metadata(self):
         return {}
-    
+
     def filter_metadata(self, metadata):
         return metadata.copy()
