@@ -1654,7 +1654,7 @@ def find_matching_endpoint(host_url: str) -> str:
     assert len(candidates) == 1, f"Found {candidates}, expected 1 match"
     return candidates[0]
 
-def get_soft_data(dataset_uuid, **kwargs) -> dict:
+def get_soft_data(dataset_uuid, **kwargs) -> Optional[dict]:
     """
     Gets the soft data type for a specific uuid.
     """
