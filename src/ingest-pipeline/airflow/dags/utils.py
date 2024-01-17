@@ -129,7 +129,6 @@ SequencingDagParameters = namedtuple(
         "dag_id",
         "pipeline_name",
         "assay",
-        "dataset_type",
     ],
 )
 
