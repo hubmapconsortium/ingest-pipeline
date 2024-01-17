@@ -720,7 +720,7 @@ def pythonop_send_create_dataset(**kwargs) -> str:
                              between the brackets in the dataset_type
     or
       'dataset_type_callable' : called with **kwargs; returns the
-                                 types list of the new dataset
+                                 dataset_type of the new dataset
 
     Returns the following via XCOM:
     (no key) : data_directory_path for the new dataset
