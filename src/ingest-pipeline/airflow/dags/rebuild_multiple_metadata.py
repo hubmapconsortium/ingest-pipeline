@@ -52,8 +52,7 @@ with DAG('rebuild_multiple_metadata',
                 else:
                     kwargs['dag_run'].conf['processed_datasets'].append(uuid)
             else:
-                my_callable = lambda **kwargs: uuid
-                ds_rslt = pythonop_get_dataset_state(dataset_uuid_callable=my_callable, **kwargs)
+                ds_rslt = pythonop_get_dataset_state(dataset_uuid_callable=lambda **kwargs: uuid, **kwargs)
                 if ds_rslt.get("dataset_info"):
                     # dataset_info should only be populated for processed_datasets
                     print(ds_rslt.get("dataset_info"))
