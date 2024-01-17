@@ -222,8 +222,9 @@ def populate(row, source_entity, entity_factory, dryrun=False, components=None):
                         print(f"copy {old_component_antibodies_path} to {extras_path}")
                     else:
                         copy2(source_entity.full_path / old_component_antibodies_path, extras_path)
+                row_component = pd.DataFrame([row_component])
                 row_component.to_csv(
-                    kid_path / f"{component.get('assaytype')}-metadata.csv",
+                    kid_path / f"{component.get('assaytype')}-metadata.tsv",
                     header=True,
                     sep="\t",
                     index=False,
