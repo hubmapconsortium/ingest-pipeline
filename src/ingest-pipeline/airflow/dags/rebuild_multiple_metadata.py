@@ -52,6 +52,7 @@ with DAG('rebuild_multiple_metadata',
                 else:
                     kwargs['dag_run'].conf['processed_datasets'].append(uuid)
             else:
+                print(f'No matching soft data returned for {uuid}')
                 ds_rslt = pythonop_get_dataset_state(dataset_uuid_callable=lambda **kwargs: uuid, **kwargs)
                 if ds_rslt.get("dataset_info"):
                     # dataset_info should only be populated for processed_datasets
