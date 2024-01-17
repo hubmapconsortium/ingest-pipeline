@@ -231,7 +231,7 @@ with HMDAG(
                     )
 
                 work_dirs.append("'{}'".format(ds_rslt["local_directory_full_path"]))
-            work_dirs = "({})".format(" ".join(work_dirs))
+            work_dirs = " ".join(work_dirs)
             kwargs["ti"].xcom_push(key="child_work_dirs", value=work_dirs)
             kwargs["ti"].xcom_push(key="child_uuid_list", value=child_uuid_list)
         except Exception as e:
@@ -264,7 +264,7 @@ with HMDAG(
             top_dir="{{dag_run.conf.src_path}}" ; \
             work_dir="{{tmp_dir_path(run_id)}}" ; \
             cd $work_dir ; \
-            export WORK_DIRS="{{ti.xcom_pull(task_ids='split_stage_2', key='child_work_dirs')}}"; \
+            export WORK_DIRS=({{ti.xcom_pull(task_ids='split_stage_2', key='child_work_dirs')}}); \
             for lz_dir in ${WORK_DIRS[@]}; \
             do \
             env PYTHONPATH=${PYTHONPATH}:$top_dir \
@@ -278,15 +278,6 @@ with HMDAG(
             done;
             """,
         env={
-            "AUTH_TOK": (
-                utils.get_auth_tok(
-                    **{
-                        "crypt_auth_tok": utils.encrypt_tok(
-                            airflow_conf.as_dict()["connections"]["APP_CLIENT_SECRET"]
-                        ).decode()
-                    }
-                )
-            ),
             "PYTHON_EXE": os.environ["CONDA_PREFIX"] + "/bin/python",
             "INGEST_API_URL": os.environ["AIRFLOW_CONN_INGEST_API_CONNECTION"],
         },
@@ -367,6 +358,7 @@ with HMDAG(
         >> t_maybe_keep_1
         >> t_split_stage_2
         >> t_maybe_keep_2
+        >> t_run_md_extract
         >> t_join
         >> t_preserve_info
         >> t_cleanup_tmpdir
