@@ -45,8 +45,12 @@ class MultiassayMetadataTSVDataCollection(DataCollection):
         print("Checking for multiple metadata.tsv at top level")
         if offsetdir is None:
             return False
-        candidates = os.listdir(os.path.join(path, offsetdir))
-        return len(candidates) > 1 and candidates[0].endswith("-metadata.tsv")
+        files = os.listdir(os.path.join(path, offsetdir))
+        candidates = []
+        for c in files:
+            if c.endswith("-metadata.tsv"):
+                candidates.append(c)
+        return len(candidates) > 1
 
     def __init__(self, path):
         """

@@ -265,7 +265,7 @@ with HMDAG(
             work_dir="{{tmp_dir_path(run_id)}}" ; \
             cd $work_dir ; \
             export WORK_DIRS=({{ti.xcom_pull(task_ids='split_stage_2', key='child_work_dirs')}}); \
-            for lz_dir in ${WORK_DIRS[@]}; \
+            for lz_dir in "${WORK_DIRS[@]}"; \
             do \
             env PYTHONPATH=${PYTHONPATH}:$top_dir \
             ${PYTHON_EXE} $src_dir/metadata_extract.py --out ./${lz_dir##*/}-rslt.yml --yaml "$lz_dir" \
