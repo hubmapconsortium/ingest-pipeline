@@ -372,7 +372,7 @@ def get_salmon_dag_params(assay: str) -> SequencingDagParameters:
         dataset_type=f"salmon_rnaseq_{assay}",
     )
 
-
+# TODO: Unique scenario for dataset_type
 salmon_dag_params: List[SequencingDagParameters] = [
     # 10X is special because it was first; no "10x" label in the pipeline name
     SequencingDagParameters(
