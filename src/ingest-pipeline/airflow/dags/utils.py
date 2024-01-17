@@ -717,7 +717,8 @@ def pythonop_send_create_dataset(**kwargs) -> str:
                                        revision of the dataset to be
                                        created or None
     either
-      'dataset_types' : the types list of the new dataset
+      'pipeline_shorthand' : the descriptor for the pipeline that goes
+                             between the brackets in the dataset_type
     or
       'dataset_types_callable' : called with **kwargs; returns the
                                  types list of the new dataset
@@ -730,7 +731,7 @@ def pythonop_send_create_dataset(**kwargs) -> str:
 
     for arg in ["parent_dataset_uuid_callable", "http_conn_id"]:
         assert arg in kwargs, "missing required argument {}".format(arg)
-    for arg_options in [["dataset_types", "dataset_types_callable"]]:
+    for arg_options in [["pipeline_shorthand", "dataset_types_callable"]]:
         assert any([arg in kwargs for arg in arg_options])
 
     http_conn_id = kwargs["http_conn_id"]
@@ -741,30 +742,17 @@ def pythonop_send_create_dataset(**kwargs) -> str:
         "X-Hubmap-Application": "ingest-pipeline",
     }
 
-    if "dataset_types" in kwargs:
-        dataset_types = kwargs["dataset_types"]
-    else:
-        dataset_types = kwargs["dataset_types_callable"](**kwargs)
-    if not isinstance(dataset_types, list):
-        dataset_types = [dataset_types]
-    canonical_types = set()  # to avoid duplicates
-    contains_seq = False
-    for assay_type in dataset_types:
-        type_info = _get_type_client().getAssayType(assay_type)
-        canonical_types.add(type_info.name)
-        contains_seq |= type_info.contains_pii
-    # canonical_types = list(canonical_types)
-
     source_uuids = kwargs["parent_dataset_uuid_callable"](**kwargs)
     if not isinstance(source_uuids, list):
         source_uuids = [source_uuids]
 
     dataset_name = kwargs["dataset_name_callable"](**kwargs)
+    endpoint = f"entities/{source_uuids[0]}"
 
     try:
         previous_revision_path = None
         response = HttpHook("GET", http_conn_id=http_conn_id).run(
-            endpoint=f"entities/{source_uuids[0]}",
+            endpoint=endpoint,
             headers=headers,
             extra_options={"check_response": False},
         )
@@ -774,14 +762,28 @@ def pythonop_send_create_dataset(**kwargs) -> str:
             print(f"response from GET on entities{source_uuids[0]}:")
             pprint(response_json)
             raise ValueError("entities response did not contain group_uuid")
+
+        if "dataset_type" not in response_json:
+            print(f"response from GET on entities{source_uuids[0]}:")
+            pprint(response_json)
+            raise ValueError("entities response did not contain dataset_type")
+
         parent_group_uuid = response_json["group_uuid"]
+        # Grab the dataset_type from the first_uuid
+        parent_dataset_type = response_json["dataset_type"]
+
+        if "pipeline_shorthand" in kwargs:
+            dataset_type = f"{parent_dataset_type} [{kwargs['pipeline_shorthand']}]"
+        else:
+            dataset_type = kwargs["dataset_type_callable"](**kwargs)
 
         data = {
             "direct_ancestor_uuids": source_uuids,
             "dataset_info": dataset_name,
-            "data_types": dataset_types,
+            # This needs to be updated to be the parent's dataset type + the pipeline names
+            "dataset_type": dataset_type,
             "group_uuid": parent_group_uuid,
-            "contains_human_genetic_sequences": contains_seq,
+            "contains_human_genetic_sequences": False,
         }
         if "previous_revision_uuid_callable" in kwargs:
             previous_revision_uuid = kwargs["previous_revision_uuid_callable"](**kwargs)
@@ -834,7 +836,6 @@ def pythonop_send_create_dataset(**kwargs) -> str:
     except HTTPError as e:
         print(f"ERROR: {e}")
         if e.response.status_code == codes.unauthorized:
-            # TODO: endpoint is undefined
             raise RuntimeError(f"authorization for {endpoint} was rejected?")
         else:
             raise RuntimeError(f"misc error {e} on {endpoint}")
