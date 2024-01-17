@@ -307,7 +307,7 @@ def get_parent_dataset_uuid(**kwargs) -> str:
     return uuid_set.pop()
 
 
-def get_datatype_organ_based(**kwargs) -> List[str]:
+def get_dataset_type_organ_based(**kwargs) -> str:
     dataset_uuid = get_parent_dataset_uuid(**kwargs)
 
     def my_callable(**kwargs):
@@ -316,9 +316,9 @@ def get_datatype_organ_based(**kwargs) -> List[str]:
     ds_rslt = pythonop_get_dataset_state(dataset_uuid_callable=my_callable, **kwargs)
     organ_list = list(set(ds_rslt["organs"]))
     organ_code = organ_list[0] if len(organ_list) == 1 else "multi"
-    if organ_code in ["LK", "RK"]:
-        return ["pas_ftu_segmentation"]
-    return ["image_pyramid"]
+    pipeline_shorthand = "Kaggle-1 Glomerulus Segmentation" if organ_code in ["LK", "RK"] else "Image Pyramid"
+
+    return f"{ds_rslt['dataset_type']} [{pipeline_shorthand}]"
 
 
 def get_dataset_type_previous_version(**kwargs) -> List[str]:
@@ -720,7 +720,7 @@ def pythonop_send_create_dataset(**kwargs) -> str:
       'pipeline_shorthand' : the descriptor for the pipeline that goes
                              between the brackets in the dataset_type
     or
-      'dataset_types_callable' : called with **kwargs; returns the
+      'dataset_type_callable' : called with **kwargs; returns the
                                  types list of the new dataset
 
     Returns the following via XCOM:
