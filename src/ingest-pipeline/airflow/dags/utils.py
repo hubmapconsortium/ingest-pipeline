@@ -321,7 +321,7 @@ def get_datatype_organ_based(**kwargs) -> List[str]:
     return ["image_pyramid"]
 
 
-def get_datatype_previous_version(**kwargs) -> List[str]:
+def get_dataset_type_previous_version(**kwargs) -> List[str]:
     dataset_uuid = get_previous_revision_uuid(**kwargs)
     assert dataset_uuid is not None, "Missing previous_version_uuid"
 
@@ -329,7 +329,7 @@ def get_datatype_previous_version(**kwargs) -> List[str]:
         return dataset_uuid
 
     ds_rslt = pythonop_get_dataset_state(dataset_uuid_callable=my_callable, **kwargs)
-    return ds_rslt["data_types"]
+    return ds_rslt["dataset_type"]
 
 
 def get_dataname_previous_version(**kwargs) -> str:
