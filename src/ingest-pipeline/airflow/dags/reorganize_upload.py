@@ -68,7 +68,9 @@ def _get_frozen_df_wildcard(run_id):
     return str(Path(get_tmp_dir_path(run_id)) / "frozen_source_df*.tsv")
 
 
-def get_dataset_lz_path(uuid: str, **kwargs) -> str:
+def get_dataset_lz_path(**kwargs) -> str:
+    uuid = kwargs["dataset_uuid"]
+
     def my_callable(**kwargs):
         return uuid
 
@@ -82,7 +84,7 @@ def get_dataset_lz_path(uuid: str, **kwargs) -> str:
 
 
 def get_dataset_uuid(**kwargs):
-    return kwargs["uuid"]
+    return kwargs["dataset_uuid"]
 
 
 with HMDAG(
@@ -307,7 +309,7 @@ with HMDAG(
 
     send_status_msg = make_send_status_msg_function(
         dag_file=__file__,
-        retcode_ops=["run_validation", "run_md_extract", "md_consistency_tests"],
+        retcode_ops=["run_md_extract", "md_consistency_tests"],
         cwl_workflows=[],
         dataset_uuid_fun=get_dataset_uuid,
         dataset_lz_path_fun=get_dataset_lz_path,
@@ -317,7 +319,8 @@ with HMDAG(
 
     def wrapped_send_status_msg(**kwargs):
         for uuid in kwargs["ti"].xcom_pull(task_ids="split_stage_2", key="child_uuid_list"):
-            if send_status_msg(uuid, get_dataset_lz_path(uuid)):
+            kwargs["dataset_uuid"] = uuid
+            if send_status_msg():
                 scanned_md = read_metadata_file(**kwargs)  # Yes, it's getting re-read
                 print(
                     f"Got CollectionType {scanned_md['collectiontype'] if 'collectiontype' in scanned_md else None} "
