@@ -33,7 +33,7 @@ from utils import (
     HMDAG,
     get_queue_resource,
     get_preserve_scratch_resource,
-    get_soft_data_type,
+    get_soft_data,
 )
 
 from misc.tools.split_and_create import reorganize
@@ -69,7 +69,7 @@ def _get_frozen_df_wildcard(run_id):
 
 
 def get_dataset_lz_path(**kwargs) -> str:
-    uuid = kwargs["dataset_uuid"]
+    uuid = kwargs["uuid_dataset"]
 
     def my_callable(**kwargs):
         return uuid
@@ -84,7 +84,7 @@ def get_dataset_lz_path(**kwargs) -> str:
 
 
 def get_dataset_uuid(**kwargs):
-    return kwargs["dataset_uuid"]
+    return kwargs["uuid_dataset"]
 
 
 with HMDAG(
@@ -100,8 +100,8 @@ with HMDAG(
     },
 ) as dag:
 
-    def read_metadata_file(uuid, **kwargs):
-        md_fname = os.path.join(utils.get_tmp_dir_path(kwargs["run_id"]), uuid + "-" + "rslt.yml")
+    def read_metadata_file(**kwargs):
+        md_fname = os.path.join(utils.get_tmp_dir_path(kwargs["run_id"]), kwargs["uuid_dataset"] + "-" + "rslt.yml")
         with open(md_fname, "r") as f:
             scanned_md = yaml.safe_load(f)
         return scanned_md
@@ -319,16 +319,18 @@ with HMDAG(
 
     def wrapped_send_status_msg(**kwargs):
         for uuid in kwargs["ti"].xcom_pull(task_ids="split_stage_2", key="child_uuid_list"):
-            kwargs["dataset_uuid"] = uuid
-            if send_status_msg():
+            kwargs["uuid_dataset"] = uuid
+            if send_status_msg(**kwargs):
                 scanned_md = read_metadata_file(**kwargs)  # Yes, it's getting re-read
                 print(
                     f"Got CollectionType {scanned_md['collectiontype'] if 'collectiontype' in scanned_md else None} "
                 )
-                soft_data_type = get_soft_data_type(uuid, **kwargs)
+                soft_data_type = get_soft_data(uuid, **kwargs)
                 print(f"Got {soft_data_type} as the soft_data_type for UUID {uuid}")
             else:
                 print(f"Something went wrong!!")
+                return 1
+        return 0
 
     t_send_status = PythonOperator(
         task_id="send_status_msg",
@@ -353,8 +355,9 @@ with HMDAG(
         dag_id = "reorganize_multiassay"
         process = "reorganize.multiassay"
 
-        is_multiassy = kwargs["ti"].xcom_pull(task_ids="split_stage_2", key="is_multiassy")
-        if is_multiassy:
+        is_multiassy = kwargs["ti"].xcom_pull(task_ids="split_stage_2", key="is_multiassay")
+        is_ok = kwargs["ti"].xcom_pull(task_ids="send_status_msg")
+        if is_multiassy and is_ok:
             for uuid in kwargs["ti"].xcom_pull(
                 task_ids="split_stage_2", key="child_uuid_list"
             ):
@@ -371,7 +374,7 @@ with HMDAG(
                 print(f"Triggering reorganization for UUID {uuid}")
                 trigger_dag(dag_id, run_id, conf, execution_date=execution_date)
         else:
-            return None
+            return []
 
     t_maybe_multiassay_spawn = FlexMultiDagRunOperator(
         task_id="flex_maybe_spawn",
