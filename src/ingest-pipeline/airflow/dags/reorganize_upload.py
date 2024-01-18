@@ -4,6 +4,7 @@ from airflow.api.common.trigger_dag import trigger_dag
 import utils
 import os
 import yaml
+import time
 from pathlib import Path
 from pprint import pprint
 from datetime import datetime, timedelta
@@ -355,26 +356,26 @@ with HMDAG(
         dag_id = "reorganize_multiassay"
         process = "reorganize.multiassay"
 
-        is_multiassy = kwargs["ti"].xcom_pull(task_ids="split_stage_2", key="is_multiassay")
-        is_ok = kwargs["ti"].xcom_pull(task_ids="send_status_msg")
-        if is_multiassy and is_ok:
+        is_multiassay = kwargs["ti"].xcom_pull(task_ids="split_stage_2", key="is_multiassay")
+        failed = kwargs["ti"].xcom_pull(task_ids="send_status_msg")
+        if is_multiassay and not failed:
             for uuid in kwargs["ti"].xcom_pull(
                 task_ids="split_stage_2", key="child_uuid_list"
             ):
-                execution_date = datetime.now(pytz.timezone(airflow_conf.as_dict("core", "timezone")))
+                execution_date = datetime.now(pytz.timezone(airflow_conf.as_dict()["core"]["timezone"]))
                 run_id = "{}_{}_{}".format(uuid, process, execution_date.isoformat())
                 conf = {
                     "process": process,
                     "dag_id": dag_id,
                     "run_id": run_id,
-                    "crypt_auth_tok": get_auth_tok(**kwargs),
+                    "crypt_auth_tok": kwargs["dag_run"].conf["crypt_auth_tok"],
                     "src_path": airflow_conf.as_dict("connections", "SRC_PATH"),
                     "uuid": uuid,
                 }
+                time.sleep(1)
                 print(f"Triggering reorganization for UUID {uuid}")
                 trigger_dag(dag_id, run_id, conf, execution_date=execution_date)
-        else:
-            return []
+        return []
 
     t_maybe_multiassay_spawn = FlexMultiDagRunOperator(
         task_id="flex_maybe_spawn",
