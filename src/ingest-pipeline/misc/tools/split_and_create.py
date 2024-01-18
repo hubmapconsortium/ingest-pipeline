@@ -466,12 +466,12 @@ def create_multiassay_component(
     data = {
         "creation_action": "Multi-Assay Split",
         "group_uuid": parent_group_uuid,
-        "direct_ancestor_uuids": source_uuid,
+        "direct_ancestor_uuids": [source_uuid],
         "datasets": [
             {
                 "dataset_link_abs_dir": parent_dir,
                 "contains_human_genetic_sequences": component.get("contains-pii"),
-                "data_types": component.get("assaytype"),
+                "dataset_type": component.get("assaytype"),
             }
             for component in components
         ],
@@ -493,7 +493,7 @@ def reorganize_multiassay(source_uuid, verbose=False, **kwargs) -> None:
 
     source_entity = entity_factory.get(source_uuid)
     full_entity = SoftAssayClient(
-        list(source_entity.full_path.glob("*metadata.tsv")), instance, auth_tok
+        list(source_entity.full_path.glob("*metadata.tsv")), auth_tok
     )
     create_multiassay_component(
         source_uuid, auth_tok, full_entity.assay_components, str(source_entity.full_path)
