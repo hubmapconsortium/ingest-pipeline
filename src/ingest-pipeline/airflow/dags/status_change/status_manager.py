@@ -21,6 +21,7 @@ class Statuses(str, Enum):
     DATASET_PROCESSING = "processing"
     DATASET_PUBLISHED = "published"
     DATASET_QA = "qa"
+    DATASET_SUBMITTED = "submitted"
     PUBLICATION_ERROR = "error"
     PUBLICATION_HOLD = "hold"
     PUBLICATION_INVALID = "invalid"
@@ -49,6 +50,7 @@ ENTITY_STATUS_MAP = {
         "processing": Statuses.DATASET_PROCESSING,
         "published": Statuses.DATASET_PUBLISHED,
         "qa": Statuses.DATASET_QA,
+        "submitted": Statuses.DATASET_SUBMITTED,
     },
     "publication": {
         "error": Statuses.PUBLICATION_ERROR,

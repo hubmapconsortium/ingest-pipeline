@@ -36,7 +36,7 @@ from hubmap_commons.schema_tools import assert_json_matches_schema, set_schema_b
 from hubmap_commons.type_client import TypeClient
 from requests import codes
 from requests.exceptions import HTTPError
-from status_change.status_manager import StatusChanger
+from status_change.status_manager import StatusChanger, StatusChangerException
 
 from airflow import DAG
 from airflow.configuration import conf as airflow_conf
@@ -214,7 +214,7 @@ class DummyFileMatcher(FileMatcher):
     """
 
     def get_file_metadata(self, file_path: Path) -> ManifestMatch:
-        return True, "", "", False
+        return True, "", "", False, False
 
 
 class HMDAG(DAG):
@@ -246,7 +246,10 @@ class HMDAG(DAG):
         """
         res_queue = get_queue_resource(self.dag_id, task.task_id)
         if res_queue is not None:
-            task.queue = res_queue
+            try:
+                task.queue = res_queue
+            except Exception as e:
+                print(repr(e))
         super().add_task(task)
 
 
@@ -305,6 +308,60 @@ def get_parent_dataset_uuid(**kwargs) -> str:
     uuid_set = set(get_parent_dataset_uuids_list(**kwargs))
     assert len(uuid_set) == 1, f"Found {len(uuid_set)} elements, expected 1"
     return uuid_set.pop()
+
+
+def get_datatype_organ_based(**kwargs) -> List[str]:
+    dataset_uuid = get_parent_dataset_uuid(**kwargs)
+
+    def my_callable(**kwargs):
+        return dataset_uuid
+
+    ds_rslt = pythonop_get_dataset_state(dataset_uuid_callable=my_callable, **kwargs)
+    organ_list = list(set(ds_rslt["organs"]))
+    organ_code = organ_list[0] if len(organ_list) == 1 else "multi"
+    if organ_code in ["LK", "RK"]:
+        return ["pas_ftu_segmentation"]
+    return ["image_pyramid"]
+
+
+def get_datatype_previous_version(**kwargs) -> List[str]:
+    dataset_uuid = get_previous_revision_uuid(**kwargs)
+    assert dataset_uuid is not None, "Missing previous_version_uuid"
+
+    def my_callable(**kwargs):
+        return dataset_uuid
+
+    ds_rslt = pythonop_get_dataset_state(dataset_uuid_callable=my_callable, **kwargs)
+    return ds_rslt["data_types"]
+
+
+def get_dataname_previous_version(**kwargs) -> str:
+    dataset_uuid = get_previous_revision_uuid(**kwargs)
+    assert dataset_uuid is not None, "Missing previous_version_uuid"
+
+    def my_callable(**kwargs):
+        return dataset_uuid
+
+    ds_rslt = pythonop_get_dataset_state(dataset_uuid_callable=my_callable, **kwargs)
+    return ds_rslt["dataset_info"]
+
+
+def get_assay_previous_version(**kwargs) -> str:
+    dataset_type = get_dataname_previous_version(**kwargs).split("__")[0]
+    if dataset_type == "salmon_rnaseq_10x":
+        return "10x_v3"
+    if dataset_type == "salmon_rnaseq_10x_sn":
+        return "10x_v3_sn"
+    if dataset_type == "salmon_rnaseq_10x_v2":
+        return "10x_v2"
+    if dataset_type == "salmon_rnaseq_10x_v2_sn":
+        return "10x_v2_sn"
+    if dataset_type == "salmon_rnaseq_sciseq":
+        return "sciseq"
+    if dataset_type == "salmon_rnaseq_snareseq":
+        return "snareseq"
+    if dataset_type == "salmon_rnaseq_slideseq":
+        return "slideseq"
 
 
 def get_parent_dataset_paths_list(**kwargs) -> List[Path]:
@@ -708,6 +765,7 @@ def pythonop_send_create_dataset(**kwargs) -> str:
     dataset_name = kwargs["dataset_name_callable"](**kwargs)
 
     try:
+        previous_revision_path = None
         response = HttpHook("GET", http_conn_id=http_conn_id).run(
             endpoint=f"entities/{source_uuids[0]}",
             headers=headers,
@@ -732,6 +790,22 @@ def pythonop_send_create_dataset(**kwargs) -> str:
             previous_revision_uuid = kwargs["previous_revision_uuid_callable"](**kwargs)
             if previous_revision_uuid is not None:
                 data["previous_revision_uuid"] = previous_revision_uuid
+                response = HttpHook("GET", http_conn_id=http_conn_id).run(
+                    endpoint=f"datasets/{previous_revision_uuid}/file-system-abs-path",
+                    headers=headers,
+                    extra_options={"check_response": False},
+                )
+                response.raise_for_status()
+                response_json = response.json()
+                if "path" not in response_json:
+                    print(f"response from datasets/{previous_revision_uuid}/file-system-abs-path:")
+                    pprint(response_json)
+                    raise ValueError(
+                        f"datasets/{previous_revision_uuid}/file-system-abs-path"
+                        " did not return a path"
+                    )
+                previous_revision_path = response_json["path"]
+
         print("data for dataset creation:")
         pprint(data)
         response = HttpHook("POST", http_conn_id=http_conn_id).run(
@@ -770,6 +844,7 @@ def pythonop_send_create_dataset(**kwargs) -> str:
 
     kwargs["ti"].xcom_push(key="group_uuid", value=group_uuid)
     kwargs["ti"].xcom_push(key="derived_dataset_uuid", value=uuid)
+    kwargs["ti"].xcom_push(key="previous_revision_path", value=previous_revision_path)
     return abs_path
 
 
@@ -831,7 +906,7 @@ def restructure_entity_metadata(raw_metadata: JSONType) -> JSONType:
     return md
 
 
-def pythonop_get_dataset_state(**kwargs) -> JSONType:
+def pythonop_get_dataset_state(**kwargs) -> Dict:
     """
     Gets the status JSON structure for a dataset.  Works for Uploads
     and Publications as well as Datasets.
@@ -875,6 +950,7 @@ def pythonop_get_dataset_state(**kwargs) -> JSONType:
     if ds_rslt["entity_type"] in ["Dataset", "Publication"]:
         assert "data_types" in ds_rslt, f"Dataset status for {uuid} has no data_types"
         data_types = ds_rslt["data_types"]
+        dataset_info = ds_rslt.get("dataset_info", "")
         parent_dataset_uuid_list = [
             ancestor["uuid"]
             for ancestor in ds_rslt["direct_ancestors"]
@@ -884,6 +960,7 @@ def pythonop_get_dataset_state(**kwargs) -> JSONType:
         endpoint = f"datasets/{ds_rslt['uuid']}/file-system-abs-path"
     elif ds_rslt["entity_type"] == "Upload":
         data_types = []
+        dataset_info = ""
         metadata = {}
         endpoint = f"uploads/{ds_rslt['uuid']}/file-system-abs-path"
         parent_dataset_uuid_list = None
@@ -913,9 +990,11 @@ def pythonop_get_dataset_state(**kwargs) -> JSONType:
         "status": ds_rslt["status"],
         "uuid": ds_rslt["uuid"],
         "parent_dataset_uuid_list": parent_dataset_uuid_list,
+        "dataset_info": dataset_info,
         "data_types": data_types,
         "local_directory_full_path": full_path,
         "metadata": metadata,
+        "ingest_metadata": ds_rslt.get("ingest_metadata"),
     }
 
     if ds_rslt["entity_type"] == "Dataset":
@@ -1069,6 +1148,30 @@ def get_cwltool_base_cmd(tmpdir: Path) -> List[str]:
     ]
 
 
+def build_provenance_function(cwl_workflows: List[Path]) -> Callable[..., List]:
+    def build_provenance(**kwargs) -> List:
+        dataset_uuid = get_previous_revision_uuid(**kwargs)
+        assert dataset_uuid is not None, "Missing previous_version_uuid"
+
+        def my_callable(**kwargs):
+            return dataset_uuid
+
+        ds_rslt = pythonop_get_dataset_state(dataset_uuid_callable=my_callable, **kwargs)
+        new_dag_provenance = (
+            kwargs["dag_run"].conf["dag_provenance_list"]
+            if "dag_provenance_list" in kwargs["dag_run"].conf
+            else []
+        )
+        new_dag_provenance.extend(get_git_provenance_list([*cwl_workflows]))
+        for data in ds_rslt["ingest_metadata"]["dag_provenance_list"]:
+            if "salmon" in data["origin"]:
+                new_dag_provenance.append(data)
+        kwargs["dag_run"].conf["dag_provenance_list"] = new_dag_provenance
+        return kwargs["dag_run"].conf["dag_provenance_list"]
+
+    return build_provenance
+
+
 def make_send_status_msg_function(
     dag_file: str,
     retcode_ops: List[str],
@@ -1078,6 +1181,7 @@ def make_send_status_msg_function(
     dataset_lz_path_fun: Optional[Callable[..., str]] = None,
     metadata_fun: Optional[Callable[..., dict]] = None,
     include_file_metadata: Optional[bool] = True,
+    no_provenance: Optional[bool] = False,
 ) -> Callable[..., bool]:
     """
     The function which is generated by this function will return a boolean,
@@ -1153,11 +1257,17 @@ def make_send_status_msg_function(
         status = None
         extra_fields = {}
 
+        def my_callable(**kwargs):
+            return dataset_uuid
+
+        ds_rslt = pythonop_get_dataset_state(dataset_uuid_callable=my_callable, **kwargs)
         if success:
             md = {}
             files_for_provenance = [dag_file, *cwl_workflows]
 
-            if "dag_provenance" in kwargs["dag_run"].conf:
+            if no_provenance:
+                md["dag_provenance_list"] = kwargs["dag_run"].conf["dag_provenance_list"].copy()
+            elif "dag_provenance" in kwargs["dag_run"].conf:
                 md["dag_provenance"] = kwargs["dag_run"].conf["dag_provenance"].copy()
                 new_prv_dct = get_git_provenance_dict(files_for_provenance)
                 md["dag_provenance"].update(new_prv_dct)
@@ -1214,10 +1324,6 @@ def make_send_status_msg_function(
                         if __is_true(val=v):
                             contacts.append(contrib)
 
-            def my_callable(**kwargs):
-                return dataset_uuid
-
-            ds_rslt = pythonop_get_dataset_state(dataset_uuid_callable=my_callable, **kwargs)
             if not ds_rslt:
                 status = "QA"
             else:
@@ -1265,16 +1371,20 @@ def make_send_status_msg_function(
             }
             return_status = False
         entity_type = ds_rslt.get("entity_type")
-        StatusChanger(
-            dataset_uuid,
-            get_auth_tok(**kwargs),
-            status,
-            {
-                "extra_fields": extra_fields,
-                "extra_options": {},
-            },
-            entity_type=entity_type if entity_type else None,
-        ).on_status_change()
+        if status:
+            try:
+                StatusChanger(
+                    dataset_uuid,
+                    get_auth_tok(**kwargs),
+                    status,
+                    {
+                        "extra_fields": extra_fields,
+                        "extra_options": {},
+                    },
+                    entity_type=entity_type if entity_type else None,
+                ).on_status_change()
+            except StatusChangerException:
+                return_status = False
 
         return return_status
 
@@ -1487,22 +1597,6 @@ def _get_type_client() -> TypeClient:
     return TYPE_CLIENT
 
 
-def _canonicalize_assay_type_if_possible(assay_type: StrOrListStr) -> StrOrListStr:
-    """
-    Attempt to look up the assay type (or each element if it is a list) and
-    return the canonical version.
-    """
-    if isinstance(assay_type, list):
-        return [_canonicalize_assay_type_if_possible(elt) for elt in assay_type]
-    else:
-        try:
-            type_info = _get_type_client().getAssayType(assay_type)
-            assay_type = type_info.name
-        except Exception:
-            pass
-        return assay_type
-
-
 def downstream_workflow_iter(collectiontype: str, assay_type: StrOrListStr) -> Iterable[str]:
     """
     Returns an iterator over zero or more workflow names matching the given
@@ -1510,7 +1604,6 @@ def downstream_workflow_iter(collectiontype: str, assay_type: StrOrListStr) -> I
     a known workflow, e.g. an Airflow DAG implemented by workflow_name.py .
     """
     collectiontype = collectiontype or ""
-    assay_type = _canonicalize_assay_type_if_possible(assay_type)
     assay_type = assay_type or ""
     for ct_re, at_re, workflow in _get_workflow_map():
         if isinstance(assay_type, str):
@@ -1561,6 +1654,36 @@ def find_matching_endpoint(host_url: str) -> str:
     assert len(candidates) == 1, f"Found {candidates}, expected 1 match"
     return candidates[0]
 
+def get_soft_data(dataset_uuid, **kwargs) -> Optional[dict]:
+    """
+    Gets the soft data type for a specific uuid.
+    """
+    endpoint = f"/assaytype/{dataset_uuid}"
+    http_hook = HttpHook("GET", http_conn_id="ingest_api_connection")
+    headers = {
+        "authorization": "Bearer " + get_auth_tok(**kwargs),
+        "content-type": "application/json",
+        "X-Hubmap-Application": "ingest-pipeline",
+    }
+    try:
+        response = http_hook.run(endpoint, headers=headers)
+        response.raise_for_status()
+        response = response.json()
+        print(f"rule_set response for {dataset_uuid} follows")
+        pprint(response)
+    except HTTPError as e:
+        print(f"ERROR: {e} fetching full path for {dataset_uuid}")
+        if e.response.status_code == codes.unauthorized:
+            raise RuntimeError("ingest_api_connection authorization was rejected?")
+        else:
+            print("benign error")
+            return None
+    return response
+
+def get_soft_data_assaytype(dataset_uuid, **kwargs) -> str:
+    soft_data = get_soft_data(dataset_uuid, **kwargs)
+    assert "assaytype" in soft_data, f"Could not find matching assaytype for {dataset_uuid}"
+    return soft_data["assaytype"]
 
 def main():
     """
