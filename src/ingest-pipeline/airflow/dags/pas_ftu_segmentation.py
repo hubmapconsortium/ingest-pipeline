@@ -22,7 +22,7 @@ from utils import (
     get_queue_resource,
     get_preserve_scratch_resource,
     pythonop_get_dataset_state,
-    get_datatype_organ_based,
+    get_dataset_type_organ_based,
 )
 from hubmap_operators.common_operators import (
     CleanupTmpDirOperator,
@@ -235,7 +235,7 @@ with HMDAG(
             "previous_revision_uuid_callable": get_previous_revision_uuid,
             "http_conn_id": "ingest_api_connection",
             "dataset_name_callable": build_dataset_name,
-            "dataset_types_callable": get_datatype_organ_based,
+            "dataset_types_callable": get_dataset_type_organ_based,
         },
     )
 

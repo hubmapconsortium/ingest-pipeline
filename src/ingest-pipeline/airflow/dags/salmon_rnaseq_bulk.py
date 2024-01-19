@@ -119,7 +119,7 @@ with HMDAG('salmon_rnaseq_bulk',
             'http_conn_id': 'ingest_api_connection',
             'previous_revision_uuid_callable': get_previous_revision_uuid,
             'dataset_name_callable': build_dataset_name,
-            "dataset_types": ["salmon_rnaseq_bulk"],
+            'pipeline_shorthand': 'Salmon'
         },
     )
 

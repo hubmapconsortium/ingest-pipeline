@@ -129,7 +129,6 @@ SequencingDagParameters = namedtuple(
         "dag_id",
         "pipeline_name",
         "assay",
-        "dataset_type",
     ],
 )
 
@@ -307,7 +306,7 @@ def get_parent_dataset_uuid(**kwargs) -> str:
     return uuid_set.pop()
 
 
-def get_datatype_organ_based(**kwargs) -> List[str]:
+def get_dataset_type_organ_based(**kwargs) -> str:
     dataset_uuid = get_parent_dataset_uuid(**kwargs)
 
     def my_callable(**kwargs):
@@ -316,12 +315,12 @@ def get_datatype_organ_based(**kwargs) -> List[str]:
     ds_rslt = pythonop_get_dataset_state(dataset_uuid_callable=my_callable, **kwargs)
     organ_list = list(set(ds_rslt["organs"]))
     organ_code = organ_list[0] if len(organ_list) == 1 else "multi"
-    if organ_code in ["LK", "RK"]:
-        return ["pas_ftu_segmentation"]
-    return ["image_pyramid"]
+    pipeline_shorthand = "Kaggle-1 Glomerulus Segmentation" if organ_code in ["LK", "RK"] else "Image Pyramid"
+
+    return f"{ds_rslt['dataset_type']} [{pipeline_shorthand}]"
 
 
-def get_datatype_previous_version(**kwargs) -> List[str]:
+def get_dataset_type_previous_version(**kwargs) -> List[str]:
     dataset_uuid = get_previous_revision_uuid(**kwargs)
     assert dataset_uuid is not None, "Missing previous_version_uuid"
 
@@ -329,7 +328,7 @@ def get_datatype_previous_version(**kwargs) -> List[str]:
         return dataset_uuid
 
     ds_rslt = pythonop_get_dataset_state(dataset_uuid_callable=my_callable, **kwargs)
-    return ds_rslt["data_types"]
+    return ds_rslt["dataset_type"]
 
 
 def get_dataname_previous_version(**kwargs) -> str:
@@ -735,10 +734,11 @@ def pythonop_send_create_dataset(**kwargs) -> str:
                                        revision of the dataset to be
                                        created or None
     either
-      'dataset_types' : the types list of the new dataset
+      'pipeline_shorthand' : the descriptor for the pipeline that goes
+                             between the brackets in the dataset_type
     or
-      'dataset_types_callable' : called with **kwargs; returns the
-                                 types list of the new dataset
+      'dataset_type_callable' : called with **kwargs; returns the
+                                 dataset_type of the new dataset
 
     Returns the following via XCOM:
     (no key) : data_directory_path for the new dataset
@@ -748,7 +748,7 @@ def pythonop_send_create_dataset(**kwargs) -> str:
 
     for arg in ["parent_dataset_uuid_callable", "http_conn_id"]:
         assert arg in kwargs, "missing required argument {}".format(arg)
-    for arg_options in [["dataset_types", "dataset_types_callable"]]:
+    for arg_options in [["pipeline_shorthand", "dataset_types_callable"]]:
         assert any([arg in kwargs for arg in arg_options])
 
     http_conn_id = kwargs["http_conn_id"]
@@ -759,30 +759,17 @@ def pythonop_send_create_dataset(**kwargs) -> str:
         "X-Hubmap-Application": "ingest-pipeline",
     }
 
-    if "dataset_types" in kwargs:
-        dataset_types = kwargs["dataset_types"]
-    else:
-        dataset_types = kwargs["dataset_types_callable"](**kwargs)
-    if not isinstance(dataset_types, list):
-        dataset_types = [dataset_types]
-    canonical_types = set()  # to avoid duplicates
-    contains_seq = False
-    for assay_type in dataset_types:
-        type_info = _get_type_client().getAssayType(assay_type)
-        canonical_types.add(type_info.name)
-        contains_seq |= type_info.contains_pii
-    # canonical_types = list(canonical_types)
-
     source_uuids = kwargs["parent_dataset_uuid_callable"](**kwargs)
     if not isinstance(source_uuids, list):
         source_uuids = [source_uuids]
 
     dataset_name = kwargs["dataset_name_callable"](**kwargs)
+    endpoint = f"entities/{source_uuids[0]}"
 
     try:
         previous_revision_path = None
         response = HttpHook("GET", http_conn_id=http_conn_id).run(
-            endpoint=f"entities/{source_uuids[0]}",
+            endpoint=endpoint,
             headers=headers,
             extra_options={"check_response": False},
         )
@@ -792,14 +779,28 @@ def pythonop_send_create_dataset(**kwargs) -> str:
             print(f"response from GET on entities{source_uuids[0]}:")
             pprint(response_json)
             raise ValueError("entities response did not contain group_uuid")
+
+        if "dataset_type" not in response_json:
+            print(f"response from GET on entities{source_uuids[0]}:")
+            pprint(response_json)
+            raise ValueError("entities response did not contain dataset_type")
+
         parent_group_uuid = response_json["group_uuid"]
+        # Grab the dataset_type from the first_uuid
+        parent_dataset_type = response_json["dataset_type"]
+
+        if "pipeline_shorthand" in kwargs:
+            dataset_type = f"{parent_dataset_type} [{kwargs['pipeline_shorthand']}]"
+        else:
+            dataset_type = kwargs["dataset_type_callable"](**kwargs)
 
         data = {
             "direct_ancestor_uuids": source_uuids,
             "dataset_info": dataset_name,
-            "data_types": dataset_types,
+            # This needs to be updated to be the parent's dataset type + the pipeline names
+            "dataset_type": dataset_type,
             "group_uuid": parent_group_uuid,
-            "contains_human_genetic_sequences": contains_seq,
+            "contains_human_genetic_sequences": False,
             "creation_action": "Central Process"
         }
         if "previous_revision_uuid_callable" in kwargs:
@@ -853,7 +854,6 @@ def pythonop_send_create_dataset(**kwargs) -> str:
     except HTTPError as e:
         print(f"ERROR: {e}")
         if e.response.status_code == codes.unauthorized:
-            # TODO: endpoint is undefined
             raise RuntimeError(f"authorization for {endpoint} was rejected?")
         else:
             raise RuntimeError(f"misc error {e} on {endpoint}")

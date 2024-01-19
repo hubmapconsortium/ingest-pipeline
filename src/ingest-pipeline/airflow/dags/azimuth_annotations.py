@@ -28,7 +28,7 @@ from utils import (
     HMDAG,
     get_queue_resource,
     get_preserve_scratch_resource,
-    get_datatype_previous_version,
+    get_dataset_type_previous_version,
     get_dataname_previous_version,
     build_provenance_function,
     get_assay_previous_version,
@@ -235,7 +235,7 @@ with HMDAG(
             "previous_revision_uuid_callable": get_previous_revision_uuid,
             "http_conn_id": "ingest_api_connection",
             "dataset_name_callable": get_dataname_previous_version,
-            "dataset_types_callable": get_datatype_previous_version,
+            "dataset_type_callable": get_dataset_type_previous_version,
         },
     )
 
