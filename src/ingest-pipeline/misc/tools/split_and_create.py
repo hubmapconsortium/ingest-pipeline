@@ -7,7 +7,7 @@ import time
 from pathlib import Path
 from pprint import pprint
 from shutil import copy2, copytree
-from typing import List, TypeVar, Union
+from typing import List, TypeVar, Union, Tuple
 
 import pandas as pd
 from status_change.status_manager import StatusChanger, Statuses
@@ -114,7 +114,7 @@ def create_new_uuid(row, source_entity, entity_factory, primary_entity, dryrun=F
     """
     global FAKE_UUID_GENERATOR
     canonical_assay_type = row["canonical_assay_type"]
-    orig_assay_type = row["assay_type"] if hasattr(row, 'assay_type') else row['dataset_type']
+    orig_assay_type = row["assay_type"] if hasattr(row, "assay_type") else row["dataset_type"]
     rec_identifier = row["data_path"].strip("/")
     assert rec_identifier and rec_identifier != ".", "Bad data_path!"
     info_txt_root = None
@@ -147,7 +147,7 @@ def create_new_uuid(row, source_entity, entity_factory, primary_entity, dryrun=F
         description = source_entity.prop_dct["lab_dataset_id"] + " : " + rec_identifier
     else:
         description = ": " + rec_identifier
-    sample_id_list = row["tissue_id"] if hasattr(row, 'tissue_id') else row["parent_sample_id"]
+    sample_id_list = row["tissue_id"] if hasattr(row, "tissue_id") else row["parent_sample_id"]
     direct_ancestor_uuids = []
     for sample_id in sample_id_list.split(","):
         sample_id = sample_id.strip()
@@ -217,7 +217,9 @@ def populate(row, source_entity, entity_factory, dryrun=False, components=None):
                 row_component["contributors_path"] = str(new_component_contrib_path)
                 if "antibodies_path" in row_component:
                     old_component_antibodies_path = Path(row["antibodies_path"])
-                    new_component_antibodies_path = Path("extras") / old_component_antibodies_path.name
+                    new_component_antibodies_path = (
+                        Path("extras") / old_component_antibodies_path.name
+                    )
                     row_component["antibodies_path"] = str(new_component_antibodies_path)
                     if dryrun:
                         print(f"copy {old_component_antibodies_path} to {extras_path}")
@@ -344,7 +346,7 @@ def submit_uuid(uuid, entity_factory, dryrun=False):
         return rslt
 
 
-def reorganize(source_uuid, **kwargs) -> Union[(list, bool), None]:
+def reorganize(source_uuid, **kwargs) -> Union[Tuple, None]:
     """
     Carry out the reorganization.  Parameters and kwargs are:
 
@@ -374,7 +376,8 @@ def reorganize(source_uuid, **kwargs) -> Union[(list, bool), None]:
     print(f"Decomposing {source_uuid}")
     source_entity = entity_factory.get(source_uuid)
     full_entity = SoftAssayClient(
-        list(source_entity.full_path.glob("*metadata.tsv")), auth_tok,
+        list(source_entity.full_path.glob("*metadata.tsv")),
+        auth_tok,
     )
     if mode in ["all", "stop"]:
         if hasattr(source_entity, "dataset_type"):
@@ -388,7 +391,7 @@ def reorganize(source_uuid, **kwargs) -> Union[(list, bool), None]:
             source_df["canonical_assay_type"] = source_df.apply(
                 get_canonical_assay_type,
                 axis=1,
-                dataset_type=full_entity.primary_assay.get("dataset_type")
+                dataset_type=full_entity.primary_assay.get("dataset_type"),
             )
             source_df["new_uuid"] = source_df.apply(
                 create_new_uuid,
@@ -493,9 +496,7 @@ def reorganize_multiassay(source_uuid, verbose=False, **kwargs) -> None:
     print(f"Creating components {source_uuid}")
 
     source_entity = entity_factory.get(source_uuid)
-    full_entity = SoftAssayClient(
-        list(source_entity.full_path.glob("*metadata.tsv")), auth_tok
-    )
+    full_entity = SoftAssayClient(list(source_entity.full_path.glob("*metadata.tsv")), auth_tok)
     create_multiassay_component(
         source_uuid, auth_tok, full_entity.assay_components, str(source_entity.full_path)
     )
@@ -515,26 +516,26 @@ def main():
     parser = argparse.ArgumentParser()
     simplified_frozen_df_fname = DEFAULT_FROZEN_DF_FNAME.format("")  # no suffix
     parser.add_argument(
-        "uuid", help=("input .txt file containing uuids or" " .csv or .tsv file with uuid column")
+        "uuid", help="input .txt file containing uuids or" " .csv or .tsv file with uuid column"
     )
     parser.add_argument(
         "--stop",
-        help=("stop after creating child uuids and writing" f" {simplified_frozen_df_fname}"),
+        help="stop after creating child uuids and writing" f" {simplified_frozen_df_fname}",
         action="store_true",
     )
     parser.add_argument(
         "--unstop",
-        help=("do not create child uuids;" f" read {simplified_frozen_df_fname} and continue"),
+        help="do not create child uuids;" f" read {simplified_frozen_df_fname} and continue",
         action="store_true",
     )
     parser.add_argument(
         "--instance",
-        help=("instance to use." f" One of {list(ENDPOINTS)} (default %(default)s)"),
+        help="instance to use." f" One of {list(ENDPOINTS)} (default %(default)s)",
         default="PROD",
     )
     parser.add_argument(
         "--dryrun",
-        help=("describe the steps that would be taken but" " do not make changes"),
+        help="describe the steps that would be taken but" " do not make changes",
         action="store_true",
     )
     parser.add_argument(
