@@ -34,7 +34,7 @@ from utils import (
     HMDAG,
     get_queue_resource,
     get_preserve_scratch_resource,
-    get_soft_data,
+    get_soft_data_assaytype,
 )
 
 from misc.tools.split_and_create import reorganize
@@ -326,8 +326,8 @@ with HMDAG(
                 print(
                     f"Got CollectionType {scanned_md['collectiontype'] if 'collectiontype' in scanned_md else None} "
                 )
-                soft_data_type = get_soft_data(uuid, **kwargs)
-                print(f"Got {soft_data_type} as the soft_data_type for UUID {uuid}")
+                soft_data_assay_type = get_soft_data_assaytype(uuid, **kwargs)
+                print(f"Got {soft_data_assay_type} as the soft_data_type for UUID {uuid}")
             else:
                 print(f"Something went wrong!!")
                 return 1
