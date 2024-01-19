@@ -8,13 +8,14 @@ from pprint import pprint
 from typing import Tuple
 
 
-def check_link_published_drvs(uuid: str) -> Tuple[bool, str]:
+def check_link_published_drvs(uuid: str, auth_tok: str) -> Tuple[bool, str]:
     needs_previous_version = False
     published_uuid = ""
     endpoint = f"/children/{uuid}"
     headers = {
         "content-type": "application/json",
         "X-Hubmap-Application": "ingest-pipeline",
+        "Authorization": f"Bearer {auth_tok}"
     }
     extra_options = {}
 
@@ -47,6 +48,7 @@ class SoftAssayClient:
             assay_type = self.__get_assaytype_data(row=rows[0], auth_tok=auth_tok)
             data_component = {
                 "assaytype": assay_type.get("assaytype"),
+                "dataset_type": assay_type.get("dataset-type"),
                 "contains-pii": assay_type.get("contains-pii", True),
                 "primary": assay_type.get("primary", False),
                 "metadata-file": metadata_file,
@@ -69,7 +71,7 @@ class SoftAssayClient:
         http_hook = HttpHook("POST", http_conn_id="ingest_api_connection")
         endpoint = f"/assaytype"
         headers = {
-            "Authorization": "Bearer " + auth_tok,
+            "Authorization": f"Bearer {auth_tok}",
             "Content-Type": "application/json",
         }
         response = http_hook.run(endpoint=endpoint, headers=headers, data=json.dumps(row))

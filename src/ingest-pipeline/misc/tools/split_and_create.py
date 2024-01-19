@@ -102,9 +102,10 @@ def create_fake_uuid_generator():
 #     return rslt
 
 
-def get_canonical_assay_type(row):
-    # TODO: rewrite it to support old style metadata
-    return row["assay_type"] if hasattr(row, "assay_type") else row["dataset_type"]
+def get_canonical_assay_type(row, dataset_type=None):
+    # TODO: check if this needs to be rewrite to support old style metadata
+    file_dataset_type = row["assay_type"] if hasattr(row, "assay_type") else row["dataset_type"]
+    return dataset_type if dataset_type is not None else file_dataset_type
 
 
 def create_new_uuid(row, source_entity, entity_factory, primary_entity, dryrun=False):
@@ -343,7 +344,7 @@ def submit_uuid(uuid, entity_factory, dryrun=False):
         return rslt
 
 
-def reorganize(source_uuid, **kwargs) -> Union[list, None]:
+def reorganize(source_uuid, **kwargs) -> Union[(list, bool), None]:
     """
     Carry out the reorganization.  Parameters and kwargs are:
 
@@ -367,7 +368,6 @@ def reorganize(source_uuid, **kwargs) -> Union[list, None]:
     verbose = kwargs.get("verbose", False)
     dag_config = {}
     child_uuid_list = []
-    is_multiassay = False
 
     entity_factory = EntityFactory(auth_tok, instance=instance)
 
@@ -388,6 +388,7 @@ def reorganize(source_uuid, **kwargs) -> Union[list, None]:
             source_df["canonical_assay_type"] = source_df.apply(
                 get_canonical_assay_type,
                 axis=1,
+                dataset_type=full_entity.primary_assay.get("dataset_type")
             )
             source_df["new_uuid"] = source_df.apply(
                 create_new_uuid,
@@ -471,7 +472,7 @@ def create_multiassay_component(
             {
                 "dataset_link_abs_dir": parent_dir,
                 "contains_human_genetic_sequences": component.get("contains-pii"),
-                "dataset_type": component.get("assaytype"),
+                "dataset_type": component.get("dataset_type"),
             }
             for component in components
         ],
