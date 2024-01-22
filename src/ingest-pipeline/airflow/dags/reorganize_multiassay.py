@@ -88,8 +88,8 @@ with HMDAG('reorganize_multiassay',
 
         if ds_rslt['entity_type'] != 'Dataset':
             raise AirflowException(f'{uuid} is not an Dataset')
-        if ds_rslt['status'] not in ['New', 'Submitted']:
-            raise AirflowException(f"status of Dataset {uuid} is not New, or Submitted, {ds_rslt['status']}")
+        if ds_rslt['status'] not in ['New', 'Submitted', 'Error']:
+            raise AirflowException(f"status of Dataset {uuid} is not New, Error or Submitted, {ds_rslt['status']}")
 
         lz_path = ds_rslt['local_directory_full_path']
         uuid = ds_rslt['uuid']  # 'uuid' may  actually be a DOI
