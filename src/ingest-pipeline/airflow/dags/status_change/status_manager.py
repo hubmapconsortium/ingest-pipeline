@@ -199,7 +199,7 @@ class StatusChanger:
         endpoint = f"/entities/{self.uuid}"
         headers = {
             "authorization": "Bearer " + self.token,
-            "X-Hubmap-Application": "ingest-pipeline",
+            "X-SenNet-Application": "ingest-pipeline",
             "content-type": "application/json",
         }
         http_hook = HttpHook("PUT", http_conn_id=self.http_conn_id)
