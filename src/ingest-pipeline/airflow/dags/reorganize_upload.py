@@ -369,7 +369,6 @@ with HMDAG(
                     "dag_id": dag_id,
                     "run_id": run_id,
                     "crypt_auth_tok": kwargs["dag_run"].conf["crypt_auth_tok"],
-                    "src_path": airflow_conf.as_dict("connections", "SRC_PATH"),
                     "uuid": uuid,
                 }
                 time.sleep(1)

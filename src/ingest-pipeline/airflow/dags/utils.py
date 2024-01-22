@@ -964,8 +964,8 @@ def pythonop_get_dataset_state(**kwargs) -> Dict:
     for key in ["status", "uuid", "entity_type"]:
         assert key in ds_rslt, f"Dataset status for {uuid} has no {key}"
     if ds_rslt["entity_type"] in ["Dataset", "Publication"]:
-        assert "data_types" in ds_rslt, f"Dataset status for {uuid} has no data_types"
-        data_types = ds_rslt["data_types"]
+        assert "dataset_type" in ds_rslt, f"Dataset status for {uuid} has no dataset_type"
+        dataset_type = ds_rslt["dataset_type"]
         dataset_info = ds_rslt.get("dataset_info", "")
         parent_dataset_uuid_list = [
             ancestor["uuid"]
@@ -975,7 +975,7 @@ def pythonop_get_dataset_state(**kwargs) -> Dict:
         metadata = restructure_entity_metadata(ds_rslt)
         endpoint = f"datasets/{ds_rslt['uuid']}/file-system-abs-path"
     elif ds_rslt["entity_type"] == "Upload":
-        data_types = []
+        dataset_type = []
         dataset_info = ""
         metadata = {}
         endpoint = f"uploads/{ds_rslt['uuid']}/file-system-abs-path"
@@ -1007,7 +1007,7 @@ def pythonop_get_dataset_state(**kwargs) -> Dict:
         "uuid": ds_rslt["uuid"],
         "parent_dataset_uuid_list": parent_dataset_uuid_list,
         "dataset_info": dataset_info,
-        "data_types": data_types,
+        "dataset_type": dataset_type,
         "local_directory_full_path": full_path,
         "metadata": metadata,
         "ingest_metadata": ds_rslt.get("ingest_metadata"),
