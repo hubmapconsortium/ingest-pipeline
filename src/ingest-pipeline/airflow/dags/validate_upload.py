@@ -15,11 +15,11 @@ from status_change.status_manager import StatusChanger, Statuses
 from utils import (
     HMDAG,
     get_auth_tok,
+    get_preserve_scratch_resource,
     get_queue_resource,
+    get_threads_resource,
     get_tmp_dir_path,
     pythonop_get_dataset_state,
-    get_preserve_scratch_resource,
-    get_threads_resource,
     get_instance_type,
     get_environment_instance
 )

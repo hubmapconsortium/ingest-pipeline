@@ -7,5 +7,5 @@ HM_AF_CONN_UUID_API_CONNECTION=http://https%3a%2f%2fuuid-api.stage.sennetconsort
 HM_AF_CONN_FILES_API_CONNECTION=http://https%3a%2f%2ffiles-api.stage.sennetconsortium.org/
 HM_AF_CONN_SPATIAL_API_CONNECTION=http://https%3a%2f%2fspatial-api.stage.sennetconsortium.org/
 HM_AF_CONN_CELLS_API_CONNECTION=http://https%3a%2f%2fcells-api.stage.sennetconsortium.org/
-HM_AF_CONN_SEARCH_API_CONNECTION=http://https%3a%2f%2fsearch-api.stage.sennetconsortium.org/
+HM_AF_CONN_SEARCH_API_CONNECTION=http://https%3a%2f%2fontology-api.dev.sennetconsortium.org/
 HM_AF_CONN_ENTITY_API_CONNECTION=http://https%3a%2f%2fentity-api.stage.sennetconsortium.org/

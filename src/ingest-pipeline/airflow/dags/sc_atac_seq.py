@@ -174,7 +174,7 @@ def generate_atac_seq_dag(params: SequencingDagParameters) -> DAG:
                 "previous_revision_uuid_callable": get_previous_revision_uuid,
                 "http_conn_id": "ingest_api_connection",
                 "dataset_name_callable": build_dataset_name,
-                "dataset_types": [params.dataset_type],
+                "pipeline_shorthand": "SnapATAC"
             },
         )
 
@@ -233,31 +233,26 @@ def generate_atac_seq_dag(params: SequencingDagParameters) -> DAG:
 
     return dag
 
-
 atacseq_dag_data: List[SequencingDagParameters] = [
     SequencingDagParameters(
         dag_id="sc_atac_seq_sci",
         pipeline_name="sci-atac-seq-pipeline",
         assay="sciseq",
-        dataset_type="sc_atac_seq_sci",
     ),
     SequencingDagParameters(
         dag_id="sc_atac_seq_snare",
         pipeline_name="sc-atac-seq-pipeline",
         assay="snareseq",
-        dataset_type="sc_atac_seq_snare",
     ),
     SequencingDagParameters(
         dag_id="sc_atac_seq_sn",
         pipeline_name="sn-atac-seq-pipeline",
         assay="snseq",
-        dataset_type="sn_atac_seq",
     ),
     SequencingDagParameters(
         dag_id="sc_atac_seq_multiome_10x",
         pipeline_name="sn-atac-seq-pipeline",
         assay="multiome_10x",
-        dataset_type="sn_atac_seq_multiome_10x",
     ),
 ]
 
