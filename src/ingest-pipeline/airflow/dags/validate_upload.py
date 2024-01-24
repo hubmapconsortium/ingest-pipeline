@@ -98,7 +98,7 @@ with HMDAG(
         print("ds_rslt:")
         pprint(ds_rslt)
 
-        for key in ["entity_type", "status", "uuid", "data_types", "local_directory_full_path"]:
+        for key in ["entity_type", "status", "uuid", "local_directory_full_path"]:
             assert key in ds_rslt, f"Dataset status for {uuid} has no {key}"
 
         if ds_rslt["entity_type"] != "Upload":
