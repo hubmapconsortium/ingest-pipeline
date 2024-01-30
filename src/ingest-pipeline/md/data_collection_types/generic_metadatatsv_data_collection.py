@@ -78,7 +78,9 @@ class GenericMetadataTSVDataCollection(DataCollection):
                         assert isinstance(this_md, list), "metadata.tsv did not produce a list"
                         rec_list = this_md
                         for rec in rec_list:
-                            for key in ["assay_type", "data_path", "contributors_path"]:
+                            assert "assay_type" in rec or "dataset_type" in rec, ("Neither assay_type nor dataset_type "
+                                                                                  "were found in metadata.tsv")
+                            for key in ["data_path", "contributors_path"]:
                                 assert (
                                     key in rec
                                 ), 'metadata.tsv does not have a "{}" column'.format(key)
