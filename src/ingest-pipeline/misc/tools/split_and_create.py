@@ -480,6 +480,7 @@ def create_multiassay_component(
             for component in components
         ],
     }
+    print(f"Data to create components {data}")
     response = HttpHook("POST", http_conn_id="ingest_api_connection").run(
         endpoint=f"datasets/components",
         headers=headers,
