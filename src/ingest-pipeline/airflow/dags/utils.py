@@ -1384,7 +1384,7 @@ def make_send_status_msg_function(
                 if status in ["Processing", "New"]:
                     status = "QA"
                 if status in ["Invalid"]:
-                    status = "Submitted"
+                    status = "QA" if kwargs["dag_run"].conf["dag_id"] == "scan_and_begin_processing" else "Submitted"
                 if metadata_fun:
                     if not contacts:
                         contacts = ds_rslt.get("contacts", [])
