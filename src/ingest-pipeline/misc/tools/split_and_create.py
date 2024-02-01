@@ -7,10 +7,12 @@ import time
 from pathlib import Path
 from pprint import pprint
 from shutil import copy2, copytree
-from typing import List, TypeVar
+from typing import List, TypeVar, Union, Tuple
 
 import pandas as pd
 from status_change.status_manager import StatusChanger, Statuses
+from airflow.hooks.http_hook import HttpHook
+from extra_utils import SoftAssayClient
 
 # There has got to be a better solution for this, but I can't find it
 try:
@@ -87,26 +89,32 @@ def create_fake_uuid_generator():
         yield rslt
 
 
-def get_canonical_assay_type(row, entity_factory, default_type):
-    """
-    Convert assay type to canonical form, with fallback
-    """
-    try:
-        rslt = entity_factory.type_client.getAssayType(row["assay_type"]).name
-    except Exception:
-        print(f"fallback {row['assay_type']} {default_type}")
-        rslt = FALLBACK_ASSAY_TYPE_TRANSLATIONS.get(row["assay_type"], default_type)
-    print(f"{row['assay_type']} -> {rslt}")
-    return rslt
+# def get_canonical_assay_type(row, entity_factory, default_type):
+#     """
+#     Convert assay type to canonical form, with fallback
+#     """
+#     try:
+#         rslt = entity_factory.type_client.getAssayType(row["assay_type"]).name
+#     except Exception:
+#         print(f"fallback {row['assay_type']} {default_type}")
+#         rslt = FALLBACK_ASSAY_TYPE_TRANSLATIONS.get(row["assay_type"], default_type)
+#     print(f"{row['assay_type']} -> {rslt}")
+#     return rslt
 
 
-def create_new_uuid(row, source_entity, entity_factory, dryrun=False):
+def get_canonical_assay_type(row, dataset_type=None):
+    # TODO: check if this needs to be rewrite to support old style metadata
+    file_dataset_type = row["assay_type"] if hasattr(row, "assay_type") else row["dataset_type"]
+    return dataset_type if dataset_type is not None else file_dataset_type
+
+
+def create_new_uuid(row, source_entity, entity_factory, primary_entity, dryrun=False):
     """
     Use the entity_factory to create a new dataset, with safety checks
     """
     global FAKE_UUID_GENERATOR
     canonical_assay_type = row["canonical_assay_type"]
-    orig_assay_type = row["assay_type"]
+    orig_assay_type = row["assay_type"] if hasattr(row, "assay_type") else row["dataset_type"]
     rec_identifier = row["data_path"].strip("/")
     assert rec_identifier and rec_identifier != ".", "Bad data_path!"
     info_txt_root = None
@@ -123,13 +131,7 @@ def create_new_uuid(row, source_entity, entity_factory, dryrun=False):
             info_txt_root = f"Upload {source_entity.prop_dct['hubmap_id']}"
     assert info_txt_root is not None, "Expected a Dataset or an Upload"
     info_txt = info_txt_root + " : " + rec_identifier
-    try:
-        type_info = entity_factory.type_client.getAssayType(canonical_assay_type)
-    except Exception:
-        print(f"tried {orig_assay_type}, canoncal version {canonical_assay_type}")
-        print(f"options are {list(entity_factory.type_client.iterAssayNames())}")
-        type_info = entity_factory.type_client.getAssayType(orig_assay_type)
-    contains_human_genetic_sequences = type_info.contains_pii
+    contains_human_genetic_sequences = primary_entity.get("contains-pii")
     # Check consistency in case this is a Dataset, which will have this info
     if "contains_human_genetic_sequences" in source_entity.prop_dct:
         assert (
@@ -145,7 +147,7 @@ def create_new_uuid(row, source_entity, entity_factory, dryrun=False):
         description = source_entity.prop_dct["lab_dataset_id"] + " : " + rec_identifier
     else:
         description = ": " + rec_identifier
-    sample_id_list = row["tissue_id"]
+    sample_id_list = row["tissue_id"] if hasattr(row, "tissue_id") else row["parent_sample_id"]
     direct_ancestor_uuids = []
     for sample_id in sample_id_list.split(","):
         sample_id = sample_id.strip()
@@ -173,7 +175,7 @@ def create_new_uuid(row, source_entity, entity_factory, dryrun=False):
         return rslt["uuid"]
 
 
-def populate(row, source_entity, entity_factory, dryrun=False):
+def populate(row, source_entity, entity_factory, dryrun=False, components=None):
     """
     Build the contents of the newly created dataset using info from the parent
     """
@@ -199,8 +201,37 @@ def populate(row, source_entity, entity_factory, dryrun=False):
         print(row_df)
     else:
         kid_path = Path(entity_factory.get_full_path(uuid))
+
     row_df.to_csv(kid_path / f"{uuid}-metadata.tsv", header=True, sep="\t", index=False)
     extras_path = kid_path / "extras"
+
+    if components is not None:
+        for component in components:
+            component_df = pd.read_csv(component.get("metadata-file"), sep="\t")
+            component_df_cp = component_df.query(f'data_path=="{old_data_path}"').copy()
+            for _, row_component in component_df_cp.iterrows():
+                old_component_data_path = row_component["data_path"]
+                row_component["data_path"] = "."
+                old_component_contrib_path = Path(row_component["contributors_path"])
+                new_component_contrib_path = Path("extras") / old_component_contrib_path.name
+                row_component["contributors_path"] = str(new_component_contrib_path)
+                if "antibodies_path" in row_component:
+                    old_component_antibodies_path = Path(row["antibodies_path"])
+                    new_component_antibodies_path = (
+                        Path("extras") / old_component_antibodies_path.name
+                    )
+                    row_component["antibodies_path"] = str(new_component_antibodies_path)
+                    if dryrun:
+                        print(f"copy {old_component_antibodies_path} to {extras_path}")
+                    else:
+                        copy2(source_entity.full_path / old_component_antibodies_path, extras_path)
+                row_component = pd.DataFrame([row_component])
+                row_component.to_csv(
+                    kid_path / f"{component.get('assaytype')}-metadata.tsv",
+                    header=True,
+                    sep="\t",
+                    index=False,
+                )
     if extras_path.exists():
         assert extras_path.is_dir(), f"{extras_path} is not a directory"
     else:
@@ -315,7 +346,7 @@ def submit_uuid(uuid, entity_factory, dryrun=False):
         return rslt
 
 
-def reorganize(source_uuid, **kwargs) -> None:
+def reorganize(source_uuid, **kwargs) -> Union[Tuple, None]:
     """
     Carry out the reorganization.  Parameters and kwargs are:
 
@@ -338,31 +369,36 @@ def reorganize(source_uuid, **kwargs) -> None:
     frozen_df_fname = kwargs["frozen_df_fname"]
     verbose = kwargs.get("verbose", False)
     dag_config = {}
+    child_uuid_list = []
 
     entity_factory = EntityFactory(auth_tok, instance=instance)
 
     print(f"Decomposing {source_uuid}")
     source_entity = entity_factory.get(source_uuid)
+    full_entity = SoftAssayClient(
+        list(source_entity.full_path.glob("*metadata.tsv")),
+        auth_tok,
+    )
     if mode in ["all", "stop"]:
-        if hasattr(source_entity, "data_types"):
+        if hasattr(source_entity, "dataset_type"):
+            # ToDo: review this change to dataset_type
             assert isinstance(source_entity.data_types, str)
             source_data_types = source_entity.data_types
         else:
             source_data_types = None
-        source_metadata_files = list(source_entity.full_path.glob("*metadata.tsv"))
-        for src_idx, smf in enumerate(source_metadata_files):
+        for src_idx, smf in enumerate([full_entity.primary_assay.get("metadata-file")]):
             source_df = pd.read_csv(smf, sep="\t")
             source_df["canonical_assay_type"] = source_df.apply(
                 get_canonical_assay_type,
                 axis=1,
-                entity_factory=entity_factory,
-                default_type=source_data_types,
+                dataset_type=full_entity.primary_assay.get("dataset_type"),
             )
             source_df["new_uuid"] = source_df.apply(
                 create_new_uuid,
                 axis=1,
                 source_entity=source_entity,
                 entity_factory=entity_factory,
+                primary_entity=full_entity.primary_assay,
                 dryrun=dryrun,
             )
             source_df = apply_special_case_transformations(source_df, source_data_types)
@@ -376,9 +412,7 @@ def reorganize(source_uuid, **kwargs) -> None:
 
     if mode in ["all", "unstop"]:
         dag_config = {"uuid_list": [], "collection_type": ""}
-        child_uuid_list = []
-        source_metadata_files = list(source_entity.full_path.glob("*metadata.tsv"))
-        for src_idx, _ in enumerate(source_metadata_files):
+        for src_idx, _ in enumerate([full_entity.primary_assay.get("metadata-file")]):
             this_frozen_df_fname = frozen_df_fname.format("_" + str(src_idx))
             source_df = pd.read_csv(this_frozen_df_fname, sep="\t")
             print(f"read {this_frozen_df_fname}")
@@ -386,7 +420,13 @@ def reorganize(source_uuid, **kwargs) -> None:
             for _, row in source_df.iterrows():
                 dag_config["uuid_list"].append(row["new_uuid"])
                 child_uuid_list.append(row["new_uuid"])
-                populate(row, source_entity, entity_factory, dryrun=dryrun)
+                populate(
+                    row,
+                    source_entity,
+                    entity_factory,
+                    dryrun=dryrun,
+                    components=full_entity.assay_components,
+                )
 
         update_upload_entity(child_uuid_list, source_entity, dryrun=dryrun, verbose=verbose)
 
@@ -399,6 +439,75 @@ def reorganize(source_uuid, **kwargs) -> None:
                         time.sleep(30)
 
     print(json.dumps(dag_config))
+    return child_uuid_list, full_entity.is_multiassay
+
+
+def create_multiassay_component(
+    source_uuid: str,
+    auth_tok: str,
+    components: list,
+    parent_dir: str,
+) -> None:
+    headers = {
+        "authorization": "Bearer " + auth_tok,
+        "content-type": "application/json",
+        "X-Hubmap-Application": "ingest-pipeline",
+    }
+
+    response = HttpHook("GET", http_conn_id="entity_api_connection").run(
+        endpoint=f"entities/{source_uuid}",
+        headers=headers,
+        extra_options={"check_response": False},
+    )
+    response.raise_for_status()
+    response_json = response.json()
+    if "group_uuid" not in response_json:
+        print(f"response from GET on entities{source_uuid}:")
+        pprint(response_json)
+        raise ValueError("entities response did not contain group_uuid")
+    parent_group_uuid = response_json["group_uuid"]
+
+    data = {
+        "creation_action": "Multi-Assay Split",
+        "group_uuid": parent_group_uuid,
+        "direct_ancestor_uuids": [source_uuid],
+        "datasets": [
+            {
+                "dataset_link_abs_dir": parent_dir,
+                "contains_human_genetic_sequences": component.get("contains-pii"),
+                "dataset_type": component.get("dataset_type"),
+            }
+            for component in components
+        ],
+    }
+    print(f"Data to create components {data}")
+    response = HttpHook("POST", http_conn_id="ingest_api_connection").run(
+        endpoint=f"datasets/components",
+        headers=headers,
+        data=json.dumps(data),
+    )
+    response.raise_for_status()
+
+
+def reorganize_multiassay(source_uuid, verbose=False, **kwargs) -> None:
+    auth_tok = kwargs["auth_tok"]
+    instance = kwargs["instance"]
+
+    entity_factory = EntityFactory(auth_tok, instance=instance)
+    print(f"Creating components {source_uuid}")
+
+    source_entity = entity_factory.get(source_uuid)
+    full_entity = SoftAssayClient(list(source_entity.full_path.glob("*metadata.tsv")), auth_tok)
+    create_multiassay_component(
+        source_uuid, auth_tok, full_entity.assay_components, str(source_entity.full_path)
+    )
+    StatusChanger(
+        source_entity.uuid,
+        source_entity.entity_factory.auth_tok,
+        Statuses.DATASET_SUBMITTED,
+        verbose=verbose,
+    ).on_status_change()
+    print(f"{source_entity.uuid} status is Submitted")
 
 
 def main():
@@ -408,26 +517,26 @@ def main():
     parser = argparse.ArgumentParser()
     simplified_frozen_df_fname = DEFAULT_FROZEN_DF_FNAME.format("")  # no suffix
     parser.add_argument(
-        "uuid", help=("input .txt file containing uuids or" " .csv or .tsv file with uuid column")
+        "uuid", help="input .txt file containing uuids or" " .csv or .tsv file with uuid column"
     )
     parser.add_argument(
         "--stop",
-        help=("stop after creating child uuids and writing" f" {simplified_frozen_df_fname}"),
+        help="stop after creating child uuids and writing" f" {simplified_frozen_df_fname}",
         action="store_true",
     )
     parser.add_argument(
         "--unstop",
-        help=("do not create child uuids;" f" read {simplified_frozen_df_fname} and continue"),
+        help="do not create child uuids;" f" read {simplified_frozen_df_fname} and continue",
         action="store_true",
     )
     parser.add_argument(
         "--instance",
-        help=("instance to use." f" One of {list(ENDPOINTS)} (default %(default)s)"),
+        help="instance to use." f" One of {list(ENDPOINTS)} (default %(default)s)",
         default="PROD",
     )
     parser.add_argument(
         "--dryrun",
-        help=("describe the steps that would be taken but" " do not make changes"),
+        help="describe the steps that would be taken but" " do not make changes",
         action="store_true",
     )
     parser.add_argument(

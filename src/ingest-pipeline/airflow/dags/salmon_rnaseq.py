@@ -288,7 +288,7 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
                 "previous_revision_uuid_callable": get_previous_revision_uuid,
                 "http_conn_id": "ingest_api_connection",
                 "dataset_name_callable": build_dataset_name,
-                "dataset_types": [params.dataset_type],
+                "pipeline_shorthand": "Salmon"
             },
         )
 
@@ -369,9 +369,7 @@ def get_salmon_dag_params(assay: str) -> SequencingDagParameters:
         dag_id=f"salmon_rnaseq_{assay}",
         pipeline_name=f"salmon-rnaseq-{assay}",
         assay=assay,
-        dataset_type=f"salmon_rnaseq_{assay}",
     )
-
 
 salmon_dag_params: List[SequencingDagParameters] = [
     # 10X is special because it was first; no "10x" label in the pipeline name
@@ -379,25 +377,21 @@ salmon_dag_params: List[SequencingDagParameters] = [
         dag_id="salmon_rnaseq_10x",
         pipeline_name="salmon-rnaseq",
         assay="10x_v3",
-        dataset_type="salmon_rnaseq_10x",
     ),
     SequencingDagParameters(
         dag_id="salmon_rnaseq_10x_sn",
         pipeline_name="salmon-rnaseq",
         assay="10x_v3_sn",
-        dataset_type="salmon_sn_rnaseq_10x",
     ),
     SequencingDagParameters(
         dag_id="salmon_rnaseq_10x_v2",
         pipeline_name="salmon-rnaseq",
         assay="10x_v2",
-        dataset_type="salmon_rnaseq_10x",
     ),
     SequencingDagParameters(
         dag_id="salmon_rnaseq_10x_v2_sn",
         pipeline_name="salmon-rnaseq",
         assay="10x_v2_sn",
-        dataset_type="salmon_sn_rnaseq_10x",
     ),
     get_salmon_dag_params("sciseq"),
     get_salmon_dag_params("slideseq"),

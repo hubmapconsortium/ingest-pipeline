@@ -233,7 +233,7 @@ with HMDAG(
                    'previous_revision_uuid_callable': get_previous_revision_uuid,
                    'http_conn_id': 'ingest_api_connection',
                    'dataset_name_callable': build_dataset_name,
-                   'dataset_types': ["publication_ancillary"]
+                   'pipeline_shorthand': 'ancillary'
                    }
     )
 
