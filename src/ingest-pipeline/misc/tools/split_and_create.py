@@ -183,9 +183,9 @@ def populate(row, source_entity, entity_factory, dryrun=False, components=None):
     # 1. Case when non_global is set but there is no global/non_global directories
     # 2. Case when non_global is not set but there are global/non_global directories
     is_shared_upload = {"global", "non_global"} == {
-        x.name()
+        x.name
         for x in source_entity.full_path.glob("*global")
-        if x.is_dir() and x.name() in ["global", "non_global"]
+        if x.is_dir() and x.name in ["global", "non_global"]
     }
     non_global_files = row.get("non_global_files")
 
