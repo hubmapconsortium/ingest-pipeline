@@ -221,7 +221,7 @@ def populate(row, source_entity, entity_factory, dryrun=False, components=None):
     for path_index in ["contributors_path", "antibodies_path"]:
         if old_path := row.get(path_index):
             old_paths.append(Path(old_path))
-            row[path_index] = str(Path("extras") / old_paths[old_path].name)
+            row[path_index] = str(Path("extras") / old_path.name)
 
     # old_contrib_path = Path(row["contributors_path"])
     # new_contrib_path = Path("extras") / old_contrib_path.name
