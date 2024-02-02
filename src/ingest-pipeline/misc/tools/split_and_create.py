@@ -187,9 +187,13 @@ def populate(row, source_entity, entity_factory, dryrun=False, components=None):
         for x in source_entity.full_path.glob("*global")
         if x.is_dir() and x.name in ["global", "non_global"]
     }
+
     non_global_files = row.get("non_global_files")
 
+    print(f"Is {uuid} part of a shared upload? {is_shared_upload}")
+
     if non_global_files:
+        print(f"Non global files: {non_global_files}")
         # Catch case 1
         assert (
             is_shared_upload
@@ -223,15 +227,7 @@ def populate(row, source_entity, entity_factory, dryrun=False, components=None):
             old_paths.append(old_path)
             row[path_index] = str(Path("extras") / old_path.name)
 
-    # old_contrib_path = Path(row["contributors_path"])
-    # new_contrib_path = Path("extras") / old_contrib_path.name
-    # row["contributors_path"] = str(new_contrib_path)
-    # if "antibodies_path" in row:
-    #     old_antibodies_path = Path(row["antibodies_path"])
-    #     new_antibodies_path = Path("extras") / old_antibodies_path.name
-    #     row["antibodies_path"] = str(new_antibodies_path)
-    # else:
-    #     old_antibodies_path = None
+    print(f"Old paths to copy over {old_paths}")
 
     row_df.to_csv(kid_path / f"{uuid}-metadata.tsv", header=True, sep="\t", index=False)
     dest_extras_path = kid_path / "extras"
@@ -249,27 +245,11 @@ def populate(row, source_entity, entity_factory, dryrun=False, components=None):
                         old_component_paths.append(old_component_path)
                         row_component[path_index] = str(Path("extras") / old_component_path.name)
 
+                print(f"Old component paths to copy over {old_component_paths}")
+
                 copy_contrib_antibodies(
                     dest_extras_path, source_entity, old_component_paths, dryrun
                 )
-
-                # old_component_contrib_path = Path(row_component["contributors_path"])
-                # new_component_contrib_path = Path("extras") / old_component_contrib_path.name
-                # # Update the contributors path
-                # row_component["contributors_path"] = str(new_component_contrib_path)
-                # # Update the antibodies path (if it exists)
-                #
-                # # TODO: Doesn't seem like we copy the component's contributors file
-                # if "antibodies_path" in row_component:
-                #     old_component_antibodies_path = Path(row["antibodies_path"])
-                #     new_component_antibodies_path = (
-                #         Path("extras") / old_component_antibodies_path.name
-                #     )
-                #     row_component["antibodies_path"] = str(new_component_antibodies_path)
-                #     if dryrun:
-                #         print(f"copy {old_component_antibodies_path} to {extras_path}")
-                #     else:
-                #         copy2(source_entity.full_path / old_component_antibodies_path, extras_path)
 
                 row_component = pd.DataFrame([row_component])
                 row_component.to_csv(
@@ -306,18 +286,17 @@ def copy_shared_data(kid_path, source_entity, non_global_files, dryrun):
     if dryrun:
         print(f"Copy files from {source_entity.full_path / 'global'} to {kid_path}")
     else:
-        copytree(source_entity.full_path / "global", kid_path)
+        print(f"Copy files from {source_entity.full_path / 'global'} to {kid_path}")
+        copytree(source_entity.full_path / "global", kid_path, dirs_exist_ok=True)
     # Copy over non-global files to dataset directory
     for source_non_global_file, dest_relative_non_global_file in non_global_files.items():
         dest_non_global_file = kid_path / dest_relative_non_global_file
         if dryrun:
-            print(
-                f"Copy file from {source_non_global_file} to {kid_path / dest_relative_non_global_file}"
-            )
+            print(f"Copy file from {source_non_global_file} to {dest_non_global_file}")
         else:
-            if not dest_non_global_file.exists():
-                os.makedirs(dest_non_global_file, exist_ok=True)
-            copy2(source_non_global_file, kid_path / dest_relative_non_global_file)
+            print(f"Copy file from {source_non_global_file} to {dest_non_global_file}")
+            dest_non_global_file.mkdir(parents=True, exist_ok=True)
+            copy2(source_non_global_file, dest_non_global_file)
 
 
 def copy_data_path(kid_path, source_data_path, dryrun):
