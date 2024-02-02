@@ -295,7 +295,7 @@ def copy_shared_data(kid_path, source_entity, non_global_files, dryrun):
             print(f"Copy file from {source_non_global_file} to {dest_non_global_file}")
         else:
             print(f"Copy file from {source_non_global_file} to {dest_non_global_file}")
-            dest_non_global_file.mkdir(parents=True, exist_ok=True)
+            dest_non_global_file.parent.mkdir(parents=True, exist_ok=True)
             copy2(source_non_global_file, dest_non_global_file)
 
 
