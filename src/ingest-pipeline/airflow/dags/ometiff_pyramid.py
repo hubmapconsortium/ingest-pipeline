@@ -31,6 +31,13 @@ from utils import (
     HMDAG,
     get_queue_resource,
     get_preserve_scratch_resource,
+    get_instance_type,
+    get_environment_instance
+)
+
+from aws_utils import (
+    create_instance,
+    terminate_instance
 )
 
 # after running this DAG you should have on disk
@@ -59,6 +66,25 @@ with HMDAG('ometiff_pyramid',
                'tmp_dir_path': get_tmp_dir_path,
                'preserve_scratch': get_preserve_scratch_resource('ometiff_pyramid'),
            }) as dag:
+
+    def start_new_environment(**kwargs):
+        uuid = kwargs['run_id']
+        instance_id = create_instance(uuid, f'Airflow {get_environment_instance()} Worker',
+                                      get_instance_type(dag.dag_id))
+        if instance_id is None:
+            return 1
+        else:
+            kwargs['ti'].xcom_push(key='instance_id', value=instance_id)
+            return 0
+
+
+    t_initialize_environment = PythonOperator(
+        task_id='initialize_environment',
+        python_callable=start_new_environment,
+        provide_context=True,
+        op_kwargs={
+        }
+    )
 
     # does the name need to match the filename?
     pipeline_name = 'ometiff_pyramid'
@@ -175,8 +201,7 @@ with HMDAG('ometiff_pyramid',
                    'previous_revision_uuid_callable': get_previous_revision_uuid,
                    'http_conn_id': 'ingest_api_connection',
                    'dataset_name_callable': build_dataset_name,
-                    'pipeline_shorthand': 'Image Pyramid'
-                   }
+                   'pipeline_shorthand': 'Image Pyramid'}
     )
 
     t_set_dataset_error = PythonOperator(
@@ -218,16 +243,49 @@ with HMDAG('ometiff_pyramid',
     t_set_dataset_processing = SetDatasetProcessingOperator(task_id='set_dataset_processing')
     t_move_data = MoveDataOperator(task_id='move_data')
 
+    def terminate_new_environment(**kwargs):
+        instance_id = kwargs['ti'].xcom_pull(key='instance_id', task_ids="initialize_environment")
+        if instance_id is None:
+            return 1
+        else:
+            uuid = kwargs['run_id']
+            terminate_instance(instance_id, uuid)
+        return 0
+
+
+    t_terminate_environment = PythonOperator(
+        task_id='terminate_environment',
+        python_callable=terminate_new_environment,
+        provide_context=True,
+        op_kwargs={
+        }
+    )
+
     # DAG
     (
-        t_log_info >> t_create_tmpdir
-        >> t_send_create_dataset >> t_set_dataset_processing
-        >> prepare_cwl1 >> t_build_cmd1 >> t_pipeline_exec_cwl1
-        >> t_maybe_keep_cwl1 >> prepare_cwl2 >> t_build_cmd2
-        >> t_pipeline_exec_cwl2 >> t_maybe_keep_cwl2
-        >> t_move_data >> t_send_status >> t_join
+        t_log_info
+        >> t_create_tmpdir
+        >> t_send_create_dataset
+        >> t_set_dataset_processing
+        >> t_initialize_environment
+
+        >> prepare_cwl1
+        >> t_build_cmd1
+        >> t_pipeline_exec_cwl1
+        >> t_maybe_keep_cwl1
+
+        >> prepare_cwl2
+        >> t_build_cmd2
+        >> t_pipeline_exec_cwl2
+        >> t_maybe_keep_cwl2
+
+        >> t_move_data
+        >> t_send_status
+        >> t_join
+        >> t_terminate_environment
     )
     t_maybe_keep_cwl1 >> t_set_dataset_error
     t_maybe_keep_cwl2 >> t_set_dataset_error
     t_set_dataset_error >> t_join
     t_join >> t_cleanup_tmpdir
+    t_cleanup_tmpdir >> t_terminate_environment
