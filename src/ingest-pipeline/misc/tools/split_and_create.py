@@ -224,7 +224,8 @@ def populate(row, source_entity, entity_factory, dryrun=False, components=None):
     # Contributors and antibodies should point to the path directly.
     old_paths = []
     for path_index in ["contributors_path", "antibodies_path"]:
-        if old_path := Path(row.get(path_index)):
+        if old_path := row.get(path_index):
+            old_path = Path(old_path)
             old_paths.append(old_path)
             row[path_index] = str(Path("extras") / old_path.name)
 
@@ -242,7 +243,8 @@ def populate(row, source_entity, entity_factory, dryrun=False, components=None):
                 row_component["data_path"] = "."
                 old_component_paths = []
                 for path_index in ["contributors_path", "antibodies_path"]:
-                    if old_component_path := Path(row_component.get(path_index)):
+                    if old_component_path := row_component.get(path_index):
+                        old_component_path = Path(old_component_path)
                         old_component_paths.append(old_component_path)
                         row_component[path_index] = str(Path("extras") / old_component_path.name)
 
