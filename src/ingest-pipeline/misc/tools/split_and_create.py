@@ -204,7 +204,7 @@ def populate(row, source_entity, entity_factory, dryrun=False, components=None):
         non_global_files = {
             source_entity.full_path / "non_global" / Path(x.strip()): Path(x.strip())
             for x in non_global_files.split(";")
-            if x
+            if x.strip()
         }
 
         # Iterate over source_paths and make sure they exist.
