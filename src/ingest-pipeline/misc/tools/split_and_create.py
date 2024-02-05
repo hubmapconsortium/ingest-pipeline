@@ -328,6 +328,7 @@ def copy_extras(dest_extras_path, source_entity, dryrun):
             if dryrun:
                 print(f"copy {source_extras_path} to {dest_extras_path}")
             else:
+                print(f"copy {source_extras_path} to {dest_extras_path}")
                 copytree(source_extras_path, dest_extras_path, dirs_exist_ok=True)
         else:
             if dryrun:
@@ -340,6 +341,7 @@ def copy_contrib_antibodies(dest_extras_path, source_entity, old_paths, dryrun):
         if dryrun:
             print(f"copy {old_path} to {dest_extras_path}")
         else:
+            print(f"copy {old_path} to {dest_extras_path}")
             copy2(source_entity.full_path / old_path, dest_extras_path / old_path.name)
 
 
