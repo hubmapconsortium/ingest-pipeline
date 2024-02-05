@@ -168,16 +168,17 @@ def populate(row, source_entity, entity_factory, dryrun=False, components=None):
     Build the contents of the newly created dataset using info from the parent
     """
     uuid = row["new_uuid"]
-    row_df = pd.DataFrame([row])
-    row_df = row_df.drop(columns=["canonical_assay_type", "new_uuid"])
+    old_data_path = row["data_path"]
+    row["data_path"] = "."
 
-    if dryrun:
-        kid_path = Path(SCRATCH_PATH) / uuid
-        kid_path.mkdir(0o770, parents=True, exist_ok=True)
-        print(f"writing this metadata to {kid_path}:")
-        print(row_df)
-    else:
-        kid_path = Path(entity_factory.get_full_path(uuid))
+    # Contributors and antibodies should point to the path directly.
+    old_paths = []
+    for path_index in ["contributors_path", "antibodies_path"]:
+        if old_path := row.get(path_index):
+            old_path = Path(old_path)
+            old_paths.append(old_path)
+            row[path_index] = str(Path("extras") / old_path.name)
+    print(f"Old paths to copy over {old_paths}")
 
     # Have to cover two cases
     # 1. Case when non_global is set but there is no global/non_global directories
@@ -187,11 +188,8 @@ def populate(row, source_entity, entity_factory, dryrun=False, components=None):
         for x in source_entity.full_path.glob("*global")
         if x.is_dir() and x.name in ["global", "non_global"]
     }
-
     non_global_files = row.get("non_global_files")
-
     print(f"Is {uuid} part of a shared upload? {is_shared_upload}")
-
     if non_global_files:
         print(f"Non global files: {non_global_files}")
         # Catch case 1
@@ -218,18 +216,16 @@ def populate(row, source_entity, entity_factory, dryrun=False, components=None):
             not is_shared_upload
         ), f"{uuid} has empty non_global_files but has global & non_global directories"
 
-    old_data_path = row["data_path"]
-    row["data_path"] = "."
+    row_df = pd.DataFrame([row])
+    row_df = row_df.drop(columns=["canonical_assay_type", "new_uuid"])
 
-    # Contributors and antibodies should point to the path directly.
-    old_paths = []
-    for path_index in ["contributors_path", "antibodies_path"]:
-        if old_path := row.get(path_index):
-            old_path = Path(old_path)
-            old_paths.append(old_path)
-            row[path_index] = str(Path("extras") / old_path.name)
-
-    print(f"Old paths to copy over {old_paths}")
+    if dryrun:
+        kid_path = Path(SCRATCH_PATH) / uuid
+        kid_path.mkdir(0o770, parents=True, exist_ok=True)
+        print(f"writing this metadata to {kid_path}:")
+        print(row_df)
+    else:
+        kid_path = Path(entity_factory.get_full_path(uuid))
 
     row_df.to_csv(kid_path / f"{uuid}-metadata.tsv", header=True, sep="\t", index=False)
     dest_extras_path = kid_path / "extras"
