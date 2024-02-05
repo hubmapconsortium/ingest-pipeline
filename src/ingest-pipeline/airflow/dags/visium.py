@@ -86,8 +86,8 @@ with HMDAG("visium_no_probes",
         tmpdir = get_tmp_dir_path(run_id)
         print("tmpdir: ", tmpdir)
 
-        data_dirs = get_parent_data_dirs_list(**kwargs)
-        print("data_dirs: ", data_dirs)
+        data_dir = get_parent_data_dir(**kwargs)
+        print("data_dirs: ", data_dir)
 
         command = [
             *get_cwltool_base_cmd(tmpdir),
@@ -102,21 +102,14 @@ with HMDAG("visium_no_probes",
             get_threads_resource(dag.dag_id),
         ]
 
-        assert len(data_dirs) == 0
-
-        data_dir = data_dirs[0]
-
         command.append("--fastq_dir")
-        command.append(data_dir)
+        command.append(data_dir / 'raw/fastq/')
 
         command.append("--img_dir")
-        command.append(data_dir / Path('/lab_processed/images/'))
+        command.append(data_dir /'lab_processed/images/')
 
         command.append("--metadata_dir")
-        command.append(data_dir / Path('/raw/'))
-
-        command.append("--spaceranger_dir")
-        command.append(data_dir / Path('/lab_processed/spaceranger'))
+        command.append(data_dir / 'raw/')
 
         return join_quote_command_str(command)
 
