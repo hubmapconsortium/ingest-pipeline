@@ -342,7 +342,7 @@ def copy_contrib_antibodies(dest_extras_path, source_entity, old_paths, dryrun):
             print(f"copy {old_path} to {dest_extras_path}")
         else:
             print(f"copy {old_path} to {dest_extras_path}")
-            dest_extras_path.parent.mkdir(parents=True, exist_ok=True)
+            dest_extras_path.mkdir(parents=True, exist_ok=True)
             copy2(source_entity.full_path / old_path, dest_extras_path / old_path.name)
 
 
