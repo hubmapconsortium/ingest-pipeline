@@ -340,7 +340,7 @@ def copy_contrib_antibodies(dest_extras_path, source_entity, old_paths, dryrun):
         if dryrun:
             print(f"copy {old_path} to {dest_extras_path}")
         else:
-            copy2(source_entity.full_path / old_path, dest_extras_path)
+            copy2(source_entity.full_path / old_path, dest_extras_path / old_path.name)
 
 
 def apply_special_case_transformations(
