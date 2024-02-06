@@ -22,7 +22,10 @@
         'previous_version_uuid':
           'type': 'string'
           'description': >
-            uuid or DOI of the previous version of the product of this
-            analysis, if any
+            uuid or DOI of the previous version of the product of this analysis, if any
+        'avoid_previous_version_find':
+          'type': 'boolean'
+          'description': Disable automatic previous version uuid finding, usable when trying new pipelines on already
+            published datasets that you don't want to link yet
      'required': ['uuid_list', 'collection_type']
     
