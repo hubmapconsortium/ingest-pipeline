@@ -315,7 +315,9 @@ def get_dataset_type_organ_based(**kwargs) -> str:
     ds_rslt = pythonop_get_dataset_state(dataset_uuid_callable=my_callable, **kwargs)
     organ_list = list(set(ds_rslt["organs"]))
     organ_code = organ_list[0] if len(organ_list) == 1 else "multi"
-    pipeline_shorthand = "Kaggle-1 Glomerulus Segmentation" if organ_code in ["LK", "RK"] else "Image Pyramid"
+    pipeline_shorthand = (
+        "Kaggle-1 Glomerulus Segmentation" if organ_code in ["LK", "RK"] else "Image Pyramid"
+    )
 
     return f"{ds_rslt['dataset_type']} [{pipeline_shorthand}]"
 
@@ -801,7 +803,7 @@ def pythonop_send_create_dataset(**kwargs) -> str:
             "dataset_type": dataset_type,
             "group_uuid": parent_group_uuid,
             "contains_human_genetic_sequences": False,
-            "creation_action": "Central Process"
+            "creation_action": "Central Process",
         }
         if "previous_revision_uuid_callable" in kwargs:
             previous_revision_uuid = kwargs["previous_revision_uuid_callable"](**kwargs)
@@ -1375,8 +1377,12 @@ def make_send_status_msg_function(
                 status = "QA"
             else:
                 status = ds_rslt.get("status", "QA")
-                if status in ["Processing", "New"]:
-                    status = "QA"
+                if status in ["Processing", "New", "Invalid"]:
+                    status = (
+                        "QA"
+                        if kwargs["dag_run"].conf["dag_id"] == "scan_and_begin_processing"
+                        else "Submitted"
+                    )
                 if metadata_fun:
                     if not contacts:
                         contacts = ds_rslt.get("contacts", [])
