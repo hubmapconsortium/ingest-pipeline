@@ -163,6 +163,8 @@ with HMDAG("visium_no_probes",
             cwl_workflows[3],
             "--ometiff_directory",
             ".",
+            "--output_filename",
+            "visium_histology_hires_pyramid.ome.tif",
         ]
         return join_quote_command_str(command)
 
