@@ -1377,13 +1377,7 @@ def make_send_status_msg_function(
                 status = "QA"
             else:
                 status = ds_rslt.get("status", "QA")
-                if status in ["Processing", "New"]:
-                    status = (
-                        "QA"
-                        if kwargs["dag_run"].conf["dag_id"] == "scan_and_begin_processing"
-                        else "Submitted"
-                    )
-                if status in ["Invalid"]:
+                if status in ["Processing", "New", "Invalid"]:
                     status = (
                         "QA"
                         if kwargs["dag_run"].conf["dag_id"] == "scan_and_begin_processing"
