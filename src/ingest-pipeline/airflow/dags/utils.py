@@ -245,7 +245,10 @@ class HMDAG(DAG):
         """
         res_queue = get_queue_resource(self.dag_id, task.task_id)
         if res_queue is not None:
-            task.queue = res_queue
+            try:
+                task.queue = res_queue
+            except Exception as e:
+                print(repr(e))
         super().add_task(task)
 
 
@@ -1702,7 +1705,7 @@ def find_matching_endpoint(host_url: str) -> str:
     return candidates[0]
 
 
-def get_soft_data(dataset_uuid, **kwargs) -> dict:
+def get_soft_data(dataset_uuid, **kwargs) -> Optional[dict]:
     """
     Gets the soft data type for a specific uuid.
     """
