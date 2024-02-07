@@ -72,7 +72,7 @@ with HMDAG(
         print("ds_rslt:")
         pprint(ds_rslt)
 
-        for key in ["entity_type", "status", "uuid", "data_types", "local_directory_full_path"]:
+        for key in ["entity_type", "status", "uuid", "local_directory_full_path"]:
             assert key in ds_rslt, f"Dataset status for {uuid} has no {key}"
 
         if ds_rslt["entity_type"] != "Upload":
@@ -111,7 +111,9 @@ with HMDAG(
             plugin_directory=plugin_path,
             # offline=True,  # noqa E265
             add_notes=False,
-            extra_parameters={"coreuse": get_threads_resource("validate_upload", "run_validation")},
+            extra_parameters={
+                "coreuse": get_threads_resource("validate_upload", "run_validation")
+            },
             globus_token=get_auth_tok(**kwargs),
         )
         # Scan reports an error result
