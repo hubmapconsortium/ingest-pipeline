@@ -21,7 +21,6 @@ from utils import (
     get_cwltool_base_cmd,
     get_dataset_uuid,
     get_parent_dataset_uuids_list,
-    get_parent_data_dirs_list,
     get_parent_data_dir,
     build_dataset_name as inner_build_dataset_name,
     get_previous_revision_uuid,
@@ -29,7 +28,6 @@ from utils import (
     join_quote_command_str,
     make_send_status_msg_function,
     get_tmp_dir_path,
-    pythonop_get_dataset_state,
     HMDAG,
     get_queue_resource,
     get_threads_resource,
@@ -51,21 +49,22 @@ default_args = {
     "on_failure_callback": utils.create_dataset_state_error_callback(get_uuid_for_error),
 }
 
-with HMDAG("visium_no_probes",
-           schedule_interval=None,
-           is_paused_upon_creation=False,
-           default_args=default_args,
-           user_defined_macros={
-               "tmp_dir_path": get_tmp_dir_path,
-               "preserve_scratch": get_preserve_scratch_resource("visium_no_probes"),
-           }) as dag:
-
+with HMDAG(
+    "visium_no_probes",
+    schedule_interval=None,
+    is_paused_upon_creation=False,
+    default_args=default_args,
+    user_defined_macros={
+        "tmp_dir_path": get_tmp_dir_path,
+        "preserve_scratch": get_preserve_scratch_resource("visium_no_probes"),
+    },
+) as dag:
     cwl_workflows = get_absolute_workflows(
         Path("salmon-rnaseq", "pipeline.cwl"),
         Path("portal-containers", "h5ad-to-arrow.cwl"),
         Path("portal-containers", "anndata-to-ui.cwl"),
-        Path('ome-tiff-pyramid', 'pipeline.cwl'),
-        Path('portal-containers', 'ome-tiff-offsets.cwl'),
+        Path("ome-tiff-pyramid", "pipeline.cwl"),
+        Path("portal-containers", "ome-tiff-offsets.cwl"),
     )
 
     def build_dataset_name(**kwargs):
@@ -103,13 +102,13 @@ with HMDAG("visium_no_probes",
         ]
 
         command.append("--fastq_dir")
-        command.append(data_dir / 'raw/fastq/')
+        command.append(data_dir / "raw/fastq/")
 
         command.append("--img_dir")
-        command.append(data_dir /'lab_processed/images/')
+        command.append(data_dir / "lab_processed/images/")
 
         command.append("--metadata_dir")
-        command.append(data_dir / 'raw/')
+        command.append(data_dir / "raw/")
 
         return join_quote_command_str(command)
 
@@ -327,7 +326,6 @@ with HMDAG("visium_no_probes",
         },
     )
 
-
     t_send_create_dataset = PythonOperator(
         task_id="send_create_dataset",
         python_callable=utils.pythonop_send_create_dataset,
@@ -337,7 +335,7 @@ with HMDAG("visium_no_probes",
             "previous_revision_uuid_callable": get_previous_revision_uuid,
             "http_conn_id": "ingest_api_connection",
             "dataset_name_callable": build_dataset_name,
-            "dataset_types": ["salmon_visium_no_probes"],
+            "pipeline_shorthand": "Salmon + Scanpy",
         },
     )
 
@@ -355,10 +353,7 @@ with HMDAG("visium_no_probes",
 
     send_status_msg = make_send_status_msg_function(
         dag_file=__file__,
-        retcode_ops=["pipeline_exec",
-                     "move_data",
-                     "convert_for_ui",
-                     "convert_for_ui_2"],
+        retcode_ops=["pipeline_exec", "move_data", "convert_for_ui", "convert_for_ui_2"],
         cwl_workflows=cwl_workflows,
     )
 
@@ -411,5 +406,3 @@ with HMDAG("visium_no_probes",
     t_maybe_keep_cwl5 >> t_set_dataset_error
     t_set_dataset_error >> t_join
     t_join >> t_cleanup_tmpdir
-
-
