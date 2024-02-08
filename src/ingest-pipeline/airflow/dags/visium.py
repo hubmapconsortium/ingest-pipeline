@@ -159,7 +159,7 @@ with HMDAG(
             "--relax-path-checks",
             cwl_workflows[3],
             "--ometiff_directory",
-            ".",
+            data_dir / "lab_processed/images/",
             "--output_filename",
             "visium_histology_hires_pyramid.ome.tif",
         ]
