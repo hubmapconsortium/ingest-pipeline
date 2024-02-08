@@ -296,7 +296,7 @@ with HMDAG(
         python_callable=utils.pythonop_maybe_keep,
         provide_context=True,
         op_kwargs={
-            "next_op": "move_data",
+            "next_op": "prepare_cwl4",
             "bail_op": "set_dataset_error",
             "test_op": "convert_for_ui_2",
         },
@@ -307,7 +307,7 @@ with HMDAG(
         python_callable=utils.pythonop_maybe_keep,
         provide_context=True,
         op_kwargs={
-            "next_op": "prepare_cwl_ome_tiff_offsets",
+            "next_op": "prepare_cwl5",
             "bail_op": "set_dataset_error",
             "test_op": "pipeline_exec_cwl_ome_tiff_pyramid",
         },
