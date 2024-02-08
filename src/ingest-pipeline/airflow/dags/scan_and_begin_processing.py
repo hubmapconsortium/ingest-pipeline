@@ -113,7 +113,7 @@ with HMDAG(
         ignore_globs = [uuid, "extras", "*metadata.tsv", "validation_report.txt"]
         app_context = {
             "entities_url": HttpHook.get_connection("entity_api_connection").host + "/entities/",
-            "request_header": {"X-SenNet-Application": "ingest-pipeline"},
+            "request_header": {"X-Hubmap-Application": "ingest-pipeline"},
         }
         #
         # Uncomment offline=True below to avoid validating orcid_id URLs &etc
