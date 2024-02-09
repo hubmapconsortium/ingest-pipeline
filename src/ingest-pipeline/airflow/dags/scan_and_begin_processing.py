@@ -26,10 +26,13 @@ from airflow.configuration import conf as airflow_conf
 from airflow.exceptions import AirflowException
 from airflow.operators.bash import BashOperator
 from airflow.operators.python import BranchPythonOperator, PythonOperator
+from airflow.providers.http.hooks.http import HttpHook
+
 
 sys.path.append(airflow_conf.as_dict()["connections"]["SRC_PATH"].strip("'").strip('"'))
 from submodules import ingest_validation_tools_upload  # noqa E402
 from submodules import ingest_validation_tests, ingest_validation_tools_error_report
+
 
 sys.path.pop()
 
@@ -108,6 +111,10 @@ with HMDAG(
         plugin_path = [path for path in ingest_validation_tests.__path__][0]
 
         ignore_globs = [uuid, "extras", "*metadata.tsv", "validation_report.txt"]
+        app_context = {
+            "entities_url": HttpHook.get_connection("entity_api_connection").host + "/entities/",
+            "request_header": {"X-Hubmap-Application": "ingest-pipeline"},
+        }
         #
         # Uncomment offline=True below to avoid validating orcid_id URLs &etc
         #
@@ -120,6 +127,7 @@ with HMDAG(
             add_notes=False,
             ignore_deprecation=True,
             globus_token=get_auth_tok(**kwargs),
+            app_context=app_context,
         )
         # Scan reports an error result
         errors = upload.get_errors(plugin_kwargs=kwargs)
