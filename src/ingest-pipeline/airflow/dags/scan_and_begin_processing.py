@@ -1,5 +1,6 @@
 import os
 import sys
+import inspect
 from datetime import datetime, timedelta
 from pathlib import Path
 from pprint import pprint
@@ -142,6 +143,7 @@ with HMDAG(
                 f.write(report.as_text())
             return 1
         else:
+            kwargs["ti"].xcom_push(key="ivt_path", value=inspect.getfile(upload.__class__))
             return 0
 
     t_run_validation = PythonOperator(
@@ -266,7 +268,10 @@ with HMDAG(
                 "parent_lz_path": lz_path,
                 "parent_submission_id": uuid,
                 "metadata": md,
-                "dag_provenance_list": utils.get_git_provenance_list(__file__),
+                "dag_provenance_list": utils.get_git_provenance_list(
+                    [__file__,
+                     kwargs["ti"].xcom_pull(task_ids="run_validation", key="ivt_path")]
+                ),
             }
             for next_dag in utils.downstream_workflow_iter(collectiontype, assay_type):
                 yield next_dag, payload
