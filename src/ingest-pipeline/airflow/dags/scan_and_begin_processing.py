@@ -16,10 +16,10 @@ from utils import (
     get_auth_tok,
     get_preserve_scratch_resource,
     get_queue_resource,
+    get_soft_data_assaytype,
     make_send_status_msg_function,
     pythonop_get_dataset_state,
     pythonop_maybe_keep,
-    get_soft_data_assaytype,
 )
 
 from airflow.configuration import conf as airflow_conf
@@ -28,11 +28,9 @@ from airflow.operators.bash import BashOperator
 from airflow.operators.python import BranchPythonOperator, PythonOperator
 from airflow.providers.http.hooks.http import HttpHook
 
-
 sys.path.append(airflow_conf.as_dict()["connections"]["SRC_PATH"].strip("'").strip('"'))
 from submodules import ingest_validation_tools_upload  # noqa E402
 from submodules import ingest_validation_tests, ingest_validation_tools_error_report
-
 
 sys.path.pop()
 
@@ -113,6 +111,7 @@ with HMDAG(
         ignore_globs = [uuid, "extras", "*metadata.tsv", "validation_report.txt"]
         app_context = {
             "entities_url": HttpHook.get_connection("entity_api_connection").host + "/entities/",
+            "ingest_url": os.environ["AIRFLOW_CONN_INGEST_API_CONNECTION"],
             "request_header": {"X-Hubmap-Application": "ingest-pipeline"},
         }
         #
