@@ -944,6 +944,7 @@ def pythonop_get_dataset_state(**kwargs) -> Dict:
     headers = {
         "authorization": f"Bearer {auth_tok}",
         "content-type": "application/json",
+        "Cache-Control": "no-cache",
         "X-Hubmap-Application": "ingest-pipeline",
     }
     http_hook = HttpHook(method, http_conn_id="entity_api_connection")
