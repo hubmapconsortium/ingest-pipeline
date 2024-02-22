@@ -159,11 +159,12 @@ with HMDAG(
     send_status_msg = make_send_status_msg_function(
         dag_file=__file__,
         retcode_ops=["run_validation", "run_md_extract", "md_consistency_tests"],
-        ivt_path_fun=get_ivt_path,
+        cwl_workflows=[],
         dataset_uuid_fun=get_dataset_uuid,
         dataset_lz_path_fun=get_dataset_lz_path,
         metadata_fun=read_metadata_file,
         include_file_metadata=False,
+        ivt_path_fun=get_ivt_path,
     )
 
     def wrapped_send_status_msg(**kwargs):
