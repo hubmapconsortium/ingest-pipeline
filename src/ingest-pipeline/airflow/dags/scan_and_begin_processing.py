@@ -46,6 +46,10 @@ def get_dataset_lz_path(**kwargs):
     return ctx["lz_path"]
 
 
+def get_ivt_path(**kwargs):
+    return Path(kwargs["ti"].xcom_pull(task_ids="run_validation", key="ivt_path"))
+
+
 # Following are defaults which can be overridden later on
 default_args = {
     "owner": "hubmap",
@@ -155,7 +159,7 @@ with HMDAG(
     send_status_msg = make_send_status_msg_function(
         dag_file=__file__,
         retcode_ops=["run_validation", "run_md_extract", "md_consistency_tests"],
-        cwl_workflows=[],
+        ivt_path_fun=get_ivt_path,
         dataset_uuid_fun=get_dataset_uuid,
         dataset_lz_path_fun=get_dataset_lz_path,
         metadata_fun=read_metadata_file,
@@ -268,8 +272,7 @@ with HMDAG(
                 "parent_submission_id": uuid,
                 "metadata": md,
                 "dag_provenance_list": utils.get_git_provenance_list(
-                    [__file__,
-                     kwargs["ti"].xcom_pull(task_ids="run_validation", key="ivt_path")]
+                    [__file__, kwargs["ti"].xcom_pull(task_ids="run_validation", key="ivt_path")]
                 ),
             }
             for next_dag in utils.downstream_workflow_iter(collectiontype, assay_type):
