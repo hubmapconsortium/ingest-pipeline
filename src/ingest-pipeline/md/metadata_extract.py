@@ -20,7 +20,7 @@ SCHEMA_BASE_URI = 'http://schemata.hubmapconsortium.org/'
 set_schema_base_path(SCHEMA_BASE_PATH, SCHEMA_BASE_URI)
 
 
-def scan(target_dir, out_fname, schema_fname, yaml_flag=False):
+def scan(target_dir, out_fname, schema_fname, yaml_flag=False, component=None):
     global _KNOWN_DATA_COLLECTION_TYPES
 
     if _KNOWN_DATA_COLLECTION_TYPES is None:
@@ -68,15 +68,17 @@ def main(myargv=None):
     parser.add_argument('dir', default=None, nargs='?',
                         help='directory to scan (defaults to CWD)')
     parser.add_argument('--yaml', default=False, action='store_true')
+    parser.add_argument('--component', default=None, action='store_true')
     ns = parser.parse_args(myargv[1:])
 
     schema_fname = default_schema_path if ns.schema is None else ns.schema
     out_fname = ns.out
     target_dir = (os.getcwd() if ns.dir is None else ns.dir)
     yaml_flag = ns.yaml
+    component = ns.component
     try:
         scan(target_dir=target_dir, out_fname=out_fname, schema_fname=schema_fname,
-             yaml_flag=yaml_flag)
+             yaml_flag=yaml_flag, component=component)
     except (MetadataError, AssertionError) as e:
         sys.exit(f'{type(e).__name__}: {e}')
 
