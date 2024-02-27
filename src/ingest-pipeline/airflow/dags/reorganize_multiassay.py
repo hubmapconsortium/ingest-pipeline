@@ -8,6 +8,7 @@ from airflow.operators.bash import BashOperator
 from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 from airflow.exceptions import AirflowException
 from airflow.providers.http.hooks.http import HttpHook
+from airflow import DAG
 
 
 from hubmap_operators.common_operators import (
@@ -24,7 +25,6 @@ from utils import (
     pythonop_get_dataset_state,
     pythonop_set_dataset_state,
     find_matching_endpoint,
-    HMDAG,
     get_queue_resource,
     get_preserve_scratch_resource,
 )
@@ -36,16 +36,7 @@ from misc.tools.split_and_create import reorganize_multiassay
 
 # Following are defaults which can be overridden later on
 default_args = {
-    "owner": "hubmap",
-    "depends_on_past": False,
     "start_date": datetime(2019, 1, 1),
-    "email": ["joel.welling@gmail.com"],
-    "email_on_failure": False,
-    "email_on_retry": False,
-    "retries": 1,
-    "retry_delay": timedelta(minutes=1),
-    "xcom_push": True,
-    "queue": get_queue_resource("reorganize_upload"),
 }
 
 
@@ -62,7 +53,7 @@ def _get_frozen_df_wildcard(run_id):
     return str(Path(get_tmp_dir_path(run_id)) / "frozen_source_df*.tsv")
 
 
-with HMDAG(
+with DAG(
     "reorganize_multiassay",
     schedule_interval=None,
     is_paused_upon_creation=False,
@@ -143,16 +134,16 @@ with HMDAG(
         task_id="maybe_keep",
         python_callable=pythonop_maybe_keep,
         provide_context=True,
-        op_kwargs={"next_op": "join", "bail_op": "set_dataset_error", "test_op": "split"},
+        op_kwargs={"next_op": "get_component_uuids", "bail_op": "set_dataset_error", "test_op": "split"},
     )
 
     def get_component_dataset_uuids(**kwargs):
-        return [{"uuid": uuid for uuid in get_component_uuids(kwargs["ti"].xcom_pull(task_ids="find_uuid", key="uuid"),
-                                                              get_auth_tok(**kwargs))}]
+        return [{"uuid": uuid} for uuid in get_component_uuids(kwargs["ti"].xcom_pull(task_ids="find_uuid", key="uuid"),
+                                                               get_auth_tok(**kwargs))]
 
 
-    t_get_components_uuids = PythonOperator(
-        task_id="get_primary_dataset_uuids",
+    t_get_component_uuids = PythonOperator(
+        task_id="get_component_uuids",
         python_callable=get_component_dataset_uuids,
         queue=get_queue_resource("rebuild_metadata"),
         provide_context=True,
@@ -162,7 +153,7 @@ with HMDAG(
         task_id="trigger_multiassay_component_metadata",
         trigger_dag_id="multiassay_component_metadata",
         queue=get_queue_resource("rebuild_metadata"),
-    ).expand(conf=t_get_components_uuids.output)
+    ).expand(conf=t_get_component_uuids.output)
 
     t_log_info = LogInfoOperator(task_id="log_info")
 
@@ -185,11 +176,12 @@ with HMDAG(
         >> t_create_tmpdir
         >> t_split
         >> t_maybe_keep
-        >> t_launch_multiassay_component_metadata
+        >> t_get_component_uuids >> t_launch_multiassay_component_metadata
         >> t_join
         >> t_preserve_info
         >> t_cleanup_tmpdir
     )
 
     t_maybe_keep >> t_set_dataset_error
+    t_launch_multiassay_component_metadata >> t_set_dataset_error
     t_set_dataset_error >> t_join
