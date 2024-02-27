@@ -1111,6 +1111,8 @@ def pythonop_md_consistency_tests(**kwargs) -> int:
                 except AssertionError as e:
                     kwargs["ti"].xcom_push(key="err_msg", value="Assertion Failed: {}".format(e))
                     return 1
+            else:
+                return 0
         else:
             kwargs["ti"].xcom_push(key="err_msg", value="Expected metadata file is missing")
             return 1
@@ -1336,14 +1338,12 @@ def make_send_status_msg_function(
         status = None
         extra_fields = {}
 
-        def my_callable(**kwargs):
-            return dataset_uuid
-
-        ds_rslt = pythonop_get_dataset_state(dataset_uuid_callable=my_callable, **kwargs)
+        ds_rslt = pythonop_get_dataset_state(dataset_uuid_callable=lambda **kwargs: dataset_uuid, **kwargs)
         if success:
             md = {}
-            files_for_provenance = [dag_file, *cwl_workflows, ivt_path_fun(**kwargs)]
-
+            files_for_provenance = [dag_file, *cwl_workflows,]
+            if ivt_path_fun:
+                files_for_provenance.append(ivt_path_fun(**kwargs))
             if no_provenance:
                 md["dag_provenance_list"] = kwargs["dag_run"].conf["dag_provenance_list"].copy()
             elif "dag_provenance" in kwargs["dag_run"].conf:
