@@ -22,6 +22,11 @@ from utils import (
     encrypt_tok,
 )
 
+from hubmap_operators.common_operators import (
+    CreateTmpDirOperator,
+    CleanupTmpDirOperator,
+)
+
 
 def get_uuid_for_error(**kwargs):
     """
@@ -54,7 +59,7 @@ default_args = {
 }
 
 with HMDAG(
-    "multiassay-component-metadata",
+    "multiassay_component_metadata",
     schedule_interval=None,
     is_paused_upon_creation=False,
     default_args=default_args,
@@ -63,6 +68,8 @@ with HMDAG(
         "preserve_scratch": get_preserve_scratch_resource("rebuild_metadata"),
     },
 ) as dag:
+
+    t_create_tmpdir = CreateTmpDirOperator(task_id="create_temp_dir")
 
     def check_one_uuid(uuid, **kwargs):
         """
@@ -164,7 +171,7 @@ with HMDAG(
     )
 
     def xcom_consistency_puller(**kwargs):
-        return kwargs["ti"].xcom_pull(task_ids="check_uuid", key="dataset_type")
+        return kwargs["ti"].xcom_pull(task_ids="check_uuids", key="dataset_type")
 
     t_md_consistency_tests = PythonOperator(
         task_id="md_consistency_tests",
@@ -176,7 +183,7 @@ with HMDAG(
     def read_metadata_file(**kwargs):
         md_fname = os.path.join(
             get_tmp_dir_path(kwargs["run_id"]),
-            kwargs["ti"].xcom_pull(task_ids="check_uuid", key="dataset_type") + "-rslt.yml",
+            kwargs["ti"].xcom_pull(task_ids="check_uuids", key="dataset_type") + "-rslt.yml",
         )
         with open(md_fname, "r") as f:
             scanned_md = yaml.safe_load(f)
@@ -221,4 +228,6 @@ with HMDAG(
         },
     )
 
-    t_check_uuids >> t_run_md_extract >> t_md_consistency_tests >> t_send_status
+    t_cleanup_tmpdir = CleanupTmpDirOperator(task_id="cleanup_temp_dir")
+
+    t_check_uuids >> t_create_tmpdir >> t_run_md_extract >> t_md_consistency_tests >> t_send_status >> t_cleanup_tmpdir

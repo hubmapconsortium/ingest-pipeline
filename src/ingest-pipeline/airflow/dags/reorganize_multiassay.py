@@ -44,7 +44,6 @@ default_args = {
     "email_on_retry": False,
     "retries": 1,
     "retry_delay": timedelta(minutes=1),
-    "xcom_push": True,
     "queue": get_queue_resource("reorganize_upload"),
 }
 
