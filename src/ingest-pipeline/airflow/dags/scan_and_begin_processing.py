@@ -1,5 +1,6 @@
 import os
 import sys
+import inspect
 from datetime import datetime, timedelta
 from pathlib import Path
 from pprint import pprint
@@ -16,16 +17,17 @@ from utils import (
     get_auth_tok,
     get_preserve_scratch_resource,
     get_queue_resource,
+    get_soft_data_assaytype,
     make_send_status_msg_function,
     pythonop_get_dataset_state,
     pythonop_maybe_keep,
-    get_soft_data_assaytype,
 )
 
 from airflow.configuration import conf as airflow_conf
 from airflow.exceptions import AirflowException
 from airflow.operators.bash import BashOperator
 from airflow.operators.python import BranchPythonOperator, PythonOperator
+from airflow.providers.http.hooks.http import HttpHook
 
 sys.path.append(airflow_conf.as_dict()["connections"]["SRC_PATH"].strip("'").strip('"'))
 from submodules import ingest_validation_tools_upload  # noqa E402
@@ -108,6 +110,11 @@ with HMDAG(
         plugin_path = [path for path in ingest_validation_tests.__path__][0]
 
         ignore_globs = [uuid, "extras", "*metadata.tsv", "validation_report.txt"]
+        app_context = {
+            "entities_url": HttpHook.get_connection("entity_api_connection").host + "/entities/",
+            "ingest_url": os.environ["AIRFLOW_CONN_INGEST_API_CONNECTION"],
+            "request_header": {"X-Hubmap-Application": "ingest-pipeline"},
+        }
         #
         # Uncomment offline=True below to avoid validating orcid_id URLs &etc
         #
@@ -120,6 +127,7 @@ with HMDAG(
             add_notes=False,
             ignore_deprecation=True,
             globus_token=get_auth_tok(**kwargs),
+            app_context=app_context,
         )
         # Scan reports an error result
         errors = upload.get_errors(plugin_kwargs=kwargs)
@@ -134,6 +142,7 @@ with HMDAG(
                 f.write(report.as_text())
             return 1
         else:
+            kwargs["ti"].xcom_push(key="ivt_path", value=inspect.getfile(upload.__class__))
             return 0
 
     t_run_validation = PythonOperator(
@@ -258,7 +267,10 @@ with HMDAG(
                 "parent_lz_path": lz_path,
                 "parent_submission_id": uuid,
                 "metadata": md,
-                "dag_provenance_list": utils.get_git_provenance_list(__file__),
+                "dag_provenance_list": utils.get_git_provenance_list(
+                    [__file__,
+                     kwargs["ti"].xcom_pull(task_ids="run_validation", key="ivt_path")]
+                ),
             }
             for next_dag in utils.downstream_workflow_iter(collectiontype, assay_type):
                 yield next_dag, payload

@@ -72,13 +72,13 @@ with HMDAG(
         print("ds_rslt:")
         pprint(ds_rslt)
 
-        for key in ["status", "uuid", "data_types", "local_directory_full_path", "metadata"]:
+        for key in ["status", "uuid", "local_directory_full_path", "metadata"]:
             assert key in ds_rslt, f"Dataset status for {uuid} has no {key}"
 
         if not ds_rslt["status"] in ["New", "Error", "QA", "Published"]:
             raise AirflowException(f"Dataset {uuid} is not QA or better")
 
-        dt = ds_rslt["data_types"]
+        dt = ds_rslt["dataset_type"]
         if isinstance(dt, str) and dt.startswith("[") and dt.endswith("]"):
             dt = ast.literal_eval(dt)
             print(f"parsed dt: {dt}")
