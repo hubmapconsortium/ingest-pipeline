@@ -60,9 +60,8 @@ class MultiassayMetadataTSVDataCollection(DataCollection):
         self.offsetdir = self.find_top(self.topdir, self.top_target, self.dir_regex)
         assert self.offsetdir is not None, "Wrong dataset type?"
 
-    def collect_metadata(self, component=None):
+    def collect_metadata(self, component=None, component_process=None):
         ingest_api_url = os.getenv("INGEST_API_URL")
-        component_process = os.getenv("COMPONENTS_ASSAY_TYPE")
         md_type_tbl = self.get_md_type_tbl()
         rslt = {}
         cl = []
