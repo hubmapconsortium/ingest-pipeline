@@ -8,7 +8,6 @@ from airflow.operators.bash import BashOperator
 from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 from airflow.exceptions import AirflowException
 from airflow.providers.http.hooks.http import HttpHook
-from airflow import DAG
 
 
 from hubmap_operators.common_operators import (
@@ -25,6 +24,7 @@ from utils import (
     pythonop_get_dataset_state,
     pythonop_set_dataset_state,
     find_matching_endpoint,
+    HMDAG,
     get_queue_resource,
     get_preserve_scratch_resource,
 )
@@ -36,7 +36,16 @@ from misc.tools.split_and_create import reorganize_multiassay
 
 # Following are defaults which can be overridden later on
 default_args = {
+    "owner": "hubmap",
+    "depends_on_past": False,
     "start_date": datetime(2019, 1, 1),
+    "email": ["joel.welling@gmail.com"],
+    "email_on_failure": False,
+    "email_on_retry": False,
+    "retries": 1,
+    "retry_delay": timedelta(minutes=1),
+    "xcom_push": True,
+    "queue": get_queue_resource("reorganize_upload"),
 }
 
 
@@ -53,7 +62,7 @@ def _get_frozen_df_wildcard(run_id):
     return str(Path(get_tmp_dir_path(run_id)) / "frozen_source_df*.tsv")
 
 
-with DAG(
+with HMDAG(
     "reorganize_multiassay",
     schedule_interval=None,
     is_paused_upon_creation=False,

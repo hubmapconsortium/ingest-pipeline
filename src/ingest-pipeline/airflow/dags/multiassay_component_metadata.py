@@ -54,7 +54,7 @@ default_args = {
 }
 
 with HMDAG(
-    "rebuild_primary_dataset_metadata",
+    "multiassay-component-metadata",
     schedule_interval=None,
     is_paused_upon_creation=False,
     default_args=default_args,
