@@ -191,5 +191,4 @@ with HMDAG(
     )
 
     t_maybe_keep >> t_set_dataset_error
-    t_launch_multiassay_component_metadata >> t_set_dataset_error
     t_set_dataset_error >> t_join
