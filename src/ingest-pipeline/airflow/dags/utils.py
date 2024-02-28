@@ -1408,7 +1408,8 @@ def make_send_status_msg_function(
             else:
                 status = ds_rslt.get("status", "QA")
                 if status in ["Processing", "New", "Invalid"]:
-                    status = "QA"
+                    status = "Submitted" if kwargs["dag"].dag_id in ["multiassay_component_metadata",
+                                                                     "reorganize_upload"] else "QA"
                 if metadata_fun:
                     if not contacts:
                         contacts = ds_rslt.get("contacts", [])
