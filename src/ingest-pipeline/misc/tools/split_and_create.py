@@ -391,7 +391,7 @@ def reorganize(source_uuid, **kwargs) -> Union[Tuple, None]:
             source_df["canonical_assay_type"] = source_df.apply(
                 get_canonical_assay_type,
                 axis=1,
-                dataset_type=full_entity.primary_assay.get("dataset_type"),
+                dataset_type=full_entity.primary_assay.get("dataset-type"),
             )
             source_df["new_uuid"] = source_df.apply(
                 create_new_uuid,
@@ -475,7 +475,7 @@ def create_multiassay_component(
             {
                 "dataset_link_abs_dir": parent_dir,
                 "contains_human_genetic_sequences": component.get("contains-pii"),
-                "dataset_type": component.get("dataset_type"),
+                "dataset_type": component.get("dataset-type"),
             }
             for component in components
         ],
