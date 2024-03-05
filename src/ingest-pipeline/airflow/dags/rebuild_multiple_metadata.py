@@ -105,7 +105,7 @@ with DAG(
 
     t_get_component_dataset_uuids = PythonOperator(
         task_id="get_component_dataset_uuids",
-        python_callable=get_component_dataset_uuids(),
+        python_callable=get_component_dataset_uuids,
         queue=get_queue_resource("rebuild_metadata"),
         provide_context=True,
     )
