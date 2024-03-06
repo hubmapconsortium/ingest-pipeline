@@ -62,7 +62,7 @@ class MultiassayMetadataTSVDataCollection(DataCollection):
         assert self.offsetdir is not None, "Wrong dataset type?"
 
     def collect_metadata(self):
-        ingest_api_url = urlparser.unquote(os.getenv("INGEST_API_URL"))
+        ingest_api_url = urlparser.unquote(os.getenv("INGEST_API_URL")).split("http://")[1]
         md_type_tbl = self.get_md_type_tbl()
         rslt = {}
         cl = []
