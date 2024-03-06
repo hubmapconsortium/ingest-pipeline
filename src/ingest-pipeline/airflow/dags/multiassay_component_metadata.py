@@ -54,7 +54,7 @@ default_args = {
     "retries": 1,
     "retry_delay": timedelta(minutes=1),
     "xcom_push": True,
-    "queue": get_queue_resource("rebuild_metadata"),
+    "queue": get_queue_resource("multiassay_component_metadata"),
     "on_failure_callback": create_dataset_state_error_callback(get_uuid_for_error),
 }
 
@@ -65,7 +65,7 @@ with HMDAG(
     default_args=default_args,
     user_defined_macros={
         "tmp_dir_path": get_tmp_dir_path,
-        "preserve_scratch": get_preserve_scratch_resource("rebuild_metadata"),
+        "preserve_scratch": get_preserve_scratch_resource("multiassay_component_metadata"),
     },
 ) as dag:
 
