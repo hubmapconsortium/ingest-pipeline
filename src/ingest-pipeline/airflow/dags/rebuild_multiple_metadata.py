@@ -65,12 +65,12 @@ with DAG(
                 if ds_rslt.get("dataset_info"):
                     # dataset_info should only be populated for processed_datasets
                     print(ds_rslt.get("dataset_info"))
+                    kwargs["dag_run"].conf["processed_datasets"].append(uuid)
+                else:
                     if ds_rslt["creation_action"] == "Multi-Assay Split":
                         kwargs["dag_run"].conf["component_datasets"].append(uuid)
                     else:
-                        kwargs["dag_run"].conf["processed_datasets"].append(uuid)
-                else:
-                    kwargs["dag_run"].conf["primary_datasets"].append(uuid)
+                        kwargs["dag_run"].conf["primary_datasets"].append(uuid)
 
     t_build_dataset_lists = PythonOperator(
         task_id="build_dataset_lists",
