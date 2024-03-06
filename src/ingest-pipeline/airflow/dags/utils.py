@@ -1017,6 +1017,7 @@ def pythonop_get_dataset_state(**kwargs) -> Dict:
         "local_directory_full_path": full_path,
         "metadata": metadata,
         "ingest_metadata": ds_rslt.get("ingest_metadata"),
+        "creation_action": ds_rslt.get("creation_action"),
     }
 
     if ds_rslt["entity_type"] == "Dataset":
@@ -1338,10 +1339,15 @@ def make_send_status_msg_function(
         status = None
         extra_fields = {}
 
-        ds_rslt = pythonop_get_dataset_state(dataset_uuid_callable=lambda **kwargs: dataset_uuid, **kwargs)
+        ds_rslt = pythonop_get_dataset_state(
+            dataset_uuid_callable=lambda **kwargs: dataset_uuid, **kwargs
+        )
         if success:
             md = {}
-            files_for_provenance = [dag_file, *cwl_workflows,]
+            files_for_provenance = [
+                dag_file,
+                *cwl_workflows,
+            ]
             if ivt_path_fun:
                 files_for_provenance.append(ivt_path_fun(**kwargs))
             if no_provenance:
@@ -1408,8 +1414,12 @@ def make_send_status_msg_function(
             else:
                 status = ds_rslt.get("status", "QA")
                 if status in ["Processing", "New", "Invalid"]:
-                    status = "Submitted" if kwargs["dag"].dag_id in ["multiassay_component_metadata",
-                                                                     "reorganize_upload"] else "QA"
+                    status = (
+                        "Submitted"
+                        if kwargs["dag"].dag_id
+                        in ["multiassay_component_metadata", "reorganize_upload"]
+                        else "QA"
+                    )
                 if metadata_fun:
                     if not contacts:
                         contacts = ds_rslt.get("contacts", [])
