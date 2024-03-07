@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from pprint import pprint
 
+from error_classifier import ErrorClassifier
 from hubmap_operators.common_operators import (
     CleanupTmpDirOperator,
     CreateTmpDirOperator,
@@ -103,8 +104,9 @@ with HMDAG(
         plugin_path = [path for path in ingest_validation_tests.__path__][0]
 
         ignore_globs = [uuid, "extras", "*metadata.tsv", "validation_report.txt"]
+        entities_url = HttpHook.get_connection("entity_api_connection").host
         app_context = {
-            "entities_url": HttpHook.get_connection("entity_api_connection").host + "/entities/",
+            "entities_url": entities_url + "/entities/" if entities_url else "",
             "ingest_url": os.environ["AIRFLOW_CONN_INGEST_API_CONNECTION"],
             "request_header": {"X-Hubmap-Application": "ingest-pipeline"},
         }
@@ -128,10 +130,12 @@ with HMDAG(
         report = ingest_validation_tools_error_report.ErrorReport(
             errors=upload.get_errors(plugin_kwargs=kwargs), info=upload.get_info()
         )
+        classified_errors = ErrorClassifier(report.errors).report_errors_basic()
         validation_file_path = Path(get_tmp_dir_path(kwargs["run_id"])) / "validation_report.txt"
         with open(validation_file_path, "w") as f:
             f.write(report.as_text())
         kwargs["ti"].xcom_push(key="validation_file_path", value=str(validation_file_path))
+        kwargs["ti"].xcom_push(key="classified_errors", value=classified_errors)
 
     t_run_validation = PythonOperator(
         task_id="run_validation",
@@ -141,6 +145,7 @@ with HMDAG(
 
     def send_status_msg(**kwargs):
         validation_file_path = Path(kwargs["ti"].xcom_pull(key="validation_file_path"))
+        classified_errors = kwargs["ti"].xcom_pull(key="classified_errors")
         with open(validation_file_path) as f:
             report_txt = f.read()
         if report_txt.startswith("No errors!"):
@@ -152,6 +157,7 @@ with HMDAG(
             status = Statuses.UPLOAD_INVALID
             extra_fields = {
                 "validation_message": report_txt,
+                "ingest_task": classified_errors,
             }
         logging.info(
             f"""
