@@ -447,7 +447,7 @@ def request_bulk_ingest():
                 raise AirflowException("The request happened twice?")
 
             try:
-                dr = trigger_dag(dag_id, run_id, conf, execution_date=execution_date)
+                dr = trigger_dag(dag_id, run_id, conf, execution_date=execution_date, replace_microseconds=False)
             except AirflowException as err:
                 LOGGER.error(err)
                 raise AirflowException("Attempt to trigger run produced an error: {}".format(err))
