@@ -382,7 +382,7 @@ def request_ingest():
 @csrf.exempt
 @api_bp.route("/request_bulk_ingest", methods=["POST"])
 # @secured(groups="HuBMAP-read")
-def request_ingest():
+def request_bulk_ingest():
     auth_tok = _auth_tok_from_environment()
     error_msgs = []
     success_msgs = []
