@@ -246,6 +246,15 @@ def populate(row, source_entity, entity_factory, dryrun=False, components=None):
                 print(f"creating {extras_path}")
             extras_path.mkdir(0o770)
     source_data_path = source_entity.full_path / old_data_path
+    if dryrun:
+        print(f"copy {old_contrib_path} to {extras_path}")
+    else:
+        copy2(source_entity.full_path / old_contrib_path, extras_path)
+    if old_antibodies_path is not None:
+        if dryrun:
+            print(f"copy {old_antibodies_path} to {extras_path}")
+        else:
+            copy2(source_entity.full_path / old_antibodies_path, extras_path)
     for elt in source_data_path.glob("*"):
         dst_file = kid_path / elt.name
         if dryrun:
@@ -260,15 +269,6 @@ def populate(row, source_entity, entity_factory, dryrun=False, components=None):
                     sub_elt.rename(kid_path / elt.name / sub_elt.name)
                 continue
             elt.rename(dst_file)
-    if dryrun:
-        print(f"copy {old_contrib_path} to {extras_path}")
-    else:
-        copy2(source_entity.full_path / old_contrib_path, extras_path)
-    if old_antibodies_path is not None:
-        if dryrun:
-            print(f"copy {old_antibodies_path} to {extras_path}")
-        else:
-            copy2(source_entity.full_path / old_antibodies_path, extras_path)
     print(f"{old_data_path} -> {uuid} -> full path: {kid_path}")
 
 
