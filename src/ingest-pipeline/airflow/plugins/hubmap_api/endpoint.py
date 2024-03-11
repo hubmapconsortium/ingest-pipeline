@@ -9,6 +9,7 @@ from datetime import datetime
 import pytz
 import yaml
 from cryptography.fernet import Fernet
+from time import sleep
 
 
 from flask import request, Response
@@ -421,6 +422,7 @@ def request_bulk_ingest():
             # Produce one and only one run
             tz = pytz.timezone(config("core", "timezone"))
             execution_date = datetime.now(tz)
+            sleep(0.05)
             LOGGER.info("starting {} with execution_date: {}".format(dag_id, execution_date))
 
             run_id = "{}_{}_{}".format(submission_id, process, execution_date.isoformat())
