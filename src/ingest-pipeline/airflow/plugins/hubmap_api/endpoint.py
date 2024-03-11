@@ -453,7 +453,7 @@ def request_bulk_ingest():
             LOGGER.info("dagrun follows: {}".format(dr))
             session.close()
         except HubmapApiInputException as e:
-            error_msgs.append(str(e))
+            error_msgs.append({"message": str(e), "submission_id": submission_id})
         except ValueError as e:
             error_msgs.append(str(e))
         except AirflowException as e:
