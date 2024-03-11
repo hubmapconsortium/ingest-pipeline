@@ -19,7 +19,6 @@ from utils import (
     get_cwltool_base_cmd,
     get_dataset_uuid,
     get_parent_dataset_uuids_list,
-    get_parent_data_dirs_list,
     get_parent_data_dir,
     build_dataset_name as inner_build_dataset_name,
     get_previous_revision_uuid,
@@ -55,21 +54,22 @@ default_args = {
     "on_failure_callback": utils.create_dataset_state_error_callback(get_uuid_for_error),
 }
 
-with HMDAG("visium_no_probes",
-           schedule_interval=None,
-           is_paused_upon_creation=False,
-           default_args=default_args,
-           user_defined_macros={
-               "tmp_dir_path": get_tmp_dir_path,
-               "preserve_scratch": get_preserve_scratch_resource("visium_no_probes"),
-           }) as dag:
-
+with HMDAG(
+    "visium_no_probes",
+    schedule_interval=None,
+    is_paused_upon_creation=False,
+    default_args=default_args,
+    user_defined_macros={
+        "tmp_dir_path": get_tmp_dir_path,
+        "preserve_scratch": get_preserve_scratch_resource("visium_no_probes"),
+    },
+) as dag:
     cwl_workflows = get_absolute_workflows(
         Path("salmon-rnaseq", "pipeline.cwl"),
         Path("portal-containers", "h5ad-to-arrow.cwl"),
         Path("portal-containers", "anndata-to-ui.cwl"),
-        Path('ome-tiff-pyramid', 'pipeline.cwl'),
-        Path('portal-containers', 'ome-tiff-offsets.cwl'),
+        Path("ome-tiff-pyramid", "pipeline.cwl"),
+        Path("portal-containers", "ome-tiff-offsets.cwl"),
     )
 
     def build_dataset_name(**kwargs):
@@ -109,8 +109,8 @@ with HMDAG("visium_no_probes",
         tmpdir = get_tmp_dir_path(run_id)
         print("tmpdir: ", tmpdir)
 
-        data_dirs = get_parent_data_dirs_list(**kwargs)
-        print("data_dirs: ", data_dirs)
+        data_dir = get_parent_data_dir(**kwargs)
+        print("data_dirs: ", data_dir)
 
         command = [
             *get_cwltool_base_cmd(tmpdir),
@@ -125,21 +125,14 @@ with HMDAG("visium_no_probes",
             get_threads_resource(dag.dag_id),
         ]
 
-        assert len(data_dirs) == 0
-
-        data_dir = data_dirs[0]
-
         command.append("--fastq_dir")
-        command.append(data_dir)
+        command.append(data_dir / "raw/fastq/")
 
         command.append("--img_dir")
-        command.append(data_dir / Path('/lab_processed/images/'))
+        command.append(data_dir / "lab_processed/images/")
 
         command.append("--metadata_dir")
-        command.append(data_dir / Path('/raw/'))
-
-        command.append("--spaceranger_dir")
-        command.append(data_dir / Path('/lab_processed/spaceranger'))
+        command.append(data_dir / "raw/")
 
         return join_quote_command_str(command)
 
@@ -192,7 +185,9 @@ with HMDAG("visium_no_probes",
             "--relax-path-checks",
             cwl_workflows[3],
             "--ometiff_directory",
-            ".",
+            data_dir / "lab_processed/images/",
+            "--output_filename",
+            "visium_histology_hires_pyramid.ome.tif",
         ]
         return join_quote_command_str(command)
 
@@ -261,7 +256,7 @@ with HMDAG("visium_no_probes",
         cd "$tmp_dir"/cwl_out ; \
         mkdir -p hubmap_ui ; \
         cd hubmap_ui ; \
-        {{ti.xcom_pull(task_ids='build_cmd3')}} >> $tmp_dir/session.log 2>&1 ; \
+        {{ti.xcom_pull(task_ids='build_cmd2')}} >> $tmp_dir/session.log 2>&1 ; \
         echo $?
         """,
     )
@@ -274,7 +269,7 @@ with HMDAG("visium_no_probes",
         cd "$tmp_dir"/cwl_out ; \
         mkdir -p hubmap_ui ; \
         cd hubmap_ui ; \
-        {{ti.xcom_pull(task_ids='build_cmd4')}} >> $tmp_dir/session.log 2>&1 ; \
+        {{ti.xcom_pull(task_ids='build_cmd3')}} >> $tmp_dir/session.log 2>&1 ; \
         echo $?
         """,
     )
@@ -285,7 +280,7 @@ with HMDAG("visium_no_probes",
         tmp_dir={{tmp_dir_path(run_id)}} ; \
         mkdir -p ${tmp_dir}/cwl_out ; \
         cd ${tmp_dir}/cwl_out ; \
-        {{ti.xcom_pull(task_ids='build_cwl_ome_tiff_pyramid')}} >> $tmp_dir/session.log 2>&1 ; \
+        {{ti.xcom_pull(task_ids='build_cmd4')}} >> $tmp_dir/session.log 2>&1 ; \
         echo $?
         """,
     )
@@ -295,7 +290,7 @@ with HMDAG("visium_no_probes",
         bash_command=""" \
         tmp_dir={{tmp_dir_path(run_id)}} ; \
         cd ${tmp_dir}/cwl_out ; \
-        {{ti.xcom_pull(task_ids='build_cmd_ome_tiff_offsets')}} >> ${tmp_dir}/session.log 2>&1 ; \
+        {{ti.xcom_pull(task_ids='build_cmd5')}} >> ${tmp_dir}/session.log 2>&1 ; \
         echo $?
         """,
     )
@@ -327,7 +322,7 @@ with HMDAG("visium_no_probes",
         python_callable=utils.pythonop_maybe_keep,
         provide_context=True,
         op_kwargs={
-            "next_op": "move_data",
+            "next_op": "prepare_cwl4",
             "bail_op": "set_dataset_error",
             "test_op": "convert_for_ui_2",
         },
@@ -338,7 +333,7 @@ with HMDAG("visium_no_probes",
         python_callable=utils.pythonop_maybe_keep,
         provide_context=True,
         op_kwargs={
-            "next_op": "prepare_cwl_ome_tiff_offsets",
+            "next_op": "prepare_cwl5",
             "bail_op": "set_dataset_error",
             "test_op": "pipeline_exec_cwl_ome_tiff_pyramid",
         },
@@ -355,7 +350,6 @@ with HMDAG("visium_no_probes",
         },
     )
 
-
     t_send_create_dataset = PythonOperator(
         task_id="send_create_dataset",
         python_callable=utils.pythonop_send_create_dataset,
@@ -365,7 +359,7 @@ with HMDAG("visium_no_probes",
             "previous_revision_uuid_callable": get_previous_revision_uuid,
             "http_conn_id": "ingest_api_connection",
             "dataset_name_callable": build_dataset_name,
-            "dataset_types": ["salmon_visium_no_probes"],
+            "pipeline_shorthand": "Salmon + Scanpy",
         },
     )
 
@@ -383,10 +377,7 @@ with HMDAG("visium_no_probes",
 
     send_status_msg = make_send_status_msg_function(
         dag_file=__file__,
-        retcode_ops=["pipeline_exec",
-                     "move_data",
-                     "convert_for_ui",
-                     "convert_for_ui_2"],
+        retcode_ops=["pipeline_exec", "move_data", "convert_for_ui", "convert_for_ui_2"],
         cwl_workflows=cwl_workflows,
     )
 
