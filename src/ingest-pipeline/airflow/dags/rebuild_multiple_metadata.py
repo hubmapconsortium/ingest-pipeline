@@ -24,92 +24,119 @@ def get_uuid_for_error(**kwargs):
 
 
 default_args = {
-    'start_date': datetime(2019, 1, 1),
+    "start_date": datetime(2019, 1, 1),
 }
 
-with DAG('rebuild_multiple_metadata',
-           schedule_interval=None,
-           is_paused_upon_creation=False,
-           default_args=default_args,
-           user_defined_macros={
-               'tmp_dir_path': get_tmp_dir_path,
-               'preserve_scratch': get_preserve_scratch_resource('rebuild_metadata')
-           }) as dag:
+with DAG(
+    "rebuild_multiple_metadata",
+    schedule_interval=None,
+    is_paused_upon_creation=False,
+    default_args=default_args,
+    user_defined_macros={
+        "tmp_dir_path": get_tmp_dir_path,
+        "preserve_scratch": get_preserve_scratch_resource("rebuild_metadata"),
+    },
+) as dag:
 
     def build_dataset_lists(**kwargs):
-        kwargs['dag_run'].conf['primary_datasets'] = []
-        kwargs['dag_run'].conf['processed_datasets'] = []
+        kwargs["dag_run"].conf["primary_datasets"] = []
+        kwargs["dag_run"].conf["processed_datasets"] = []
+        kwargs["dag_run"].conf["component_datasets"] = []
 
-        print('dag_run conf follows:')
-        pprint(kwargs['dag_run'].conf)
-        for uuid in kwargs['dag_run'].conf['uuids']:
+        print("dag_run conf follows:")
+        pprint(kwargs["dag_run"].conf)
+        for uuid in kwargs["dag_run"].conf["uuids"]:
             soft_data = get_soft_data(uuid, **kwargs)
+            ds_rslt = pythonop_get_dataset_state(
+                dataset_uuid_callable=lambda **kwargs: uuid, **kwargs
+            )
 
             # If we got nothing back from soft_data, then let's try to determine using entity_api
             if soft_data:
-                if soft_data.get('primary'):
-                    kwargs['dag_run'].conf['primary_datasets'].append(uuid)
+                if soft_data.get("primary"):
+                    if ds_rslt["creation_action"] == "Multi-Assay Split":
+                        kwargs["dag_run"].conf["component_datasets"].append(uuid)
+                    else:
+                        kwargs["dag_run"].conf["primary_datasets"].append(uuid)
                 else:
-                    kwargs['dag_run'].conf['processed_datasets'].append(uuid)
+                    kwargs["dag_run"].conf["processed_datasets"].append(uuid)
             else:
-                print(f'No matching soft data returned for {uuid}')
-                ds_rslt = pythonop_get_dataset_state(dataset_uuid_callable=lambda **kwargs: uuid, **kwargs)
+                print(f"No matching soft data returned for {uuid}")
                 if ds_rslt.get("dataset_info"):
                     # dataset_info should only be populated for processed_datasets
                     print(ds_rslt.get("dataset_info"))
-                    kwargs['dag_run'].conf['processed_datasets'].append(uuid)
+                    kwargs["dag_run"].conf["processed_datasets"].append(uuid)
                 else:
-                    kwargs['dag_run'].conf['primary_datasets'].append(uuid)
-
-
+                    if ds_rslt["creation_action"] == "Multi-Assay Split":
+                        kwargs["dag_run"].conf["component_datasets"].append(uuid)
+                    else:
+                        kwargs["dag_run"].conf["primary_datasets"].append(uuid)
 
     t_build_dataset_lists = PythonOperator(
-        task_id='build_dataset_lists',
+        task_id="build_dataset_lists",
         python_callable=build_dataset_lists,
         provide_context=True,
-        queue= get_queue_resource('rebuild_metadata'),
+        queue=get_queue_resource("rebuild_metadata"),
         op_kwargs={
-            'crypt_auth_tok': encrypt_tok(airflow_conf.as_dict()
-                                          ['connections']['APP_CLIENT_SECRET']).decode(),
-        }
+            "crypt_auth_tok": encrypt_tok(
+                airflow_conf.as_dict()["connections"]["APP_CLIENT_SECRET"]
+            ).decode(),
+        },
     )
 
     def get_primary_dataset_uuids(**kwargs):
-        return [{'uuid': uuid} for uuid in kwargs['dag_run'].conf['primary_datasets']]
+        return [{"uuid": uuid} for uuid in kwargs["dag_run"].conf["primary_datasets"]]
 
     t_get_primary_dataset_uuids = PythonOperator(
-        task_id='get_primary_dataset_uuids',
+        task_id="get_primary_dataset_uuids",
         python_callable=get_primary_dataset_uuids,
-        queue=get_queue_resource('rebuild_metadata'),
-        provide_context=True
+        queue=get_queue_resource("rebuild_metadata"),
+        provide_context=True,
     )
 
     def get_processed_dataset_uuids(**kwargs):
-        return [{'uuid': uuid} for uuid in kwargs['dag_run'].conf['processed_datasets']]
+        return [{"uuid": uuid} for uuid in kwargs["dag_run"].conf["processed_datasets"]]
 
     t_get_processed_dataset_uuids = PythonOperator(
-        task_id='get_processed_dataset_uuids',
+        task_id="get_processed_dataset_uuids",
         python_callable=get_processed_dataset_uuids,
-        queue=get_queue_resource('rebuild_metadata'),
-        provide_context=True
+        queue=get_queue_resource("rebuild_metadata"),
+        provide_context=True,
+    )
+
+    def get_component_dataset_uuids(**kwargs):
+        return [{"uuid": uuid} for uuid in kwargs["dag_run"].conf["component_datasets"]]
+
+    t_get_component_dataset_uuids = PythonOperator(
+        task_id="get_component_dataset_uuids",
+        python_callable=get_component_dataset_uuids,
+        queue=get_queue_resource("rebuild_metadata"),
+        provide_context=True,
     )
 
     t_launch_rebuild_primary_dataset_metadata = TriggerDagRunOperator.partial(
         task_id="trigger_rebuild_primary_dataset_metadata",
         trigger_dag_id="rebuild_primary_dataset_metadata",
-        queue=get_queue_resource('rebuild_metadata'),
-    ).expand(
-        conf=t_get_primary_dataset_uuids.output
-    )
+        queue=get_queue_resource("rebuild_metadata"),
+    ).expand(conf=t_get_primary_dataset_uuids.output)
 
     t_launch_rebuild_processed_dataset_metadata = TriggerDagRunOperator.partial(
         task_id="trigger_rebuild_processed_dataset_metadata",
         trigger_dag_id="rebuild_processed_dataset_metadata",
-        queue=get_queue_resource('rebuild_metadata'),
-    ).expand(
-        conf=t_get_processed_dataset_uuids.output
-    )
+        queue=get_queue_resource("rebuild_metadata"),
+    ).expand(conf=t_get_processed_dataset_uuids.output)
 
-    t_build_dataset_lists >> [t_get_primary_dataset_uuids, t_get_processed_dataset_uuids]
+    t_launch_rebuild_component_dataset_metadata = TriggerDagRunOperator.partial(
+        task_id="trigger_rebuild_component_dataset_metadata",
+        trigger_dag_id="multiassay_component_metadata",
+        queue=get_queue_resource("rebuild_metadata"),
+    ).expand(conf=t_get_component_dataset_uuids.output)
+
+    t_build_dataset_lists >> [
+        t_get_primary_dataset_uuids,
+        t_get_processed_dataset_uuids,
+        t_get_component_dataset_uuids,
+    ]
     t_get_primary_dataset_uuids >> t_launch_rebuild_primary_dataset_metadata
     t_get_processed_dataset_uuids >> t_launch_rebuild_processed_dataset_metadata
+    t_get_component_dataset_uuids >> t_launch_rebuild_component_dataset_metadata

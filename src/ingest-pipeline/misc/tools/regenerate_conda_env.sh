@@ -9,7 +9,10 @@ fi
 instance="$HUBMAP_INSTANCE"
 
 # What python version should be used?
-python_version=3.9
+if [ -z "$HUBMAP_PYTHON_VERSION" ]; then
+    exit "The environment variable HUBMAP_PYTHON_VERSION is not set."
+fi
+python_version="$HUBMAP_PYTHON_VERSION"
 
 # Root directory for newly created conda environments
 conda_env_root="/opt/environments"

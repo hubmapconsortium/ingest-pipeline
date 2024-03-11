@@ -14,7 +14,6 @@ from requests import codes
 from requests.exceptions import HTTPError
 from type_base import MetadataError
 from data_collection import DataCollection
-import urllib.parse as urlparser
 
 
 class MultiassayMetadataTSVDataCollection(DataCollection):
@@ -61,8 +60,8 @@ class MultiassayMetadataTSVDataCollection(DataCollection):
         self.offsetdir = self.find_top(self.topdir, self.top_target, self.dir_regex)
         assert self.offsetdir is not None, "Wrong dataset type?"
 
-    def collect_metadata(self):
-        ingest_api_url = urlparser.unquote(os.getenv("INGEST_API_URL"))
+    def collect_metadata(self, component=None, component_process=None):
+        ingest_api_url = os.getenv("INGEST_API_URL").split("http://")[1]
         md_type_tbl = self.get_md_type_tbl()
         rslt = {}
         cl = []
@@ -101,8 +100,27 @@ class MultiassayMetadataTSVDataCollection(DataCollection):
 
                     if "metadata" in fname and fname.endswith(".tsv"):
                         assert isinstance(this_md, list), "metadata.tsv did not produce a list"
-                        if "must-contain" in response:
+                        if "must-contain" in response and component_process is None:
                             print("MULTI ASSAY FOUND")
+                            for rec in this_md:
+                                this_dict = {"metadata": rec}
+                                for sub_key, dict_key in [
+                                    ("contributors_path", "contributors"),
+                                    ("antibodies_path", "antibodies"),
+                                ]:
+                                    if sub_key in rec:
+                                        assert rec[sub_key].endswith(
+                                            ".tsv"
+                                        ), 'TSV file expected, received "{}"'.format(rec[sub_key])
+                                        sub_path = os.path.join(
+                                            os.path.dirname(fpath), rec[sub_key]
+                                        )
+                                        sub_parser = md_type_tbl["TSV"](sub_path)
+                                        sub_md = sub_parser.collect_metadata()
+                                        this_dict[dict_key] = sub_md
+                                cl.append(this_dict)
+                                print(this_dict)
+                        elif component_process is not None and component == response.get("dataset-type"):
                             for rec in this_md:
                                 this_dict = {"metadata": rec}
                                 for sub_key, dict_key in [
