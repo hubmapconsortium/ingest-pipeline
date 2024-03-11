@@ -1,5 +1,6 @@
 import os
 import sys
+import inspect
 from datetime import datetime, timedelta
 from pathlib import Path
 from pprint import pprint
@@ -16,10 +17,10 @@ from utils import (
     get_auth_tok,
     get_preserve_scratch_resource,
     get_queue_resource,
+    get_soft_data_assaytype,
     make_send_status_msg_function,
     pythonop_get_dataset_state,
     pythonop_maybe_keep,
-    get_soft_data_assaytype,
     get_instance_type,
     get_threads_resource,
     get_environment_instance,
@@ -34,13 +35,11 @@ from airflow.configuration import conf as airflow_conf
 from airflow.exceptions import AirflowException
 from airflow.operators.bash import BashOperator
 from airflow.operators.python import BranchPythonOperator, PythonOperator
+from airflow.providers.http.hooks.http import HttpHook
 
 sys.path.append(airflow_conf.as_dict()["connections"]["SRC_PATH"].strip("'").strip('"'))
 from submodules import ingest_validation_tools_upload  # noqa E402
 from submodules import ingest_validation_tests, ingest_validation_tools_error_report
-
-from airflow.providers.http.hooks.http import HttpHook
-
 
 sys.path.pop()
 
@@ -53,6 +52,10 @@ def get_dataset_uuid(**kwargs):
 def get_dataset_lz_path(**kwargs):
     ctx = kwargs["dag_run"].conf
     return ctx["lz_path"]
+
+
+def get_ivt_path(**kwargs):
+    return Path(kwargs["ti"].xcom_pull(task_ids="run_validation", key="ivt_path"))
 
 
 # Following are defaults which can be overridden later on
@@ -139,8 +142,9 @@ with HMDAG(
 
         ignore_globs = [uuid, "extras", "*metadata.tsv", "validation_report.txt"]
         app_context = {
-            'entities_url': HttpHook.get_connection("entity_api_connection").host + "/entities/",
-            'request_header': {'X-SenNet-Application': 'ingest-pipeline'}
+            "entities_url": HttpHook.get_connection("entity_api_connection").host + "/entities/",
+            "ingest_url": os.environ["AIRFLOW_CONN_INGEST_API_CONNECTION"],
+            "request_header": {"X-Hubmap-Application": "ingest-pipeline"},
         }
         #
         # Uncomment offline=True below to avoid validating orcid_id URLs &etc
@@ -170,6 +174,7 @@ with HMDAG(
                 f.write(report.as_text())
             return 1
         else:
+            kwargs["ti"].xcom_push(key="ivt_path", value=inspect.getfile(upload.__class__))
             return 0
 
     t_run_validation = PythonOperator(
@@ -187,6 +192,7 @@ with HMDAG(
         dataset_lz_path_fun=get_dataset_lz_path,
         metadata_fun=read_metadata_file,
         include_file_metadata=False,
+        ivt_path_fun=get_ivt_path,
     )
 
     def wrapped_send_status_msg(**kwargs):
@@ -294,7 +300,9 @@ with HMDAG(
                 "parent_lz_path": lz_path,
                 "parent_submission_id": uuid,
                 "metadata": md,
-                "dag_provenance_list": utils.get_git_provenance_list(__file__),
+                "dag_provenance_list": utils.get_git_provenance_list(
+                    [__file__, kwargs["ti"].xcom_pull(task_ids="run_validation", key="ivt_path")]
+                ),
             }
             for next_dag in utils.downstream_workflow_iter(collectiontype, assay_type):
                 yield next_dag, payload

@@ -43,7 +43,7 @@ class DataCollection(object):
     def __repr__(self):
         return "<%s(%s)>" % (type(self).__name__, self.topdir)
 
-    def collect_metadata(self):
+    def collect_metadata(self, component=None, component_process=None):
         return {}
 
     def filter_metadata(self, metadata):

@@ -34,6 +34,27 @@ def check_link_published_drvs(uuid: str, auth_tok: str) -> Tuple[bool, str]:
     return needs_previous_version, published_uuid
 
 
+def get_component_uuids(uuid:str, auth_tok: str) -> List:
+    children = []
+    endpoint = f"/children/{uuid}"
+    headers = {
+        "content-type": "application/json",
+        "X-SenNet-Application": "ingest-pipeline",
+        "Authorization": f"Bearer {auth_tok}"
+    }
+    extra_options = {}
+
+    http_hook = HttpHook("GET", http_conn_id="entity_api_connection")
+
+    response = http_hook.run(endpoint, headers=headers, extra_options=extra_options)
+    print("response: ")
+    pprint(response.json())
+    for data in response.json():
+        if data.get("creation_action") == "Multi-Assay Split":
+            children.append(data.get("uuid"))
+    return children
+
+
 class SoftAssayClient:
     def __init__(self, metadata_files: List, auth_tok: str):
         self.assay_components = []
@@ -48,7 +69,7 @@ class SoftAssayClient:
             assay_type = self.__get_assaytype_data(row=rows[0], auth_tok=auth_tok)
             data_component = {
                 "assaytype": assay_type.get("assaytype"),
-                "dataset_type": assay_type.get("dataset-type"),
+                "dataset-type": assay_type.get("dataset-type"),
                 "contains-pii": assay_type.get("contains-pii", True),
                 "primary": assay_type.get("primary", False),
                 "metadata-file": metadata_file,
