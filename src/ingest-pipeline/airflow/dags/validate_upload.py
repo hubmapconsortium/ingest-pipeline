@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from pprint import pprint
 
+from error_classifier import ErrorClassifier
 from hubmap_operators.common_operators import (
     CleanupTmpDirOperator,
     CreateTmpDirOperator,
@@ -24,7 +25,6 @@ from utils import (
 )
 
 from airflow.configuration import conf as airflow_conf
-from airflow.dags.error_classifier import ErrorClassifier
 from airflow.exceptions import AirflowException
 from airflow.operators.python import PythonOperator
 from airflow.providers.http.hooks.http import HttpHook
@@ -145,7 +145,7 @@ with HMDAG(
 
     def send_status_msg(**kwargs):
         validation_file_path = Path(kwargs["ti"].xcom_pull(key="validation_file_path"))
-        classified_errors = Path(kwargs["ti"].xcom_pull(key="classified_errors"))
+        classified_errors = kwargs["ti"].xcom_pull(key="classified_errors")
         with open(validation_file_path) as f:
             report_txt = f.read()
         if report_txt.startswith("No errors!"):
