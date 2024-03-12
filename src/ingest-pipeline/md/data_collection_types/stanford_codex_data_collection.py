@@ -23,7 +23,7 @@ class StanfordCODEXDataCollection(AkoyaCODEXDataCollection):
 
     optional_files = []
 
-    def collect_metadata(self):
+    def collect_metadata(self, component=None, component_process=None):
         rslt = super(StanfordCODEXDataCollection, self).collect_metadata()
         hande_cl = []
         for fname in os.listdir(os.path.join(self.topdir, self.offsetdir)):
