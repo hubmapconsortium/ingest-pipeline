@@ -267,9 +267,9 @@ def populate(row, source_entity, entity_factory, dryrun=False, components=None):
         if src_path.exists():
             copy2(src_path, extras_path)
         else:
-            moved_path = kid_path / old_contrib_path
+            moved_path = kid_path / new_contrib_path
             print(f"""Probably already copied/moved {src_path} 
-                      to {kid_path / old_contrib_path} {"it exists" if moved_path.exists() else "missing file"}""")
+                      to {kid_path / new_contrib_path} {"it exists" if moved_path.exists() else "missing file"}""")
     if old_antibodies_path is not None:
         if dryrun:
             print(f"copy {old_antibodies_path} to {extras_path}")
