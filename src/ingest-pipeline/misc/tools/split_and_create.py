@@ -191,6 +191,7 @@ def populate(row, source_entity, entity_factory, dryrun=False, components=None):
         row["antibodies_path"] = str(new_antibodies_path)
     else:
         old_antibodies_path = None
+        new_antibodies_path = None
     # row['assay_type'] = row['canonical_assay_type']
     row_df = pd.DataFrame([row])
     row_df = row_df.drop(columns=["canonical_assay_type", "new_uuid"])
@@ -263,12 +264,24 @@ def populate(row, source_entity, entity_factory, dryrun=False, components=None):
     if dryrun:
         print(f"copy {old_contrib_path} to {extras_path}")
     else:
-        copy2(source_entity.full_path / old_contrib_path, extras_path)
+        src_path = source_entity.full_path / old_contrib_path
+        if src_path.exists():
+            copy2(src_path, extras_path)
+        else:
+            moved_path = kid_path / new_contrib_path
+            print(f"""Probably already copied/moved {src_path} 
+                      to {moved_path} {"it exists" if moved_path.exists() else "missing file"}""")
     if old_antibodies_path is not None:
         if dryrun:
             print(f"copy {old_antibodies_path} to {extras_path}")
         else:
-            copy2(source_entity.full_path / old_antibodies_path, extras_path)
+            src_path = source_entity.full_path / old_antibodies_path
+            if src_path.exists():
+                copy2(source_entity.full_path / old_antibodies_path, extras_path)
+            else:
+                moved_path = kid_path / new_antibodies_path
+                print(f"""Probably already copied/moved {src_path}
+                          to {moved_path} {"it exists" if moved_path.exists() else "missing file"}""")
     print(f"{old_data_path} -> {uuid} -> full path: {kid_path}")
 
 

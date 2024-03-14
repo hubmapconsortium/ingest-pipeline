@@ -52,7 +52,7 @@ class MetadataTSVDataCollection(DataCollection):
         self.offsetdir = self.find_top(self.topdir, self.top_target, self.dir_regex)
         assert self.offsetdir is not None, "Wrong dataset type?"
 
-    def collect_metadata(self):
+    def collect_metadata(self, component=None, component_process=None):
         md_type_tbl = self.get_md_type_tbl()
         rslt = {}
         cl = []
