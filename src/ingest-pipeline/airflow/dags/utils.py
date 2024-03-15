@@ -1457,7 +1457,7 @@ def make_send_status_msg_function(
             status = "Invalid"
             extra_fields = {
                 "status": "Invalid",
-                "pipeline_message": err_txt,
+                "pipeline_message": err_txt[-20000:],
             }
             return_status = False
         entity_type = ds_rslt.get("entity_type")

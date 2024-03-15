@@ -21,6 +21,7 @@ from utils import (
     make_send_status_msg_function,
     pythonop_get_dataset_state,
     pythonop_maybe_keep,
+    get_threads_resource,
 )
 
 from airflow.configuration import conf as airflow_conf
@@ -130,6 +131,7 @@ with HMDAG(
             # offline=True,  # noqa E265
             add_notes=False,
             ignore_deprecation=True,
+            extra_parameters={'coreuse': get_threads_resource('validate_upload', 'run_validation')},
             globus_token=get_auth_tok(**kwargs),
             app_context=app_context,
         )

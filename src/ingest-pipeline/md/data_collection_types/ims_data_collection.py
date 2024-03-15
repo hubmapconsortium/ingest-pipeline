@@ -71,7 +71,7 @@ class IMSDataCollection(DataCollection):
         """
         super().__init__(path)
 
-    def collect_metadata(self):
+    def collect_metadata(self, component=None, component_process=None):
         rslt = {}
         md_type_tbl = self.get_md_type_tbl()
         for match, md_type in self.expected_files + self.optional_files:

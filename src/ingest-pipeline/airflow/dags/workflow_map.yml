@@ -114,6 +114,9 @@ workflow_map:
     'assay_type': '.*'
     'workflow': 'azimuth_annotations'
   - 'collection_type': '.*'
+    'assay_type': 'h-and-e'
+    'workflow': 'ometiff_pyramid'
+  - 'collection_type': '.*'
     'assay_type': 'visium-no-probes'
     'workflow': 'visium_no_probes'
 
