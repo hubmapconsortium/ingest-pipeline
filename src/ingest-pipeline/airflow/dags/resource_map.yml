@@ -44,6 +44,14 @@ resource_map:
     - 'task_re': '.*'
       'queue': 'general'
       'threads': 6
+  - 'dag_re': 'visium*'
+    'preserve_scratch': true
+    'lanes': 2
+    # 'lanes': 12
+    'tasks':
+    - 'task_re': '.*'
+      'queue': 'general'
+      'threads': 6
   - 'dag_re': 'generate_bdbag'
     'preserve_scratch': true
     'lanes': 1
