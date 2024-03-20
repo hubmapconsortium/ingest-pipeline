@@ -149,6 +149,11 @@ class HubmapApiResponse:
         return HubmapApiResponse.error(HubmapApiResponse.STATUS_BAD_REQUEST, error)
 
     @staticmethod
+    def bad_request_bulk(error, success):
+        return HubmapApiResponse.standard_response(HubmapApiResponse.STATUS_BAD_REQUEST, {"error": error,
+                                                                                          "success": success})
+
+    @staticmethod
     def not_found(error="Resource not found"):
         return HubmapApiResponse.error(HubmapApiResponse.STATUS_NOT_FOUND, error)
 
@@ -401,7 +406,8 @@ def request_bulk_ingest():
             process = _get_required_string(item, "process")
             full_path = _get_required_string(item, "full_path")
         except HubmapApiInputException as e:
-            error_msgs.append("Must specify {} to request data be ingested".format(str(e)))
+            error_msgs.append({"message": "Must specify {} to request data be ingested".format(str(e)),
+                               "submission_id": "not_found"})
             continue
 
         process = (
@@ -411,7 +417,8 @@ def request_bulk_ingest():
         try:
             dag_id = config("ingest_map", process)
         except AirflowConfigException:
-            error_msgs.append("{} is not a known ingestion process".format(process))
+            error_msgs.append({"message": "{} is not a known ingestion process".format(process),
+                               "submission_id": submission_id})
             continue
 
         try:
@@ -443,28 +450,32 @@ def request_bulk_ingest():
             }
 
             if find_dag_runs(session, dag_id, run_id, execution_date):
+                error_msgs.append({"message": "run_id already exists {}".format(run_id),
+                                   "submission_id": submission_id})
                 # The run already happened??
-                raise AirflowException("The request happened twice?")
+                continue
 
             try:
                 dr = trigger_dag(dag_id, run_id, conf, execution_date=execution_date, replace_microseconds=False)
             except AirflowException as err:
                 LOGGER.error(err)
-                raise AirflowException("Attempt to trigger run produced an error: {}".format(err))
+                error_msgs.append({"message": "Attempt to trigger run produced an error: {}".format(err),
+                                   "submission_id": submission_id})
+                continue
             success_msgs.append({"ingest_id": ingest_id, "run_id": run_id, "submission_id": submission_id})
             LOGGER.info("dagrun follows: {}".format(dr))
             session.close()
         except HubmapApiInputException as e:
             error_msgs.append({"message": str(e), "submission_id": submission_id})
         except ValueError as e:
-            error_msgs.append(str(e))
+            error_msgs.append({"message": str(e), "submission_id": submission_id})
         except AirflowException as e:
-            error_msgs.append(str(e))
+            error_msgs.append({"message": str(e), "submission_id": submission_id})
         except Exception as e:
-            error_msgs.append(str(e))
+            error_msgs.append({"message": str(e), "submission_id": submission_id})
 
     if error_msgs:
-        return HubmapApiResponse.bad_request(error_msgs)
+        return HubmapApiResponse.bad_request_bulk(error_msgs, success_msgs)
     if success_msgs:
         return HubmapApiResponse.success(success_msgs)
     return HubmapApiResponse.bad_request("Nothing to ingest")
