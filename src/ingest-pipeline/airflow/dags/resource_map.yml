@@ -44,9 +44,12 @@ resource_map:
     # 'lanes': 12
     'instance_type': 'r6i.xlarge'
     'tasks':
-    - 'task_re': '.*cwl.*|.*exec|.*cmd.*|.*azimuth.*|.*ui.*'
-      'queue': 'processing'
-      'threads': 6
+      - 'task_re': '.*cwl.*|.*exec|.*cmd.*|.*azimuth.*|.*ui.*'
+        'queue': 'processing'
+        'threads': 6
+      - 'task_re': '.*'
+        'queue': 'general'
+        'threads': 6
   - 'dag_re': 'visium*'
     'preserve_scratch': true
     'lanes': 1
@@ -55,6 +58,9 @@ resource_map:
     'tasks':
       - 'task_re': '.*cwl.*|.*exec|.*cmd.*|.*ui.*'
         'queue': 'processing'
+        'threads': 6
+      - 'task_re': '.*'
+        'queue': 'general'
         'threads': 6
   - 'dag_re': 'generate_bdbag'
     'preserve_scratch': true
