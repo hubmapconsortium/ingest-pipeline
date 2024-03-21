@@ -201,7 +201,8 @@ with HMDAG('ometiff_pyramid',
                    'previous_revision_uuid_callable': get_previous_revision_uuid,
                    'http_conn_id': 'ingest_api_connection',
                    'dataset_name_callable': build_dataset_name,
-                   'pipeline_shorthand': 'Image Pyramid'}
+                    'pipeline_shorthand': 'Image Pyramid'
+                   }
     )
 
     t_set_dataset_error = PythonOperator(

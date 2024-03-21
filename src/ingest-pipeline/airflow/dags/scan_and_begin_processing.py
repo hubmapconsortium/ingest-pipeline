@@ -73,42 +73,42 @@ default_args = {
     "on_failure_callback": utils.create_dataset_state_error_callback(get_dataset_uuid),
 }
 
-
 with HMDAG(
-    "scan_and_begin_processing",
-    schedule_interval=None,
-    is_paused_upon_creation=False,
-    default_args=default_args,
-    user_defined_macros={
-        "tmp_dir_path": utils.get_tmp_dir_path,
-        "preserve_scratch": get_preserve_scratch_resource("scan_and_begin_processing"),
-    },
+        "scan_and_begin_processing",
+        schedule_interval=None,
+        is_paused_upon_creation=False,
+        default_args=default_args,
+        user_defined_macros={
+            "tmp_dir_path": utils.get_tmp_dir_path,
+            "preserve_scratch": get_preserve_scratch_resource("scan_and_begin_processing"),
+        },
 ) as dag:
-
     def start_new_environment(**kwargs):
-        uuid = kwargs['dag_run'].conf['submission_id']
-        instance_id = create_instance(uuid, f'Airflow {get_environment_instance()} Worker',
-                                      get_instance_type(kwargs['dag_run'].conf['dag_id']))
+        uuid = kwargs["dag_run"].conf["submission_id"]
+        instance_id = create_instance(uuid, f"Airflow {get_environment_instance()} Worker",
+                                      get_instance_type(kwargs["dag_run"].conf["dag_id"]))
         if instance_id is None:
             return 1
         else:
-            kwargs['ti'].xcom_push(key='instance_id', value=instance_id)
+            kwargs["ti"].xcom_push(key="instance_id", value=instance_id)
             return 0
 
 
     t_initialize_environment = PythonOperator(
-        task_id='initialize_environment',
+        task_id="initialize_environment",
         python_callable=start_new_environment,
         provide_context=True,
         op_kwargs={
         }
     )
 
+
     def read_metadata_file(**kwargs):
         md_fname = os.path.join(utils.get_tmp_dir_path(kwargs["run_id"]), "rslt.yml")
         with open(md_fname, "r") as f:
             scanned_md = yaml.safe_load(f)
         return scanned_md
+
 
     def __get_lzpath_uuid(**kwargs):
         if "lz_path" in kwargs["dag_run"].conf and "submission_id" in kwargs["dag_run"].conf:
@@ -136,6 +136,7 @@ with HMDAG(
             raise AirflowException("The dag_run does not contain enough information")
         return lz_path, uuid
 
+
     def run_validation(**kwargs):
         lz_path, uuid = __get_lzpath_uuid(**kwargs)
         plugin_path = [path for path in ingest_validation_tests.__path__][0]
@@ -144,7 +145,7 @@ with HMDAG(
         app_context = {
             "entities_url": HttpHook.get_connection("entity_api_connection").host + "/entities/",
             "ingest_url": os.environ["AIRFLOW_CONN_INGEST_API_CONNECTION"],
-            "request_header": {"X-Hubmap-Application": "ingest-pipeline"},
+            "request_header": {"X-SenNet-Application": "ingest-pipeline"},
         }
         #
         # Uncomment offline=True below to avoid validating orcid_id URLs &etc
@@ -157,7 +158,8 @@ with HMDAG(
             # offline=True,  # noqa E265
             add_notes=False,
             ignore_deprecation=True,
-            extra_parameters={'coreuse': get_threads_resource('validate_upload', 'run_validation')},
+            extra_parameters={"coreuse": get_threads_resource("scan_and_begin_processing",
+                                                              "run_validation")},
             globus_token=get_auth_tok(**kwargs),
             app_context=app_context,
         )
@@ -177,6 +179,7 @@ with HMDAG(
             kwargs["ti"].xcom_push(key="ivt_path", value=inspect.getfile(upload.__class__))
             return 0
 
+
     t_run_validation = PythonOperator(
         task_id="run_validation",
         python_callable=run_validation,
@@ -195,6 +198,7 @@ with HMDAG(
         ivt_path_fun=get_ivt_path,
     )
 
+
     def wrapped_send_status_msg(**kwargs):
         lz_path, uuid = __get_lzpath_uuid(**kwargs)
         if send_status_msg(**kwargs):
@@ -208,6 +212,7 @@ with HMDAG(
             kwargs["ti"].xcom_push(key="assay_type", value=soft_data_assaytype)
         else:
             kwargs["ti"].xcom_push(key="collectiontype", value=None)
+
 
     t_maybe_continue = BranchPythonOperator(
         task_id="maybe_continue",
@@ -269,6 +274,7 @@ with HMDAG(
     t_create_tmpdir = CreateTmpDirOperator(task_id="create_temp_dir")
     t_cleanup_tmpdir = CleanupTmpDirOperator(task_id="cleanup_temp_dir")
 
+
     def flex_maybe_spawn(**kwargs):
         """
         This is a generator which returns appropriate DagRunOrders
@@ -309,6 +315,7 @@ with HMDAG(
         else:
             return None
 
+
     t_maybe_spawn = FlexMultiDagRunOperator(
         task_id="flex_maybe_spawn",
         dag=dag,
@@ -318,16 +325,17 @@ with HMDAG(
 
 
     def terminate_new_environment(**kwargs):
-        instance_id = kwargs['ti'].xcom_pull(key='instance_id', task_ids="initialize_environment")
+        instance_id = kwargs["ti"].xcom_pull(key="instance_id", task_ids="initialize_environment")
         if instance_id is None:
             return 1
         else:
-            uuid = kwargs['dag_run'].conf['submission_id']
+            uuid = kwargs["dag_run"].conf["submission_id"]
             terminate_instance(instance_id, uuid)
         return 0
 
+
     t_terminate_environment = PythonOperator(
-        task_id='terminate_environment',
+        task_id="terminate_environment",
         python_callable=terminate_new_environment,
         provide_context=True,
         op_kwargs={
@@ -335,17 +343,17 @@ with HMDAG(
     )
 
     (
-        t_initialize_environment
-        >> t_create_tmpdir
-        >> t_run_validation
-        >> t_maybe_continue
-        >> t_run_md_extract
-        >> t_md_consistency_tests
-        >> t_send_status
-        >> t_maybe_spawn
-        >> t_cleanup_tmpdir
-        >> t_terminate_environment
-     )
+            t_initialize_environment
+            >> t_create_tmpdir
+            >> t_run_validation
+            >> t_maybe_continue
+            >> t_run_md_extract
+            >> t_md_consistency_tests
+            >> t_send_status
+            >> t_maybe_spawn
+            >> t_cleanup_tmpdir
+            >> t_terminate_environment
+    )
 
     t_maybe_continue >> t_send_status
     t_send_status >> t_terminate_environment
