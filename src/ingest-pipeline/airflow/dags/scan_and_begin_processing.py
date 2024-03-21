@@ -16,7 +16,6 @@ from utils import (
     HMDAG,
     get_auth_tok,
     get_preserve_scratch_resource,
-    get_threads_resource,
     get_queue_resource,
     get_soft_data_assaytype,
     make_send_status_msg_function,
@@ -135,7 +134,6 @@ with HMDAG(
                 "coreuse": get_threads_resource("scan_and_begin_processing", "run_validation")
             },
             ignore_deprecation=True,
-            extra_parameters={'coreuse': get_threads_resource('validate_upload', 'run_validation')},
             globus_token=get_auth_tok(**kwargs),
             app_context=app_context,
         )
