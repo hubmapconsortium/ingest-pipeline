@@ -135,7 +135,6 @@ with HMDAG(
                 "coreuse": get_threads_resource("scan_and_begin_processing", "run_validation")
             },
             ignore_deprecation=True,
-            extra_parameters={'coreuse': get_threads_resource('validate_upload', 'run_validation')},
             globus_token=get_auth_tok(**kwargs),
             app_context=app_context,
         )
