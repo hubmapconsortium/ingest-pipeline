@@ -1,6 +1,7 @@
 import os
 import sys
 import inspect
+import urllib.parse as urlparser
 from datetime import datetime, timedelta
 from pathlib import Path
 from pprint import pprint
@@ -144,7 +145,8 @@ with HMDAG(
         ignore_globs = [uuid, "extras", "*metadata.tsv", "validation_report.txt"]
         app_context = {
             "entities_url": HttpHook.get_connection("entity_api_connection").host + "/entities/",
-            "ingest_url": os.environ["AIRFLOW_CONN_INGEST_API_CONNECTION"],
+            "ingest_url": urlparser.unquote(
+                os.environ["AIRFLOW_CONN_INGEST_API_CONNECTION"]).strip("/").split("http://"),
             "request_header": {"X-SenNet-Application": "ingest-pipeline"},
         }
         #
