@@ -345,8 +345,10 @@ def copy_contrib_antibodies(dest_extras_path, source_entity, old_paths, dryrun):
                 print(f"copy {old_path} to {dest_extras_path}")
             else:
                 moved_path = dest_extras_path / old_path.name
-                print(f"""Probably already copied/moved {src_path} 
-                                  to {moved_path} {"it exists" if moved_path.exists() else "missing file"}""")
+                print(
+                    f"""Probably already copied/moved {src_path} 
+                                  to {moved_path} {"it exists" if moved_path.exists() else "missing file"}"""
+                )
 
 
 def apply_special_case_transformations(
