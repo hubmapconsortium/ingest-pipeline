@@ -376,11 +376,16 @@ with HMDAG(
                 trigger_dag(dag_id, run_id, conf, execution_date=execution_date)
         return []
 
-    t_maybe_multiassay_spawn = FlexMultiDagRunOperator(
+    # t_maybe_multiassay_spawn = FlexMultiDagRunOperator(
+    #     task_id="flex_maybe_spawn",
+    #     dag=dag,
+    #     trigger_dag_id="scan_and_begin_processing",
+    #     python_callable=flex_maybe_multiassay_spawn,
+    # )
+    t_maybe_multiassay_spawn = PythonOperator(
         task_id="flex_maybe_spawn",
-        dag=dag,
-        trigger_dag_id="scan_and_begin_processing",
         python_callable=flex_maybe_multiassay_spawn,
+        provide_context=True,
     )
 
     def _get_upload_uuid(**kwargs):
