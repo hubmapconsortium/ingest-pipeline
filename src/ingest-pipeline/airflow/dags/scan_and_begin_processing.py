@@ -21,6 +21,7 @@ from utils import (
     make_send_status_msg_function,
     pythonop_get_dataset_state,
     pythonop_maybe_keep,
+    get_threads_resource,
 )
 
 from airflow.configuration import conf as airflow_conf
@@ -44,6 +45,10 @@ def get_dataset_uuid(**kwargs):
 def get_dataset_lz_path(**kwargs):
     ctx = kwargs["dag_run"].conf
     return ctx["lz_path"]
+
+
+def get_ivt_path(**kwargs):
+    return Path(kwargs["ti"].xcom_pull(task_ids="run_validation", key="ivt_path"))
 
 
 # Following are defaults which can be overridden later on
@@ -126,6 +131,7 @@ with HMDAG(
             # offline=True,  # noqa E265
             add_notes=False,
             ignore_deprecation=True,
+            extra_parameters={'coreuse': get_threads_resource('validate_upload', 'run_validation')},
             globus_token=get_auth_tok(**kwargs),
             app_context=app_context,
         )
@@ -160,6 +166,7 @@ with HMDAG(
         dataset_lz_path_fun=get_dataset_lz_path,
         metadata_fun=read_metadata_file,
         include_file_metadata=False,
+        ivt_path_fun=get_ivt_path,
     )
 
     def wrapped_send_status_msg(**kwargs):
@@ -268,8 +275,7 @@ with HMDAG(
                 "parent_submission_id": uuid,
                 "metadata": md,
                 "dag_provenance_list": utils.get_git_provenance_list(
-                    [__file__,
-                     kwargs["ti"].xcom_pull(task_ids="run_validation", key="ivt_path")]
+                    [__file__, kwargs["ti"].xcom_pull(task_ids="run_validation", key="ivt_path")]
                 ),
             }
             for next_dag in utils.downstream_workflow_iter(collectiontype, assay_type):
