@@ -374,7 +374,7 @@ with HMDAG(
                 time.sleep(1)
                 print(f"Triggering reorganization for UUID {uuid}")
                 trigger_dag(dag_id, run_id, conf, execution_date=execution_date)
-        return []
+        return 0
 
     # t_maybe_multiassay_spawn = FlexMultiDagRunOperator(
     #     task_id="flex_maybe_spawn",
