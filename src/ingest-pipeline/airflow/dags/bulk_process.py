@@ -44,7 +44,7 @@ default_args = {
 
 
 with HMDAG(
-    "launch_multi_analysis",
+    "bulk_process",
     schedule_interval=None,
     is_paused_upon_creation=False,
     default_args=default_args,
