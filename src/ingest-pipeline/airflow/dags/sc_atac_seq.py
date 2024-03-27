@@ -51,22 +51,23 @@ def generate_atac_seq_dag(params: SequencingDagParameters) -> DAG:
         "on_failure_callback": utils.create_dataset_state_error_callback(get_uuid_for_error),
     }
 
-    with HMDAG(params.dag_id,
-               schedule_interval=None,
-               is_paused_upon_creation=False,
-               default_args=default_args,
-               user_defined_macros={
-                   "tmp_dir_path": get_tmp_dir_path,
-                   "preserve_scratch": get_preserve_scratch_resource(params.dag_id),
-               }) as dag:
+    with HMDAG(
+        params.dag_id,
+        schedule_interval=None,
+        is_paused_upon_creation=False,
+        default_args=default_args,
+        user_defined_macros={
+            "tmp_dir_path": get_tmp_dir_path,
+            "preserve_scratch": get_preserve_scratch_resource(params.dag_id),
+        },
+    ) as dag:
         cwl_workflows = get_absolute_workflows(
             Path("sc-atac-seq-pipeline", "sc_atac_seq_prep_process_analyze.cwl"),
             Path("portal-containers", "scatac-csv-to-arrow.cwl"),
         )
 
         def build_dataset_name(**kwargs):
-            return inner_build_dataset_name(dag.dag_id, params.pipeline_name,
-                                            **kwargs)
+            return inner_build_dataset_name(dag.dag_id, params.pipeline_name, **kwargs)
 
         prepare_cwl1 = DummyOperator(task_id="prepare_cwl1")
 
@@ -174,7 +175,7 @@ def generate_atac_seq_dag(params: SequencingDagParameters) -> DAG:
                 "previous_revision_uuid_callable": get_previous_revision_uuid,
                 "http_conn_id": "ingest_api_connection",
                 "dataset_name_callable": build_dataset_name,
-                "pipeline_shorthand": "SnapATAC"
+                "pipeline_shorthand": "ArchR",
             },
         )
 
@@ -232,6 +233,7 @@ def generate_atac_seq_dag(params: SequencingDagParameters) -> DAG:
         t_join >> t_cleanup_tmpdir
 
     return dag
+
 
 atacseq_dag_data: List[SequencingDagParameters] = [
     SequencingDagParameters(
