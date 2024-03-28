@@ -1,3 +1,4 @@
+from collections import namedtuple
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import List
@@ -36,8 +37,17 @@ from utils import (
     get_preserve_scratch_resource,
 )
 
+MultiomeSequencingDagParameters = namedtuple(
+    "MultiomeSequencingDagParameters",
+    [
+        "dag_id",
+        "pipeline_name",
+        "assay_rna",
+        "assay_atac",
+    ]
+)
 
-def generate_multiome_dag(params: SequencingDagParameters) -> DAG:
+def generate_multiome_dag(params: MultiomeSequencingDagParameters) -> DAG:
     default_args = {
         "owner": "hubmap",
         "depends_on_past": False,
@@ -88,9 +98,6 @@ def generate_multiome_dag(params: SequencingDagParameters) -> DAG:
 
             data_dir = data_dirs[0]
 
-            assay_type = dag.dag_id.split('_')[0]
-            assay_flags = {'rna':{'10x':'10x_v3_sn', 'snareseq':'snareseq'}, 'atac':{'snareseq':'snareseq'}}
-
             command = [
                 *get_cwltool_base_cmd(tmpdir),
                 "--relax-path-checks",
@@ -98,9 +105,9 @@ def generate_multiome_dag(params: SequencingDagParameters) -> DAG:
                 tmpdir / "cwl_out",
                 "--parallel",
                 cwl_workflows[0],
-                "--assay",
-                params.assay,
-                "--threads",
+                "--threads_rna",
+                get_threads_resource(dag.dag_id),
+                "--threads_atac",
                 get_threads_resource(dag.dag_id),
             ]
 
@@ -108,7 +115,7 @@ def generate_multiome_dag(params: SequencingDagParameters) -> DAG:
                 command.append(f"--fastq_dir_{component.lower()}")
                 command.append(data_dir / Path(f"raw/fastq/{component}"))
                 command.append(f"--assay_{component.lower()}")
-                command.append(assay_flags[component.lower()][assay_type])
+                command.append(getattr(params, f"assay_{component.lower()}"))
 
             return join_quote_command_str(command)
 
@@ -317,19 +324,22 @@ def generate_multiome_dag(params: SequencingDagParameters) -> DAG:
     return dag
 
 
-def get_multiome_dag_params(assay: str) -> SequencingDagParameters:
-    # TODO: restructure assay names, pipeline names, etc.; this repetition
-    #   is for backward compatibility
-    return SequencingDagParameters(
+def get_simple_multiome_dag_params(assay: str) -> MultiomeSequencingDagParameters:
+    return MultiomeSequencingDagParameters(
         dag_id=f"multiome_{assay}",
         pipeline_name=f"multiome-{assay}",
-        assay=assay,
+        assay_rna=assay,
+        assay_atac=assay,
     )
 
-
-multiome_dag_params: List[SequencingDagParameters] = [
-#    get_multiome_dag_params("10x"),
-    get_multiome_dag_params("snareseq"),
+multiome_dag_params: List[MultiomeSequencingDagParameters] = [
+    # MultiomeSequencingDagParameters(
+    #     dag_id="multiome_10x",
+    #     pipeline_name="multiome-10x",
+    #     assay_rna="10x_v3_sn",
+    #     assay_atac="multiome_10x",
+    # )
+    get_simple_multiome_dag_params("snareseq"),
 ]
 
 for params in multiome_dag_params:
