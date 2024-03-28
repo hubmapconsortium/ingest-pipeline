@@ -255,7 +255,7 @@ def generate_multiome_dag(params: MultiomeSequencingDagParameters) -> DAG:
                 "previous_revision_uuid_callable": get_previous_revision_uuid,
                 "http_conn_id": "ingest_api_connection",
                 "dataset_name_callable": build_dataset_name,
-                "pipeline_shorthand": "Multiome",
+                "pipeline_shorthand": "Salmon + ArchR + Muon",
             },
         )
 
