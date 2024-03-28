@@ -74,7 +74,7 @@ def generate_multiome_dag(params: MultiomeSequencingDagParameters) -> DAG:
         },
     ) as dag:
         cwl_workflows = get_absolute_workflows(
-            Path("salmon-rnaseq", "pipeline.cwl"),
+            Path("multiome-rna-atac-pipeline", "pipeline.cwl"),
             Path("azimuth-annotate", "pipeline.cwl"),
             Path("portal-containers", "mudata-to-ui.cwl"),
         )
