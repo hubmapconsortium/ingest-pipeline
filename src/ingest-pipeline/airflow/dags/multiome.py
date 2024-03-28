@@ -44,8 +44,9 @@ MultiomeSequencingDagParameters = namedtuple(
         "pipeline_name",
         "assay_rna",
         "assay_atac",
-    ]
+    ],
 )
+
 
 def generate_multiome_dag(params: MultiomeSequencingDagParameters) -> DAG:
     default_args = {
@@ -62,15 +63,16 @@ def generate_multiome_dag(params: MultiomeSequencingDagParameters) -> DAG:
         "on_failure_callback": utils.create_dataset_state_error_callback(get_uuid_for_error),
     }
 
-    with HMDAG(params.dag_id,
-               schedule_interval=None,
-               is_paused_upon_creation=False,
-               default_args=default_args,
-               user_defined_macros={
-                   "tmp_dir_path": get_tmp_dir_path,
-                   "preserve_scratch": get_preserve_scratch_resource(params.dag_id),
-               }) as dag:
-
+    with HMDAG(
+        params.dag_id,
+        schedule_interval=None,
+        is_paused_upon_creation=False,
+        default_args=default_args,
+        user_defined_macros={
+            "tmp_dir_path": get_tmp_dir_path,
+            "preserve_scratch": get_preserve_scratch_resource(params.dag_id),
+        },
+    ) as dag:
         cwl_workflows = get_absolute_workflows(
             Path("salmon-rnaseq", "pipeline.cwl"),
             Path("azimuth-annotate", "pipeline.cwl"),
@@ -125,13 +127,10 @@ def generate_multiome_dag(params: MultiomeSequencingDagParameters) -> DAG:
             print("tmpdir: ", tmpdir)
 
             # get organ type
-            ds_rslt = pythonop_get_dataset_state(
-                dataset_uuid_callable=get_dataset_uuid,
-                **kwargs
-            )
+            ds_rslt = pythonop_get_dataset_state(dataset_uuid_callable=get_dataset_uuid, **kwargs)
 
-            organ_list = list(set(ds_rslt['organs']))
-            organ_code = organ_list[0] if len(organ_list) == 1 else 'multi'
+            organ_list = list(set(ds_rslt["organs"]))
+            organ_code = organ_list[0] if len(organ_list) == 1 else "multi"
 
             command = [
                 *get_cwltool_base_cmd(tmpdir),
@@ -143,7 +142,7 @@ def generate_multiome_dag(params: MultiomeSequencingDagParameters) -> DAG:
                 "--secondary-analysis-matrix",
                 "secondary_analysis.h5ad",
                 "--assay",
-                params.assay
+                params.assay,
             ]
 
             return join_quote_command_str(command)
@@ -256,7 +255,7 @@ def generate_multiome_dag(params: MultiomeSequencingDagParameters) -> DAG:
                 "previous_revision_uuid_callable": get_previous_revision_uuid,
                 "http_conn_id": "ingest_api_connection",
                 "dataset_name_callable": build_dataset_name,
-                "pipeline_shorthand": "Multiome"
+                "pipeline_shorthand": "Multiome",
             },
         )
 
@@ -274,10 +273,12 @@ def generate_multiome_dag(params: MultiomeSequencingDagParameters) -> DAG:
 
         send_status_msg = make_send_status_msg_function(
             dag_file=__file__,
-            retcode_ops=["pipeline_exec",
-                         "pipeline_exec_azimuth_annotate",
-                         "move_data",
-                         "convert_for_ui",],
+            retcode_ops=[
+                "pipeline_exec",
+                "pipeline_exec_azimuth_annotate",
+                "move_data",
+                "convert_for_ui",
+            ],
             cwl_workflows=cwl_workflows,
         )
 
@@ -331,6 +332,7 @@ def get_simple_multiome_dag_params(assay: str) -> MultiomeSequencingDagParameter
         assay_rna=assay,
         assay_atac=assay,
     )
+
 
 multiome_dag_params: List[MultiomeSequencingDagParameters] = [
     # MultiomeSequencingDagParameters(
