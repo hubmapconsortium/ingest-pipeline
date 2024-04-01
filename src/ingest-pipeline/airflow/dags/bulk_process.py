@@ -44,7 +44,7 @@ default_args = {
 
 
 with HMDAG(
-    "launch_multi_analysis",
+    "bulk_process",
     schedule_interval=None,
     is_paused_upon_creation=False,
     default_args=default_args,
@@ -114,32 +114,30 @@ with HMDAG(
         prev_version_uuid = kwargs["dag_run"].conf.get("previous_version_uuid", None)
         avoid_previous_version = kwargs["dag_run"].conf.get("avoid_previous_version_find", False)
         filtered_uuid_l = []
-        filtered_path_l = []
-        filtered_data_types = []
-        filtered_md_l = []
         for uuid in uuid_l:
             uuid, dt, lz_path, metadata, prev_version_uuid = check_one_uuid(
                 uuid, prev_version_uuid, avoid_previous_version, **kwargs
             )
             soft_data_assaytype = get_soft_data_assaytype(uuid, **kwargs)
             print(f"Got {soft_data_assaytype} as the soft_data_assaytype for UUID {uuid}")
-            filtered_data_types.append(soft_data_assaytype)
-            filtered_path_l.append(lz_path)
-            filtered_uuid_l.append(uuid)
-            filtered_md_l.append(metadata)
-        # if prev_version_uuid is not None:
-        #     prev_version_uuid = check_one_uuid(prev_version_uuid, "", False,
-        #                                        **kwargs)[0]
-        # print(f'Finished uuid {uuid}')
-        print(f"filtered data types: {filtered_data_types}")
-        print(f"filtered paths: {filtered_path_l}")
-        print(f"filtered uuids: {filtered_uuid_l}")
+            filtered_uuid_l.append(
+                {
+                    "uuid": uuid,
+                    "dataset_type": soft_data_assaytype,
+                    "path": lz_path,
+                    "metadata": metadata,
+                    "prev_version_uuid": prev_version_uuid,
+                }
+            )
+            # if prev_version_uuid is not None:
+            #     prev_version_uuid = check_one_uuid(prev_version_uuid, "", False, **kwargs)[0]
+            # print(f'Finished uuid {uuid}')
+            print(f"filtered data types: {soft_data_assaytype}")
+            print(f"filtered paths: {lz_path}")
+            print(f"filtered uuids: {uuid}")
+            print(f"filtered previous_version_uuid: {prev_version_uuid}")
         kwargs["ti"].xcom_push(key="collectiontype", value=collection_type)
-        kwargs["ti"].xcom_push(key="assay_type", value=filtered_data_types)
-        kwargs["ti"].xcom_push(key="lz_paths", value=filtered_path_l)
         kwargs["ti"].xcom_push(key="uuids", value=filtered_uuid_l)
-        kwargs["ti"].xcom_push(key="metadata_list", value=filtered_md_l)
-        kwargs["ti"].xcom_push(key="previous_version_uuid", value=prev_version_uuid)
 
     check_uuids_t = PythonOperator(
         task_id="check_uuids",
@@ -162,29 +160,29 @@ with HMDAG(
         ctx = kwargs["dag_run"].conf
         pprint(ctx)
         collectiontype = kwargs["ti"].xcom_pull(key="collectiontype", task_ids="check_uuids")
-        assay_type = kwargs["ti"].xcom_pull(key="assay_type", task_ids="check_uuids")
-        lz_paths = kwargs["ti"].xcom_pull(key="lz_paths", task_ids="check_uuids")
-        uuids = kwargs["ti"].xcom_pull(key="uuids", task_ids="check_uuids")
-        metadata_list = kwargs["ti"].xcom_pull(key="metadata_list", task_ids="check_uuids")
-        prev_version_uuid = kwargs["ti"].xcom_pull(
-            key="previous_version_uuid", task_ids="check_uuids"
-        )
-        print("collectiontype: <{}>, assay_type: <{}>".format(collectiontype, assay_type))
-        print(f"uuids: {uuids}")
-        print("lz_paths:")
-        pprint(lz_paths)
-        print(f"previous version uuid: {prev_version_uuid}")
-        payload = {
-            "ingest_id": kwargs["run_id"],
-            "crypt_auth_tok": kwargs["crypt_auth_tok"],
-            "parent_lz_path": lz_paths,
-            "parent_submission_id": uuids,
-            "previous_version_uuid": prev_version_uuid,
-            "metadata": metadata_list,
-            "dag_provenance_list": utils.get_git_provenance_list(__file__),
-        }
-        for next_dag in utils.downstream_workflow_iter(collectiontype, assay_type):
-            yield next_dag, payload
+        for uuid in kwargs["ti"].xcom_pull(key="uuids", task_ids="check_uuids"):
+            lz_path = uuid.get("path")
+            parent_submission = uuid.get("uuid")
+            prev_version_uuid = uuid.get("prev_version_uuid")
+            metadata = uuid.get("metadata")
+            assay_type = uuid.get("dataset_type")
+            print("collectiontype: <{}>, assay_type: <{}>".format(collectiontype, assay_type))
+            print(f"uuid: {uuid}")
+            print("lz_paths:")
+            pprint(lz_path)
+            print(f"previous version uuid: {prev_version_uuid}")
+            payload = {
+                "ingest_id": kwargs["run_id"],
+                "crypt_auth_tok": kwargs["crypt_auth_tok"],
+                "parent_lz_path": lz_path,
+                "parent_submission_id": parent_submission,
+                "previous_version_uuid": prev_version_uuid,
+                "metadata": metadata,
+                "dag_provenance_list": utils.get_git_provenance_list(__file__),
+            }
+            for next_dag in utils.downstream_workflow_iter(collectiontype, assay_type):
+                yield next_dag, payload
+
 
     t_maybe_spawn = FlexMultiDagRunOperator(
         task_id="flex_maybe_spawn",
