@@ -130,7 +130,7 @@ with HMDAG(
         report = ingest_validation_tools_error_report.ErrorReport(
             errors=upload.get_errors(plugin_kwargs=kwargs), info=upload.get_info()
         )
-        classified_errors = ErrorClassifier(report.as_dict()).report_errors_basic()
+        classified_errors = ErrorClassifier(report.errors).report_errors_basic()
         validation_file_path = Path(get_tmp_dir_path(kwargs["run_id"])) / "validation_report.txt"
         with open(validation_file_path, "w") as f:
             f.write(report.as_text())
