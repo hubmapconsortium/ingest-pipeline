@@ -96,10 +96,6 @@ def generate_multiome_dag(params: MultiomeSequencingDagParameters) -> DAG:
             data_dirs = get_parent_data_dirs_list(**kwargs)
             print("data_dirs: ", data_dirs)
 
-            assert len(data_dirs) == 1
-
-            data_dir = data_dirs[0]
-
             command = [
                 *get_cwltool_base_cmd(tmpdir),
                 "--relax-path-checks",
@@ -114,10 +110,11 @@ def generate_multiome_dag(params: MultiomeSequencingDagParameters) -> DAG:
             ]
 
             for component in ["RNA", "ATAC"]:
-                command.append(f"--fastq_dir_{component.lower()}")
-                command.append(data_dir / Path(f"raw/fastq/{component}"))
                 command.append(f"--assay_{component.lower()}")
                 command.append(getattr(params, f"assay_{component.lower()}"))
+                for data_dir in data_dirs:
+                    command.append(f"--fastq_dir_{component.lower()}")
+                    command.append(data_dir / Path(f"raw/fastq/{component}"))
 
             return join_quote_command_str(command)
 
