@@ -135,7 +135,7 @@ def generate_multiome_dag(params: MultiomeSequencingDagParameters) -> DAG:
                 "--reference",
                 organ_code,
                 "--matrix",
-                "expr.h5ad",
+                "mudata_raw.h5mu",
                 "--secondary-analysis-matrix",
                 "secondary_analysis.h5mu",
                 "--assay",
