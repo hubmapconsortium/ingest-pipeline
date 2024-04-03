@@ -137,9 +137,9 @@ def generate_multiome_dag(params: MultiomeSequencingDagParameters) -> DAG:
                 "--matrix",
                 "expr.h5ad",
                 "--secondary-analysis-matrix",
-                "secondary_analysis.h5ad",
+                "secondary_analysis.h5mu",
                 "--assay",
-                params.assay,
+                params.assay_rna,
             ]
 
             return join_quote_command_str(command)
