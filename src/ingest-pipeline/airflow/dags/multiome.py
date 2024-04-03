@@ -237,7 +237,7 @@ def generate_multiome_dag(params: MultiomeSequencingDagParameters) -> DAG:
             python_callable=utils.pythonop_maybe_keep,
             provide_context=True,
             op_kwargs={
-                "next_op": "prepare_cwl4",
+                "next_op": "move_data",
                 "bail_op": "set_dataset_error",
                 "test_op": "convert_for_ui",
             },
