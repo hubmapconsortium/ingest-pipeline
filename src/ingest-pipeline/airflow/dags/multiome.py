@@ -332,12 +332,12 @@ def get_simple_multiome_dag_params(assay: str) -> MultiomeSequencingDagParameter
 
 
 multiome_dag_params: List[MultiomeSequencingDagParameters] = [
-    # MultiomeSequencingDagParameters(
-    #     dag_id="multiome_10x",
-    #     pipeline_name="multiome-10x",
-    #     assay_rna="10x_v3_sn",
-    #     assay_atac="multiome_10x",
-    # )
+    MultiomeSequencingDagParameters(
+         dag_id="multiome_10x",
+         pipeline_name="multiome-10x",
+         assay_rna="10x_v3_sn",
+         assay_atac="multiome_10x",
+     ),
     get_simple_multiome_dag_params("snareseq"),
 ]
 
