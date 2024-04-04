@@ -90,7 +90,7 @@ with HMDAG(
         for key in ["status", "uuid", "local_directory_full_path", "metadata", "dataset_type"]:
             assert key in ds_rslt, f"Dataset status for {uuid} has no {key}"
 
-        if not ds_rslt["status"] in ["New", "Error", "QA", "Published"]:
+        if not ds_rslt["status"] in ["New", "Error", "QA", "Published", "Submitted"]:
             raise AirflowException(f"Dataset {uuid} is not QA or better")
 
         return (
@@ -230,4 +230,11 @@ with HMDAG(
 
     t_cleanup_tmpdir = CleanupTmpDirOperator(task_id="cleanup_temp_dir")
 
-    t_check_uuids >> t_create_tmpdir >> t_run_md_extract >> t_md_consistency_tests >> t_send_status >> t_cleanup_tmpdir
+    (
+        t_check_uuids
+        >> t_create_tmpdir
+        >> t_run_md_extract
+        >> t_md_consistency_tests
+        >> t_send_status
+        >> t_cleanup_tmpdir
+    )
