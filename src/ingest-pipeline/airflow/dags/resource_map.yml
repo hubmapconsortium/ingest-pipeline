@@ -157,7 +157,7 @@ resource_map:
       - 'task_re': '.*'
         'queue': 'general'
         'threads': 6
-  - 'dag_re': 'rebuild_metadata'
+  - 'dag_re': '.*metadata'
     'preserve_scratch': true
     'lanes': 2
     'tasks':
