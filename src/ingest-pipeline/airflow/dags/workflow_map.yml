@@ -126,6 +126,6 @@ workflow_map:
     'assay_type': 'multiome-snare-seq2'
     'workflow': 'multiome_snareseq'
   - 'collection_type': '.*'
-    'assay_type': 'multiome-10x'
+    'assay_type': '10x-multiome'
     'workflow': 'multiome_10x'
 
