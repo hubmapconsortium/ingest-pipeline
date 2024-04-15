@@ -18,7 +18,6 @@ from hubmap_operators.common_operators import (
 
 import utils
 from utils import (
-    SequencingDagParameters,
     get_absolute_workflows,
     get_cwltool_base_cmd,
     get_dataset_uuid,
@@ -46,6 +45,14 @@ MultiomeSequencingDagParameters = namedtuple(
         "assay_atac",
     ],
 )
+
+
+def find_atac_metadata_file(data_dir: Path) -> Path:
+    for path in data_dir.glob("*.tsv"):
+        name_lower = path.name.lower()
+        if path.is_file() and "atac" in name_lower and "metadata" in name_lower:
+            return path
+    raise ValueError("Couldn't find ATAC-seq metadata file")
 
 
 def generate_multiome_dag(params: MultiomeSequencingDagParameters) -> DAG:
@@ -115,6 +122,10 @@ def generate_multiome_dag(params: MultiomeSequencingDagParameters) -> DAG:
                 for data_dir in data_dirs:
                     command.append(f"--fastq_dir_{component.lower()}")
                     command.append(data_dir / Path(f"raw/fastq/{component}"))
+
+            for data_dir in data_dirs:
+                command.append("--atac_metadata_file")
+                command.append(find_atac_metadata_file(data_dir))
 
             return join_quote_command_str(command)
 
@@ -333,11 +344,11 @@ def get_simple_multiome_dag_params(assay: str) -> MultiomeSequencingDagParameter
 
 multiome_dag_params: List[MultiomeSequencingDagParameters] = [
     MultiomeSequencingDagParameters(
-         dag_id="multiome_10x",
-         pipeline_name="multiome-10x",
-         assay_rna="10x_v3_sn",
-         assay_atac="multiome_10x",
-     ),
+        dag_id="multiome_10x",
+        pipeline_name="multiome-10x",
+        assay_rna="10x_v3_sn",
+        assay_atac="multiome_10x",
+    ),
     get_simple_multiome_dag_params("snareseq"),
 ]
 
