@@ -118,8 +118,6 @@ with HMDAG(
             dataset_ignore_globs=ignore_globs,
             upload_ignore_globs="*",
             plugin_directory=plugin_path,
-            # offline=True,  # noqa E265
-            add_notes=False,
             extra_parameters={
                 "coreuse": get_threads_resource("validate_upload", "run_validation")
             },
@@ -127,10 +125,11 @@ with HMDAG(
             app_context=app_context,
         )
         # Scan reports an error result
+        upload_errors = upload.get_errors(plugin_kwargs=kwargs)
         report = ingest_validation_tools_error_report.ErrorReport(
-            errors=upload.get_errors(plugin_kwargs=kwargs), info=upload.get_info()
+            errors=upload_errors, info=upload.get_info()
         )
-        classified_errors = ErrorClassifier(report.errors).report_errors_basic()
+        classified_errors = ErrorClassifier(upload_errors).classify()
         validation_file_path = Path(get_tmp_dir_path(kwargs["run_id"])) / "validation_report.txt"
         with open(validation_file_path, "w") as f:
             f.write(report.as_text())

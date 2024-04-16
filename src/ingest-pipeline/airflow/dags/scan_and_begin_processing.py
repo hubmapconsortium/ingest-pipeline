@@ -1,6 +1,6 @@
+import inspect
 import os
 import sys
-import inspect
 from datetime import datetime, timedelta
 from pathlib import Path
 from pprint import pprint
@@ -119,15 +119,12 @@ with HMDAG(
             "ingest_url": os.environ["AIRFLOW_CONN_INGEST_API_CONNECTION"],
             "request_header": {"X-Hubmap-Application": "ingest-pipeline"},
         }
-        #
-        # Uncomment offline=True below to avoid validating orcid_id URLs &etc
-        #
+
         upload = ingest_validation_tools_upload.Upload(
             directory_path=Path(lz_path),
             dataset_ignore_globs=ignore_globs,
             upload_ignore_globs="*",
             plugin_directory=plugin_path,
-            # offline=True,  # noqa E265
             add_notes=False,
             ignore_deprecation=True,
             globus_token=get_auth_tok(**kwargs),
