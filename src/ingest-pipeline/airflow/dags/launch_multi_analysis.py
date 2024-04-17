@@ -127,9 +127,9 @@ with HMDAG(
             filtered_path_l.append(lz_path)
             filtered_uuid_l.append(uuid)
             filtered_md_l.append(metadata)
-        if prev_version_uuid is not None:
-            prev_version_uuid = check_one_uuid(prev_version_uuid, "", False,
-                                               **kwargs)[0]
+        # if prev_version_uuid is not None:
+        #     prev_version_uuid = check_one_uuid(prev_version_uuid, "", False,
+        #                                        **kwargs)[0]
         # print(f'Finished uuid {uuid}')
         print(f"filtered data types: {filtered_data_types}")
         print(f"filtered paths: {filtered_path_l}")

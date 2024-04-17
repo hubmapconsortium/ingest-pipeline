@@ -74,15 +74,16 @@ default_args = {
     "on_failure_callback": utils.create_dataset_state_error_callback(get_dataset_uuid),
 }
 
+
 with HMDAG(
-        "scan_and_begin_processing",
-        schedule_interval=None,
-        is_paused_upon_creation=False,
-        default_args=default_args,
-        user_defined_macros={
-            "tmp_dir_path": utils.get_tmp_dir_path,
-            "preserve_scratch": get_preserve_scratch_resource("scan_and_begin_processing"),
-        },
+    "scan_and_begin_processing",
+    schedule_interval=None,
+    is_paused_upon_creation=False,
+    default_args=default_args,
+    user_defined_macros={
+        "tmp_dir_path": utils.get_tmp_dir_path,
+        "preserve_scratch": get_preserve_scratch_resource("scan_and_begin_processing"),
+    },
 ) as dag:
     def start_new_environment(**kwargs):
         uuid = kwargs["dag_run"].conf["submission_id"]
@@ -110,7 +111,6 @@ with HMDAG(
             scanned_md = yaml.safe_load(f)
         return scanned_md
 
-
     def __get_lzpath_uuid(**kwargs):
         if "lz_path" in kwargs["dag_run"].conf and "submission_id" in kwargs["dag_run"].conf:
             # These conditions are set by the hubap_api plugin when this DAG
@@ -136,7 +136,6 @@ with HMDAG(
         else:
             raise AirflowException("The dag_run does not contain enough information")
         return lz_path, uuid
-
 
     def run_validation(**kwargs):
         lz_path, uuid = __get_lzpath_uuid(**kwargs)
@@ -181,7 +180,6 @@ with HMDAG(
             kwargs["ti"].xcom_push(key="ivt_path", value=inspect.getfile(upload.__class__))
             return 0
 
-
     t_run_validation = PythonOperator(
         task_id="run_validation",
         python_callable=run_validation,
@@ -200,7 +198,6 @@ with HMDAG(
         ivt_path_fun=get_ivt_path,
     )
 
-
     def wrapped_send_status_msg(**kwargs):
         lz_path, uuid = __get_lzpath_uuid(**kwargs)
         if send_status_msg(**kwargs):
@@ -214,7 +211,6 @@ with HMDAG(
             kwargs["ti"].xcom_push(key="assay_type", value=soft_data_assaytype)
         else:
             kwargs["ti"].xcom_push(key="collectiontype", value=None)
-
 
     t_maybe_continue = BranchPythonOperator(
         task_id="maybe_continue",
@@ -276,7 +272,6 @@ with HMDAG(
     t_create_tmpdir = CreateTmpDirOperator(task_id="create_temp_dir")
     t_cleanup_tmpdir = CleanupTmpDirOperator(task_id="cleanup_temp_dir")
 
-
     def flex_maybe_spawn(**kwargs):
         """
         This is a generator which returns appropriate DagRunOrders
@@ -316,7 +311,6 @@ with HMDAG(
                 yield next_dag, payload
         else:
             return None
-
 
     t_maybe_spawn = FlexMultiDagRunOperator(
         task_id="flex_maybe_spawn",

@@ -759,7 +759,7 @@ def pythonop_send_create_dataset(**kwargs) -> str:
 
     for arg in ["parent_dataset_uuid_callable", "http_conn_id"]:
         assert arg in kwargs, "missing required argument {}".format(arg)
-    for arg_options in [["pipeline_shorthand", "dataset_types_callable"]]:
+    for arg_options in [["pipeline_shorthand", "dataset_type_callable"]]:
         assert any([arg in kwargs for arg in arg_options])
 
     http_conn_id = kwargs["http_conn_id"]
