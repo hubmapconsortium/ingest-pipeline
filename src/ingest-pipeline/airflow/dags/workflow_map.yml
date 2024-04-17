@@ -119,4 +119,13 @@ workflow_map:
   - 'collection_type': '.*'
     'assay_type': 'visium-no-probes'
     'workflow': 'visium_no_probes'
+#  - 'collection_type': '.*' # disconnected because we expect these to be multis
+#    'assay_type': 'multiome-snare-seq2'
+#    'workflow': 'multiome_snareseq'
+  - 'collection_type': 'multiome_snare-seq2_collection'
+    'assay_type': 'multiome-snare-seq2'
+    'workflow': 'multiome_snareseq'
+  - 'collection_type': '.*'
+    'assay_type': '10x-multiome'
+    'workflow': 'multiome_10x'
 
