@@ -34,6 +34,13 @@ from utils import (
     get_queue_resource,
     get_threads_resource,
     get_preserve_scratch_resource,
+    get_instance_type,
+    get_environment_instance
+)
+
+from aws_utils import (
+    create_instance,
+    terminate_instance
 )
 
 MultiomeSequencingDagParameters = namedtuple(
@@ -84,6 +91,24 @@ def generate_multiome_dag(params: MultiomeSequencingDagParameters) -> DAG:
             Path("multiome-rna-atac-pipeline", "pipeline.cwl"),
             Path("azimuth-annotate", "pipeline.cwl"),
             Path("portal-containers", "mudata-to-ui.cwl"),
+        )
+
+        def start_new_environment(**kwargs):
+            uuid = kwargs['run_id']
+            instance_id = create_instance(uuid, f'Airflow {get_environment_instance()} Worker',
+                                          get_instance_type(dag.dag_id))
+            if instance_id is None:
+                return 1
+            else:
+                kwargs['ti'].xcom_push(key='instance_id', value=instance_id)
+                return 0
+
+        t_initialize_environment = PythonOperator(
+            task_id='initialize_environment',
+            python_callable=start_new_environment,
+            provide_context=True,
+            op_kwargs={
+            }
         )
 
         def build_dataset_name(**kwargs):
@@ -303,11 +328,29 @@ def generate_multiome_dag(params: MultiomeSequencingDagParameters) -> DAG:
         t_set_dataset_processing = SetDatasetProcessingOperator(task_id="set_dataset_processing")
         t_move_data = MoveDataOperator(task_id="move_data")
 
+        def terminate_new_environment(**kwargs):
+            instance_id = kwargs['ti'].xcom_pull(key='instance_id', task_ids="initialize_environment")
+            if instance_id is None:
+                return 1
+            else:
+                uuid = kwargs['run_id']
+                terminate_instance(instance_id, uuid)
+            return 0
+
+        t_terminate_environment = PythonOperator(
+            task_id='terminate_environment',
+            python_callable=terminate_new_environment,
+            provide_context=True,
+            op_kwargs={
+            }
+        )
+
         (
             t_log_info
             >> t_create_tmpdir
             >> t_send_create_dataset
             >> t_set_dataset_processing
+            >> t_initialize_environment
             >> prepare_cwl1
             >> t_build_cmd1
             >> t_pipeline_exec
@@ -323,12 +366,14 @@ def generate_multiome_dag(params: MultiomeSequencingDagParameters) -> DAG:
             >> t_move_data
             >> t_send_status
             >> t_join
+            >> t_terminate_environment
         )
         t_maybe_keep_cwl1 >> t_set_dataset_error
         t_maybe_keep_cwl2 >> t_set_dataset_error
         t_maybe_keep_cwl3 >> t_set_dataset_error
         t_set_dataset_error >> t_join
         t_join >> t_cleanup_tmpdir
+        t_cleanup_tmpdir >> t_terminate_environment
 
     return dag
 
