@@ -58,3 +58,6 @@
 [submodule "src/ingest-pipeline/airflow/dags/cwl/mibi-pipeline"]
 	path = src/ingest-pipeline/airflow/dags/cwl/mibi-pipeline
 	url = https://github.com/hubmapconsortium/mibi-pipeline
+[submodule "src/ingest-pipeline/airflow/dags/cwl/multiome-rna-atac-pipeline"]
+	path = src/ingest-pipeline/airflow/dags/cwl/multiome-rna-atac-pipeline
+	url = https://github.com/hubmapconsortium/multiome-rna-atac-pipeline

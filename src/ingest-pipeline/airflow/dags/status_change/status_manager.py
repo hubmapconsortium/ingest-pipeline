@@ -218,6 +218,7 @@ class StatusChanger:
             response = http_hook.run(
                 endpoint, json.dumps(data), headers, self.extras["extra_options"]
             )
+            logging.info(f"""Response: {response.json()}""")
             return response.json()
         except Exception as e:
             raise StatusChangerException(

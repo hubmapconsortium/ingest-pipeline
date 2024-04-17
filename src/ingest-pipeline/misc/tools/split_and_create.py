@@ -3,6 +3,7 @@
 import argparse
 import json
 import re
+import os
 import time
 from pathlib import Path
 from pprint import pprint
@@ -89,19 +90,6 @@ def create_fake_uuid_generator():
         yield rslt
 
 
-# def get_canonical_assay_type(row, entity_factory, default_type):
-#     """
-#     Convert assay type to canonical form, with fallback
-#     """
-#     try:
-#         rslt = entity_factory.type_client.getAssayType(row["assay_type"]).name
-#     except Exception:
-#         print(f"fallback {row['assay_type']} {default_type}")
-#         rslt = FALLBACK_ASSAY_TYPE_TRANSLATIONS.get(row["assay_type"], default_type)
-#     print(f"{row['assay_type']} -> {rslt}")
-#     return rslt
-
-
 def get_canonical_assay_type(row, dataset_type=None):
     # TODO: check if this needs to be rewrite to support old style metadata
     file_dataset_type = row["assay_type"] if hasattr(row, "assay_type") else row["dataset_type"]
@@ -182,19 +170,55 @@ def populate(row, source_entity, entity_factory, dryrun=False, components=None):
     uuid = row["new_uuid"]
     old_data_path = row["data_path"]
     row["data_path"] = "."
-    old_contrib_path = Path(row["contributors_path"])
-    new_contrib_path = Path("extras") / old_contrib_path.name
-    row["contributors_path"] = str(new_contrib_path)
-    if "antibodies_path" in row:
-        old_antibodies_path = Path(row["antibodies_path"])
-        new_antibodies_path = Path("extras") / old_antibodies_path.name
-        row["antibodies_path"] = str(new_antibodies_path)
+
+    # Contributors and antibodies should point to the path directly.
+    old_paths = []
+    for path_index in ["contributors_path", "antibodies_path"]:
+        if old_path := row.get(path_index):
+            old_path = Path(old_path)
+            old_paths.append(old_path)
+            row[path_index] = str(Path("extras") / old_path.name)
+    print(f"Old paths to copy over {old_paths}")
+
+    # Have to cover two cases
+    # 1. Case when non_global is set but there is no global/non_global directories
+    # 2. Case when non_global is not set but there are global/non_global directories
+    is_shared_upload = {"global", "non_global"} == {
+        x.name
+        for x in source_entity.full_path.glob("*global")
+        if x.is_dir() and x.name in ["global", "non_global"]
+    }
+    non_global_files = row.get("non_global_files")
+    print(f"Is {uuid} part of a shared upload? {is_shared_upload}")
+    if non_global_files:
+        print(f"Non global files: {non_global_files}")
+        # Catch case 1
+        assert (
+            is_shared_upload
+        ), f"{uuid} has non_global_files specified but missing global or non_global directories"
+
+        # Generate a list of file paths for where non_global_files live in the upload
+        # Structure is {source_path: path_passed_in_metadata (destination path relative to root of dataset)}
+        non_global_files = {
+            source_entity.full_path / "non_global" / Path(x.strip()): Path(x.strip())
+            for x in non_global_files.split(";")
+            if x.strip()
+        }
+
+        # Iterate over source_paths and make sure they exist.
+        for non_global_file in non_global_files.keys():
+            assert (
+                non_global_file.exists()
+            ), f"Non global file {non_global_file.as_posix()} does not exist in {source_entity.full_path}"
     else:
-        old_antibodies_path = None
-        new_antibodies_path = None
-    # row['assay_type'] = row['canonical_assay_type']
+        # Catch case 2
+        assert (
+            not is_shared_upload
+        ), f"{uuid} has empty non_global_files but has global & non_global directories"
+
     row_df = pd.DataFrame([row])
     row_df = row_df.drop(columns=["canonical_assay_type", "new_uuid"])
+
     if dryrun:
         kid_path = Path(SCRATCH_PATH) / uuid
         kid_path.mkdir(0o770, parents=True, exist_ok=True)
@@ -204,28 +228,28 @@ def populate(row, source_entity, entity_factory, dryrun=False, components=None):
         kid_path = Path(entity_factory.get_full_path(uuid))
 
     row_df.to_csv(kid_path / f"{uuid}-metadata.tsv", header=True, sep="\t", index=False)
-    extras_path = kid_path / "extras"
+    dest_extras_path = kid_path / "extras"
 
     if components is not None:
         for component in components:
             component_df = pd.read_csv(component.get("metadata-file"), sep="\t")
             component_df_cp = component_df.query(f'data_path=="{old_data_path}"').copy()
             for _, row_component in component_df_cp.iterrows():
-                old_component_data_path = row_component["data_path"]
+                # This loop updates the data_path for the component
                 row_component["data_path"] = "."
-                old_component_contrib_path = Path(row_component["contributors_path"])
-                new_component_contrib_path = Path("extras") / old_component_contrib_path.name
-                row_component["contributors_path"] = str(new_component_contrib_path)
-                if "antibodies_path" in row_component:
-                    old_component_antibodies_path = Path(row["antibodies_path"])
-                    new_component_antibodies_path = (
-                        Path("extras") / old_component_antibodies_path.name
-                    )
-                    row_component["antibodies_path"] = str(new_component_antibodies_path)
-                    if dryrun:
-                        print(f"copy {old_component_antibodies_path} to {extras_path}")
-                    else:
-                        copy2(source_entity.full_path / old_component_antibodies_path, extras_path)
+                old_component_paths = []
+                for path_index in ["contributors_path", "antibodies_path"]:
+                    if old_component_path := row_component.get(path_index):
+                        old_component_path = Path(old_component_path)
+                        old_component_paths.append(old_component_path)
+                        row_component[path_index] = str(Path("extras") / old_component_path.name)
+
+                print(f"Old component paths to copy over {old_component_paths}")
+
+                copy_contrib_antibodies(
+                    dest_extras_path, source_entity, old_component_paths, dryrun
+                )
+
                 row_component = pd.DataFrame([row_component])
                 row_component.to_csv(
                     kid_path / f"{component.get('assaytype')}-metadata.tsv",
@@ -233,20 +257,48 @@ def populate(row, source_entity, entity_factory, dryrun=False, components=None):
                     sep="\t",
                     index=False,
                 )
-    if extras_path.exists():
-        assert extras_path.is_dir(), f"{extras_path} is not a directory"
+
+    if is_shared_upload:
+        copy_shared_data(kid_path, source_entity, non_global_files, dryrun)
     else:
-        source_extras_path = source_entity.full_path / "extras"
-        if source_extras_path.exists():
-            if dryrun:
-                print(f"copy {source_extras_path} to {extras_path}")
-            else:
-                copytree(source_extras_path, extras_path)
+        # This moves everything in the source_data_path over to the dataset path
+        # So part of non-shared uploads
+        copy_data_path(kid_path, source_entity.full_path / old_data_path, dryrun)
+
+    # START REGION - INDEPENDENT OF SHARED/NON-SHARED STATUS
+    # This moves extras over to the dataset extras directory
+    copy_extras(dest_extras_path, source_entity, dryrun)
+    # This copies contrib and antibodies over to dataset
+    copy_contrib_antibodies(
+        dest_extras_path,
+        source_entity,
+        old_paths,
+        dryrun,
+    )
+    # END REGION - INDEPENDENT OF SHARED/NON-SHARED STATUS
+
+    print(f"{old_data_path} -> {uuid} -> full path: {kid_path}")
+
+
+def copy_shared_data(kid_path, source_entity, non_global_files, dryrun):
+    # Copy global files over to dataset directory
+    if dryrun:
+        print(f"Copy files from {source_entity.full_path / 'global'} to {kid_path}")
+    else:
+        print(f"Copy files from {source_entity.full_path / 'global'} to {kid_path}")
+        copytree(source_entity.full_path / "global", kid_path, dirs_exist_ok=True)
+    # Copy over non-global files to dataset directory
+    for source_non_global_file, dest_relative_non_global_file in non_global_files.items():
+        dest_non_global_file = kid_path / dest_relative_non_global_file
+        if dryrun:
+            print(f"Copy file from {source_non_global_file} to {dest_non_global_file}")
         else:
-            if dryrun:
-                print(f"creating {extras_path}")
-            extras_path.mkdir(0o770)
-    source_data_path = source_entity.full_path / old_data_path
+            print(f"Copy file from {source_non_global_file} to {dest_non_global_file}")
+            dest_non_global_file.parent.mkdir(parents=True, exist_ok=True)
+            copy2(source_non_global_file, dest_non_global_file)
+
+
+def copy_data_path(kid_path, source_data_path, dryrun):
     for elt in source_data_path.glob("*"):
         dst_file = kid_path / elt.name
         if dryrun:
@@ -261,28 +313,42 @@ def populate(row, source_entity, entity_factory, dryrun=False, components=None):
                     sub_elt.rename(kid_path / elt.name / sub_elt.name)
                 continue
             elt.rename(dst_file)
-    if dryrun:
-        print(f"copy {old_contrib_path} to {extras_path}")
+
+
+def copy_extras(dest_extras_path, source_entity, dryrun):
+    if dest_extras_path.exists():
+        assert dest_extras_path.is_dir(), f"{dest_extras_path} is not a directory"
     else:
-        src_path = source_entity.full_path / old_contrib_path
-        if src_path.exists():
-            copy2(src_path, extras_path)
-        else:
-            moved_path = kid_path / new_contrib_path
-            print(f"""Probably already copied/moved {src_path} 
-                      to {moved_path} {"it exists" if moved_path.exists() else "missing file"}""")
-    if old_antibodies_path is not None:
-        if dryrun:
-            print(f"copy {old_antibodies_path} to {extras_path}")
-        else:
-            src_path = source_entity.full_path / old_antibodies_path
-            if src_path.exists():
-                copy2(source_entity.full_path / old_antibodies_path, extras_path)
+        source_extras_path = source_entity.full_path / "extras"
+        if source_extras_path.exists():
+            if dryrun:
+                print(f"copy {source_extras_path} to {dest_extras_path}")
             else:
-                moved_path = kid_path / new_antibodies_path
-                print(f"""Probably already copied/moved {src_path}
-                          to {moved_path} {"it exists" if moved_path.exists() else "missing file"}""")
-    print(f"{old_data_path} -> {uuid} -> full path: {kid_path}")
+                print(f"copy {source_extras_path} to {dest_extras_path}")
+                copytree(source_extras_path, dest_extras_path, dirs_exist_ok=True)
+        else:
+            if dryrun:
+                print(f"creating {dest_extras_path}")
+            dest_extras_path.mkdir(0o770)
+
+
+def copy_contrib_antibodies(dest_extras_path, source_entity, old_paths, dryrun):
+    for old_path in old_paths:
+        if dryrun:
+            print(f"copy {old_path} to {dest_extras_path}")
+        else:
+            src_path = source_entity.full_path / old_path
+
+            if src_path.exists():
+                dest_extras_path.mkdir(parents=True, exist_ok=True)
+                copy2(src_path, dest_extras_path / old_path.name)
+                print(f"copy {old_path} to {dest_extras_path}")
+            else:
+                moved_path = dest_extras_path / old_path.name
+                print(
+                    f"""Probably already copied/moved {src_path} 
+                                  to {moved_path} {"it exists" if moved_path.exists() else "missing file"}"""
+                )
 
 
 def apply_special_case_transformations(

@@ -1,3 +1,4 @@
+from collections import namedtuple
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import List
@@ -17,7 +18,6 @@ from hubmap_operators.common_operators import (
 
 import utils
 from utils import (
-    SequencingDagParameters,
     get_absolute_workflows,
     get_cwltool_base_cmd,
     get_dataset_uuid,
@@ -29,14 +29,33 @@ from utils import (
     join_quote_command_str,
     make_send_status_msg_function,
     get_tmp_dir_path,
+    pythonop_get_dataset_state,
     HMDAG,
     get_queue_resource,
     get_threads_resource,
     get_preserve_scratch_resource,
 )
 
+MultiomeSequencingDagParameters = namedtuple(
+    "MultiomeSequencingDagParameters",
+    [
+        "dag_id",
+        "pipeline_name",
+        "assay_rna",
+        "assay_atac",
+    ],
+)
 
-def generate_atac_seq_dag(params: SequencingDagParameters) -> DAG:
+
+def find_atac_metadata_file(data_dir: Path) -> Path:
+    for path in data_dir.glob("*.tsv"):
+        name_lower = path.name.lower()
+        if path.is_file() and "atac" in name_lower and "metadata" in name_lower:
+            return path
+    raise ValueError("Couldn't find ATAC-seq metadata file")
+
+
+def generate_multiome_dag(params: MultiomeSequencingDagParameters) -> DAG:
     default_args = {
         "owner": "hubmap",
         "depends_on_past": False,
@@ -62,8 +81,9 @@ def generate_atac_seq_dag(params: SequencingDagParameters) -> DAG:
         },
     ) as dag:
         cwl_workflows = get_absolute_workflows(
-            Path("sc-atac-seq-pipeline", "sc_atac_seq_prep_process_analyze.cwl"),
-            Path("portal-containers", "scatac-csv-to-arrow.cwl"),
+            Path("multiome-rna-atac-pipeline", "pipeline.cwl"),
+            Path("azimuth-annotate", "pipeline.cwl"),
+            Path("portal-containers", "mudata-to-ui.cwl"),
         )
 
         def build_dataset_name(**kwargs):
@@ -73,28 +93,39 @@ def generate_atac_seq_dag(params: SequencingDagParameters) -> DAG:
 
         prepare_cwl2 = DummyOperator(task_id="prepare_cwl2")
 
+        prepare_cwl3 = DummyOperator(task_id="prepare_cwl3")
+
         def build_cwltool_cmd1(**kwargs):
             run_id = kwargs["run_id"]
             tmpdir = get_tmp_dir_path(run_id)
             print("tmpdir: ", tmpdir)
+
             data_dirs = get_parent_data_dirs_list(**kwargs)
             print("data_dirs: ", data_dirs)
 
             command = [
                 *get_cwltool_base_cmd(tmpdir),
+                "--relax-path-checks",
                 "--outdir",
                 tmpdir / "cwl_out",
                 "--parallel",
                 cwl_workflows[0],
-                "--assay",
-                params.assay,
-                "--exclude_bam",
-                "--threads",
+                "--threads_rna",
+                get_threads_resource(dag.dag_id),
+                "--threads_atac",
                 get_threads_resource(dag.dag_id),
             ]
+
+            for component in ["RNA", "ATAC"]:
+                command.append(f"--assay_{component.lower()}")
+                command.append(getattr(params, f"assay_{component.lower()}"))
+                for data_dir in data_dirs:
+                    command.append(f"--fastq_dir_{component.lower()}")
+                    command.append(data_dir / Path(f"raw/fastq/{component}"))
+
             for data_dir in data_dirs:
-                command.append("--sequence_directory")
-                command.append(data_dir)
+                command.append("--atac_metadata_file")
+                command.append(find_atac_metadata_file(data_dir))
 
             return join_quote_command_str(command)
 
@@ -103,11 +134,39 @@ def generate_atac_seq_dag(params: SequencingDagParameters) -> DAG:
             tmpdir = get_tmp_dir_path(run_id)
             print("tmpdir: ", tmpdir)
 
+            # get organ type
+            ds_rslt = pythonop_get_dataset_state(dataset_uuid_callable=get_dataset_uuid, **kwargs)
+
+            organ_list = list(set(ds_rslt["organs"]))
+            organ_code = organ_list[0] if len(organ_list) == 1 else "multi"
+
             command = [
                 *get_cwltool_base_cmd(tmpdir),
                 cwl_workflows[1],
+                "--reference",
+                organ_code,
+                "--matrix",
+                "mudata_raw.h5mu",
+                "--secondary-analysis-matrix",
+                "secondary_analysis.h5mu",
+                "--assay",
+                params.assay_rna,
+            ]
+
+            return join_quote_command_str(command)
+
+        def build_cwltool_cmd3(**kwargs):
+            run_id = kwargs["run_id"]
+            tmpdir = get_tmp_dir_path(run_id)
+            print("tmpdir: ", tmpdir)
+
+            command = [
+                *get_cwltool_base_cmd(tmpdir),
+                cwl_workflows[2],
                 "--input_dir",
-                ".",
+                # This pipeline invocation runs in a 'hubmap_ui' subdirectory,
+                # so use the parent directory as input
+                "..",
             ]
 
             return join_quote_command_str(command)
@@ -124,6 +183,12 @@ def generate_atac_seq_dag(params: SequencingDagParameters) -> DAG:
             provide_context=True,
         )
 
+        t_build_cmd3 = PythonOperator(
+            task_id="build_cmd3",
+            python_callable=build_cwltool_cmd3,
+            provide_context=True,
+        )
+
         t_pipeline_exec = BashOperator(
             task_id="pipeline_exec",
             bash_command=""" \
@@ -133,13 +198,25 @@ def generate_atac_seq_dag(params: SequencingDagParameters) -> DAG:
             """,
         )
 
-        t_make_arrow1 = BashOperator(
-            task_id="make_arrow1",
+        t_pipeline_exec_azimuth_annotate = BashOperator(
+            task_id="pipeline_exec_azimuth_annotate",
+            bash_command=""" \
+            tmp_dir={{tmp_dir_path(run_id)}} ; \
+            cd "$tmp_dir"/cwl_out ; \
+            {{ti.xcom_pull(task_ids='build_cmd2')}} >> $tmp_dir/session.log 2>&1 ; \
+            echo $?
+            """,
+        )
+
+        t_convert_for_ui = BashOperator(
+            task_id="convert_for_ui",
             bash_command=""" \
             tmp_dir={{tmp_dir_path(run_id)}} ; \
             ds_dir="{{ti.xcom_pull(task_ids="send_create_dataset")}}" ; \
             cd "$tmp_dir"/cwl_out ; \
-            {{ti.xcom_pull(task_ids='build_cmd2')}} >> $tmp_dir/session.log 2>&1 ; \
+            mkdir -p hubmap_ui ; \
+            cd hubmap_ui ; \
+            {{ti.xcom_pull(task_ids='build_cmd3')}} >> $tmp_dir/session.log 2>&1 ; \
             echo $?
             """,
         )
@@ -160,9 +237,20 @@ def generate_atac_seq_dag(params: SequencingDagParameters) -> DAG:
             python_callable=utils.pythonop_maybe_keep,
             provide_context=True,
             op_kwargs={
+                "next_op": "prepare_cwl3",
+                "bail_op": "set_dataset_error",
+                "test_op": "pipeline_exec_azimuth_annotate",
+            },
+        )
+
+        t_maybe_keep_cwl3 = BranchPythonOperator(
+            task_id="maybe_keep_cwl3",
+            python_callable=utils.pythonop_maybe_keep,
+            provide_context=True,
+            op_kwargs={
                 "next_op": "move_data",
                 "bail_op": "set_dataset_error",
-                "test_op": "make_arrow1",
+                "test_op": "convert_for_ui",
             },
         )
 
@@ -175,7 +263,7 @@ def generate_atac_seq_dag(params: SequencingDagParameters) -> DAG:
                 "previous_revision_uuid_callable": get_previous_revision_uuid,
                 "http_conn_id": "ingest_api_connection",
                 "dataset_name_callable": build_dataset_name,
-                "pipeline_shorthand": "ArchR",
+                "pipeline_shorthand": "Salmon + ArchR + Muon",
             },
         )
 
@@ -193,7 +281,12 @@ def generate_atac_seq_dag(params: SequencingDagParameters) -> DAG:
 
         send_status_msg = make_send_status_msg_function(
             dag_file=__file__,
-            retcode_ops=["pipeline_exec", "move_data", "make_arrow1"],
+            retcode_ops=[
+                "pipeline_exec",
+                "pipeline_exec_azimuth_annotate",
+                "move_data",
+                "convert_for_ui",
+            ],
             cwl_workflows=cwl_workflows,
         )
 
@@ -221,42 +314,43 @@ def generate_atac_seq_dag(params: SequencingDagParameters) -> DAG:
             >> t_maybe_keep_cwl1
             >> prepare_cwl2
             >> t_build_cmd2
-            >> t_make_arrow1
+            >> t_pipeline_exec_azimuth_annotate
             >> t_maybe_keep_cwl2
+            >> prepare_cwl3
+            >> t_build_cmd3
+            >> t_convert_for_ui
+            >> t_maybe_keep_cwl3
             >> t_move_data
             >> t_send_status
             >> t_join
         )
         t_maybe_keep_cwl1 >> t_set_dataset_error
         t_maybe_keep_cwl2 >> t_set_dataset_error
+        t_maybe_keep_cwl3 >> t_set_dataset_error
         t_set_dataset_error >> t_join
         t_join >> t_cleanup_tmpdir
 
     return dag
 
 
-atacseq_dag_data: List[SequencingDagParameters] = [
-    SequencingDagParameters(
-        dag_id="sc_atac_seq_sci",
-        pipeline_name="sci-atac-seq-pipeline",
-        assay="sciseq",
+def get_simple_multiome_dag_params(assay: str) -> MultiomeSequencingDagParameters:
+    return MultiomeSequencingDagParameters(
+        dag_id=f"multiome_{assay}",
+        pipeline_name=f"multiome-{assay}",
+        assay_rna=assay,
+        assay_atac=assay,
+    )
+
+
+multiome_dag_params: List[MultiomeSequencingDagParameters] = [
+    MultiomeSequencingDagParameters(
+        dag_id="multiome_10x",
+        pipeline_name="multiome-10x",
+        assay_rna="10x_v3_sn",
+        assay_atac="multiome_10x",
     ),
-    SequencingDagParameters(
-        dag_id="sc_atac_seq_snare",
-        pipeline_name="sc-atac-seq-pipeline",
-        assay="snareseq",
-    ),
-    SequencingDagParameters(
-        dag_id="sc_atac_seq_sn",
-        pipeline_name="sn-atac-seq-pipeline",
-        assay="snseq",
-    ),
-    SequencingDagParameters(
-        dag_id="sc_atac_seq_multiome_10x",
-        pipeline_name="sn-atac-seq-pipeline",
-        assay="multiome_10x",
-    ),
+    get_simple_multiome_dag_params("snareseq"),
 ]
 
-for params in atacseq_dag_data:
-    globals()[params.dag_id] = generate_atac_seq_dag(params)
+for params in multiome_dag_params:
+    globals()[params.dag_id] = generate_multiome_dag(params)
