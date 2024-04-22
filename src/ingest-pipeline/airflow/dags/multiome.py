@@ -43,6 +43,7 @@ MultiomeSequencingDagParameters = namedtuple(
         "pipeline_name",
         "assay_rna",
         "assay_atac",
+        "requires_one_atac_metadata_file",
     ],
 )
 
@@ -123,9 +124,12 @@ def generate_multiome_dag(params: MultiomeSequencingDagParameters) -> DAG:
                     command.append(f"--fastq_dir_{component.lower()}")
                     command.append(data_dir / Path(f"raw/fastq/{component}"))
 
-            for data_dir in data_dirs:
+            atac_metadata_files = [find_atac_metadata_file(data_dir) for data_dir in data_dirs]
+            if params.requires_one_atac_metadata_file:
+                if (count := len(atac_metadata_files)) != 1:
+                    raise ValueError(f"Need 1 ATAC-seq metadata file, found {count}")
                 command.append("--atac_metadata_file")
-                command.append(find_atac_metadata_file(data_dir))
+                command.append(atac_metadata_files[0])
 
             return join_quote_command_str(command)
 
@@ -339,6 +343,7 @@ def get_simple_multiome_dag_params(assay: str) -> MultiomeSequencingDagParameter
         pipeline_name=f"multiome-{assay}",
         assay_rna=assay,
         assay_atac=assay,
+        requires_one_atac_metadata_file=False,
     )
 
 
@@ -348,6 +353,7 @@ multiome_dag_params: List[MultiomeSequencingDagParameters] = [
         pipeline_name="multiome-10x",
         assay_rna="10x_v3_sn",
         assay_atac="multiome_10x",
+        requires_one_atac_metadata_file=True,
     ),
     get_simple_multiome_dag_params("snareseq"),
 ]
