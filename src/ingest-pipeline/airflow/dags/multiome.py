@@ -43,6 +43,7 @@ MultiomeSequencingDagParameters = namedtuple(
         "pipeline_name",
         "assay_rna",
         "assay_atac",
+        "assay_azimuth",
         "requires_one_atac_metadata_file",
     ],
 )
@@ -154,7 +155,7 @@ def generate_multiome_dag(params: MultiomeSequencingDagParameters) -> DAG:
                 "--secondary-analysis-matrix",
                 "secondary_analysis.h5mu",
                 "--assay",
-                params.assay_rna,
+                params.assay_azimuth,
             ]
 
             return join_quote_command_str(command)
@@ -343,6 +344,7 @@ def get_simple_multiome_dag_params(assay: str) -> MultiomeSequencingDagParameter
         pipeline_name=f"multiome-{assay}",
         assay_rna=assay,
         assay_atac=assay,
+        assay_azimuth=assay,
         requires_one_atac_metadata_file=False,
     )
 
@@ -351,8 +353,9 @@ multiome_dag_params: List[MultiomeSequencingDagParameters] = [
     MultiomeSequencingDagParameters(
         dag_id="multiome_10x",
         pipeline_name="multiome-10x",
-        assay_rna="10x_v3_sn",
+        assay_rna="multiome_10x",
         assay_atac="multiome_10x",
+        assay_azimuth="10x_v3_sn",
         requires_one_atac_metadata_file=True,
     ),
     get_simple_multiome_dag_params("snareseq"),
