@@ -76,7 +76,7 @@ with HMDAG(
                 print(f"{uuid} is neither a dataset nor an upload and will be skipped.")
                 print(repr(e))
 
-        kwargs["ti"].xcom_push(key="uuids", value=filtered_uuids)
+        kwargs["dag_run"].conf["uuids"] = filtered_uuids
 
     check_uuids_t = PythonOperator(
         task_id="check_uuids",
@@ -101,17 +101,16 @@ with HMDAG(
         uuids = kwargs["dag_run"].conf["uuids"]
         metadata = kwargs["dag_run"].conf["metadata"]
 
-        error_dict = {}
-
         for uuid in uuids:
             endpoint = f"entities/{uuid}"
             try:
                 response = http_hook.run(endpoint, headers=headers, data=json.dumps(metadata))
                 print("response: ")
                 pprint(response.json())
-                time.sleep(10)
             except:
                 print(f"ERROR: UUID {uuid} could not be updated.")
+
+            time.sleep(10)
 
     update_uuids_t = PythonOperator(
         task_id="update_uuids",
