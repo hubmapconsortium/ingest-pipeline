@@ -58,7 +58,7 @@ with HMDAG(
         pprint(kwargs["dag_run"].conf)
 
         try:
-            assert_json_matches_schema(kwargs["dag_run"].conf, "launch_multi_metadata_schema.yml")
+            assert_json_matches_schema(kwargs["dag_run"].conf, "bulk_update_entities_schema.yml")
         except AssertionError as e:
             print("invalid DAG metadata follows:")
             pprint(kwargs["dag_run"].conf)
