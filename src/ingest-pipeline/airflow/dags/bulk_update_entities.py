@@ -1,33 +1,55 @@
 from pprint import pprint
 import time
 
+from datetime import timedelta
+
 from airflow.operators.python import PythonOperator
 from airflow.configuration import conf as airflow_conf
 from datetime import datetime
-from airflow import DAG
 from airflow.hooks.http_hook import HttpHook
 
 from utils import (
     localized_assert_json_matches_schema as assert_json_matches_schema,
     get_preserve_scratch_resource,
     get_tmp_dir_path,
+    HMDAG,
     encrypt_tok,
     pythonop_get_dataset_state,
     get_auth_tok,
+    get_queue_resource,
+    create_dataset_state_error_callback,
 )
 
+
+def get_uuid_for_error(**kwargs) -> str:
+    """
+    Return the uuid for the derived dataset if it exists, and of the parent dataset otherwise.
+    """
+    return ""
+
+
 default_args = {
+    "owner": "hubmap",
+    "depends_on_past": False,
     "start_date": datetime(2019, 1, 1),
+    "email": ["joel.welling@gmail.com"],
+    "email_on_failure": False,
+    "email_on_retry": False,
+    "retries": 1,
+    "retry_delay": timedelta(minutes=1),
+    "xcom_push": True,
+    "queue": get_queue_resource("bulk_update_entities"),
+    "on_failure_callback": create_dataset_state_error_callback(get_uuid_for_error),
 }
 
-with DAG(
-    "bulk_update_entities",
+with HMDAG(
+    "bulk_process",
     schedule_interval=None,
     is_paused_upon_creation=False,
     default_args=default_args,
     user_defined_macros={
         "tmp_dir_path": get_tmp_dir_path,
-        "preserve_scratch": get_preserve_scratch_resource("rebuild_metadata"),
+        "preserve_scratch": get_preserve_scratch_resource("launch_multi_analysis"),
     },
 ) as dag:
 
