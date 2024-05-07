@@ -111,7 +111,7 @@ with HMDAG(
                 pprint(response.json())
                 time.sleep(10)
             except Exception as e:
-                error_dict[uuid] = repr(e)
+                error_dict[uuid] = f"Exception: {repr(e)}, \nResponse: {response.json()}"
 
         if error_dict:
             print("The following uuids could not be updated for the following reasons: ")
