@@ -43,13 +43,13 @@ default_args = {
 }
 
 with HMDAG(
-    "bulk_process",
+    "bulk_update_entities",
     schedule_interval=None,
     is_paused_upon_creation=False,
     default_args=default_args,
     user_defined_macros={
         "tmp_dir_path": get_tmp_dir_path,
-        "preserve_scratch": get_preserve_scratch_resource("launch_multi_analysis"),
+        "preserve_scratch": get_preserve_scratch_resource("bulk_update_entities"),
     },
 ) as dag:
 
