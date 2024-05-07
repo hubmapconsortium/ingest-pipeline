@@ -101,12 +101,21 @@ with HMDAG(
         uuids = kwargs["dag_run"].conf["uuids"]
         metadata = kwargs["dag_run"].conf["metadata"]
 
+        error_dict = {}
+
         for uuid in uuids:
             endpoint = f"entities/{uuid}"
-            response = http_hook.run(endpoint, headers=headers, data=json.dumps(metadata))
-            print("response: ")
-            pprint(response.json())
-            time.sleep(10)
+            try:
+                response = http_hook.run(endpoint, headers=headers, data=json.dumps(metadata))
+                print("response: ")
+                pprint(response.json())
+                time.sleep(10)
+            except Exception as e:
+                error_dict[uuid] = repr(e)
+
+        if error_dict:
+            print("The following uuids could not be updated for the following reasons: ")
+            print(json.dumps(error_dict))
 
     update_uuids_t = PythonOperator(
         task_id="update_uuids",
