@@ -110,12 +110,8 @@ with HMDAG(
                 print("response: ")
                 pprint(response.json())
                 time.sleep(10)
-            except Exception as e:
-                error_dict[uuid] = f"Exception: {repr(e)}, \nResponse: {response.json()}"
-
-        if error_dict:
-            print("The following uuids could not be updated for the following reasons: ")
-            print(json.dumps(error_dict))
+            except:
+                print(f"ERROR: UUID {uuid} could not be updated.")
 
     update_uuids_t = PythonOperator(
         task_id="update_uuids",
