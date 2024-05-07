@@ -1,5 +1,6 @@
 from pprint import pprint
 import time
+import json
 
 from datetime import timedelta
 
@@ -98,10 +99,11 @@ with HMDAG(
 
         http_hook = HttpHook("PUT", http_conn_id="entity_api_connection")
         uuids = kwargs["dag_run"].conf["uuids"]
+        metadata = kwargs["dag_run"].conf["metadata"]
 
         for uuid in uuids:
             endpoint = f"entities/{uuid}"
-            response = http_hook.run(endpoint, headers=headers)
+            response = http_hook.run(endpoint, headers=headers, data=json.dumps(metadata))
             print("response: ")
             pprint(response.json())
             time.sleep(10)
