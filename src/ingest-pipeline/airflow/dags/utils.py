@@ -72,7 +72,7 @@ RE_GIT_URL_PATTERN = re.compile(r"(^git@github.com:)(.*)(\.git)")
 
 # default maximum for number of files for which info should be returned in_line
 # rather than via an alternative scratch file
-MAX_IN_LINE_FILES = 500
+MAX_IN_LINE_FILES = 5000
 
 GIT = "git"
 GIT_CLONE_COMMAND = [
