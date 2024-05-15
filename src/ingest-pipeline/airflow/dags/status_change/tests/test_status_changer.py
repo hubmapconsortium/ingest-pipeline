@@ -13,11 +13,8 @@ class TestStatusChanger(unittest.TestCase):
         return StatusChanger(
             "upload_valid_uuid",
             "upload_valid_token",
-            "Valid",
-            {
-                "extra_fields": {},
-                "extra_options": {},
-            },
+            status="Valid",
+            extra_options={},
             entity_type="Upload",
         )
 
@@ -27,30 +24,24 @@ class TestStatusChanger(unittest.TestCase):
             StatusChanger(
                 "invalid_status_uuid",
                 "invalid_status_token",
-                "invalid_status_string",
-                {
-                    "extra_fields": {},
-                    "extra_options": {},
-                },
+                status="invalid_status_string",
+                extra_options={},
                 entity_type="Upload",
             )
 
     def test_recognized_status(self):
-        data = self.upload_valid.format_status_data()
-        self.assertEqual(data["status"], self.upload_valid.status)
+        self.upload_valid._validate_fields_to_change()
+        self.assertEqual(self.upload_valid.fields_to_change["status"], self.upload_valid.status)
 
     @patch("status_manager.HttpHook.run")
     def test_extra_fields(self, hhr_mock):
         with_extra_field = StatusChanger(
             "extra_field_uuid",
             "extra_field_token",
-            Statuses.UPLOAD_PROCESSING,
-            {
-                "extra_fields": {"test_extra_field": True},
-                "extra_options": {},
-            },
+            status=Statuses.UPLOAD_PROCESSING,
+            fields_to_overwrite={"test_extra_field": True},
         )
-        data = with_extra_field.format_status_data()
+        data = with_extra_field.fields_to_change
         self.assertIn("test_extra_field", data)
         self.assertEqual(data["test_extra_field"], True)
 
@@ -59,20 +50,19 @@ class TestStatusChanger(unittest.TestCase):
         with_extra_option = StatusChanger(
             "extra_options_uuid",
             "extra_options_token",
-            Statuses.UPLOAD_VALID,
-            {"extra_fields": {}, "extra_options": {"check_response": False}},
+            status=Statuses.UPLOAD_VALID,
+            extra_options={"check_response": False},
             verbose=False,
         )
-        with_extra_option.set_entity_api_status()
+        with_extra_option._set_entity_api_data()
         self.assertIn({"check_response": False}, hhr_mock.call_args.args)
         without_extra_option = StatusChanger(
             "extra_options_uuid",
             "extra_options_token",
-            Statuses.UPLOAD_VALID,
-            {"extra_fields": {}, "extra_options": {}},
+            status=Statuses.UPLOAD_VALID,
             verbose=False,
         )
-        without_extra_option.set_entity_api_status()
+        without_extra_option._set_entity_api_data()
         self.assertIn({"check_response": True}, hhr_mock.call_args.args)
 
     @patch("status_manager.HttpHook.run")
@@ -80,20 +70,19 @@ class TestStatusChanger(unittest.TestCase):
         with_extra_option_and_field = StatusChanger(
             "extra_options_uuid",
             "extra_options_token",
-            Statuses.UPLOAD_VALID,
-            {
-                "extra_fields": {"test_extra_field": True},
-                "extra_options": {"check_response": False},
-            },
+            status=Statuses.UPLOAD_VALID,
+            fields_to_overwrite={"test_extra_field": True},
+            extra_options={"check_response": False},
             verbose=False,
         )
-        with_extra_option_and_field.set_entity_api_status()
+        with_extra_option_and_field.update()
         self.assertIn({"check_response": False}, hhr_mock.call_args.args)
         self.assertIn('{"status": "valid", "test_extra_field": true}', hhr_mock.call_args.args)
 
     @patch("status_manager.HttpHook.run")
     def test_valid_status_in_request(self, hhr_mock):
-        self.upload_valid.set_entity_api_status()
+        self.upload_valid._validate_fields_to_change()
+        self.upload_valid._set_entity_api_data()
         self.assertIn('{"status": "valid"}', hhr_mock.call_args.args)
 
     @patch("status_manager.HttpHook.run")
@@ -101,22 +90,19 @@ class TestStatusChanger(unittest.TestCase):
         with_http_conn_id = StatusChanger(
             "http_conn_uuid",
             "http_conn_token",
-            Statuses.DATASET_NEW,
-            {
-                "extra_fields": {},
-                "extra_options": {},
-            },
+            status=Statuses.DATASET_NEW,
             http_conn_id="test_conn_id",
         )
         assert with_http_conn_id.http_conn_id == "test_conn_id"
 
     @patch("status_manager.HttpHook.run")
     @patch("status_manager.StatusChanger.send_email")
-    def test_status_map(self, test_send_email, hhr_mock):
-        self.assertFalse(test_send_email.called)
+    def test_status_map(self, send_email_mock, hhr_mock):
+        self.assertFalse(send_email_mock.called)
+        self.assertEqual(self.upload_valid.status, Statuses.UPLOAD_VALID)
         self.upload_valid.status_map = {Statuses.UPLOAD_VALID: [self.upload_valid.send_email]}
-        self.upload_valid.on_status_change()
-        self.assertTrue(test_send_email.called)
+        self.upload_valid.update()
+        self.assertTrue(send_email_mock.called)
 
     @staticmethod
     def my_callable(**kwargs):
@@ -139,11 +125,8 @@ class TestStatusChanger(unittest.TestCase):
         sc_mock.assert_called_with(
             uuid,
             token,
-            "Processing",
-            {
-                "extra_fields": {"pipeline_message": message},
-                "extra_options": {},
-            },
+            status="Processing",
+            fields_to_overwrite={"pipeline_message": message},
             http_conn_id="entity_api_connection",
         )
         # Pass a valid ds_state and assert it was passed properly
@@ -157,11 +140,8 @@ class TestStatusChanger(unittest.TestCase):
         sc_mock.assert_called_with(
             uuid,
             token,
-            "QA",
-            {
-                "extra_fields": {"pipeline_message": message},
-                "extra_options": {},
-            },
+            status="QA",
+            fields_to_overwrite={"pipeline_message": message},
             http_conn_id="entity_api_connection",
         )
 
