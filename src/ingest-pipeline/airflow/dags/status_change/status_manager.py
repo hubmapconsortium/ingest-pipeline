@@ -2,88 +2,19 @@ from __future__ import annotations
 
 import json
 import logging
-from enum import Enum
 from functools import cached_property
-from typing import Any, Literal, Optional, TypedDict
+from typing import Literal, Optional
 
-from status_utils import get_submission_context
+from status_utils import ENTITY_STATUS_MAP, Statuses, get_submission_context
 
 from airflow.providers.http.hooks.http import HttpHook
 
 
-class Statuses(str, Enum):
-    # Dataset Hold and Deprecated are not currently in use but are valid for Entity API
-    DATASET_DEPRECATED = "deprecated"
-    DATASET_ERROR = "error"
-    DATASET_HOLD = "hold"
-    DATASET_INVALID = "invalid"
-    DATASET_NEW = "new"
-    DATASET_PROCESSING = "processing"
-    DATASET_PUBLISHED = "published"
-    DATASET_QA = "qa"
-    DATASET_SUBMITTED = "submitted"
-    PUBLICATION_ERROR = "error"
-    PUBLICATION_HOLD = "hold"
-    PUBLICATION_INVALID = "invalid"
-    PUBLICATION_NEW = "new"
-    PUBLICATION_PROCESSING = "processing"
-    PUBLICATION_PUBLISHED = "published"
-    PUBLICATION_QA = "qa"
-    PUBLICATION_SUBMITTED = "submitted"
-    UPLOAD_ERROR = "error"
-    UPLOAD_INVALID = "invalid"
-    UPLOAD_NEW = "new"
-    UPLOAD_PROCESSING = "processing"
-    UPLOAD_REORGANIZED = "reorganized"
-    UPLOAD_SUBMITTED = "submitted"
-    UPLOAD_VALID = "valid"
-
-
-# Needed some way to disambiguate statuses shared by datasets and uploads
-ENTITY_STATUS_MAP = {
-    "dataset": {
-        "deprecated": Statuses.DATASET_DEPRECATED,
-        "error": Statuses.DATASET_ERROR,
-        "hold": Statuses.DATASET_HOLD,
-        "invalid": Statuses.DATASET_INVALID,
-        "new": Statuses.DATASET_NEW,
-        "processing": Statuses.DATASET_PROCESSING,
-        "published": Statuses.DATASET_PUBLISHED,
-        "qa": Statuses.DATASET_QA,
-        "submitted": Statuses.DATASET_SUBMITTED,
-    },
-    "publication": {
-        "error": Statuses.PUBLICATION_ERROR,
-        "hold": Statuses.PUBLICATION_HOLD,
-        "invalid": Statuses.PUBLICATION_INVALID,
-        "new": Statuses.PUBLICATION_NEW,
-        "processing": Statuses.PUBLICATION_PROCESSING,
-        "published": Statuses.PUBLICATION_PUBLISHED,
-        "qa": Statuses.PUBLICATION_QA,
-        "submitted": Statuses.PUBLICATION_SUBMITTED,
-    },
-    "upload": {
-        "error": Statuses.UPLOAD_ERROR,
-        "invalid": Statuses.UPLOAD_INVALID,
-        "new": Statuses.UPLOAD_NEW,
-        "processing": Statuses.UPLOAD_PROCESSING,
-        "reorganized": Statuses.UPLOAD_REORGANIZED,
-        "submitted": Statuses.UPLOAD_SUBMITTED,
-        "valid": Statuses.UPLOAD_VALID,
-    },
-}
-
-
-class StatusChangerExtras(TypedDict):
-    extra_fields: dict[str, Any]
-    extra_options: dict[str, Any]
-
-
-class StatusChangerException(Exception):
+class EntityUpdateException(Exception):
     pass
 
 
-class EntityApiUpdater:
+class EntityUpdater:
     def __init__(
         self,
         uuid: str,
@@ -115,7 +46,7 @@ class EntityApiUpdater:
             assert entity_type is not None
             return entity_type
         except Exception as e:
-            raise StatusChangerException(
+            raise EntityUpdateException(
                 f"""
                 Could not find entity type for {self.uuid}.
                 Error {e}
@@ -135,7 +66,7 @@ class EntityApiUpdater:
 
     def update(self):
         """
-        This is the main method for using the EntityApiUpdater.
+        This is the main method for using the EntityUpdater.
         - Appends values of fields_to_append_to to existing entity-api fields.
         - Compiles fields to change: fields_to_overwrite + appended fields,
           ensuring there are no duplicates.
@@ -171,7 +102,7 @@ class EntityApiUpdater:
                 endpoint, json.dumps(self.fields_to_change), headers, self.extra_options
             )
         except Exception as e:
-            raise StatusChangerException(
+            raise EntityUpdateException(
                 f"""
                 Encountered error with request to change fields {', '.join([key for key in self.fields_to_change])}
                 for {self.uuid}, fields (likely) not changed.
@@ -239,7 +170,7 @@ Example usage with some optional params:
 """
 
 
-class StatusChanger(EntityApiUpdater):
+class StatusChanger(EntityUpdater):
     def __init__(
         self,
         uuid: str,
@@ -289,7 +220,7 @@ class StatusChanger(EntityApiUpdater):
         If a status was passed in and the status_map is populated:
             - Run methods assigned to that status in the status_map.
         Otherwise:
-            - Follows default EntityApiUpdater._set_entity_api_data() process.
+            - Follows default EntityUpdater._set_entity_api_data() process.
         """
         self._validate_fields_to_change()
         if self.status in self.status_map:
@@ -315,7 +246,7 @@ class StatusChanger(EntityApiUpdater):
         try:
             entity_status = ENTITY_STATUS_MAP[self.entity_type.lower()][status]
         except KeyError:
-            raise StatusChangerException(
+            raise EntityUpdateException(
                 f"""
                     Could not retrieve status for {self.uuid}.
                     Check that status is valid for entity type.
@@ -327,7 +258,7 @@ class StatusChanger(EntityApiUpdater):
     def _check_status(self, status: Statuses) -> Optional[Statuses]:
         if not status:
             raise Exception(
-                f"No status passed to StatusChanger. To update other fields only, use EntityApiUpdater."
+                f"No status passed to StatusChanger. To update other fields only, use EntityUpdater."
             )
         # Can't set the same status over the existing status.
         if status == self.entity_data["status"].lower():
