@@ -9,140 +9,139 @@ from status_utils import ENTITY_STATUS_MAP, Statuses, get_submission_context
 
 from airflow.providers.http.hooks.http import HttpHook
 
-
-class EntityUpdateException(Exception):
-    pass
-
-
-class EntityUpdater:
-    def __init__(
-        self,
-        uuid: str,
-        token: str,
-        http_conn_id: str = "entity_api_connection",
-        fields_to_overwrite: Optional[dict] = None,
-        fields_to_append_to: Optional[dict] = None,
-        delimiter: str = "|",
-        extra_options: Optional[dict] = None,
-        verbose: bool = True,
-    ):
-        self.uuid = uuid
-        self.token = token
-        self.http_conn_id = http_conn_id
-        self.fields_to_overwrite = fields_to_overwrite if fields_to_overwrite else {}
-        self.fields_to_append_to = fields_to_append_to if fields_to_append_to else {}
-        self.delimiter = delimiter
-        self.extra_options = extra_options if extra_options else {}
-        self.verbose = verbose
-        self.entity_type = self.get_entity_type()
-
-    @cached_property
-    def entity_data(self):
-        return get_submission_context(self.token, self.uuid)
-
-    def get_entity_type(self):
-        try:
-            entity_type = self.entity_data["entity_type"]
-            assert entity_type is not None
-            return entity_type
-        except Exception as e:
-            raise EntityUpdateException(
-                f"""
-                Could not find entity type for {self.uuid}.
-                Error {e}
-                """
-            )
-
-    @cached_property
-    def fields_to_change(self) -> dict:
-        # TODO: check directionality on this
-        duplicates = set(self.fields_to_overwrite.keys()).intersection(
-            set(self.fields_to_append_to.keys())
-        )
-        assert (
-            not duplicates
-        ), f"Field(s) {', '.join(duplicates)} cannot be both appended to and overwritten."
-        return self._update_existing_values() | self.fields_to_overwrite
-
-    def update(self):
-        """
-        This is the main method for using the EntityUpdater.
-        - Appends values of fields_to_append_to to existing entity-api fields.
-        - Compiles fields to change: fields_to_overwrite + appended fields,
-          ensuring there are no duplicates.
-        - Validates existence of fields_to_change against fields in entity-api data.
-        - If send_to_status_changer and "status" is found in fields_to_change,
-          creates a StatusChanger instance and passes validated data.
-        - Otherwise, makes a PUT request with fields_to_change payload to entity-api.
-        - Returns response.json() or raises Exception.
-        """
-        self._validate_fields_to_change()
-        self._set_entity_api_data()
-
-    def _set_entity_api_data(self) -> dict:
-        endpoint = f"/entities/{self.uuid}"
-        headers = {
-            "authorization": "Bearer " + self.token,
-            "X-Hubmap-Application": "ingest-pipeline",
-            "content-type": "application/json",
-        }
-        http_hook = HttpHook("PUT", http_conn_id=self.http_conn_id)
-        if self.extra_options.get("check_response") is None:
-            self.extra_options.update({"check_response": True})
-        logging.info(
-            f"""
-            data:
-            {self.fields_to_change}
-            """
-        )
-        if self.verbose:
-            logging.info(f"Updating {self.uuid} with data {self.fields_to_change}...")
-        try:
-            response = http_hook.run(
-                endpoint, json.dumps(self.fields_to_change), headers, self.extra_options
-            )
-        except Exception as e:
-            raise EntityUpdateException(
-                f"""
-                Encountered error with request to change fields {', '.join([key for key in self.fields_to_change])}
-                for {self.uuid}, fields (likely) not changed.
-                Error: {e}
-                """
-            )
-        logging.info(f"""Response: {response.json()}""")
-        return response.json()
-
-    def _validate_fields_to_change(self):
-        # TODO: this does basic key checking but should it also try to check value type?
-        status_found = False
-        for field in self.fields_to_change.keys():
-            if not field in self.entity_data.keys():
-                raise Exception(f"Field {field} is invalid for entity type {self.entity_type}.")
-            elif field == "status":
-                status_found = True
-        if status_found:
-            logging.info("'status' found in update fields, sending to StatusChanger.")
-            StatusChanger(
-                self.uuid,
-                self.token,
-                self.http_conn_id,
-                self.fields_to_overwrite,
-                self.fields_to_append_to,
-                self.delimiter,
-                self.extra_options,
-                self.verbose,
-                self.fields_to_change["status"],
-                self.entity_type,
-            ).update()
-
-    def _update_existing_values(self):
-        # TODO: appropriate append formatting? only certain fields allowed?
-        new_field_data = {}
-        for field, value in self.fields_to_append_to.items():
-            existing_field_data = self.entity_data[field]
-            new_field_data[field] = existing_field_data + f" {self.delimiter} " + value
-        return new_field_data
-
+# class EntityUpdateException(Exception):
+#     pass
+#
+#
+# class EntityUpdater:
+#     def __init__(
+#         self,
+#         uuid: str,
+#         token: str,
+#         http_conn_id: str = "entity_api_connection",
+#         fields_to_overwrite: Optional[dict] = None,
+#         fields_to_append_to: Optional[dict] = None,
+#         delimiter: str = "|",
+#         extra_options: Optional[dict] = None,
+#         verbose: bool = True,
+#     ):
+#         self.uuid = uuid
+#         self.token = token
+#         self.http_conn_id = http_conn_id
+#         self.fields_to_overwrite = fields_to_overwrite if fields_to_overwrite else {}
+#         self.fields_to_append_to = fields_to_append_to if fields_to_append_to else {}
+#         self.delimiter = delimiter
+#         self.extra_options = extra_options if extra_options else {}
+#         self.verbose = verbose
+#         self.entity_type = self.get_entity_type()
+#
+# @cached_property
+# def entity_data(self):
+#     return get_submission_context(self.token, self.uuid)
+#
+# def get_entity_type(self):
+#     try:
+#         entity_type = self.entity_data["entity_type"]
+#         assert entity_type is not None
+#         return entity_type
+#     except Exception as e:
+#         raise EntityUpdateException(
+#             f"""
+#             Could not find entity type for {self.uuid}.
+#             Error {e}
+#             """
+#         )
+#
+# @cached_property
+# def fields_to_change(self) -> dict:
+#     # TODO: check directionality on this
+#     duplicates = set(self.fields_to_overwrite.keys()).intersection(
+#         set(self.fields_to_append_to.keys())
+#     )
+#     assert (
+#         not duplicates
+#     ), f"Field(s) {', '.join(duplicates)} cannot be both appended to and overwritten."
+#     return self._update_existing_values() | self.fields_to_overwrite
+#
+# def update(self):
+#     """
+#     This is the main method for using the EntityUpdater.
+#     - Appends values of fields_to_append_to to existing entity-api fields.
+#     - Compiles fields to change: fields_to_overwrite + appended fields,
+#       ensuring there are no duplicates.
+#     - Validates existence of fields_to_change against fields in entity-api data.
+#     - If send_to_status_changer and "status" is found in fields_to_change,
+#       creates a StatusChanger instance and passes validated data.
+#     - Otherwise, makes a PUT request with fields_to_change payload to entity-api.
+#     - Returns response.json() or raises Exception.
+#     """
+#     self._validate_fields_to_change()
+#     self._set_entity_api_data()
+#
+# def _set_entity_api_data(self) -> dict:
+#     endpoint = f"/entities/{self.uuid}"
+#     headers = {
+#         "authorization": "Bearer " + self.token,
+#         "X-Hubmap-Application": "ingest-pipeline",
+#         "content-type": "application/json",
+#     }
+#     http_hook = HttpHook("PUT", http_conn_id=self.http_conn_id)
+#     if self.extra_options.get("check_response") is None:
+#         self.extra_options.update({"check_response": True})
+#     logging.info(
+#         f"""
+#         data:
+#         {self.fields_to_change}
+#         """
+#     )
+#     if self.verbose:
+#         logging.info(f"Updating {self.uuid} with data {self.fields_to_change}...")
+#     try:
+#         response = http_hook.run(
+#             endpoint, json.dumps(self.fields_to_change), headers, self.extra_options
+#         )
+#     except Exception as e:
+#         raise EntityUpdateException(
+#             f"""
+#             Encountered error with request to change fields {', '.join([key for key in self.fields_to_change])}
+#             for {self.uuid}, fields (likely) not changed.
+#             Error: {e}
+#             """
+#         )
+#     logging.info(f"""Response: {response.json()}""")
+#     return response.json()
+#
+# def _validate_fields_to_change(self):
+#     # TODO: this does basic key checking but should it also try to check value type?
+#     status_found = False
+#     for field in self.fields_to_change.keys():
+#         if field not in self.entity_data.keys():
+#             raise Exception(f"Field {field} is invalid for entity type {self.entity_type}.")
+#         elif field == "status":
+#             status_found = True
+#     if status_found:
+#         logging.info("'status' found in update fields, sending to StatusChanger.")
+#         StatusChanger(
+#             self.uuid,
+#             self.token,
+#             self.http_conn_id,
+#             self.fields_to_overwrite,
+#             self.fields_to_append_to,
+#             self.delimiter,
+#             self.extra_options,
+#             self.verbose,
+#             self.fields_to_change["status"],
+#             self.entity_type,
+#         ).update()
+#
+# def _update_existing_values(self):
+#     # TODO: appropriate append formatting? only certain fields allowed?
+#     new_field_data = {}
+#     for field, value in self.fields_to_append_to.items():
+#         existing_field_data = self.entity_data[field]
+#         new_field_data[field] = existing_field_data + f" {self.delimiter} " + value
+#     return new_field_data
+#
 
 """
 Example usage, simple path (e.g. status string, no validation message):
@@ -170,7 +169,7 @@ Example usage with some optional params:
 """
 
 
-class StatusChanger(EntityUpdater):
+class StatusChanger:
     def __init__(
         self,
         uuid: str,
@@ -232,7 +231,7 @@ class StatusChanger(EntityUpdater):
     def _validate_fields_to_change(self):
         # TODO: this does basic key checking but should it also try to check value type?
         for field in self.fields_to_change.keys():
-            if not field in self.entity_data.keys():
+            if field not in self.entity_data.keys():
                 raise Exception(f"Field {field} is invalid for entity type {self.entity_type}.")
         self.fields_to_change["status"] = self.status
 
@@ -246,7 +245,7 @@ class StatusChanger(EntityUpdater):
         try:
             entity_status = ENTITY_STATUS_MAP[self.entity_type.lower()][status]
         except KeyError:
-            raise EntityUpdateException(
+            raise Exception(
                 f"""
                     Could not retrieve status for {self.uuid}.
                     Check that status is valid for entity type.
@@ -258,7 +257,7 @@ class StatusChanger(EntityUpdater):
     def _check_status(self, status: Statuses) -> Optional[Statuses]:
         if not status:
             raise Exception(
-                f"No status passed to StatusChanger. To update other fields only, use EntityUpdater."
+                "No status passed to StatusChanger. To update other fields only, use EntityUpdater."
             )
         # Can't set the same status over the existing status.
         if status == self.entity_data["status"].lower():
@@ -275,3 +274,72 @@ class StatusChanger(EntityUpdater):
     def send_email(self) -> None:
         # This is underdeveloped and also requires a separate PR
         pass
+
+    @cached_property
+    def entity_data(self):
+        return get_submission_context(self.token, self.uuid)
+
+    def get_entity_type(self):
+        try:
+            entity_type = self.entity_data["entity_type"]
+            assert entity_type is not None
+            return entity_type
+        except Exception as e:
+            raise Exception(
+                f"""
+                Could not find entity type for {self.uuid}.
+                Error {e}
+                """
+            )
+
+    @cached_property
+    def fields_to_change(self) -> dict:
+        # TODO: check directionality on this
+        duplicates = set(self.fields_to_overwrite.keys()).intersection(
+            set(self.fields_to_append_to.keys())
+        )
+        assert (
+            not duplicates
+        ), f"Field(s) {', '.join(duplicates)} cannot be both appended to and overwritten."
+        return self._update_existing_values() | self.fields_to_overwrite
+
+    def _set_entity_api_data(self) -> dict:
+        endpoint = f"/entities/{self.uuid}"
+        headers = {
+            "authorization": "Bearer " + self.token,
+            "X-Hubmap-Application": "ingest-pipeline",
+            "content-type": "application/json",
+        }
+        http_hook = HttpHook("PUT", http_conn_id=self.http_conn_id)
+        if self.extra_options.get("check_response") is None:
+            self.extra_options.update({"check_response": True})
+        logging.info(
+            f"""
+            data:
+            {self.fields_to_change}
+            """
+        )
+        if self.verbose:
+            logging.info(f"Updating {self.uuid} with data {self.fields_to_change}...")
+        try:
+            response = http_hook.run(
+                endpoint, json.dumps(self.fields_to_change), headers, self.extra_options
+            )
+        except Exception as e:
+            raise Exception(
+                f"""
+                Encountered error with request to change fields {', '.join([key for key in self.fields_to_change])}
+                for {self.uuid}, fields (likely) not changed.
+                Error: {e}
+                """
+            )
+        logging.info(f"""Response: {response.json()}""")
+        return response.json()
+
+    def _update_existing_values(self):
+        # TODO: appropriate append formatting? only certain fields allowed?
+        new_field_data = {}
+        for field, value in self.fields_to_append_to.items():
+            existing_field_data = self.entity_data[field]
+            new_field_data[field] = existing_field_data + f" {self.delimiter} " + value
+        return new_field_data

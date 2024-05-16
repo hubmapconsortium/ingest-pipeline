@@ -251,6 +251,6 @@ class TestEntityUpdater(unittest.TestCase):
             )
 
 
-if __name__ == "__main__":
-    suite = unittest.TestLoader().loadTestsFromTestCase(TestEntityUpdater)
-    suite.debug()
+# if __name__ == "__main__":
+#     suite = unittest.TestLoader().loadTestsFromTestCase(TestEntityUpdater)
+#     suite.debug()
