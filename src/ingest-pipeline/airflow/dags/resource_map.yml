@@ -195,7 +195,7 @@ resource_map:
         'threads': 6
   - 'dag_re': '.*multiome'
     'preserve_scratch': true
-    'lanes': 2
+    'lanes': 1
     'instance_type': 'r6i.xlarge'
     'tasks':
       - 'task_re': '.*cwl.*|.*exec|.*cmd.*|.*azimuth.*|.*ui.*'
