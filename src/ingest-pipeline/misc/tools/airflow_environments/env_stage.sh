@@ -2,6 +2,9 @@
 HM_AF_CONFIG=/opt/repositories/vm003-stage/ingest-pipeline/src/ingest-pipeline/airflow/airflow.cfg
 HM_AF_HOME=/opt/repositories/vm003-stage/ingest-pipeline/src/ingest-pipeline/airflow
 
+HM_AF_METHOD='conda'
+HM_AF_ENV_NAME="condaEnv_python_${HUBMAP_PYTHON_VERSION}_prod"
+
 # Use DEV since STAGE does not have INGEST API
 HM_AF_CONN_INGEST_API_CONNECTION=http://vm001.hive.psc.edu:7777/
 HM_AF_CONN_UUID_API_CONNECTION=http://https%3a%2f%2fuuid-api.stage.hubmapconsortium.org/
