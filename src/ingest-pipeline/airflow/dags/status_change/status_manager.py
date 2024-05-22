@@ -216,12 +216,30 @@ class StatusChanger:
     def update(self) -> None:
         """
         This is the main method for using the StatusChanger.
-        Validates fields to change, adds status that was validated in __init__.
-        If a status was passed in and the status_map is populated:
+        - If no status after instantiating (incl. if status is the same as
+        existing status on entity), pass off to EntityUpdater instead so
+        other fields get updated.
+        - Validates fields to change, adds status that was validated in __init__.
+        - If a status was passed in and the status_map is populated:
             - Run methods assigned to that status in the status_map.
-        Otherwise:
+        - Otherwise:
             - Follows default EntityUpdater._set_entity_api_data() process.
         """
+        if self.status is None and self.fields_to_change:
+            logging.info(
+                f"No status to update, instantiating EntityUpdater instead to update other fields: {', '.join(self.fields_to_change.keys())}"
+            )
+            EntityUpdater(
+                self.uuid,
+                self.token,
+                self.http_conn_id,
+                self.fields_to_overwrite,
+                self.fields_to_append_to,
+                self.delimiter,
+                self.extra_options,
+                self.verbose,
+            ).update()
+            return
         self._validate_fields_to_change()
         if self.status in self.status_map:
             for func in self.status_map[self.status]:
@@ -262,6 +280,9 @@ class StatusChanger:
             )
         # Can't set the same status over the existing status.
         if status == self.entity_data["status"].lower():
+            logging.info(
+                f"Status passed to StatusChanger is the same as the current status in Entity API."
+            )
             return None
         # Double-check that you don't have different values for status in other fields.
         if (extra_status := self.fields_to_change.get("status")) is not None and isinstance(
@@ -299,9 +320,11 @@ class StatusChanger:
         duplicates = set(self.fields_to_overwrite.keys()).intersection(
             set(self.fields_to_append_to.keys())
         )
-        assert (
-            not duplicates
-        ), f"Field(s) {', '.join(duplicates)} cannot be both appended to and overwritten."
+        assert not duplicates, f"""
+            Field(s) {', '.join(duplicates)} cannot be both appended to and overwritten. Data sent:
+            fields_to_overwrite: {self.fields_to_overwrite}
+            fields_to_append_to: {self.fields_to_append_to}
+            """
         return self._update_existing_values() | self.fields_to_overwrite
 
     def _set_entity_api_data(self) -> dict:
