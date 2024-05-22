@@ -105,7 +105,7 @@ class EntityUpdater:
             raise EntityUpdateException(
                 f"""
                 Encountered error with request to change fields {', '.join([key for key in self.fields_to_change])}
-                for {self.uuid}, fields (likely) not changed.
+                for {self.uuid}, fields either not changed or not updated completely.
                 Error: {e}
                 """
             )
