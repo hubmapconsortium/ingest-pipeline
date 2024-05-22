@@ -36,7 +36,7 @@ from hubmap_commons.schema_tools import assert_json_matches_schema, set_schema_b
 from hubmap_commons.type_client import TypeClient
 from requests import codes
 from requests.exceptions import HTTPError
-from status_change.status_manager import StatusChanger
+from status_change.status_manager import EntityUpdateException, StatusChanger
 
 from airflow import DAG
 from airflow.configuration import conf as airflow_conf
@@ -1466,7 +1466,7 @@ def make_send_status_msg_function(
                     fields_to_overwrite=extra_fields,
                     entity_type=entity_type if entity_type else None,
                 ).update()
-            except Exception:
+            except EntityUpdateException:
                 return_status = False
 
         return return_status

@@ -117,7 +117,9 @@ class EntityUpdater:
         status_found = False
         for field in self.fields_to_change.keys():
             if field not in self.entity_data.keys():
-                raise Exception(f"Field {field} is invalid for entity type {self.entity_type}.")
+                raise EntityUpdateException(
+                    f"Field {field} is invalid for entity type {self.entity_type}."
+                )
             elif field == "status":
                 status_found = True
         if status_found:
@@ -194,7 +196,7 @@ class StatusChanger:
         self.extra_options = extra_options if extra_options else {}
         self.verbose = verbose
         if not status:
-            raise Exception("Must pass new status to StatusChanger.")
+            raise EntityUpdateException("Must pass new status to StatusChanger.")
         self.entity_type = entity_type if entity_type else self.get_entity_type()
         self.status = (
             self._check_status(status)
@@ -251,7 +253,9 @@ class StatusChanger:
         # TODO: this does basic key checking but should it also try to check value type?
         for field in self.fields_to_change.keys():
             if field not in self.entity_data.keys():
-                raise Exception(f"Field {field} is invalid for entity type {self.entity_type}.")
+                raise EntityUpdateException(
+                    f"Field {field} is invalid for entity type {self.entity_type}."
+                )
         self.fields_to_change["status"] = self.status
 
     def _get_status(self, status: str) -> Optional[Statuses]:
@@ -264,7 +268,7 @@ class StatusChanger:
         try:
             entity_status = ENTITY_STATUS_MAP[self.entity_type.lower()][status]
         except KeyError:
-            raise Exception(
+            raise EntityUpdateException(
                 f"""
                     Could not retrieve status for {self.uuid}.
                     Check that status is valid for entity type.
@@ -275,7 +279,7 @@ class StatusChanger:
 
     def _check_status(self, status: Statuses) -> Optional[Statuses]:
         if not status:
-            raise Exception(
+            raise EntityUpdateException(
                 "No status passed to StatusChanger. To update other fields only, use EntityUpdater."
             )
         # Can't set the same status over the existing status.
@@ -307,7 +311,7 @@ class StatusChanger:
             assert entity_type is not None
             return entity_type
         except Exception as e:
-            raise Exception(
+            raise EntityUpdateException(
                 f"""
                 Could not find entity type for {self.uuid}.
                 Error {e}
@@ -350,7 +354,7 @@ class StatusChanger:
                 endpoint, json.dumps(self.fields_to_change), headers, self.extra_options
             )
         except Exception as e:
-            raise Exception(
+            raise EntityUpdateException(
                 f"""
                 Encountered error with request to change fields {', '.join([key for key in self.fields_to_change])}
                 for {self.uuid}, fields (likely) not changed.
