@@ -44,3 +44,5 @@ tqdm==4.36.1
 pandarallel==1.6.4
 python-frontmatter>=1.0.0
 imagecodecs>=2023.3.16
+pendulum==2.1.2
+Flask-Session==0.4.0
