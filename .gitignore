@@ -7,6 +7,9 @@ __pycache__
 .vs
 .vscode
 db.sqlite3
+daily-report
+data
+.datasets
 media/*
 media
 .envrc
@@ -17,6 +20,8 @@ docker/dev-local
 .pgpwd
 airflow.cfg
 airflow.db
+airflow_exe
+airflow-worker.pid
 pg_celery_conn.sh
 pg_conn.sh
 src/ingest-pipeline/misc/tools/.token.json
