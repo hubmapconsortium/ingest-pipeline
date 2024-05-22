@@ -25,6 +25,7 @@ def get_uuid_for_error(**kwargs):
 
 default_args = {
     "start_date": datetime(2019, 1, 1),
+    "executor_config": {"SlurmExecutor": {"slurm_output_path": "/hive/users/hive/airflow-logs/slurm/"}},
 }
 
 with DAG(
