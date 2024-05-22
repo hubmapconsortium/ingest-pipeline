@@ -55,7 +55,6 @@ class EntityUpdater:
 
     @cached_property
     def fields_to_change(self) -> dict:
-        # TODO: check directionality on this
         duplicates = set(self.fields_to_overwrite.keys()).intersection(
             set(self.fields_to_append_to.keys())
         )
