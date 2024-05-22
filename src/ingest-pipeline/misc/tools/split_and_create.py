@@ -3,17 +3,17 @@
 import argparse
 import json
 import re
-import os
 import time
 from pathlib import Path
 from pprint import pprint
 from shutil import copy2, copytree
-from typing import List, TypeVar, Union, Tuple
+from typing import List, Tuple, TypeVar, Union
 
 import pandas as pd
-from status_change.status_manager import StatusChanger, Statuses
-from airflow.hooks.http_hook import HttpHook
 from extra_utils import SoftAssayClient
+from status_change.status_manager import StatusChanger, Statuses
+
+from airflow.hooks.http_hook import HttpHook
 
 # There has got to be a better solution for this, but I can't find it
 try:
@@ -381,13 +381,10 @@ def update_upload_entity(child_uuid_list, source_entity, dryrun=False, verbose=F
             StatusChanger(
                 source_entity.uuid,
                 source_entity.entity_factory.auth_tok,
-                Statuses.UPLOAD_REORGANIZED,
-                {
-                    "extra_fields": {"dataset_uuids_to_link": child_uuid_list},
-                    "extra_options": {},
-                },
+                status=Statuses.UPLOAD_REORGANIZED,
+                fields_to_overwrite={"dataset_uuids_to_link": child_uuid_list},
                 verbose=verbose,
-            ).on_status_change()
+            ).update()
             print(f"{source_entity.uuid} status is Reorganized")
 
             # TODO: click in with UpdateAsana
@@ -396,9 +393,9 @@ def update_upload_entity(child_uuid_list, source_entity, dryrun=False, verbose=F
                 StatusChanger(
                     uuid,
                     source_entity.entity_factory.auth_tok,
-                    Statuses.DATASET_SUBMITTED,
+                    status=Statuses.DATASET_SUBMITTED,
                     verbose=verbose,
-                ).on_status_change()
+                ).update()
                 print(
                     f"Reorganized new: {uuid} from Upload: {source_entity.uuid} status is Submitted"
                 )
@@ -583,9 +580,9 @@ def reorganize_multiassay(source_uuid, verbose=False, **kwargs) -> None:
     StatusChanger(
         source_entity.uuid,
         source_entity.entity_factory.auth_tok,
-        Statuses.DATASET_SUBMITTED,
+        status=Statuses.DATASET_SUBMITTED,
         verbose=verbose,
-    ).on_status_change()
+    ).update()
     print(f"{source_entity.uuid} status is Submitted")
 
 
