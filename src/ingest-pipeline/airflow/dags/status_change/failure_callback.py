@@ -58,9 +58,6 @@ class FailureCallback:
         StatusChanger(
             self.uuid,
             self.auth_tok,
-            "error",
-            {
-                "extra_fields": self.get_extra_fields(),
-                "extra_options": {},
-            },
-        ).on_status_change()
+            status="error",
+            fields_to_overwrite=data,
+        ).update()
