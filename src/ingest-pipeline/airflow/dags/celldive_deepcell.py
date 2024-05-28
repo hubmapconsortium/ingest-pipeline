@@ -144,6 +144,8 @@ with HMDAG(
             "--options_preset=celldive",
             "--image_dir",
             data_dir / "pipeline_output/expr",
+            "--processes",
+            get_threads_resource(dag.dag_id),
             "--mask_dir",
             data_dir / "pipeline_output/mask",
         ]
