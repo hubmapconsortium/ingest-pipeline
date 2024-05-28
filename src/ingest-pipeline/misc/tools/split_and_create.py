@@ -3,7 +3,7 @@
 import argparse
 import json
 import re
-import os
+import math
 import time
 from pathlib import Path
 from pprint import pprint
@@ -190,7 +190,7 @@ def populate(row, source_entity, entity_factory, dryrun=False, components=None):
     }
     non_global_files = row.get("non_global_files")
     print(f"Is {uuid} part of a shared upload? {is_shared_upload}")
-    if non_global_files and not non_global_files.isnull().all():
+    if non_global_files and not math.isnan(non_global_files):
         print(f"Non global files: {non_global_files}")
         # Catch case 1
         assert (
