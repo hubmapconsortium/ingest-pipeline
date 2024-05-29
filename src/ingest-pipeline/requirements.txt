@@ -7,7 +7,7 @@ prov==1.5.1
 tifffile==2021.11.2
 xmltodict==0.13.0
 pyimzml==1.5.2
-apache-airflow[celery,crypto,postgres,redis,ssh,amazon]==2.5.3
+apache-airflow[celery,crypto,postgres,redis,ssh,amazon]==2.9.1
 airflow-slurm-executor==0.0.4
 airflow-multi-dagrun==2.3.1
 jsonschema==4.0.0
