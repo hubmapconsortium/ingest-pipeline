@@ -10,7 +10,7 @@ pyimzml==1.5.2
 apache-airflow[celery,crypto,postgres,redis,ssh,amazon]==2.9.1
 airflow-slurm-executor==0.0.4
 airflow-multi-dagrun==2.3.1
-jsonschema==4.0.0
+jsonschema==4.18.0
 fastjsonschema==2.16.2
 requests==2.27.1
 jsonref-ap==0.3.dev0
@@ -26,10 +26,10 @@ git+https://github.com/hubmapconsortium/fastq-utils@v0.2.5#egg=hubmap-fastq-util
 # -r ${CWD}/submodules/ingest-validation-tools/requirements.txt
 tableschema==1.20.2
 goodtables==2.5.4
-globus-cli==3.10.1
+globus-cli==3.28.2
 yattag==1.14.0
 frictionless==4.0.0
-sqlalchemy==1.4.15
+sqlalchemy==1.4.36
 xmlschema==1.9.2
 WTForms==2.3.3
 hubmap_sdk==1.0.2
