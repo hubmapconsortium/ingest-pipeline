@@ -112,14 +112,9 @@ class EntityUpdater:
         return response.json()
 
     def _validate_fields_to_change(self):
-        # TODO: this does basic key checking but should it also try to check value type?
         status_found = False
         for field in self.fields_to_change.keys():
-            if field not in self.entity_data.keys():
-                raise EntityUpdateException(
-                    f"Field {field} is invalid for entity type {self.entity_type}."
-                )
-            elif field == "status":
+            if field == "status":
                 status_found = True
         if status_found:
             logging.info("'status' found in update fields, sending to StatusChanger.")
@@ -249,12 +244,6 @@ class StatusChanger:
             self._set_entity_api_data()
 
     def _validate_fields_to_change(self):
-        # TODO: this does basic key checking but should it also try to check value type?
-        for field in self.fields_to_change.keys():
-            if field not in self.entity_data.keys():
-                raise EntityUpdateException(
-                    f"Field {field} is invalid for entity type {self.entity_type}."
-                )
         self.fields_to_change["status"] = self.status
 
     def _get_status(self, status: str) -> Optional[Statuses]:
