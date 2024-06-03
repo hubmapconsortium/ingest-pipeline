@@ -36,7 +36,7 @@ from hubmap_commons.schema_tools import assert_json_matches_schema, set_schema_b
 from hubmap_commons.type_client import TypeClient
 from requests import codes
 from requests.exceptions import HTTPError
-from status_change.status_manager import StatusChanger, StatusChangerException
+from status_change.status_manager import EntityUpdateException, StatusChanger
 
 from airflow import DAG
 from airflow.configuration import conf as airflow_conf
@@ -898,13 +898,10 @@ def pythonop_set_dataset_state(**kwargs) -> None:
     StatusChanger(
         dataset_uuid,
         get_auth_tok(**kwargs),
-        status,
-        {
-            "extra_fields": {"pipeline_message": message} if message else {},
-            "extra_options": {},
-        },
+        status=status,
+        fields_to_overwrite={"pipeline_message": message} if message else {},
         http_conn_id=http_conn_id,
-    ).on_status_change()
+    ).update()
 
 
 def restructure_entity_metadata(raw_metadata: JSONType) -> JSONType:
@@ -1469,17 +1466,13 @@ def make_send_status_msg_function(
         entity_type = ds_rslt.get("entity_type")
         if status:
             try:
-                StatusChanger(
-                    dataset_uuid,
+                StatusChanger( dataset_uuid,
                     get_auth_tok(**kwargs),
-                    status,
-                    {
-                        "extra_fields": extra_fields,
-                        "extra_options": {},
-                    },
+                    status=status,
+                    fields_to_overwrite=extra_fields,
                     entity_type=entity_type if entity_type else None,
-                ).on_status_change()
-            except StatusChangerException:
+                ).update()
+            except EntityUpdateException:
                 return_status = False
 
         return return_status
