@@ -190,12 +190,9 @@ with HMDAG(
         StatusChanger(
             kwargs["ti"].xcom_pull(key="uuid"),
             get_auth_tok(**kwargs),
-            status,
-            {
-                "extra_fields": extra_fields,
-                "extra_options": {},
-            },
-        ).on_status_change()
+            status=status,
+            fields_to_overwrite=extra_fields,
+        ).update()
 
     t_send_status = PythonOperator(
         task_id="send_status",
