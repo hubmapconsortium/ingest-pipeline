@@ -49,7 +49,7 @@ default_args = {
     "retry_delay": timedelta(minutes=1),
     "xcom_push": True,
     "queue": get_queue_resource("validate_upload"),
-    "executor_config": {"SlurmExecutor": {"slurm_output_path": "/hive/users/hive/airflow-logs/slurm/"}},
+    "executor_config": {"SlurmExecutor": {"slurm_output_path": "/hive/users/hive/airflow-logs/slurm/%x_%N_%j.out"}},
 }
 
 with HMDAG(

@@ -13,7 +13,7 @@ default_args = {
     'retries': 1,
     'retry_delay': timedelta(minutes=1),
     'queue': get_queue_resource('globus_transfer'),
-    "executor_config": {"SlurmExecutor": {"slurm_output_path": "/hive/users/hive/airflow-logs/slurm/"}},
+    "executor_config": {"SlurmExecutor": {"slurm_output_path": "/hive/users/hive/airflow-logs/slurm/%x_%N_%j.out"}},
 }
 
 with HMDAG('globus_transfer',

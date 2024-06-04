@@ -51,7 +51,7 @@ default_args = {
                 "gres": "gpu:P100:2",
                 "queue": get_queue_resource("pas_ftu_segmentation", "segmentation"),
             },
-            "slurm_output_path": "/hive/users/hive/airflow-logs/slurm/",
+            "slurm_output_path": "/hive/users/hive/airflow-logs/slurm/%x_%N_%j.out",
         }
     },
     "on_failure_callback": utils.create_dataset_state_error_callback(get_uuid_for_error),

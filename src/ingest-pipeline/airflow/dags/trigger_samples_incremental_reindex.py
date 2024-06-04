@@ -30,7 +30,7 @@ default_args = {
     'retry_delay': datetime.timedelta(minutes=1),
     'xcom_push': True,
     'queue': get_queue_resource('trigger_samples_incremental_reindex'),
-    "executor_config": {"SlurmExecutor": {"slurm_output_path": "/hive/users/hive/airflow-logs/slurm/"}},
+    "executor_config": {"SlurmExecutor": {"slurm_output_path": "/hive/users/hive/airflow-logs/slurm/%x_%N_%j.out"}},
 }
 
 with HMDAG('trigger_samples_incremental_reindex',

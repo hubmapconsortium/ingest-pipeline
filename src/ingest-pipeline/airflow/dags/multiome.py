@@ -70,7 +70,7 @@ def generate_multiome_dag(params: MultiomeSequencingDagParameters) -> DAG:
         "xcom_push": True,
         "queue": get_queue_resource(params.dag_id),
         "executor_config": {
-            "SlurmExecutor": {"slurm_output_path": "/hive/users/hive/airflow-logs/slurm/"}
+            "SlurmExecutor": {"slurm_output_path": "/hive/users/hive/airflow-logs/slurm/%x_%N_%j.out"}
         },
         "on_failure_callback": utils.create_dataset_state_error_callback(get_uuid_for_error),
     }
