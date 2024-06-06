@@ -280,9 +280,10 @@ class StatusChanger:
         if (extra_status := self.fields_to_change.get("status")) is not None and isinstance(
             extra_status, str
         ):
+            logging.info("Status passed in fields_to_change.")
             assert (
-                extra_status.lower() == self.status
-            ), f"Entity {self.uuid} passed multiple statuses ({self.status} and {extra_status})."
+                extra_status.lower() == status
+            ), f"Entity {self.uuid} passed multiple statuses ({status} and {extra_status})."
         return status
 
     def send_email(self) -> None:
