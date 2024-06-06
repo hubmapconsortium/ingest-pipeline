@@ -225,6 +225,8 @@ class StatusChanger:
             logging.info(
                 f"No status to update, instantiating EntityUpdater instead to update other fields: {', '.join(self.fields_to_change.keys())}"
             )
+            self.fields_to_overwrite.pop("status", None)
+            self.fields_to_append_to.pop("status", None)
             EntityUpdater(
                 self.uuid,
                 self.token,
