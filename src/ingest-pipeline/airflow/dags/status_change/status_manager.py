@@ -222,11 +222,11 @@ class StatusChanger:
             - Follows default EntityUpdater._set_entity_api_data() process.
         """
         if self.status is None and self.fields_to_change:
+            self.fields_to_overwrite.pop("status", None)
+            self.fields_to_append_to.pop("status", None)
             logging.info(
                 f"No status to update, instantiating EntityUpdater instead to update other fields: {', '.join(self.fields_to_change.keys())}"
             )
-            self.fields_to_overwrite.pop("status", None)
-            self.fields_to_append_to.pop("status", None)
             EntityUpdater(
                 self.uuid,
                 self.token,
