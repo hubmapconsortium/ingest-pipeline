@@ -7,7 +7,6 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from pprint import pprint
 
-from error_classifier import ErrorClassifier
 from hubmap_operators.common_operators import (
     CleanupTmpDirOperator,
     CreateTmpDirOperator,
@@ -129,7 +128,7 @@ with HMDAG(
         report = ingest_validation_tools_error_report.ErrorReport(
             errors=upload_errors, info=upload.get_info()
         )
-        classified_errors = ErrorClassifier(upload_errors).classify()
+        classified_errors = report.classified_errors()
         validation_file_path = Path(get_tmp_dir_path(kwargs["run_id"])) / "validation_report.txt"
         with open(validation_file_path, "w") as f:
             f.write(report.as_text())
@@ -160,9 +159,9 @@ with HMDAG(
             }
         logging.info(
             f"""
-                     status: {status.value}
-                     validation_message: {extra_fields['validation_message']}
-                     """
+                status: {status.value}
+                {"\n".join([f'{k}: {v}' for k, v in extra_fields.items()])}
+            """
         )
         StatusChanger(
             kwargs["ti"].xcom_pull(key="uuid"),
