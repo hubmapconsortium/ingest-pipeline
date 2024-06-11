@@ -31,6 +31,13 @@ from utils import (
     get_queue_resource,
     get_threads_resource,
     get_preserve_scratch_resource,
+    get_environment_instance,
+    get_instance_type,
+)
+
+from aws_utils import (
+    create_instance,
+    terminate_instance,
 )
 
 default_args = {
@@ -58,6 +65,25 @@ with HMDAG('salmon_rnaseq_bulk',
     pipeline_name = 'salmon-rnaseq-bulk'
     cwl_workflows = get_absolute_workflows(
         Path('salmon-rnaseq', 'bulk-pipeline.cwl'),
+    )
+
+    def start_new_environment(**kwargs):
+        uuid = kwargs['run_id']
+        instance_id = create_instance(uuid, f'Airflow {get_environment_instance()} Worker',
+                                      get_instance_type(dag.dag_id))
+        if instance_id is None:
+            return 1
+        else:
+            kwargs['ti'].xcom_push(key='instance_id', value=instance_id)
+            return 0
+
+
+    t_initialize_environment = PythonOperator(
+        task_id='initialize_environment',
+        python_callable=start_new_environment,
+        provide_context=True,
+        op_kwargs={
+        }
     )
 
     def build_dataset_name(**kwargs):
@@ -147,6 +173,25 @@ with HMDAG('salmon_rnaseq_bulk',
         provide_context=True,
     )
 
+
+    def terminate_new_environment(**kwargs):
+        instance_id = kwargs['ti'].xcom_pull(key='instance_id', task_ids="initialize_environment")
+        if instance_id is None:
+            return 1
+        else:
+            uuid = kwargs['run_id']
+            terminate_instance(instance_id, uuid)
+        return 0
+
+
+    t_terminate_environment = PythonOperator(
+        task_id='terminate_environment',
+        python_callable=terminate_new_environment,
+        provide_context=True,
+        op_kwargs={
+        }
+    )
+
     t_log_info = LogInfoOperator(task_id='log_info')
     t_join = JoinOperator(task_id='join')
     t_create_tmpdir = CreateTmpDirOperator(task_id='create_tmpdir')
@@ -155,11 +200,21 @@ with HMDAG('salmon_rnaseq_bulk',
     t_move_data = MoveDataOperator(task_id='move_data')
 
     (
-        t_log_info >> t_create_tmpdir
-        >> t_send_create_dataset >> t_set_dataset_processing
-        >> prepare_cwl1 >> t_build_cmd1 >> t_pipeline_exec >> t_maybe_keep_cwl1
-        >> t_move_data >> t_send_status >> t_join
+        t_log_info
+        >> t_create_tmpdir
+        >> t_send_create_dataset
+        >> t_set_dataset_processing
+        >> t_initialize_environment
+        >> prepare_cwl1
+        >> t_build_cmd1
+        >> t_pipeline_exec
+        >> t_maybe_keep_cwl1
+        >> t_move_data
+        >> t_send_status
+        >> t_join
+        >> t_terminate_environment
     )
     t_maybe_keep_cwl1 >> t_set_dataset_error
     t_set_dataset_error >> t_join
     t_join >> t_cleanup_tmpdir
+    t_cleanup_tmpdir >> t_terminate_environment
