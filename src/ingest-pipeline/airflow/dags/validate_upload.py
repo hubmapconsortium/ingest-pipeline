@@ -7,7 +7,6 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from pprint import pprint
 
-from error_classifier import ErrorClassifier
 from hubmap_operators.common_operators import (
     CleanupTmpDirOperator,
     CreateTmpDirOperator,
