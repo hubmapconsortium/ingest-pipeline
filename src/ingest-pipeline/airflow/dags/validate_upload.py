@@ -5,7 +5,7 @@ import os
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
-from pprint import pprint
+from pprint import pformat, pprint
 
 from hubmap_operators.common_operators import (
     CleanupTmpDirOperator,
@@ -128,6 +128,7 @@ with HMDAG(
         report = ingest_validation_tools_error_report.ErrorReport(
             errors=upload.get_errors(plugin_kwargs=kwargs), info=upload.get_info()
         )
+        kwargs["ti"].xcom_push(key="error_summary", value=report.counts)
         validation_file_path = Path(get_tmp_dir_path(kwargs["run_id"])) / "validation_report.txt"
         with open(validation_file_path, "w") as f:
             f.write(report.as_text())
@@ -165,6 +166,10 @@ with HMDAG(
             status=status,
             fields_to_overwrite=extra_fields,
         ).update()
+        error_summary = kwargs["ti"].xcom_pull(key="error_summary")
+        if isinstance(error_summary, dict):
+            logging.info("ERROR SUMMARY")
+            logging.info(pformat(error_summary))
 
     t_send_status = PythonOperator(
         task_id="send_status",
