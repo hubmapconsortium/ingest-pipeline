@@ -151,7 +151,7 @@ with HMDAG(
         else:
             status = Statuses.UPLOAD_INVALID
             extra_fields = {
-                "validation_message": report_txt,
+                "validation_message": report_txt[-20000:],
             }
         logging.info(
             f"""
