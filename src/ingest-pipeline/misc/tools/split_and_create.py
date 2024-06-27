@@ -343,7 +343,7 @@ def copy_contrib_antibodies(dest_extras_path, source_entity, old_paths, dryrun):
 
             if src_path.exists() and not dest_path.exists():
                 dest_extras_path.mkdir(parents=True, exist_ok=True)
-                copy2(src_path, dest_extras_path / old_path.name)
+                copy2(src_path, dest_path)
                 print(f"copy {old_path} to {dest_extras_path}")
             else:
                 print(
