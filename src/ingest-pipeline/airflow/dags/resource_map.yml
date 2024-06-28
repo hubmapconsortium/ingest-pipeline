@@ -79,7 +79,7 @@ resource_map:
       - 'task_re': '.*'
         'queue': 'general'
         'threads': 6
-  - 'dag_re': 'ometiff_offset'
+  - 'dag_re': 'ometiff_pyramid'
     'preserve_scratch': true
     'lanes': 2
     # 'lanes': 6
@@ -126,19 +126,12 @@ resource_map:
       'threads': 6
   - 'dag_re': 'sc_atac_seq_.*'
     'preserve_scratch': true
-    'lanes': 8
+    'lanes': 2
     # 'lanes': 11
     'tasks':
     - 'task_re': '.*'
       'queue': 'general'
       'threads': 6
-  - 'dag_re': 'multiassay_component_metadata'
-    'preserve_scratch': false
-    'lanes': 10
-    'tasks':
-      - 'task_re': '.*'
-        'queue': 'general'
-        'threads': 6
   - 'dag_re': '.*metadata'
     'preserve_scratch': true
     'lanes': 2
@@ -155,7 +148,7 @@ resource_map:
         'threads': 50
   - 'dag_re': '.*visium'
     'preserve_scratch': true
-    'lanes': 3
+    'lanes': 2
     'tasks':
       - 'task_re': '.*'
         'queue': 'general'
