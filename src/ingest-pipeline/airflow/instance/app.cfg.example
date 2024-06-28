@@ -1,0 +1,40 @@
+# this section maps ingest process names to the dags that initiate ingest for that process
+[ingest_map]
+microscopy.ims.all = ingest_vanderbilt
+mock.microscopy.ims.all = mock_ingest_vanderbilt
+mock.rnaseq.10x = mock_ingest_rnaseq_10x
+scan.and.begin.processing = scan_and_begin_processing
+validate.upload = validate_upload
+reorganize.upload = reorganize_upload
+
+[core]
+timezone = us/eastern
+
+[connections]
+
+# globus app id and secret, to be set at config time
+app_client_id = ''
+app_client_secret = ''
+
+# base path for dataset files, as seen by airflow.  this will usually correspond to
+# globus_endpoint_base_path in ingest-api .  when ingest-pipeline runs in a docker
+# container, this is the path to which the staging area is mounted.  when the full path
+# to a dataset is passed to ingest-pipeline, this is expected to be the first part
+# of that path.
+docker_mount_path = '/usr/local/airflow/lz/'
+
+# path to src/ingest-pipeline directory as seen by airflow
+src_path = '/usr/src/app/src'
+
+# path to temporary storage for workflow as seen by airflow
+
+workflow_scratch = '/hive/hubmap-dev/scratch'
+
+# group to which output directories are set, typically shared with globus
+output_group_name = 'dataaccessgroup'
+
+# optional template for use in customizing queue names, for better celery sharing
+#queue_name_template = '{}-test'
+
+[webserver]
+auth_backend = globus_auth.globus_auth
