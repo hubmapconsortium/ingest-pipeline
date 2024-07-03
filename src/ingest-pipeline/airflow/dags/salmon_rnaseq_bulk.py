@@ -47,6 +47,9 @@ default_args = {
     'on_failure_callback': utils.create_dataset_state_error_callback(get_uuid_for_error),
 }
 
+def get_organism_name()->str:
+    return "human"
+
 with HMDAG('salmon_rnaseq_bulk',
            schedule_interval=None,
            is_paused_upon_creation=False,
@@ -80,6 +83,8 @@ with HMDAG('salmon_rnaseq_bulk',
             data_dir,
             '--threads',
             get_threads_resource(dag.dag_id),
+            '--organism',
+            get_organism_name(),
         ]
 
         return join_quote_command_str(command)

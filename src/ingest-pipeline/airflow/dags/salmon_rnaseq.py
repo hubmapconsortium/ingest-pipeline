@@ -36,6 +36,8 @@ from utils import (
     get_preserve_scratch_resource,
 )
 
+def get_organism_name()->str:
+    return "human"
 
 def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
     default_args = {
@@ -98,6 +100,8 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
                 params.assay,
                 "--threads",
                 get_threads_resource(dag.dag_id),
+                "--organism",
+                get_organism_name(),
             ]
             for data_dir in data_dirs:
                 command.append("--fastq_dir")
