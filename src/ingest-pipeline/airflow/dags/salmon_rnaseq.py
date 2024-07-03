@@ -36,9 +36,6 @@ from utils import (
     get_preserve_scratch_resource,
 )
 
-def get_organism_name()->str:
-    return "human"
-
 def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
     default_args = {
         "owner": "hubmap",
@@ -89,6 +86,22 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
             data_dirs = get_parent_data_dirs_list(**kwargs)
             print("data_dirs: ", data_dirs)
 
+            source_type = ""
+            unique_source_types = set()
+            for parent_uuid in get_parent_dataset_uuids_list():
+                dataset_state = pythonop_get_dataset_state(
+                    dataset_uuid_callable=lambda **kwargs: parent_uuid, **kwargs)
+                for source in dataset_state.get("sources"):
+                    unique_source_types.add(source.get("source_type"))
+
+            if len(unique_source_types) > 1:
+                print("Force failure. Should only be one unique source_type for a dataset.")
+            elif len(unique_source_types) == 0:
+                source_type = "human"
+            else:
+                source_type = unique_source_types.pop().lower()
+
+
             command = [
                 *get_cwltool_base_cmd(tmpdir),
                 "--relax-path-checks",
@@ -101,7 +114,7 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
                 "--threads",
                 get_threads_resource(dag.dag_id),
                 "--organism",
-                get_organism_name(),
+                source_type,
             ]
             for data_dir in data_dirs:
                 command.append("--fastq_dir")
