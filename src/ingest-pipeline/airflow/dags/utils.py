@@ -1037,6 +1037,9 @@ def pythonop_get_dataset_state(**kwargs) -> Dict:
                 print("benign error")
                 return {}
 
+    if sources := ds_rslt.get("sources"):
+        rslt["sources"] = sources
+
     return rslt
 
 
