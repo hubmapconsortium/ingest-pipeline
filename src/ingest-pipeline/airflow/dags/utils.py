@@ -1473,7 +1473,8 @@ def make_send_status_msg_function(
         entity_type = ds_rslt.get("entity_type")
         if status:
             try:
-                StatusChanger( dataset_uuid,
+                StatusChanger(
+                    dataset_uuid,
                     get_auth_tok(**kwargs),
                     status=status,
                     fields_to_overwrite=extra_fields,
