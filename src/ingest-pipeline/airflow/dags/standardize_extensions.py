@@ -1,4 +1,4 @@
-import re
+import os
 from pathlib import Path
 from pprint import pprint
 from datetime import datetime, timedelta
@@ -15,10 +15,6 @@ from utils import (
     get_queue_resource,
     )
 
-import diagnostics.diagnostic_plugin as diagnostic_plugin
-
-FIND_SCRATCH_REGEX = r'/.+/scratch/[^/]+/'
-
 # Following are defaults which can be overridden later on
 default_args = {
     'owner': 'hubmap',
@@ -33,144 +29,129 @@ default_args = {
     'queue': get_queue_resource('validation_test'),
 }
 
-with HMDAG('diagnose_failure',
+with HMDAG('standardize_extensions',
            schedule_interval=None,
            is_paused_upon_creation=False,
            default_args=default_args,
            ) as dag:
 
+    app_client_secret = airflow_conf.as_dict().get('connections', {}).get('APP_CLIENT_SECRET')
+    assert app_client_secret is str
+    op_kwargs = {'crypt_auth_tok': utils.encrypt_tok(app_client_secret).decode()}
+
     def find_uuid(**kwargs):
         try:
-            assert_json_matches_schema(kwargs['dag_run'].conf,
-                                       'diagnose_failure_schema.yml')
+            assert_json_matches_schema(kwargs["dag_run"].conf,
+                                       "standardize_extension_schema.yml")
         except AssertionError:
-            print('invalid metadata follows:')
-            pprint(kwargs['dag_run'].conf)
+            print("invalid metadata follows:")
+            pprint(kwargs["dag_run"].conf)
             raise
 
-        uuid = kwargs['dag_run'].conf['uuid']
-
-        def my_callable(**kwargs):
-            return uuid
+        uuid = kwargs["dag_run"].conf["uuid"]
 
         ds_rslt = utils.pythonop_get_dataset_state(
-            dataset_uuid_callable=my_callable,
+            dataset_uuid_callable=lambda **kwargs: uuid,
             **kwargs
         )
         if not ds_rslt:
-            raise AirflowException(f'Invalid uuid/doi for group: {uuid}')
+            raise AirflowException(f"Invalid uuid/doi for group: {uuid}")
 
-        for key in ['entity_type', 'status', 'uuid', 'data_types',
-                    'local_directory_full_path']:
+        for key in ["entity_type", "status", "uuid", "local_directory_full_path"]:
             assert key in ds_rslt, f"Dataset status for {uuid} has no {key}"
 
-        if not ds_rslt['entity_type'] in ['Dataset']:
-            raise AirflowException(f'Entity {uuid} is not a Dataset')
+        if not ds_rslt["entity_type"] in ["Upload"]:
+            raise AirflowException(f"Entity {uuid} is not an Upload")
 
-        if not ds_rslt['status'] in ['Error']:
-            raise AirflowException(f'Dataset {uuid} is not in Error state')
+        if not ds_rslt["status"] in ["New", "Invalid", "Error"]:
+            raise AirflowException(f"Dataset {uuid} status must be 'New', 'Invalid', or 'Error'; current status is {ds_rslt['status']}")
 
-        if ('parent_dataset_uuid_list' in ds_rslt
-                and ds_rslt['parent_dataset_uuid_list'] is not None):
-            parent_dataset_full_path_list = []
-            parent_dataset_data_types_list = []
-            parent_dataset_data_path_list = []
-            for parent_uuid in ds_rslt['parent_dataset_uuid_list']:
-                def parent_callable(**kwargs):
-                    return parent_uuid
-                parent_ds_rslt = utils.pythonop_get_dataset_state(
-                    dataset_uuid_callable=parent_callable,
-                    **kwargs
-                )
-                if not parent_ds_rslt:
-                    raise AirflowException(f'Invalid uuid for parent: {parent_uuid}')
-                parent_dataset_full_path_list.append(
-                    parent_ds_rslt['local_directory_full_path']
-                )
-                parent_dataset_data_types_list.append(
-                    parent_ds_rslt['data_types']
-                )
-                if ('metadata' in parent_ds_rslt
-                        and 'metadata' in parent_ds_rslt['metadata']
-                        and 'data_path' in parent_ds_rslt['metadata']['metadata']):
-                    parent_dataset_data_path_list.append(parent_ds_rslt['metadata']
-                                                         ['metadata']['data_path'])
-                else:
-                    parent_dataset_data_path_list.append(None)
-            ds_rslt['parent_dataset_full_path_list'] = parent_dataset_full_path_list
-            ds_rslt['parent_dataset_data_types_list'] = parent_dataset_data_types_list
-            ds_rslt['parent_dataset_data_path_list'] = parent_dataset_data_path_list
-
-        return ds_rslt  # causing it to be put into xcom
+        local_dirs = {upload["uuid"]: upload["local_directory_full_path"] for upload in ds_rslt}
+        return local_dirs  # causing it to be put into xcom
 
     t_find_uuid = PythonOperator(
         task_id='find_uuid',
         python_callable=find_uuid,
         provide_context=True,
-        op_kwargs={
-            'crypt_auth_tok': (
-                utils.encrypt_tok(airflow_conf.as_dict()
-                                  ['connections']['APP_CLIENT_SECRET'])
-                .decode()
-                ),
-            }
+        op_kwargs=op_kwargs
         )
 
-    def find_scratch(**kwargs):
-        info_dict = kwargs['ti'].xcom_pull(task_ids="find_uuid").copy()
-        dir_path = Path(info_dict['local_directory_full_path'])
-        session_log_path = dir_path / 'session.log'
-        assert session_log_path.exists(), 'session.log is not in the dataset directory'
-        regex = re.compile(FIND_SCRATCH_REGEX)
-        scratch_path = None
-        for line in open(session_log_path):
-            match = regex.search(line)
-            if match:
-                scratch_path = match.group(0)
-                break
-        if scratch_path:
-            info_dict['scratch_path'] = scratch_path
-        return info_dict  # causing it to be put into xcom
+    def check_directories(**kwargs):
+        local_dirs = kwargs['ti'].xcom_pull(task_ids="find_uuid").copy()
+        dir_list = []
+        uuids = []
+        for uuid, dir in local_dirs.items():
+            # TODO
+            assert Path(dir).exists(), f"Local directory path {dir} for uuid {uuid} does not exist!"
+            assert Path(dir).parts[-1] == uuid, f"Upload directory {dir} part {Path(dir).parts[-1]} and UUID {uuid} do not match; double check."
+            dir_list.append(dir)
+            uuids.append(uuid)
+        kwargs["ti"].xcom_push(key="uuids", value=uuids)
+        return dir_list
 
-    t_find_scratch = PythonOperator(
-        task_id='find_scratch',
-        python_callable=find_scratch,
+    t_check_directories = PythonOperator(
+        task_id="check_directories",
+        python_callable=check_directories,
         provide_context=True,
-        op_kwargs={
-            'crypt_auth_tok': (
-                utils.encrypt_tok(airflow_conf.as_dict()
-                                  ['connections']['APP_CLIENT_SECRET'])
-                .decode()
-            ),
-        }
-    )
+        op_kwargs=op_kwargs
+        )
 
-    def run_diagnostics(**kwargs):
-        info_dict = kwargs['ti'].xcom_pull(task_ids="find_scratch").copy()
-        for key in info_dict:
-            logging.info(f'{key.upper()}: {info_dict[key]}')
-        plugin_path = Path(diagnostic_plugin.__file__).parent / 'plugins'
-        for plugin in diagnostic_plugin.diagnostic_result_iter(plugin_path, **info_dict):
-            diagnostic_result = plugin.diagnose()
-            if diagnostic_result.problem_found():
-                logging.info(f'Plugin "{plugin.description}" found problems:')
-                for err_str in diagnostic_result.to_strings():
-                    logging.info("    " + err_str)
-            else:
-                logging.info(f'Plugin "{plugin.description}" found no problem')
-        return info_dict  # causing it to be put into xcom
+    def find_target_files(**kwargs):
+        """
+        Current use case is just for tif/tiff conversion;
+        DAG is written more generally but given a tif/tiff default.
+        Can also pass {"find_only": True} to find and list but not replace
+        instances of the "target" value; default is to find and replace.
+        """
+        extension_pair = kwargs.get("extension_pair", {"target": "tif", "replacement": "tiff"})
+        for extension_action, ext in extension_pair.items():
+            if not ext.startswith("."):
+                extension_pair[extension_action] = f".{ext}"
+        target = extension_pair.get("target")
+        replacement = extension_pair.get("replacement")
+        assert target and replacement, f"Missing either target or replacement in extension_pair kwargs. Value passed in: {extension_pair}"
+        # Crawl through dir for a given uuid and locate all instances of target
+        target_filepaths = []
+        directories = kwargs['ti'].xcom_pull(task_ids="check_directories")
+        for root_path in directories:
+            for dirpath, _, filenames in os.walk(root_path):
+                target_filepaths.extend([os.path.join(dirpath, file) for file in filenames if file.endswith(target)])
+        if kwargs.get("verbose", True):
+            logging.info(f"Files matching extension {target}:")
+            logging.info(target_filepaths)
+        kwargs["ti"].xcom_push(key="target", value=target)
+        kwargs["ti"].xcom_push(key="replacement", value=replacement)
+        kwargs["ti"].xcom_push(key="target_filepaths", value=target_filepaths)
 
-    t_run_diagnostics = PythonOperator(
-        task_id='run_diagnostics',
-        python_callable=run_diagnostics,
+    t_find_target_files = PythonOperator(
+        task_id='find_target_files',
+        python_callable=find_target_files,
         provide_context=True,
-        op_kwargs={
-            'crypt_auth_tok': (
-                utils.encrypt_tok(airflow_conf.as_dict()
-                                  ['connections']['APP_CLIENT_SECRET'])
-                .decode()
-            ),
-        }
-    )
+        op_kwargs=op_kwargs
+        )
 
-    t_find_uuid >> t_find_scratch >> t_run_diagnostics
+    def standardize_extensions(**kwargs):
+        find_only = kwargs.get("find_only", False)
+        target_filepaths = kwargs['ti'].xcom_pull(task_ids="find_target_files", key="target_filepaths")
+        target = kwargs['ti'].xcom_pull(task_ids="find_target_files", key="target")
+        replacement = kwargs['ti'].xcom_pull(task_ids="find_target_files", key="replacement")
+        for file in target_filepaths:
+            filename, ext = os.path.splitext(file)
+            assert ext == target, f"File path {file} is not the correct target extension, something went wrong in find_target_files step; exiting without further changes."
+            if find_only:
+                logging.info(f"Would have changed {file} to {filename + replacement}")
+                continue
+            logging.info(f"Renaming {file} to {filename + replacement}.")
+            os.rename(file, filename + replacement)
+        uuids = kwargs['ti'].xcom_pull(task_ids="check_directories", key="uuids")
+        logging.info(f"Standardize extensions complete for UUIDs {uuids}!")
+
+
+    t_standardize_extensions = PythonOperator(
+        task_id='standardize_extensions',
+        python_callable=standardize_extensions,
+        provide_context=True,
+        op_kwargs=op_kwargs
+        )
+
+    t_find_uuid >> t_check_directories >> t_find_target_files >> t_standardize_extensions

@@ -1,0 +1,31 @@
+'$schema': 'http://json-schema.org/schema#'
+'$id': 'http://schemata.hubmapconsortium.org/standardize_extensions_schema.yml'
+'title': 'standardize_extensions metadata schema'
+'description': 'standardize_extensions metadata schema'
+
+'allOf': [{'$ref': '#/definitions/standardize_extensions'}]
+
+'definitions':
+
+  'standardize_extensions':
+     'type': 'object'
+     'properties':
+        'uuid_list':
+           'type': 'array'
+           'items':
+             'type': 'string'
+             'description': 'a dataset uuid or DOI'
+           'minItems': 1
+        'extension_pair':
+           'type': 'object'
+           'properties':
+               'target':
+                 'type': 'string'
+                 'maxItems': 1
+               'replacement':
+                 'type': 'string'
+                 'maxItems': 1
+           'description': 'Dict specifying target and replacement extensions.'
+        'verbose':
+           'type': 'boolean'
+     'required': ['uuid_list']
