@@ -1018,6 +1018,20 @@ def pythonop_get_dataset_state(**kwargs) -> Dict:
     }
 
     if ds_rslt["entity_type"] == "Dataset":
+        unique_source_types = set()
+        if sources := ds_rslt.get("sources"):
+            rslt["sources"] = sources
+            for source in sources:
+                unique_source_types.add(source.get("source_type", "Human").lower())
+        if not unique_source_types:
+            source = "human"
+        elif len(unique_source_types) == 1:
+            source = unique_source_types.pop()
+        else:
+            source = "mixed"
+
+        rslt["source_type"] = source
+
         http_hook = HttpHook("GET", http_conn_id="entity_api_connection")
         endpoint = f"datasets/{ds_rslt['uuid']}/organs"
         try:

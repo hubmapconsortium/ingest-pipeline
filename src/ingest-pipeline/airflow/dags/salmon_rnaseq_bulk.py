@@ -31,6 +31,7 @@ from utils import (
     get_queue_resource,
     get_threads_resource,
     get_preserve_scratch_resource,
+    pythonop_get_dataset_state,
 )
 
 default_args = {
@@ -46,6 +47,9 @@ default_args = {
     'queue': get_queue_resource('salmon_rnaseq_bulk'),
     'on_failure_callback': utils.create_dataset_state_error_callback(get_uuid_for_error),
 }
+
+def get_organism_name()->str:
+    return "human"
 
 with HMDAG('salmon_rnaseq_bulk',
            schedule_interval=None,
@@ -70,6 +74,22 @@ with HMDAG('salmon_rnaseq_bulk',
         tmpdir = get_tmp_dir_path(run_id)
         data_dir = get_parent_data_dir(**kwargs)
 
+        source_type = ""
+        unique_source_types = set()
+        for parent_uuid in get_parent_dataset_uuids_list():
+            dataset_state = pythonop_get_dataset_state(
+                dataset_uuid_callable=lambda **kwargs: parent_uuid, **kwargs)
+            source_type = dataset_state.get("source_type")
+            if source_type == "mixed":
+                print("Force failure. Should only be one unique source_type for a dataset.")
+            else:
+                unique_source_types.add(source_type)
+
+        if len(unique_source_types) > 1:
+            print("Force failure. Should only be one unique source_type for a dataset.")
+        else:
+            source_type = unique_source_types.pop().lower()
+
         command = [
             *get_cwltool_base_cmd(tmpdir),
             '--outdir',
@@ -80,6 +100,8 @@ with HMDAG('salmon_rnaseq_bulk',
             data_dir,
             '--threads',
             get_threads_resource(dag.dag_id),
+            '--organism',
+            source_type,
         ]
 
         return join_quote_command_str(command)
