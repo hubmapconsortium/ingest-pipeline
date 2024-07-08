@@ -88,7 +88,7 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
 
             source_type = ""
             unique_source_types = set()
-            for parent_uuid in get_parent_dataset_uuids_list():
+            for parent_uuid in get_parent_dataset_uuids_list(**kwargs):
                 dataset_state = pythonop_get_dataset_state(
                     dataset_uuid_callable=lambda **kwargs: parent_uuid, **kwargs)
                 source_type = dataset_state.get("source_type")
