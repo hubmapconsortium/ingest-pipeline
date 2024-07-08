@@ -53,9 +53,7 @@ from submodules import (
     hubmapbags_id_namespace as id_namespace,
     hubmapbags_biosample_in_collection as biosample_in_collection,
     hubmapbags_file_in_collection as file_in_collection,
-    hubmapbags_primary_dcc_contact as primary_dcc_contact,
     hubmapbags_biosample as biosample,
-    hubmapbags_projects as projects,
     hubmapbags_collection as collection,
     hubmapbags_anatomy as anatomy,
     hubmapbags_file as files,
@@ -284,9 +282,6 @@ with HMDAG('generate_bdbag',
             print('Making biosample_in_collection.tsv')
             biosample_in_collection.create_manifest(biosample_id, hubmap_id, output_directory)
 
-            print('Making project.tsv')
-            projects.create_manifest(data_provider, output_directory)
-
             print('Making project_in_project.tsv')
             project_in_project.create_manifest(data_provider, output_directory)
 
@@ -304,9 +299,6 @@ with HMDAG('generate_bdbag',
 
             print('Making file_describes_collection.tsv')
             file_describes_collection.create_manifest(hubmap_id, data_directory, output_directory)
-
-            print('Making dcc.tsv')
-            primary_dcc_contact.create_manifest(output_directory)
 
             print('Making id_namespace.tsv')
             id_namespace.create_manifest(output_directory)
