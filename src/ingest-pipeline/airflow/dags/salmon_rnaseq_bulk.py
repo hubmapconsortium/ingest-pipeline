@@ -79,13 +79,14 @@ with HMDAG('salmon_rnaseq_bulk',
         for parent_uuid in get_parent_dataset_uuids_list():
             dataset_state = pythonop_get_dataset_state(
                 dataset_uuid_callable=lambda **kwargs: parent_uuid, **kwargs)
-            for source in dataset_state.get("sources"):
-                unique_source_types.add(source.get("source_type"))
+            source_type = dataset_state.get("source_type")
+            if source_type == "mixed":
+                print("Force failure. Should only be one unique source_type for a dataset.")
+            else:
+                unique_source_types.add(source_type)
 
         if len(unique_source_types) > 1:
             print("Force failure. Should only be one unique source_type for a dataset.")
-        elif len(unique_source_types) == 0:
-            source_type = "human"
         else:
             source_type = unique_source_types.pop().lower()
 
