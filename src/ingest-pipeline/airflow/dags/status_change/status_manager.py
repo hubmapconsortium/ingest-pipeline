@@ -238,6 +238,9 @@ class StatusChanger:
                 self.verbose,
             ).update()
             return
+        elif self.status is None and not self.fields_to_change:
+            logging.info(f"No status to update or fields to change for {self.uuid}, not making any changes in entity-api.")
+            return
         self._validate_fields_to_change()
         if self.status in self.status_map:
             for func in self.status_map[self.status]:
