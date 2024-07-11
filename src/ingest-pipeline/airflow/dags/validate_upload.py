@@ -5,7 +5,7 @@ import os
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
-from pprint import pformat, pprint
+from pprint import pprint
 
 from hubmap_operators.common_operators import (
     CleanupTmpDirOperator,
@@ -168,8 +168,11 @@ with HMDAG(
         ).update()
         error_summary = kwargs["ti"].xcom_pull(key="error_summary")
         if isinstance(error_summary, dict):
+            logging.info("-------------")
             logging.info("ERROR SUMMARY")
-            logging.info(pformat(error_summary))
+            for key, value in error_summary.items():
+                logging.info(f"{key}: {value}")
+            logging.info("-------------")
 
     t_send_status = PythonOperator(
         task_id="send_status",
