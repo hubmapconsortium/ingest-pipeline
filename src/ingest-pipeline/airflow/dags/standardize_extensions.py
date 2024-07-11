@@ -140,7 +140,7 @@ with HMDAG('standardize_extensions',
         )
 
     def standardize_extensions(**kwargs):
-        find_only = kwargs.get("find_only", False)
+        find_only = kwargs["dag_run"].conf.get("find_only", False)
         target_filepaths = kwargs['ti'].xcom_pull(task_ids="find_target_files", key="target_filepaths")
         target = kwargs['ti'].xcom_pull(task_ids="find_target_files", key="target")
         replacement = kwargs['ti'].xcom_pull(task_ids="find_target_files", key="replacement")
