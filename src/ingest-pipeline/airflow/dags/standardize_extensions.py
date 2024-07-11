@@ -36,16 +36,15 @@ with HMDAG('standardize_extensions',
            ) as dag:
 
     app_client_secret = airflow_conf.as_dict().get('connections', {}).get('APP_CLIENT_SECRET')
-    # TODO: this does not work
-    # assert app_client_secret is str
+    assert type(app_client_secret) is str
     op_kwargs = {'crypt_auth_tok': utils.encrypt_tok(app_client_secret).decode()}
 
-    def find_one_uuid(uuid: str, **kwargs):
+    def get_single_dir_path(uuid: str, **kwargs):
         ds_rslt = utils.pythonop_get_dataset_state(
             dataset_uuid_callable=lambda **kwargs: uuid,
             **kwargs
         )
-        # TODO: fail or continue and log exception?
+        # This will fail the DAG; could be written to log and skip any UUIDs with issues
         if not ds_rslt:
             raise AirflowException(f"Invalid uuid/doi for group: {uuid}")
 
@@ -60,8 +59,7 @@ with HMDAG('standardize_extensions',
 
         return {ds_rslt["uuid"]: ds_rslt["local_directory_full_path"]}
 
-    # TODO: func names are not quite right here
-    def find_uuids(**kwargs):
+    def get_dir_paths(**kwargs):
         try:
             assert_json_matches_schema(kwargs["dag_run"].conf,
                                        "standardize_extensions_schema.yml")
@@ -73,13 +71,16 @@ with HMDAG('standardize_extensions',
         uuid_list = kwargs["dag_run"].conf["uuid_list"]
         local_dirs = {}
         for uuid in uuid_list:
-            local_dirs.update(find_one_uuid(uuid))
+            local_dirs.update(get_single_dir_path(uuid, **kwargs))
+        logging.info("UUID: Directory path")
+        for path, local_dir in local_dirs.items():
+            logging.info(f"{path}: {local_dir}")
         return local_dirs  # causing it to be put into xcom
 
 
-    t_find_uuids = PythonOperator(
-        task_id='find_uuids',
-        python_callable=find_uuids,
+    t_get_dir_paths = PythonOperator(
+        task_id='get_dir_paths',
+        python_callable=get_dir_paths,
         provide_context=True,
         op_kwargs=op_kwargs
         )
@@ -87,11 +88,10 @@ with HMDAG('standardize_extensions',
 
 
     def check_directories(**kwargs):
-        local_dirs = kwargs['ti'].xcom_pull(task_ids="find_uuid").copy()
+        local_dirs = kwargs['ti'].xcom_pull(task_ids="get_dir_paths").copy()
         dir_list = []
         uuids = []
         for uuid, dir in local_dirs.items():
-            # TODO
             assert Path(dir).exists(), f"Local directory path {dir} for uuid {uuid} does not exist!"
             assert Path(dir).parts[-1] == uuid, f"Upload directory {dir} part {Path(dir).parts[-1]} and UUID {uuid} do not match; double check."
             dir_list.append(dir)
@@ -113,7 +113,7 @@ with HMDAG('standardize_extensions',
         Can also pass {"find_only": True} to find and list but not replace
         instances of the "target" value; default is to find and replace.
         """
-        extension_pair = kwargs.get("extension_pair", {"target": "tif", "replacement": "tiff"})
+        extension_pair = kwargs["dag_run"].conf.get("extension_pair", {"target": "tif", "replacement": "tiff"})
         for extension_action, ext in extension_pair.items():
             if not ext.startswith("."):
                 extension_pair[extension_action] = f".{ext}"
@@ -126,9 +126,8 @@ with HMDAG('standardize_extensions',
         for root_path in directories:
             for dirpath, _, filenames in os.walk(root_path):
                 target_filepaths.extend([os.path.join(dirpath, file) for file in filenames if file.endswith(target)])
-        if kwargs.get("verbose", True):
-            logging.info(f"Files matching extension {target}:")
-            logging.info(target_filepaths)
+        logging.info(f"Files matching extension {target}:")
+        logging.info(target_filepaths)
         kwargs["ti"].xcom_push(key="target", value=target)
         kwargs["ti"].xcom_push(key="replacement", value=replacement)
         kwargs["ti"].xcom_push(key="target_filepaths", value=target_filepaths)
@@ -164,4 +163,4 @@ with HMDAG('standardize_extensions',
         op_kwargs=op_kwargs
         )
 
-    t_find_uuid >> t_check_directories >> t_find_target_files >> t_standardize_extensions
+    t_get_dir_paths >> t_check_directories >> t_find_target_files >> t_standardize_extensions

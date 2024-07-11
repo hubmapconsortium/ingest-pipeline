@@ -26,6 +26,4 @@
                  'type': 'string'
                  'maxItems': 1
            'description': 'Dict specifying target and replacement extensions.'
-        'verbose':
-           'type': 'boolean'
      'required': ['uuid_list']
