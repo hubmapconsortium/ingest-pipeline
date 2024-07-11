@@ -36,24 +36,16 @@ with HMDAG('standardize_extensions',
            ) as dag:
 
     app_client_secret = airflow_conf.as_dict().get('connections', {}).get('APP_CLIENT_SECRET')
-    assert app_client_secret is str
+    # TODO: this does not work
+    # assert app_client_secret is str
     op_kwargs = {'crypt_auth_tok': utils.encrypt_tok(app_client_secret).decode()}
 
-    def find_uuid(**kwargs):
-        try:
-            assert_json_matches_schema(kwargs["dag_run"].conf,
-                                       "standardize_extension_schema.yml")
-        except AssertionError:
-            print("invalid metadata follows:")
-            pprint(kwargs["dag_run"].conf)
-            raise
-
-        uuid = kwargs["dag_run"].conf["uuid"]
-
+    def find_one_uuid(uuid: str, **kwargs):
         ds_rslt = utils.pythonop_get_dataset_state(
             dataset_uuid_callable=lambda **kwargs: uuid,
             **kwargs
         )
+        # TODO: fail or continue and log exception?
         if not ds_rslt:
             raise AirflowException(f"Invalid uuid/doi for group: {uuid}")
 
@@ -66,15 +58,33 @@ with HMDAG('standardize_extensions',
         if not ds_rslt["status"] in ["New", "Invalid", "Error"]:
             raise AirflowException(f"Dataset {uuid} status must be 'New', 'Invalid', or 'Error'; current status is {ds_rslt['status']}")
 
-        local_dirs = {upload["uuid"]: upload["local_directory_full_path"] for upload in ds_rslt}
+        return {ds_rslt["uuid"]: ds_rslt["local_directory_full_path"]}
+
+    # TODO: func names are not quite right here
+    def find_uuids(**kwargs):
+        try:
+            assert_json_matches_schema(kwargs["dag_run"].conf,
+                                       "standardize_extensions_schema.yml")
+        except AssertionError:
+            print("invalid metadata follows:")
+            pprint(kwargs["dag_run"].conf)
+            raise
+
+        uuid_list = kwargs["dag_run"].conf["uuid_list"]
+        local_dirs = {}
+        for uuid in uuid_list:
+            local_dirs.update(find_one_uuid(uuid))
         return local_dirs  # causing it to be put into xcom
 
-    t_find_uuid = PythonOperator(
-        task_id='find_uuid',
-        python_callable=find_uuid,
+
+    t_find_uuids = PythonOperator(
+        task_id='find_uuids',
+        python_callable=find_uuids,
         provide_context=True,
         op_kwargs=op_kwargs
         )
+
+
 
     def check_directories(**kwargs):
         local_dirs = kwargs['ti'].xcom_pull(task_ids="find_uuid").copy()
