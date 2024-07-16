@@ -33,7 +33,6 @@ import cwltool  # used to find its path
 import yaml
 from cryptography.fernet import Fernet
 from hubmap_commons.schema_tools import assert_json_matches_schema, set_schema_base_path
-from hubmap_commons.type_client import TypeClient
 from requests import codes
 from requests.exceptions import HTTPError
 from status_change.status_manager import EntityUpdateException, StatusChanger
@@ -119,7 +118,6 @@ RESOURCE_MAP_FILENAME = "resource_map.yml"  # Expected to be found in this same 
 RESOURCE_MAP_SCHEMA = "resource_map_schema.yml"
 COMPILED_RESOURCE_MAP: Optional[List[Tuple[Pattern, int, Dict[str, Any]]]] = None
 
-TYPE_CLIENT: Optional[TypeClient] = None
 
 # Parameters used to generate scRNA and scATAC analysis DAGs; these
 # are the only fields which differ between assays and DAGs
@@ -1667,31 +1665,6 @@ def get_threads_resource(dag_id: str, task_id: Optional[str] = None) -> int:
         )
     else:
         return int(rec.get("threads"))
-
-
-def get_type_client() -> TypeClient:
-    """
-    Expose the type client instance publicly
-    """
-    return _get_type_client()
-
-
-def _get_type_client() -> TypeClient:
-    """
-    Lazy initialization of the global TypeClient instance
-    """
-    global TYPE_CLIENT
-    if TYPE_CLIENT is None:
-        conn = HttpHook.get_connection("search_api_connection")
-        if conn.host.startswith("https"):
-            conn.host = urllib.parse.unquote(conn.host).split("https://")[1]
-            conn.conn_type = "https"
-        if conn.port is None:
-            url = f"{conn.conn_type}://{conn.host}"
-        else:
-            url = f"{conn.conn_type}://{conn.host}:{conn.port}"
-        TYPE_CLIENT = TypeClient(url)
-    return TYPE_CLIENT
 
 
 def downstream_workflow_iter(collectiontype: str, assay_type: StrOrListStr) -> Iterable[str]:
