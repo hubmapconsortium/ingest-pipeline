@@ -60,6 +60,7 @@ class SoftAssayClient:
         self.assay_components = []
         self.primary_assay = {}
         self.is_multiassay = True
+        self.is_epic = False
         for metadata_file in metadata_files:
             try:
                 rows = self.__read_rows(metadata_file, encoding="UTF-8")
@@ -73,6 +74,7 @@ class SoftAssayClient:
                 "contains-pii": assay_type.get("contains-pii", True),
                 "primary": assay_type.get("primary", False),
                 "metadata-file": metadata_file,
+                "is-epic": assay_type.get("is-epic", False),
             }
             if not assay_type.get("must-contain"):
                 print(f"Component {assay_type}")
@@ -80,6 +82,9 @@ class SoftAssayClient:
             else:
                 print(f"Primary {assay_type}")
                 self.primary_assay = data_component
+            if assay_type.get("is-epic"):
+                print(f"EPIC {assay_type}")
+                self.is_epic = True
         if not self.primary_assay and len(self.assay_components) == 1:
             self.primary_assay = self.assay_components.pop()
             self.is_multiassay = False

@@ -38,7 +38,6 @@ from utils import (
 )
 
 from misc.tools.split_and_create import reorganize
-from hubmap_operators.flex_multi_dag_run import FlexMultiDagRunOperator
 
 
 # Following are defaults which can be overridden later on
@@ -200,7 +199,7 @@ with HMDAG(
         uuid = kwargs["ti"].xcom_pull(task_ids="find_uuid", key="uuid")
         entity_host = HttpHook.get_connection("entity_api_connection").host
         try:
-            child_uuid_list, is_multiassay = reorganize(
+            child_uuid_list, is_multiassay, is_epic = reorganize(
                 uuid,
                 mode="unstop",
                 ingest=False,
@@ -212,6 +211,7 @@ with HMDAG(
             )
             kwargs["ti"].xcom_push(key="split_stage_2", value="0")  # signal success
             kwargs["ti"].xcom_push(key="is_multiassay", value=is_multiassay)
+            kwargs["ti"].xcom_push(key="is_epic", value=is_epic)
             for uuid in child_uuid_list:
 
                 def my_callable(**kwargs):
@@ -353,7 +353,7 @@ with HMDAG(
 
     t_join = JoinOperator(task_id="join")
 
-    def flex_maybe_multiassay_spawn(**kwargs):
+    def flex_maybe_multiassay_epic_spawn(**kwargs):
         """
         This will tigger DAG Runs if the upload was a MultiAssay to create its components a build basic metadata
         """
@@ -362,12 +362,20 @@ with HMDAG(
         print("dag_run conf:")
         ctx = kwargs["dag_run"].conf
         pprint(ctx)
-        dag_id = "reorganize_multiassay"
-        process = "reorganize.multiassay"
 
         is_multiassay = kwargs["ti"].xcom_pull(task_ids="split_stage_2", key="is_multiassay")
+        is_epic = kwargs["ti"].xcom_pull(task_ids="split_stage_2", key="epic")
         failed = kwargs["ti"].xcom_pull(task_ids="send_status_msg")
-        if is_multiassay and not failed:
+
+        if not failed:
+            if is_multiassay:
+                dag_id = "reorganize_multiassay"
+                process = "reorganize.multiassay"
+            elif is_epic:
+                dag_id = "transform_epic"
+                process = "transform.epic"
+            else:
+                return 0
             for uuid in kwargs["ti"].xcom_pull(
                 task_ids="split_stage_2", key="child_uuid_list"
             ):
@@ -381,19 +389,13 @@ with HMDAG(
                     "uuid": uuid,
                 }
                 time.sleep(1)
-                print(f"Triggering reorganization for UUID {uuid}")
+                print(f"Triggering {dag_id} for UUID {uuid}")
                 trigger_dag(dag_id, run_id, conf, execution_date=execution_date)
         return 0
 
-    # t_maybe_multiassay_spawn = FlexMultiDagRunOperator(
-    #     task_id="flex_maybe_spawn",
-    #     dag=dag,
-    #     trigger_dag_id="scan_and_begin_processing",
-    #     python_callable=flex_maybe_multiassay_spawn,
-    # )
-    t_maybe_multiassay_spawn = PythonOperator(
-        task_id="flex_maybe_spawn",
-        python_callable=flex_maybe_multiassay_spawn,
+    t_maybe_multiassay_epic_spawn = PythonOperator(
+        task_id="flex_maybe_spawn_multi_or_epic",
+        python_callable=flex_maybe_multiassay_epic_spawn,
         provide_context=True,
     )
 
@@ -422,7 +424,7 @@ with HMDAG(
         >> t_join
         >> t_preserve_info
         >> t_cleanup_tmpdir
-        >> t_maybe_multiassay_spawn
+        >> t_maybe_multiassay_epic_spawn
     )
 
     t_maybe_keep_1 >> t_set_dataset_error
