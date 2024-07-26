@@ -3,17 +3,18 @@
 import argparse
 import json
 import re
-import os
+import math
 import time
 from pathlib import Path
 from pprint import pprint
 from shutil import copy2, copytree
-from typing import List, TypeVar, Union, Tuple
+from typing import List, Tuple, TypeVar, Union
 
 import pandas as pd
-from status_change.status_manager import StatusChanger, Statuses
-from airflow.hooks.http_hook import HttpHook
 from extra_utils import SoftAssayClient
+from status_change.status_manager import StatusChanger, Statuses
+
+from airflow.hooks.http_hook import HttpHook
 
 # There has got to be a better solution for this, but I can't find it
 try:
@@ -190,7 +191,7 @@ def populate(row, source_entity, entity_factory, dryrun=False, components=None):
     }
     non_global_files = row.get("non_global_files")
     print(f"Is {uuid} part of a shared upload? {is_shared_upload}")
-    if non_global_files:
+    if non_global_files and not math.isnan(non_global_files):
         print(f"Non global files: {non_global_files}")
         # Catch case 1
         assert (
@@ -338,16 +339,16 @@ def copy_contrib_antibodies(dest_extras_path, source_entity, old_paths, dryrun):
             print(f"copy {old_path} to {dest_extras_path}")
         else:
             src_path = source_entity.full_path / old_path
+            dest_path = dest_extras_path / old_path.name
 
-            if src_path.exists():
+            if src_path.exists() and not dest_path.exists():
                 dest_extras_path.mkdir(parents=True, exist_ok=True)
-                copy2(src_path, dest_extras_path / old_path.name)
+                copy2(src_path, dest_path)
                 print(f"copy {old_path} to {dest_extras_path}")
             else:
-                moved_path = dest_extras_path / old_path.name
                 print(
                     f"""Probably already copied/moved {src_path} 
-                                  to {moved_path} {"it exists" if moved_path.exists() else "missing file"}"""
+                                  to {dest_path} {"it exists" if dest_path.exists() else "missing file"}"""
                 )
 
 
@@ -381,13 +382,10 @@ def update_upload_entity(child_uuid_list, source_entity, dryrun=False, verbose=F
             StatusChanger(
                 source_entity.uuid,
                 source_entity.entity_factory.auth_tok,
-                Statuses.UPLOAD_REORGANIZED,
-                {
-                    "extra_fields": {"dataset_uuids_to_link": child_uuid_list},
-                    "extra_options": {},
-                },
+                status=Statuses.UPLOAD_REORGANIZED,
+                fields_to_overwrite={"dataset_uuids_to_link": child_uuid_list},
                 verbose=verbose,
-            ).on_status_change()
+            ).update()
             print(f"{source_entity.uuid} status is Reorganized")
 
             # TODO: click in with UpdateAsana
@@ -396,9 +394,9 @@ def update_upload_entity(child_uuid_list, source_entity, dryrun=False, verbose=F
                 StatusChanger(
                     uuid,
                     source_entity.entity_factory.auth_tok,
-                    Statuses.DATASET_SUBMITTED,
+                    status=Statuses.DATASET_SUBMITTED,
                     verbose=verbose,
-                ).on_status_change()
+                ).update()
                 print(
                     f"Reorganized new: {uuid} from Upload: {source_entity.uuid} status is Submitted"
                 )
@@ -583,9 +581,9 @@ def reorganize_multiassay(source_uuid, verbose=False, **kwargs) -> None:
     StatusChanger(
         source_entity.uuid,
         source_entity.entity_factory.auth_tok,
-        Statuses.DATASET_SUBMITTED,
+        status=Statuses.DATASET_SUBMITTED,
         verbose=verbose,
-    ).on_status_change()
+    ).update()
     print(f"{source_entity.uuid} status is Submitted")
 
 

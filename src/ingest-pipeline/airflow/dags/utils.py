@@ -33,10 +33,9 @@ import cwltool  # used to find its path
 import yaml
 from cryptography.fernet import Fernet
 from hubmap_commons.schema_tools import assert_json_matches_schema, set_schema_base_path
-from hubmap_commons.type_client import TypeClient
 from requests import codes
 from requests.exceptions import HTTPError
-from status_change.status_manager import StatusChanger, StatusChangerException
+from status_change.status_manager import EntityUpdateException, StatusChanger
 
 from airflow import DAG
 from airflow.configuration import conf as airflow_conf
@@ -119,7 +118,6 @@ RESOURCE_MAP_FILENAME = "resource_map.yml"  # Expected to be found in this same 
 RESOURCE_MAP_SCHEMA = "resource_map_schema.yml"
 COMPILED_RESOURCE_MAP: Optional[List[Tuple[Pattern, int, Dict[str, Any]]]] = None
 
-TYPE_CLIENT: Optional[TypeClient] = None
 
 # Parameters used to generate scRNA and scATAC analysis DAGs; these
 # are the only fields which differ between assays and DAGs
@@ -892,13 +890,10 @@ def pythonop_set_dataset_state(**kwargs) -> None:
     StatusChanger(
         dataset_uuid,
         get_auth_tok(**kwargs),
-        status,
-        {
-            "extra_fields": {"pipeline_message": message} if message else {},
-            "extra_options": {},
-        },
+        status=status,
+        fields_to_overwrite={"pipeline_message": message} if message else {},
         http_conn_id=http_conn_id,
-    ).on_status_change()
+    ).update()
 
 
 def restructure_entity_metadata(raw_metadata: JSONType) -> JSONType:
@@ -1021,6 +1016,20 @@ def pythonop_get_dataset_state(**kwargs) -> Dict:
     }
 
     if ds_rslt["entity_type"] == "Dataset":
+        unique_source_types = set()
+        if sources := ds_rslt.get("sources"):
+            rslt["sources"] = sources
+            for source in sources:
+                unique_source_types.add(source.get("source_type", "Human").lower())
+        if not unique_source_types:
+            source = "human"
+        elif len(unique_source_types) == 1:
+            source = unique_source_types.pop()
+        else:
+            source = "mixed"
+
+        rslt["source_type"] = source
+
         http_hook = HttpHook("GET", http_conn_id="entity_api_connection")
         endpoint = f"datasets/{ds_rslt['uuid']}/organs"
         try:
@@ -1463,17 +1472,13 @@ def make_send_status_msg_function(
         entity_type = ds_rslt.get("entity_type")
         if status:
             try:
-                StatusChanger(
-                    dataset_uuid,
+                StatusChanger( dataset_uuid,
                     get_auth_tok(**kwargs),
-                    status,
-                    {
-                        "extra_fields": extra_fields,
-                        "extra_options": {},
-                    },
+                    status=status,
+                    fields_to_overwrite=extra_fields,
                     entity_type=entity_type if entity_type else None,
-                ).on_status_change()
-            except StatusChangerException:
+                ).update()
+            except EntityUpdateException:
                 return_status = False
 
         return return_status
@@ -1660,31 +1665,6 @@ def get_threads_resource(dag_id: str, task_id: Optional[str] = None) -> int:
         )
     else:
         return int(rec.get("threads"))
-
-
-def get_type_client() -> TypeClient:
-    """
-    Expose the type client instance publicly
-    """
-    return _get_type_client()
-
-
-def _get_type_client() -> TypeClient:
-    """
-    Lazy initialization of the global TypeClient instance
-    """
-    global TYPE_CLIENT
-    if TYPE_CLIENT is None:
-        conn = HttpHook.get_connection("search_api_connection")
-        if conn.host.startswith("https"):
-            conn.host = urllib.parse.unquote(conn.host).split("https://")[1]
-            conn.conn_type = "https"
-        if conn.port is None:
-            url = f"{conn.conn_type}://{conn.host}"
-        else:
-            url = f"{conn.conn_type}://{conn.host}:{conn.port}"
-        TYPE_CLIENT = TypeClient(url)
-    return TYPE_CLIENT
 
 
 def downstream_workflow_iter(collectiontype: str, assay_type: StrOrListStr) -> Iterable[str]:
