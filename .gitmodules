@@ -61,3 +61,6 @@
 [submodule "src/ingest-pipeline/airflow/dags/cwl/multiome-rna-atac-pipeline"]
 	path = src/ingest-pipeline/airflow/dags/cwl/multiome-rna-atac-pipeline
 	url = https://github.com/hubmapconsortium/multiome-rna-atac-pipeline
+[submodule "src/ingest-pipeline/airflow/dags/cwl/deepcelltypes"]
+	path = src/ingest-pipeline/airflow/dags/cwl/deepcelltypes
+	url = https://github.com/hubmapconsortium/deepcelltypes

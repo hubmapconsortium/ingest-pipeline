@@ -61,6 +61,7 @@ with HMDAG('codex_cytokit',
         illumination_first_stitching=steps_dir / 'illumination_first_stitching.cwl',
         cytokit=steps_dir / 'run_cytokit.cwl',
         ometiff_second_stitching=steps_dir / 'ometiff_second_stitching.cwl',
+        deepcelltypes=Path('deepcelltypes', 'run_deepcelltypes.cwl'),
         sprm=Path('sprm', 'pipeline.cwl'),
         create_vis_symlink_archive=Path('create-vis-symlink-archive', 'pipeline.cwl'),
         ome_tiff_pyramid=Path('ome-tiff-pyramid', 'pipeline.cwl'),
@@ -215,7 +216,7 @@ with HMDAG('codex_cytokit',
         python_callable=utils.pythonop_maybe_keep,
         provide_context=True,
         op_kwargs={
-            'next_op': 'prepare_cwl_sprm',
+            'next_op': 'prepare_cwl_deepcelltypes',
             'bail_op': 'set_dataset_error',
             'test_op': 'pipeline_exec_cwl_ometiff_second_stitching',
         }
@@ -229,6 +230,52 @@ with HMDAG('codex_cytokit',
         rm -rf cytokit new_tiles
         """
     )
+
+    prepare_cwl_deepcelltypes = DummyOperator(task_id='prepare_cwl_deepcelltypes')
+
+    def build_cwltool_cmd_deepcelltypes(**kwargs):
+        run_id = kwargs['run_id']
+        tmpdir = get_tmp_dir_path(run_id)
+        print('tmpdir: ', tmpdir)
+        parent_data_dir = get_parent_data_dir(**kwargs)
+        print('parent_data_dir: ', parent_data_dir)
+        data_dir = tmpdir / 'cwl_out'
+        print('data_dir: ', data_dir)
+
+        command = [
+            *get_cwltool_base_cmd(tmpdir),
+            cwl_workflows['deepcelltypes'],
+            '--data_dir',
+            data_dir / 'pipeline_output',
+        ]
+
+        return join_quote_command_str(command)
+
+
+    t_build_cmd_deepcelltypes = PythonOperator(
+        task_id='build_cmd_deepcelltypes',
+        python_callable=build_cwltool_cmd_deepcelltypes,
+        provide_context=True,
+        )
+
+    t_pipeline_exec_cwl_deepcelltypes = BashOperator(
+        task_id='pipeline_exec_cwl_deepcelltypes',
+        bash_command=""" \
+        tmp_dir={{tmp_dir_path(run_id)}} ; \
+        cd ${tmp_dir}/cwl_out ; \
+        {{ti.xcom_pull(task_ids='build_cmd_deepcelltypes')}} >> ${tmp_dir}/session.log 2>&1 ; \
+        echo $?
+        """
+    )
+
+    t_maybe_keep_cwl_deepcelltypes = BranchPythonOperator(
+        task_id='maybe_keep_cwl_deepcelltypes',
+        python_callable=utils.pythonop_maybe_keep,
+        provide_context=True,
+        op_kwargs={'next_op': 'prepare_cwl_sprm',
+                   'bail_op': 'set_dataset_error',
+                   'test_op': 'pipeline_exec_cwl_deepcelltypes'}
+        )
 
     prepare_cwl_sprm = DummyOperator(task_id='prepare_cwl_sprm')
 
@@ -249,6 +296,8 @@ with HMDAG('codex_cytokit',
             data_dir / 'pipeline_output/expr',
             '--mask_dir',
             data_dir / 'pipeline_output/mask',
+            '--cell_types_file',
+            data_dir / 'deepcelltypes_predictions.csv',
         ]
 
         return join_quote_command_str(command)
