@@ -64,7 +64,7 @@ with HMDAG(
         - data type(s) of the dataset
         - local directory full path of the dataset
         """
-        print(f"Starting uuid {uuid}")
+        print(f"Starting uuid {uuid} with avoid previous version {avoid_previous_version}")
         my_callable = lambda **kwargs: uuid
         ds_rslt = utils.pythonop_get_dataset_state(dataset_uuid_callable=my_callable, **kwargs)
         if not ds_rslt:
