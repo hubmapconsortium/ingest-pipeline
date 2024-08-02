@@ -103,8 +103,9 @@ with HMDAG(
         plugin_path = [path for path in ingest_validation_tests.__path__][0]
 
         ignore_globs = [uuid, "extras", "*metadata.tsv", "validation_report.txt"]
+        entities_url = HttpHook.get_connection("entity_api_connection").host
         app_context = {
-            "entities_url": HttpHook.get_connection("entity_api_connection").host + "/entities/",
+            "entities_url": entities_url + "/entities/" if entities_url else "",
             "ingest_url": os.environ["AIRFLOW_CONN_INGEST_API_CONNECTION"],
             "request_header": {"X-Hubmap-Application": "ingest-pipeline"},
         }
@@ -116,8 +117,6 @@ with HMDAG(
             dataset_ignore_globs=ignore_globs,
             upload_ignore_globs="*",
             plugin_directory=plugin_path,
-            # offline=True,  # noqa E265
-            add_notes=False,
             extra_parameters={
                 "coreuse": get_threads_resource("validate_upload", "run_validation")
             },
@@ -125,13 +124,16 @@ with HMDAG(
             app_context=app_context,
         )
         # Scan reports an error result
+        upload_errors = upload.get_errors(plugin_kwargs=kwargs)
         report = ingest_validation_tools_error_report.ErrorReport(
-            errors=upload.get_errors(plugin_kwargs=kwargs), info=upload.get_info()
+            errors=upload_errors, info=upload.get_info()
         )
+        classified_errors = report.classified_errors()
         validation_file_path = Path(get_tmp_dir_path(kwargs["run_id"])) / "validation_report.txt"
         with open(validation_file_path, "w") as f:
             f.write(report.as_text())
         kwargs["ti"].xcom_push(key="validation_file_path", value=str(validation_file_path))
+        kwargs["ti"].xcom_push(key="classified_errors", value=classified_errors)
 
     t_run_validation = PythonOperator(
         task_id="run_validation",
@@ -141,6 +143,7 @@ with HMDAG(
 
     def send_status_msg(**kwargs):
         validation_file_path = Path(kwargs["ti"].xcom_pull(key="validation_file_path"))
+        classified_errors = kwargs["ti"].xcom_pull(key="classified_errors")
         with open(validation_file_path) as f:
             report_txt = f.read()
         if report_txt.startswith("No errors!"):
@@ -152,12 +155,13 @@ with HMDAG(
             status = Statuses.UPLOAD_INVALID
             extra_fields = {
                 "validation_message": report_txt,
+                "ingest_task": classified_errors,
             }
         logging.info(
             f"""
-                     status: {status.value}
-                     validation_message: {extra_fields['validation_message']}
-                     """
+                status: {status.value}
+                {"\n".join([f'{k}: {v}' for k, v in extra_fields.items()])}
+            """
         )
         StatusChanger(
             kwargs["ti"].xcom_pull(key="uuid"),
