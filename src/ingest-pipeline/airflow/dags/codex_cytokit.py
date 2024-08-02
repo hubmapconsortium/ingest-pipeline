@@ -654,6 +654,11 @@ with HMDAG('codex_cytokit',
         >> t_pipeline_exec_cwl_ometiff_second_stitching
         >> t_maybe_keep_cwl_ometiff_second_stitching
 
+        >> prepare_cwl_deepcelltypes
+        >> t_build_cmd_deepcelltypes
+        >> t_pipeline_exec_cwl_deepcelltypes
+        >> t_maybe_keep_cwl_deepcelltypes
+
         >> prepare_cwl_sprm
         >> t_build_cmd_sprm
         >> t_pipeline_exec_cwl_sprm
@@ -693,6 +698,7 @@ with HMDAG('codex_cytokit',
     t_maybe_keep_cwl_illumination_first_stitching >> t_set_dataset_error
     t_maybe_keep_cwl_cytokit >> t_set_dataset_error
     t_maybe_keep_cwl_ometiff_second_stitching >> t_set_dataset_error
+    t_maybe_keep_cwl_deepcelltypes >> t_set_dataset_error
     t_maybe_keep_cwl_sprm >> t_set_dataset_error
     t_maybe_keep_cwl_create_vis_symlink_archive >> t_set_dataset_error
     t_maybe_keep_cwl_ome_tiff_pyramid >> t_set_dataset_error
