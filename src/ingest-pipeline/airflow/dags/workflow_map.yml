@@ -27,6 +27,9 @@ workflow_map:
     'assay_type': 'MIBI'
     'workflow': 'mibi_deepcell'
   - 'collection_type': '.*'
+    'assay_type': 'PhenoCycler'
+    'workflow': 'phenocycler_deepcell'
+  - 'collection_type': '.*'
     'assay_type': 'MxIF'
     'workflow': 'ometiff_pyramid'
   - 'collection_type': '.*'
@@ -128,4 +131,3 @@ workflow_map:
   - 'collection_type': '.*'
     'assay_type': '10x-multiome'
     'workflow': 'multiome_10x'
-
