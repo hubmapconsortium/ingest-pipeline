@@ -121,6 +121,7 @@ def create_new_uuid(row, source_entity, entity_factory, primary_entity, dryrun=F
     assert info_txt_root is not None, "Expected a Dataset or an Upload"
     info_txt = info_txt_root + " : " + rec_identifier
     contains_human_genetic_sequences = primary_entity.get("contains-pii")
+    is_epic = primary_entity.get("is-epic")
     # Check consistency in case this is a Dataset, which will have this info
     if "contains_human_genetic_sequences" in source_entity.prop_dct:
         assert (
@@ -136,12 +137,13 @@ def create_new_uuid(row, source_entity, entity_factory, primary_entity, dryrun=F
         description = source_entity.prop_dct["lab_dataset_id"] + " : " + rec_identifier
     else:
         description = ": " + rec_identifier
-    sample_id_list = row["tissue_id"] if hasattr(row, "tissue_id") else row["parent_sample_id"]
+    sample_id_list = (row["tissue_id"] if hasattr(row, "tissue_id") else row["parent_sample_id"]) if not is_epic \
+        else row.get("epic_parent_id")
     direct_ancestor_uuids = []
     for sample_id in sample_id_list.split(","):
         sample_id = sample_id.strip()
         sample_uuid = entity_factory.id_to_uuid(sample_id)
-        print(f"including tissue_id {sample_id} ({sample_uuid})")
+        print(f"including tissue_id/dataset_id {sample_id} ({sample_uuid})")
         direct_ancestor_uuids.append(sample_uuid)
     direct_ancestor_uuids = list(set(direct_ancestor_uuids))  # remove any duplicates
     assert direct_ancestor_uuids, "No tissue ids found?"
@@ -160,6 +162,7 @@ def create_new_uuid(row, source_entity, entity_factory, primary_entity, dryrun=F
             direct_ancestor_uuids=direct_ancestor_uuids,
             group_uuid=group_uuid,
             description=description,
+            is_epic=is_epic,
         )
         return rslt["uuid"]
 
@@ -516,7 +519,7 @@ def reorganize(source_uuid, **kwargs) -> Union[Tuple, None]:
                         time.sleep(30)
 
     print(json.dumps(dag_config))
-    return child_uuid_list, full_entity.is_multiassay
+    return child_uuid_list, full_entity.is_multiassay, full_entity.is_epic
 
 
 def create_multiassay_component(
