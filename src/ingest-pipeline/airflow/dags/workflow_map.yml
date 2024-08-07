@@ -27,7 +27,7 @@ workflow_map:
     'assay_type': 'MIBI'
     'workflow': 'mibi_deepcell'
   - 'collection_type': '.*'
-    'assay_type': 'PhenoCycler'
+    'assay_type': 'phenocycler'
     'workflow': 'phenocycler_deepcell'
   - 'collection_type': '.*'
     'assay_type': 'MxIF'
