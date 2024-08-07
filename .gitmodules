@@ -64,3 +64,6 @@
 [submodule "src/ingest-pipeline/airflow/dags/cwl/deepcelltypes"]
 	path = src/ingest-pipeline/airflow/dags/cwl/deepcelltypes
 	url = https://github.com/hubmapconsortium/deepcelltypes
+[submodule "src/ingest-pipeline/airflow/dags/cwl/phenocycler-pipeline"]
+	path = src/ingest-pipeline/airflow/dags/cwl/phenocycler-pipeline
+	url = https://github.com/hubmapconsortium/phenocycler-pipeline
