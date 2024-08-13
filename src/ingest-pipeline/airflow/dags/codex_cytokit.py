@@ -189,7 +189,9 @@ with HMDAG('codex_cytokit',
             '--cytokit_output',
             data_dir / 'cytokit',
             '--slicing_pipeline_config',
-            data_dir / 'pipelineConfig.json'
+            data_dir / 'pipelineConfig.json',
+            '--data_dir',
+            get_parent_data_dir(**kwargs),
         ]
 
         return join_quote_command_str(command)
