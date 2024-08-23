@@ -67,3 +67,6 @@
 [submodule "src/ingest-pipeline/airflow/dags/cwl/phenocycler-pipeline"]
 	path = src/ingest-pipeline/airflow/dags/cwl/phenocycler-pipeline
 	url = https://github.com/hubmapconsortium/phenocycler-pipeline
+[submodule "src/ingest-pipeline/airflow/dags/cwl/visium-pipeline"]
+	path = src/ingest-pipeline/airflow/dags/cwl/visium-pipeline
+	url = https://github.com/hubmapconsortium/visium-pipeline
