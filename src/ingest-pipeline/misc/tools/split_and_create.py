@@ -93,8 +93,9 @@ def create_fake_uuid_generator():
 
 def get_canonical_assay_type(row, dataset_type=None):
     # TODO: check if this needs to be rewrite to support old style metadata
-    file_dataset_type = row["assay_type"] if hasattr(row, "assay_type") else row["dataset_type"]
-    return dataset_type if dataset_type is not None else file_dataset_type
+    return dataset_type if dataset_type is not None else (row["assay_type"]
+                                                          if hasattr(row, "assay_type")
+                                                          else row["dataset_type"])
 
 
 def create_new_uuid(row, source_entity, entity_factory, primary_entity, dryrun=False):
