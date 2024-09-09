@@ -104,7 +104,7 @@ def create_new_uuid(row, source_entity, entity_factory, primary_entity, dryrun=F
     """
     global FAKE_UUID_GENERATOR
     canonical_assay_type = row["canonical_assay_type"]
-    orig_assay_type = row["assay_type"] if hasattr(row, "assay_type") else row["dataset_type"]
+    # orig_assay_type = row["assay_type"] if hasattr(row, "assay_type") else row["dataset_type"]
     rec_identifier = row["data_path"].strip("/")
     assert rec_identifier and rec_identifier != ".", "Bad data_path!"
     info_txt_root = None
