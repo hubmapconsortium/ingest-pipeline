@@ -101,11 +101,12 @@ with HMDAG(
 ) as dag:
 
     def read_metadata_file(**kwargs):
-        md_fname = os.path.join(utils.get_tmp_dir_path(kwargs["run_id"]), kwargs["uuid_dataset"] + "-" + "rslt.yml")
+        md_fname = os.path.join(
+            utils.get_tmp_dir_path(kwargs["run_id"]), kwargs["uuid_dataset"] + "-" + "rslt.yml"
+        )
         with open(md_fname, "r") as f:
             scanned_md = yaml.safe_load(f)
         return scanned_md
-
 
     def find_uuid(**kwargs):
         uuid = kwargs["dag_run"].conf["uuid"]
@@ -137,10 +138,7 @@ with HMDAG(
         kwargs["ti"].xcom_push(key="uuid", value=uuid)
 
     t_find_uuid = PythonOperator(
-        task_id="find_uuid",
-        python_callable=find_uuid,
-        provide_context=True,
-        op_kwargs={}
+        task_id="find_uuid", python_callable=find_uuid, provide_context=True, op_kwargs={}
     )
 
     t_create_tmpdir = CreateTmpDirOperator(task_id="create_tmpdir")
@@ -177,10 +175,7 @@ with HMDAG(
             kwargs["ti"].xcom_push(key="split_stage_1", value="1")  # signal failure
 
     t_split_stage_1 = PythonOperator(
-        task_id="split_stage_1",
-        python_callable=split_stage_1,
-        provide_context=True,
-        op_kwargs={}
+        task_id="split_stage_1", python_callable=split_stage_1, provide_context=True, op_kwargs={}
     )
 
     t_maybe_keep_1 = BranchPythonOperator(
@@ -248,10 +243,7 @@ with HMDAG(
             kwargs["ti"].xcom_push(key="split_stage_2", value="1")  # signal failure
 
     t_split_stage_2 = PythonOperator(
-        task_id="split_stage_2",
-        python_callable=split_stage_2,
-        provide_context=True,
-        op_kwargs={}
+        task_id="split_stage_2", python_callable=split_stage_2, provide_context=True, op_kwargs={}
     )
 
     t_maybe_keep_2 = BranchPythonOperator(
@@ -277,8 +269,8 @@ with HMDAG(
             for lz_dir in "${WORK_DIRS[@]}"; \
             do \
             env PYTHONPATH=${PYTHONPATH}:$top_dir \
-            ${PYTHON_EXE} $src_dir/metadata_extract.py --out ./${lz_dir##*/}-rslt.yml --yaml "$lz_dir" \
-              >> session.log 2> error.log ;\
+            ${PYTHON_EXE} $src_dir/metadata_extract.py --out ./${lz_dir##*/}-rslt.yml --yaml \
+            "$lz_dir" >> session.log 2> error.log ;\
             done;
             if [ -s error.log ] ; \
             then \
@@ -333,7 +325,8 @@ with HMDAG(
             if send_status_msg(**kwargs):
                 scanned_md = read_metadata_file(**kwargs)  # Yes, it's getting re-read
                 print(
-                    f"Got CollectionType {scanned_md['collectiontype'] if 'collectiontype' in scanned_md else None} "
+                    f"""Got CollectionType {scanned_md['collectiontype'] 
+                    if 'collectiontype' in scanned_md else None} """
                 )
                 soft_data_assay_type = get_soft_data_assaytype(uuid, **kwargs)
                 print(f"Got {soft_data_assay_type} as the soft_data_type for UUID {uuid}")
@@ -355,7 +348,8 @@ with HMDAG(
 
     def flex_maybe_multiassay_epic_spawn(**kwargs):
         """
-        This will tigger DAG Runs if the upload was a MultiAssay to create its components a build basic metadata
+        This will tigger DAG Runs if the upload was a MultiAssay to create its components a build
+        basic metadata
         """
         print("kwargs:")
         pprint(kwargs)
@@ -376,10 +370,10 @@ with HMDAG(
                 process = "transform.epic"
             else:
                 return 0
-            for uuid in kwargs["ti"].xcom_pull(
-                task_ids="split_stage_2", key="child_uuid_list"
-            ):
-                execution_date = datetime.now(pytz.timezone(airflow_conf.as_dict()["core"]["timezone"]))
+            for uuid in kwargs["ti"].xcom_pull(task_ids="split_stage_2", key="child_uuid_list"):
+                execution_date = datetime.now(
+                    pytz.timezone(airflow_conf.as_dict()["core"]["timezone"])
+                )
                 run_id = "{}_{}_{}".format(uuid, process, execution_date.isoformat())
                 conf = {
                     "process": process,
