@@ -137,8 +137,8 @@ def create_new_uuid(row, source_entity, entity_factory, primary_entity, dryrun=F
         description = source_entity.prop_dct["lab_dataset_id"] + " : " + rec_identifier
     else:
         description = ": " + rec_identifier
-    sample_id_list = (row["tissue_id"] if hasattr(row, "tissue_id") else row["parent_sample_id"]) if not is_epic \
-        else row.get("epic_parent_id")
+    sample_id_list = (row["tissue_id"] if hasattr(row, "tissue_id")
+                      else row["parent_sample_id"]) if not is_epic else row.get("parent_dataset_id")
     direct_ancestor_uuids = []
     for sample_id in sample_id_list.split(","):
         sample_id = sample_id.strip()
