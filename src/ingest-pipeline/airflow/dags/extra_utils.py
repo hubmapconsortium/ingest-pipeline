@@ -74,7 +74,7 @@ class SoftAssayClient:
                 "contains-pii": assay_type.get("contains-pii", True),
                 "primary": assay_type.get("primary", False),
                 "metadata-file": metadata_file,
-                "is-epic": assay_type.get("is-epic", False),
+                "is-epic": True if assay_type.get("process_state") == "epic" else False,
             }
             if not assay_type.get("must-contain"):
                 print(f"Component {assay_type}")
