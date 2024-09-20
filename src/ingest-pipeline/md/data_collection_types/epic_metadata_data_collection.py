@@ -12,7 +12,7 @@ from type_base import MetadataError
 from data_collection import DataCollection
 
 
-class GenericMetadataTSVDataCollection(DataCollection):
+class EpicMetadataTSVDataCollection(DataCollection):
     category_name = "EPICMETADATATSV"
     match_priority = 2.1  # >= 0.0; higher is better
     top_target = None

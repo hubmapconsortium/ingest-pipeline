@@ -6,8 +6,10 @@ from .devtest_data_collection import DEVTESTDataCollection
 from .metadatatsv_data_collection import MetadataTSVDataCollection
 from .generic_metadatatsv_data_collection import GenericMetadataTSVDataCollection
 from .multiassay_metadatatsv_data_collection import MultiassayMetadataTSVDataCollection
+from .epic_metadata_data_collection import EpicMetadataTSVDataCollection
 
 __all__ = [
+    EpicMetadataTSVDataCollection,
     MetadataTSVDataCollection,
     MultiassayMetadataTSVDataCollection,
     IMSDataCollection, 
@@ -15,5 +17,5 @@ __all__ = [
     StanfordCODEXDataCollection,
     AkoyaCODEXDataCollection,
     DEVTESTDataCollection,
-    GenericMetadataTSVDataCollection
+    GenericMetadataTSVDataCollection,
 ]
