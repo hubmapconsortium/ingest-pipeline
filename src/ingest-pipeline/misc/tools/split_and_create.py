@@ -262,14 +262,6 @@ def populate(row, source_entity, entity_factory, dryrun=False, components=None):
                     sep="\t",
                     index=False,
                 )
-
-    if is_shared_upload:
-        copy_shared_data(kid_path, source_entity, non_global_files, dryrun)
-    else:
-        # This moves everything in the source_data_path over to the dataset path
-        # So part of non-shared uploads
-        copy_data_path(kid_path, source_entity.full_path / old_data_path, dryrun)
-
     # START REGION - INDEPENDENT OF SHARED/NON-SHARED STATUS
     # This moves extras over to the dataset extras directory
     copy_extras(dest_extras_path, source_entity, dryrun)
@@ -281,6 +273,13 @@ def populate(row, source_entity, entity_factory, dryrun=False, components=None):
         dryrun,
     )
     # END REGION - INDEPENDENT OF SHARED/NON-SHARED STATUS
+
+    if is_shared_upload:
+        copy_shared_data(kid_path, source_entity, non_global_files, dryrun)
+    else:
+        # This moves everything in the source_data_path over to the dataset path
+        # So part of non-shared uploads
+        copy_data_path(kid_path, source_entity.full_path / old_data_path, dryrun)
 
     print(f"{old_data_path} -> {uuid} -> full path: {kid_path}")
 
@@ -352,7 +351,7 @@ def copy_contrib_antibodies(dest_extras_path, source_entity, old_paths, dryrun):
             else:
                 print(
                     f"""Probably already copied/moved {src_path} 
-                                  to {dest_path} {"it exists" if dest_path.exists() else "missing file"}"""
+                    to {dest_path} {"it exists" if dest_path.exists() else "missing file"}"""
                 )
 
 
