@@ -20,7 +20,7 @@ class EpicMetadataTSVDataCollection(DataCollection):
 
     # expected_file pairs are (globable name, filetype key)
     expected_files = [("*metadata.tsv", "METADATATSV"),
-                      ("derived/*/*.ome.tiff", "TIFFFILE")]
+                      ("derived/*/*.ome.tiff", "OME_TIFF")]
 
     optional_files = []
 
