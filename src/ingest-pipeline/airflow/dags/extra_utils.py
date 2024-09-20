@@ -82,7 +82,7 @@ class SoftAssayClient:
             else:
                 print(f"Primary {assay_type}")
                 self.primary_assay = data_component
-            if assay_type.get("is-epic"):
+            if data_component.get("is-epic"):
                 print(f"EPIC {assay_type}")
                 self.is_epic = True
         if not self.primary_assay and len(self.assay_components) == 1:
