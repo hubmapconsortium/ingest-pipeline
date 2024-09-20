@@ -358,7 +358,7 @@ with HMDAG(
         pprint(ctx)
 
         is_multiassay = kwargs["ti"].xcom_pull(task_ids="split_stage_2", key="is_multiassay")
-        is_epic = kwargs["ti"].xcom_pull(task_ids="split_stage_2", key="epic")
+        is_epic = kwargs["ti"].xcom_pull(task_ids="split_stage_2", key="is_epic")
         failed = kwargs["ti"].xcom_pull(task_ids="send_status_msg")
 
         if not failed:
