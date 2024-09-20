@@ -75,8 +75,8 @@ class EpicMetadataTSVDataCollection(DataCollection):
                         assert isinstance(this_md, list), "metadata.tsv did not produce a list"
                         rec_list = this_md
                         for rec in rec_list:
-                            assert "derived_dataset_type" in rec ("No derived_dataset_type found "
-                                                                  "in metadata.tsv")
+                            assert "derived_dataset_type" in rec, ("No derived_dataset_type found "
+                                                                   "in metadata.tsv")
                             for key in ["data_path", "contributors_path"]:
                                 assert (
                                     key in rec
