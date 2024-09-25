@@ -156,7 +156,7 @@ with HMDAG(
             "move_data",
         ],
         cwl_workflows=list(cwl_workflows.values()),
-        op_kwargs={"dataset_uuid_callable": get_dataset_uuid},
+        op_kwargs={"dataset_uuid_fun": get_dataset_uuid},
     )
 
     t_send_status = PythonOperator(
@@ -181,17 +181,11 @@ with HMDAG(
     (
         t_log_info
         >> t_create_tmpdir
-        # TODO: Disable for now. We may have to use this, if the dataset has already been
-        #   transformed.
-        #       >> t_send_create_dataset
         >> t_set_dataset_processing
         >> prepare_cwl_tsv_to_mudata
         >> t_build_cwl_tsv_to_mudata
         >> t_pipeline_exec_cwl_tsv_to_mudata
         >> t_maybe_keep_cwl_tsv_to_mudata
-        # TODO: Disable for now, we will want to move data slightly differently here.
-        #        >> t_move_data
-        #        >> t_expand_symlinks
         >> t_send_status
         >> t_join
     )
