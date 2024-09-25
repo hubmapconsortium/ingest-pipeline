@@ -156,7 +156,7 @@ with HMDAG(
             "move_data",
         ],
         cwl_workflows=list(cwl_workflows.values()),
-        op_kwargs={"dataset_uuid_fun": get_dataset_uuid},
+        dataset_uuid_fun=get_dataset_uuid,
     )
 
     t_send_status = PythonOperator(
