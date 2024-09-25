@@ -97,7 +97,7 @@ class EpicMetadataTSVDataCollection(DataCollection):
                             cl.append(this_dict)
 
         rslt["components"] = cl
-        rslt["collectiontype"] = "epiic_metadatatsv"
+        rslt["collectiontype"] = "epic_metadatatsv"
         return rslt
 
     def basic_filter_metadata(self, raw_metadata):
