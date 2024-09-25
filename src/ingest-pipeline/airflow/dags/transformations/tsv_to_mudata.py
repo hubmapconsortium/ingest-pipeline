@@ -87,6 +87,8 @@ with HMDAG(
 
     prepare_cwl_tsv_to_mudata = DummyOperator(task_id="prepare_cwl_tsv_to_mudata")
 
+    # TODO: Add step here that converts the expected CSVs to TSVs
+
     def build_cwltool_cwl_tsv_to_mudata(**kwargs):
         run_id = kwargs["run_id"]
         tmpdir = get_tmp_dir_path(run_id)
@@ -127,9 +129,9 @@ with HMDAG(
         python_callable=utils.pythonop_maybe_keep,
         provide_context=True,
         op_kwargs={
-            "next_op": "prepare_cwl_ome_tiff_pyramid",
+            "next_op": "send_status",
             "bail_op": "set_dataset_error",
-            "test_op": "pipeline_exec_cwl_segmentation",
+            "test_op": "pipeline_exec_cwl_tsv_to_mudata",
         },
     )
 
@@ -150,12 +152,11 @@ with HMDAG(
     send_status_msg = make_send_status_msg_function(
         dag_file=__file__,
         retcode_ops=[
-            "pipeline_exec_cwl_segmentation",
-            "pipeline_exec_cwl_create_vis_symlink_archive",
-            "pipeline_exec_cwl_ome_tiff_offsets",
+            "pipeline_exec_cwl_tsv_to_mudata",
             "move_data",
         ],
         cwl_workflows=list(cwl_workflows.values()),
+        op_kwargs={"dataset_uuid_callable": get_dataset_uuid},
     )
 
     t_send_status = PythonOperator(
@@ -180,14 +181,17 @@ with HMDAG(
     (
         t_log_info
         >> t_create_tmpdir
-        >> t_send_create_dataset
+        # TODO: Disable for now. We may have to use this, if the dataset has already been
+        #   transformed.
+        #       >> t_send_create_dataset
         >> t_set_dataset_processing
         >> prepare_cwl_tsv_to_mudata
         >> t_build_cwl_tsv_to_mudata
         >> t_pipeline_exec_cwl_tsv_to_mudata
         >> t_maybe_keep_cwl_tsv_to_mudata
-        >> t_move_data
-        >> t_expand_symlinks
+        # TODO: Disable for now, we will want to move data slightly differently here.
+        #        >> t_move_data
+        #        >> t_expand_symlinks
         >> t_send_status
         >> t_join
     )
