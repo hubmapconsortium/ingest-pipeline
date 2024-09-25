@@ -75,7 +75,7 @@ with HMDAG(
         python_callable=pythonop_set_dataset_state,
         provide_context=True,
         op_kwargs={
-            'dataset_uuid_callable': get_parent_dataset_uuid,
+            "dataset_uuid_callable": get_parent_dataset_uuid,
         },
         task_id="set_dataset_processing",
     )
