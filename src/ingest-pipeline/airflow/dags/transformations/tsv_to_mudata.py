@@ -7,8 +7,9 @@ from airflow.operators.dummy import DummyOperator
 
 import utils
 from utils import (
+    pythonop_set_dataset_state,
     get_cwltool_base_cmd,
-    get_dataset_uuid,
+    get_parent_dataset_uuid,
     get_named_absolute_workflows,
     get_parent_dataset_uuids_list,
     get_parent_data_dir,
@@ -70,20 +71,14 @@ with HMDAG(
     def build_dataset_name(**kwargs):
         return inner_build_dataset_name(dag.dag_id, pipeline_name, **kwargs)
 
-    t_send_create_dataset = PythonOperator(
-        task_id="send_create_dataset",
-        python_callable=utils.pythonop_send_create_dataset,
+    t_set_dataset_processing = PythonOperator(
+        python_callable=pythonop_set_dataset_state,
         provide_context=True,
         op_kwargs={
-            "parent_dataset_uuid_callable": get_parent_dataset_uuids_list,
-            "previous_revision_uuid_callable": get_previous_revision_uuid,
-            "http_conn_id": "ingest_api_connection",
-            "dataset_name_callable": build_dataset_name,
-            "dataset_type_callable": get_dataset_type_organ_based,
+            'dataset_uuid_callable': get_parent_dataset_uuid,
         },
+        task_id="set_dataset_processing",
     )
-
-    t_set_dataset_processing = SetDatasetProcessingOperator(task_id="set_dataset_processing")
 
     prepare_cwl_tsv_to_mudata = DummyOperator(task_id="prepare_cwl_tsv_to_mudata")
 
@@ -102,6 +97,7 @@ with HMDAG(
             *get_cwltool_base_cmd(tmpdir),
             # "--singularity",
             workflow,
+            "--data_dir",
             data_dir,
         ]
 
@@ -129,24 +125,10 @@ with HMDAG(
         python_callable=utils.pythonop_maybe_keep,
         provide_context=True,
         op_kwargs={
-            "next_op": "send_status",
+            "next_op": "send_status_msg",
             "bail_op": "set_dataset_error",
             "test_op": "pipeline_exec_cwl_tsv_to_mudata",
         },
-    )
-
-    t_move_data = MoveDataOperator(task_id="move_data")
-
-    t_expand_symlinks = BashOperator(
-        task_id="expand_symlinks",
-        bash_command="""
-        tmp_dir="{{tmp_dir_path(run_id)}}" ; \
-        ds_dir="{{ti.xcom_pull(task_ids="send_create_dataset")}}" ; \
-        groupname="{{conf.as_dict()['connections']['OUTPUT_GROUP_NAME']}}" ; \
-        cd "$ds_dir" ; \
-        tar -xf symlinks.tar ; \
-        echo $?
-        """,
     )
 
     send_status_msg = make_send_status_msg_function(
@@ -156,7 +138,7 @@ with HMDAG(
             "move_data",
         ],
         cwl_workflows=list(cwl_workflows.values()),
-        dataset_uuid_fun=get_dataset_uuid,
+        dataset_uuid_fun=get_parent_dataset_uuid,
     )
 
     t_send_status = PythonOperator(
@@ -169,7 +151,7 @@ with HMDAG(
         provide_context=True,
         trigger_rule="all_done",
         op_kwargs={
-            "dataset_uuid_callable": get_dataset_uuid,
+            "dataset_uuid_callable": get_parent_dataset_uuid,
             "ds_state": "Error",
             "message": "An error occurred in {}".format(pipeline_name),
         },
