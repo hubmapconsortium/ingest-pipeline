@@ -123,7 +123,6 @@ def generate_multiome_dag(params: MultiomeSequencingDagParameters) -> DAG:
 
             command = [
                 *get_cwltool_base_cmd(tmpdir),
-                "--relax-path-checks",
                 "--outdir",
                 tmpdir / "cwl_out",
                 "--parallel",
