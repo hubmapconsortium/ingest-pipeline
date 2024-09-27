@@ -105,6 +105,22 @@ def generate_multiome_dag(params: MultiomeSequencingDagParameters) -> DAG:
             data_dirs = get_parent_data_dirs_list(**kwargs)
             print("data_dirs: ", data_dirs)
 
+            source_type = ""
+            unique_source_types = set()
+            for parent_uuid in get_parent_dataset_uuids_list(**kwargs):
+                dataset_state = pythonop_get_dataset_state(
+                    dataset_uuid_callable=lambda **kwargs: parent_uuid, **kwargs)
+                source_type = dataset_state.get("source_type")
+                if source_type == "mixed":
+                    print("Force failure. Should only be one unique source_type for a dataset.")
+                else:
+                    unique_source_types.add(source_type)
+
+            if len(unique_source_types) > 1:
+                print("Force failure. Should only be one unique source_type for a dataset.")
+            else:
+                source_type = unique_source_types.pop().lower()
+
             command = [
                 *get_cwltool_base_cmd(tmpdir),
                 "--relax-path-checks",
@@ -116,6 +132,8 @@ def generate_multiome_dag(params: MultiomeSequencingDagParameters) -> DAG:
                 get_threads_resource(dag.dag_id),
                 "--threads_atac",
                 get_threads_resource(dag.dag_id),
+                "--organism",
+                source_type
             ]
 
             for component in ["RNA", "ATAC"]:

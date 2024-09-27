@@ -61,3 +61,12 @@
 [submodule "src/ingest-pipeline/airflow/dags/cwl/multiome-rna-atac-pipeline"]
 	path = src/ingest-pipeline/airflow/dags/cwl/multiome-rna-atac-pipeline
 	url = https://github.com/hubmapconsortium/multiome-rna-atac-pipeline
+[submodule "src/ingest-pipeline/airflow/dags/cwl/deepcelltypes"]
+	path = src/ingest-pipeline/airflow/dags/cwl/deepcelltypes
+	url = https://github.com/hubmapconsortium/deepcelltypes
+[submodule "src/ingest-pipeline/airflow/dags/cwl/phenocycler-pipeline"]
+	path = src/ingest-pipeline/airflow/dags/cwl/phenocycler-pipeline
+	url = https://github.com/hubmapconsortium/phenocycler-pipeline
+[submodule "src/ingest-pipeline/airflow/dags/cwl/epic-obj-csv-to-mudata"]
+	path = src/ingest-pipeline/airflow/dags/cwl/epic-obj-csv-to-mudata
+	url = https://github.com/hubmapconsortium/epic-obj-csv-to-mudata

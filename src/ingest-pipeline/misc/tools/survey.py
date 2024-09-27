@@ -8,7 +8,6 @@ from pathlib import Path
 import pandas as pd
 import requests
 
-from hubmap_commons.type_client import TypeClient
 from hubmap_commons.hm_auth import AuthHelper
 
 # No trailing slashes in the following URLs!
@@ -612,7 +611,6 @@ class EntityFactory:
         assert (instance is None
                 or instance in ['PROD', 'STAGE', 'TEST', 'DEV']), 'invalid instance'
         self.instance = instance or 'PROD'
-        # self.type_client = TypeClient(ENDPOINTS[self.instance]['assay_info_url'])
 
     def fetch_new_dataset_table(self):
         """
