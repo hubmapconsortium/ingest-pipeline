@@ -65,6 +65,10 @@ with HMDAG(
     pipeline_name = "epic-obj-csv-to-mudata"
 
     # TODO: Determine whether we need to create a new version or use the passed one
+    # Should be able to check whether or not the parent dataset has a transformations directory
+    # If it does, then we should create a new version.
+    # Once we implement a DAG of DAGs (seg mask -> csv to tsv -> tsv to mudata -> image pyramid)
+    # we can move this check into the seg mask DAG and pass it down to the others
 
     # TODO: Create the new version and set the dataset_uuid equal to that (or to the passed id)
 
@@ -132,7 +136,7 @@ with HMDAG(
         python_callable=utils.pythonop_maybe_keep,
         provide_context=True,
         op_kwargs={
-            "next_op": "send_status_msg",
+            "next_op": "move_data",
             "bail_op": "set_dataset_error",
             "test_op": "pipeline_exec_cwl_tsv_to_mudata",
         },
@@ -143,7 +147,7 @@ with HMDAG(
         task_id="move_data",
         bash_command="""
             tmp_dir="{{tmp_dir_path(run_id)}}" ; \
-            ds_dir="{{parent_dir_path(parent_lz_path)}}" ; \
+            ds_dir="{{dag_run.conf['parent_lz_path']}}/extras/transformations" ; \
             pushd "$ds_dir" ; \
             popd ; \
             mv "$tmp_dir"/cwl_out/* "$ds_dir" >> "$tmp_dir/session.log" 2>&1 ; \
@@ -190,6 +194,7 @@ with HMDAG(
         >> t_build_cwl_tsv_to_mudata
         >> t_pipeline_exec_cwl_tsv_to_mudata
         >> t_maybe_keep_cwl_tsv_to_mudata
+        >> t_move_data
         >> t_send_status
         >> t_join
     )
