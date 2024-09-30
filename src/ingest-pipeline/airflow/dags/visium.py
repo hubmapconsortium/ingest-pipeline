@@ -122,10 +122,10 @@ with HMDAG(
         command.append(data_dir / "raw/fastq/")
 
         command.append("--img_dir")
-        command.append(data_dir / "lab_processed/images/")
+        command.append(data_dir)
 
         command.append("--metadata_dir")
-        command.append(data_dir / "raw/")
+        command.append(data_dir)
 
         return join_quote_command_str(command)
 
