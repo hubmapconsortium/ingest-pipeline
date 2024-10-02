@@ -248,7 +248,7 @@ with HMDAG('codex_cytokit',
             *get_cwltool_base_cmd(tmpdir),
             cwl_workflows['deepcelltypes'],
             '--data_dir',
-            data_dir / 'pipeline_output',
+            data_dir,
         ]
 
         return join_quote_command_str(command)
