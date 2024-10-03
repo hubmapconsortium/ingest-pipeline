@@ -800,7 +800,6 @@ def pythonop_send_create_dataset(**kwargs) -> str:
         data = {
             "direct_ancestor_uuids": source_uuids,
             "dataset_info": dataset_name,
-            # This needs to be updated to be the parent's dataset type + the pipeline names
             "dataset_type": dataset_type,
             "group_uuid": parent_group_uuid,
             "contains_human_genetic_sequences": False,
@@ -1472,7 +1471,8 @@ def make_send_status_msg_function(
         entity_type = ds_rslt.get("entity_type")
         if status:
             try:
-                StatusChanger( dataset_uuid,
+                StatusChanger(
+                    dataset_uuid,
                     get_auth_tok(**kwargs),
                     status=status,
                     fields_to_overwrite=extra_fields,
