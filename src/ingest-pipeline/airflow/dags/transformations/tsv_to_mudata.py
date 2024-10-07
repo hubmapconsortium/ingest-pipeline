@@ -164,6 +164,7 @@ with HMDAG(
 
     # TODO: Add step here that converts the expected CSVs to TSVs
 
+    # BEGIN - TSV -> MuData Region
     def build_cwl_cmd_tsv_to_mudata(**kwargs):
         run_id = kwargs["run_id"]
         ti = kwargs["ti"]
@@ -259,8 +260,9 @@ with HMDAG(
             "test_op": "pipeline_exec_cwl_seg_mudata_to_zarr",
         },
     )
+    # END - TSV -> MuData Region
 
-    # Image Pyramid Section
+    # BEGIN - Image Pyramid Region
     # print useful info and build command line
     def build_cwl_cmd_ome_tiff_pyramid(**kwargs):
         run_id = kwargs["run_id"]
@@ -346,6 +348,7 @@ with HMDAG(
             "test_op": "pipeline_exec_cwl_ome_tiff_offsets",
         },
     )
+    # END - Image Pyramid Region
 
     # Move data back to dataset_uuid
     t_move_data = BashOperator(
