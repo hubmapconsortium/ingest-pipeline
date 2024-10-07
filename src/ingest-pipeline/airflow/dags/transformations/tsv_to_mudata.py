@@ -63,8 +63,14 @@ with HMDAG(
     pipeline_name = "tsv_to_mudata"
 
     cwl_workflows = get_named_absolute_workflows(
+        # This workflow translates TSV into MuData object
         epic_obj_csv_to_mudata=Path("epic-obj-csv-to-mudata", "pipeline.cwl"),
+        # This workflow translates MuData object into Zarr
         seg_mudata_to_zarr=Path("portal-containers", "seg-mudata-to-zarr.cwl"),
+        # This workflow creates the image pyramid
+        ome_tiff_pyramid=Path("ome-tiff-pyramid", "pipeline.cwl"),
+        # This workflow computes the offsets
+        ome_tiff_offsets=Path("portal-containers", "ome-tiff-offsets.cwl"),
     )
 
     t_log_info = LogInfoOperator(task_id="log_info")
@@ -248,9 +254,96 @@ with HMDAG(
         python_callable=utils.pythonop_maybe_keep,
         provide_context=True,
         op_kwargs={
-            "next_op": "move_data",
+            "next_op": "build_cwl_cmd_ome_tiff_pyramid",
             "bail_op": "set_dataset_error",
             "test_op": "pipeline_exec_cwl_seg_mudata_to_zarr",
+        },
+    )
+
+    # Image Pyramid Section
+    # print useful info and build command line
+    def build_cwl_cmd_ome_tiff_pyramid(**kwargs):
+        run_id = kwargs["run_id"]
+        ti = kwargs["ti"]
+
+        tmpdir = get_tmp_dir_path(run_id)
+        print("tmpdir: ", tmpdir)
+        data_dir = ti.xcom_pull(task_ids="create_or_use_dataset")
+        print("data_dir: ", data_dir)
+
+        workflow = cwl_workflows["ome_tiff_pyramid"]
+        # this is the call to the CWL
+        command = [
+            *get_cwltool_base_cmd(tmpdir),
+            workflow,
+            "--ometiff_directory",
+            data_dir,
+        ]
+
+        return join_quote_command_str(command)
+
+    t_build_cwl_cmd_ome_tiff_pyramid = PythonOperator(
+        task_id="build_cwl_cmd_ome_tiff_pyramid",
+        python_callable=build_cwl_cmd_ome_tiff_pyramid,
+        provide_context=True,
+    )
+
+    t_pipeline_exec_cwl_ome_tiff_pyramid = BashOperator(
+        task_id="pipeline_exec_cwl_ome_tiff_pyramid",
+        bash_command=""" \
+        tmp_dir={{tmp_dir_path(run_id)}} ; \
+        mkdir -p ${tmp_dir}/cwl_out ; \
+        cd ${tmp_dir}/cwl_out ; \
+        {{ti.xcom_pull(task_ids='build_cwl_cmd_ome_tiff_pyramid')}} > $tmp_dir/session.log 2>&1 ; \
+        echo $?
+        """,
+    )
+
+    # print useful info and build command line
+    def build_cwl_cmd_ome_tiff_offsets(**kwargs):
+        run_id = kwargs["run_id"]
+
+        # tmpdir is temp directory in /hubmap-tmp
+        tmpdir = get_tmp_dir_path(run_id)
+        print("tmpdir: ", tmpdir)
+
+        workflow = cwl_workflows["ome_tiff_offsets"]
+
+        # this is the call to the CWL
+        command = [
+            *get_cwltool_base_cmd(tmpdir),
+            workflow,
+            "--input_directory",
+            "./ometiff-pyramids",
+        ]
+
+        return join_quote_command_str(command)
+
+    t_build_cwl_cmd_ome_tiff_offsets = PythonOperator(
+        task_id="build_cwl_cmd_ome_tiff_offsets",
+        python_callable=build_cwl_cmd_ome_tiff_offsets,
+        provide_context=True,
+    )
+
+    t_pipeline_exec_cwl_ome_tiff_offsets = BashOperator(
+        task_id="pipeline_exec_cwl_ome_tiff_offsets",
+        bash_command=""" \
+        tmp_dir={{tmp_dir_path(run_id)}} ; \
+        cd ${tmp_dir}/cwl_out ; \
+        {{ti.xcom_pull(task_ids='build_cwl_cmd_ome_tiff_offsets')}} >> $tmp_dir/session.log 2>&1 ; \
+        echo $?
+        """,
+    )
+
+    # next_op if true, bail_op if false. test_op returns value for testing.
+    t_maybe_keep_cwl_ome_tiff_offsets = BranchPythonOperator(
+        task_id="maybe_keep_cwl_ome_tiff_offsets",
+        python_callable=utils.pythonop_maybe_keep,
+        provide_context=True,
+        op_kwargs={
+            "next_op": "move_data",
+            "bail_op": "set_dataset_error",
+            "test_op": "pipeline_exec_cwl_ome_tiff_offsets",
         },
     )
 
@@ -274,6 +367,9 @@ with HMDAG(
         dag_file=__file__,
         retcode_ops=[
             "pipeline_exec_cwl_tsv_to_mudata",
+            "pipeline_exec_cwl_seg_mudata_to_zarr",
+            "pipeline_exec_cwl_ome_tiff_pyramid",
+            "pipeline_exec_cwl_ome_tiff_offsets",
             "move_data",
         ],
         cwl_workflows=list(cwl_workflows.values()),
@@ -312,6 +408,11 @@ with HMDAG(
         >> t_build_cwl_cmd_seg_mudata_to_zarr
         >> t_pipeline_exec_cwl_seg_mudata_to_zarr
         >> t_maybe_keep_cwl_seg_mudata_to_zarr
+        >> t_build_cwl_cmd_ome_tiff_pyramid
+        >> t_pipeline_exec_cwl_ome_tiff_pyramid
+        >> t_build_cwl_cmd_ome_tiff_offsets
+        >> t_pipeline_exec_cwl_ome_tiff_offsets
+        >> t_maybe_keep_cwl_ome_tiff_offsets
         >> t_move_data
         >> t_send_status
         >> t_join
