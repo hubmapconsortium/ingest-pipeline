@@ -66,7 +66,7 @@ workflow_map:
     'assay_type': 'sciATACseq'
     'workflow': 'sc_atac_seq_sci'
   - 'collection_type': 'generic_metadatatsv'
-    'assay_type': 'bulk RNA'
+    'assay_type': 'bulk-RNA'
     'workflow': 'salmon_rnaseq_bulk'
   - 'collection_type': 'generic_metadatatsv'
     'assay_type': 'sciRNAseq'

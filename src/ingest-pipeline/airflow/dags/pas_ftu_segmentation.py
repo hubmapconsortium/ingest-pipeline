@@ -144,7 +144,6 @@ with HMDAG(
         # this is the call to the CWL
         command = [
             *get_cwltool_base_cmd(tmpdir),
-            "--relax-path-checks",
             cwl_workflows["ome_tiff_pyramid"],
             "--ometiff_directory",
             ".",
