@@ -1235,6 +1235,7 @@ def get_cwltool_base_cmd(tmpdir: Path) -> List[str]:
         # are created as *subdirectories* of 'cwl-tmp' and 'cwl-out-tmp'.
         "--tmpdir-prefix={}/".format(tmpdir / "cwl-tmp"),
         "--tmp-outdir-prefix={}/".format(tmpdir / "cwl-out-tmp"),
+        "--relax-path-checks",
     ]
 
 
