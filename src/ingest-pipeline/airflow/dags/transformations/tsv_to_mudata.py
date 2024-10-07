@@ -60,10 +60,11 @@ with HMDAG(
         "preserve_scratch": get_preserve_scratch_resource("pas_ftu_segmentation"),
     },
 ) as dag:
-    pipeline_name = "epic-obj-csv-to-mudata"
+    pipeline_name = "tsv_to_mudata"
 
     cwl_workflows = get_named_absolute_workflows(
-        mudata=Path(pipeline_name, "pipeline.cwl"),
+        epic_obj_csv_to_mudata=Path("epic-obj-csv-to-mudata", "pipeline.cwl"),
+        seg_mudata_to_zarr=Path("portal-containers", "seg-mudata-to-zarr.cwl"),
     )
 
     t_log_info = LogInfoOperator(task_id="log_info")
@@ -95,6 +96,7 @@ with HMDAG(
     def build_dataset_name(**kwargs):
         return inner_build_dataset_name(dag.dag_id, pipeline_name, **kwargs)
 
+    # TODO: Need to copy over some metadata to new dataset.
     def create_or_use_dataset(**kwargs):
         # Check for transformation existence
         current_dataset_path = str(get_parent_dataset_path(**kwargs))
@@ -156,7 +158,7 @@ with HMDAG(
 
     # TODO: Add step here that converts the expected CSVs to TSVs
 
-    def build_cwltool_cwl_tsv_to_mudata(**kwargs):
+    def build_cwl_cmd_tsv_to_mudata(**kwargs):
         run_id = kwargs["run_id"]
         ti = kwargs["ti"]
         tmpdir = get_tmp_dir_path(run_id)
@@ -164,7 +166,7 @@ with HMDAG(
         data_dir = ti.xcom_pull(task_ids="create_or_use_dataset")
         print("data_dir: ", data_dir)
 
-        workflow = cwl_workflows["mudata"]
+        workflow = cwl_workflows["epic_obj_csv_to_mudata"]
 
         command = [
             *get_cwltool_base_cmd(tmpdir),
@@ -176,9 +178,9 @@ with HMDAG(
 
         return join_quote_command_str(command)
 
-    t_build_cwl_tsv_to_mudata = PythonOperator(
-        task_id="build_cwl_tsv_to_mudata",
-        python_callable=build_cwltool_cwl_tsv_to_mudata,
+    t_build_cwl_cmd_tsv_to_mudata = PythonOperator(
+        task_id="build_cwl_cmd_tsv_to_mudata",
+        python_callable=build_cwl_cmd_tsv_to_mudata,
         provide_context=True,
     )
 
@@ -188,7 +190,7 @@ with HMDAG(
         tmp_dir={{tmp_dir_path(run_id)}} ; \
         mkdir -p ${tmp_dir}/cwl_out ; \
         cd ${tmp_dir}/cwl_out ; \
-        {{ti.xcom_pull(task_ids='build_cwl_tsv_to_mudata')}} > $tmp_dir/session.log 2>&1 ; \
+        {{ti.xcom_pull(task_ids='build_cwl_cmd_tsv_to_mudata')}} > $tmp_dir/session.log 2>&1 ; \
         echo $?
         """,
     )
@@ -198,9 +200,57 @@ with HMDAG(
         python_callable=utils.pythonop_maybe_keep,
         provide_context=True,
         op_kwargs={
-            "next_op": "move_data",
+            "next_op": "build_cwl_cmd_seg_mudata_to_zarr",
             "bail_op": "set_dataset_error",
             "test_op": "pipeline_exec_cwl_tsv_to_mudata",
+        },
+    )
+
+    def build_cwl_cmd_seg_mudata_to_zarr(**kwargs):
+        run_id = kwargs["run_id"]
+        tmpdir = get_tmp_dir_path(run_id)
+        print("tmpdir: ", tmpdir)
+
+        workflow = cwl_workflows["seg_mudata_to_zarr"]
+
+        command = [
+            *get_cwltool_base_cmd(tmpdir),
+            workflow,
+            "--input_dir",
+            # This pipeline invocation runs in a 'hubmap_ui' subdirectory,
+            # so use the parent directory as input
+            "..",
+        ]
+
+        return join_quote_command_str(command)
+
+    t_build_cwl_cmd_seg_mudata_to_zarr = PythonOperator(
+        task_id="build_cwl_cmd_seg_mudata_to_zarr",
+        python_callable=build_cwl_cmd_seg_mudata_to_zarr,
+        provide_context=True,
+    )
+
+    t_pipeline_exec_cwl_seg_mudata_to_zarr = BashOperator(
+        task_id="pipeline_exec_cwl_seg_mudata_to_zarr",
+        bash_command=""" \
+        tmp_dir={{tmp_dir_path(run_id)}} ; \
+        ds_dir="{{ti.xcom_pull(task_ids="create_or_use_dataset")}}" ; \
+        cd "$tmp_dir"/cwl_out ; \
+        mkdir -p hubmap_ui ; \
+        cd hubmap_ui ; \
+        {{ti.xcom_pull(task_ids='build_cwl_cmd_seg_mudata_to_zarr')}} >> $tmp_dir/session.log 2>&1 ; \
+        echo $?
+        """,
+    )
+
+    t_maybe_keep_cwl_seg_mudata_to_zarr = BranchPythonOperator(
+        task_id="maybe_keep_cwl_mudata_to_zarr",
+        python_callable=utils.pythonop_maybe_keep,
+        provide_context=True,
+        op_kwargs={
+            "next_op": "move_data",
+            "bail_op": "set_dataset_error",
+            "test_op": "pipeline_exec_cwl_seg_mudata_to_zarr",
         },
     )
 
@@ -256,9 +306,12 @@ with HMDAG(
         >> t_create_tmpdir
         >> t_set_dataset_processing
         >> prepare_cwl_tsv_to_mudata
-        >> t_build_cwl_tsv_to_mudata
+        >> t_build_cwl_cmd_tsv_to_mudata
         >> t_pipeline_exec_cwl_tsv_to_mudata
         >> t_maybe_keep_cwl_tsv_to_mudata
+        >> t_build_cwl_cmd_seg_mudata_to_zarr
+        >> t_pipeline_exec_cwl_seg_mudata_to_zarr
+        >> t_maybe_keep_cwl_seg_mudata_to_zarr
         >> t_move_data
         >> t_send_status
         >> t_join
