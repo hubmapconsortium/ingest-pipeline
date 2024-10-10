@@ -816,21 +816,24 @@ def pythonop_send_create_dataset(**kwargs) -> str:
             previous_revision_uuid = kwargs["previous_revision_uuid_callable"](**kwargs)
             if previous_revision_uuid is not None:
                 data["previous_revision_uuid"] = previous_revision_uuid
-                response = HttpHook("GET", http_conn_id=http_conn_id).run(
-                    endpoint=f"datasets/{previous_revision_uuid}/file-system-abs-path",
-                    headers=headers,
-                    extra_options={"check_response": False},
+                revision_uuid = previous_revision_uuid
+            else:
+                revision_uuid = source_uuids[0]
+            response = HttpHook("GET", http_conn_id=http_conn_id).run(
+                endpoint=f"datasets/{revision_uuid}/file-system-abs-path",
+                headers=headers,
+                extra_options={"check_response": False},
+            )
+            response.raise_for_status()
+            response_json = response.json()
+            if "path" not in response_json:
+                print(f"response from datasets/{revision_uuid}/file-system-abs-path:")
+                pprint(response_json)
+                raise ValueError(
+                    f"datasets/{revision_uuid}/file-system-abs-path"
+                    " did not return a path"
                 )
-                response.raise_for_status()
-                response_json = response.json()
-                if "path" not in response_json:
-                    print(f"response from datasets/{previous_revision_uuid}/file-system-abs-path:")
-                    pprint(response_json)
-                    raise ValueError(
-                        f"datasets/{previous_revision_uuid}/file-system-abs-path"
-                        " did not return a path"
-                    )
-                previous_revision_path = response_json["path"]
+            previous_revision_path = response_json["path"]
 
         print("data for dataset creation:")
         pprint(data)
