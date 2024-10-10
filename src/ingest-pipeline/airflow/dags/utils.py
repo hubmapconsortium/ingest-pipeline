@@ -357,7 +357,7 @@ def get_assay_previous_version(**kwargs) -> str:
         return "10x_v2_sn"
     if dataset_type == "salmon_rnaseq_sciseq":
         return "sciseq"
-    if dataset_type == "salmon_rnaseq_snareseq":
+    if dataset_type == "salmon_rnaseq_snareseq" or dataset_type == "multiome_snareseq":
         return "snareseq"
     if dataset_type == "salmon_rnaseq_slideseq":
         return "slideseq"
