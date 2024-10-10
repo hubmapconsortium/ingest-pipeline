@@ -160,11 +160,11 @@ with HMDAG(
         task_id="set_dataset_processing",
     )
 
-    prepare_cwl_tsv_to_mudata = DummyOperator(task_id="prepare_cwl_tsv_to_mudata")
-
     # TODO: Add step here that converts the expected CSVs to TSVs
 
     # BEGIN - TSV -> MuData Region
+    prepare_cwl_tsv_to_mudata = DummyOperator(task_id="prepare_cwl_tsv_to_mudata")
+
     def build_cwl_cmd_tsv_to_mudata(**kwargs):
         run_id = kwargs["run_id"]
         ti = kwargs["ti"]
@@ -421,6 +421,5 @@ with HMDAG(
         >> t_join
     )
 
-    t_maybe_keep_cwl_tsv_to_mudata >> t_set_dataset_error
     t_set_dataset_error >> t_join
     t_join >> t_cleanup_tmpdir
