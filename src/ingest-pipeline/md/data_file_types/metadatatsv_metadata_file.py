@@ -20,7 +20,7 @@ class MetadataTSVMetadataFile(TSVMetadataFile):
     """
     A metadata file type for the specialized metadata.tsv files used to store upload and submission info
     """
-    category_name = 'METADATATSV';
+    category_name = 'METADATATSV'
 
     def collect_metadata(self):
         if ENABLE_INGEST_VALIDATION:
@@ -36,7 +36,7 @@ class MetadataTSVMetadataFile(TSVMetadataFile):
                 directory_path=dirpath,
                 dataset_ignore_globs=ignore_globs,
                 upload_ignore_globs='*',
-                #offline=True,
+                # offline=True,
                 add_notes=False
             )
             if upload.get_errors():

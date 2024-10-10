@@ -117,6 +117,7 @@ with HMDAG(
         ignore_globs = [uuid, "extras", "*metadata.tsv", "validation_report.txt"]
         app_context = {
             "entities_url": HttpHook.get_connection("entity_api_connection").host + "/entities/",
+            "uuid_url": HttpHook.get_connection("uuid_api_connection").host + "/uuid/",
             "ingest_url": os.environ["AIRFLOW_CONN_INGEST_API_CONNECTION"],
             "request_header": {"X-Hubmap-Application": "ingest-pipeline"},
         }
