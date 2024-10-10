@@ -163,6 +163,13 @@ resource_map:
       - 'task_re': '.*'
         'queue': 'general'
         'threads': 15
+  - 'dag_re': 'bulk_atacseq'
+    'preserve_scratch': true
+    'lanes': 1
+    'tasks':
+      - 'task_re': '.*'
+        'queue': 'general'
+        'threads': 6
   - 'dag_re': '.*'
     'preserve_scratch': true
     'lanes': 2
