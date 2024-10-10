@@ -326,7 +326,7 @@ def get_dataset_type_organ_based(**kwargs) -> str:
 def get_dataset_type_previous_version(**kwargs) -> List[str]:
     dataset_uuid = get_previous_revision_uuid(**kwargs)
     if dataset_uuid is None:
-        dataset_uuid = kwargs["dag_run"].conf.get("parent_submission_id", None)
+        dataset_uuid = kwargs["dag_run"].conf.get("parent_submission_id", [None])[0]
     assert dataset_uuid is not None, "Missing previous_version_uuid"
 
     def my_callable(**kwargs):
@@ -340,7 +340,7 @@ def get_dataset_type_previous_version(**kwargs) -> List[str]:
 def get_dataname_previous_version(**kwargs) -> str:
     dataset_uuid = get_previous_revision_uuid(**kwargs)
     if dataset_uuid is None:
-        dataset_uuid = kwargs["dag_run"].conf.get("parent_submission_id", None)
+        dataset_uuid = kwargs["dag_run"].conf.get("parent_submission_id", [None])[0]
     assert dataset_uuid is not None, "Missing previous_version_uuid"
 
     def my_callable(**kwargs):
