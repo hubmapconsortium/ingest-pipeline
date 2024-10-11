@@ -88,7 +88,7 @@ with HMDAG(
 
         organ_list = list(set(ds_rslt["organs"]))
         organ_code = organ_list[0] if len(organ_list) == 1 else "multi"
-        assay, matrix = get_assay_previous_version(**kwargs)
+        assay, matrix, secondary_analysis = get_assay_previous_version(**kwargs)
 
         command = [
             *get_cwltool_base_cmd(tmpdir),
@@ -98,7 +98,7 @@ with HMDAG(
             "--matrix",
             matrix,
             "--secondary-analysis-matrix",
-            "secondary_analysis.h5ad",
+            secondary_analysis,
             "--assay",
             assay,
         ]
