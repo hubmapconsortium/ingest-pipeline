@@ -409,7 +409,7 @@ with HMDAG(
         # Always have to gather the metadata from the transformation
         data_dir = kwargs["ti"].xcom_pull(task_ids="create_or_use_dataset")
         output_metadata = json.load(open(f"{data_dir}/extras/transformations/metadata.json"))
-        metadata["processed_metadata"] = output_metadata
+        metadata["calculated_metadata"] = output_metadata
 
     send_status_msg = make_send_status_msg_function(
         dag_file=__file__,
