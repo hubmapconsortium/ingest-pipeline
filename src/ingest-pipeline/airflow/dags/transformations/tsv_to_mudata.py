@@ -465,5 +465,8 @@ with HMDAG(
         >> t_join
     )
 
+    t_maybe_keep_cwl_tsv_to_mudata >> t_set_dataset_error
+    t_maybe_keep_cwl_seg_mudata_to_zarr >> t_set_dataset_error
+    t_maybe_keep_cwl_ome_tiff_offsets >> t_set_dataset_error
     t_set_dataset_error >> t_join
     t_join >> t_cleanup_tmpdir
