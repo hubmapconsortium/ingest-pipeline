@@ -408,6 +408,7 @@ with HMDAG(
         data_dir = kwargs["ti"].xcom_pull(task_ids="create_or_use_dataset")
         output_metadata = json.load(open(f"{data_dir}/extras/transformations/metadata.json"))
         metadata["calculated_metadata"] = output_metadata
+        return metadata
 
     send_status_msg = make_send_status_msg_function(
         dag_file=__file__,
@@ -419,7 +420,8 @@ with HMDAG(
             "move_data",
         ],
         cwl_workflows=list(cwl_workflows.values()),
-        dataset_uuid_fun=epic_get_dataset_uuid_to_process,
+        uuid_src_task_id="create_or_use_dataset",
+        metadata_fun=gather_metadata,
     )
 
     t_send_status = PythonOperator(
