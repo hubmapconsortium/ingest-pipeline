@@ -133,6 +133,8 @@ with HMDAG(
         provide_context=True,
     )
 
+    t_create_tmpdir = CreateTmpDirOperator(task_id="create_tmpdir")
+
     # Copy data over to new dataset (excluding extras/transformations directory)
     # If we're using the existing dataset, then it's just a copy into itself.
     # We set $src_dir/ for the copy b/c otherwise it'll try to copy the directory
@@ -149,10 +151,6 @@ with HMDAG(
             echo $?
         """,
     )
-
-    # Run through everything else
-    t_create_tmpdir = CreateTmpDirOperator(task_id="create_tmpdir")
-    # Copy results over to new dataset (extras/transformations)
 
     t_set_dataset_processing = PythonOperator(
         python_callable=pythonop_set_dataset_state,
@@ -446,8 +444,8 @@ with HMDAG(
     (
         t_log_info
         >> t_create_or_use_dataset
-        >> t_copy_data
         >> t_create_tmpdir
+        >> t_copy_data
         >> t_set_dataset_processing
         >> t_convert_obj_by_feature_to_tsv
         >> prepare_cwl_tsv_to_mudata
