@@ -1410,7 +1410,7 @@ def make_send_status_msg_function(
                 md["thumbnail_file_abs_path"] = thumbnail_file_abs_path
                 antibodies = md["metadata"].pop("antibodies", [])
                 contributors = md["metadata"].pop("contributors", [])
-                md["calculated_metadata"] = md["metadata"].pop("processed_metadata", {})
+                md["calculated_metadata"] = md["metadata"].pop("calculated_metadata", {})
                 md["metadata"] = md["metadata"].pop("metadata", [])
                 for contrib in contributors:
                     if "is_contact" in contrib:
