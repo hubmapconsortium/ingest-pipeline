@@ -325,42 +325,52 @@ def get_dataset_type_organ_based(**kwargs) -> str:
 
 def get_dataset_type_previous_version(**kwargs) -> List[str]:
     dataset_uuid = get_previous_revision_uuid(**kwargs)
+    if dataset_uuid is None:
+        dataset_uuid = kwargs["dag_run"].conf.get("parent_submission_id", [None])[0]
     assert dataset_uuid is not None, "Missing previous_version_uuid"
 
     def my_callable(**kwargs):
         return dataset_uuid
 
     ds_rslt = pythonop_get_dataset_state(dataset_uuid_callable=my_callable, **kwargs)
+    assert ds_rslt["status"] in ["QA", "Published"], "Current status of dataset is not QA or better"
     return ds_rslt["dataset_type"]
 
 
 def get_dataname_previous_version(**kwargs) -> str:
     dataset_uuid = get_previous_revision_uuid(**kwargs)
+    if dataset_uuid is None:
+        dataset_uuid = kwargs["dag_run"].conf.get("parent_submission_id", [None])[0]
     assert dataset_uuid is not None, "Missing previous_version_uuid"
 
     def my_callable(**kwargs):
         return dataset_uuid
 
     ds_rslt = pythonop_get_dataset_state(dataset_uuid_callable=my_callable, **kwargs)
+    assert ds_rslt["status"] in ["QA", "Published"], "Current status of dataset is not QA or better"
     return ds_rslt["dataset_info"]
 
 
-def get_assay_previous_version(**kwargs) -> str:
+def get_assay_previous_version(**kwargs) -> tuple:
     dataset_type = get_dataname_previous_version(**kwargs).split("__")[0]
     if dataset_type == "salmon_rnaseq_10x":
-        return "10x_v3"
+        return "10x_v3", "expr.h5ad", "secondary_analysis.h5ad"
     if dataset_type == "salmon_rnaseq_10x_sn":
-        return "10x_v3_sn"
+        return "10x_v3_sn", "expr.h5ad", "secondary_analysis.h5ad"
     if dataset_type == "salmon_rnaseq_10x_v2":
-        return "10x_v2"
+        return "10x_v2", "expr.h5ad", "secondary_analysis.h5ad"
     if dataset_type == "salmon_rnaseq_10x_v2_sn":
-        return "10x_v2_sn"
+        return "10x_v2_sn", "expr.h5ad", "secondary_analysis.h5ad"
     if dataset_type == "salmon_rnaseq_sciseq":
-        return "sciseq"
+        return "sciseq", "expr.h5ad", "secondary_analysis.h5ad"
     if dataset_type == "salmon_rnaseq_snareseq":
-        return "snareseq"
+        return "snareseq", "expr.h5ad", "secondary_analysis.h5ad"
     if dataset_type == "salmon_rnaseq_slideseq":
-        return "slideseq"
+        return "slideseq", "expr.h5ad", "secondary_analysis.h5ad"
+    if dataset_type == "multiome_10x":
+        return "10x_V3_sn", "mudata_raw.h5mu", "secondary_analysis.h5mu"
+    if dataset_type == "multiome_snareseq":
+        return "snareseq", "mudata_raw.h5mu", "secondary_analysis.h5mu"
 
 
 def get_parent_dataset_paths_list(**kwargs) -> List[Path]:
@@ -810,21 +820,24 @@ def pythonop_send_create_dataset(**kwargs) -> str:
             previous_revision_uuid = kwargs["previous_revision_uuid_callable"](**kwargs)
             if previous_revision_uuid is not None:
                 data["previous_revision_uuid"] = previous_revision_uuid
-                response = HttpHook("GET", http_conn_id=http_conn_id).run(
-                    endpoint=f"datasets/{previous_revision_uuid}/file-system-abs-path",
-                    headers=headers,
-                    extra_options={"check_response": False},
+                revision_uuid = previous_revision_uuid
+            else:
+                revision_uuid = source_uuids[0]
+            response = HttpHook("GET", http_conn_id=http_conn_id).run(
+                endpoint=f"datasets/{revision_uuid}/file-system-abs-path",
+                headers=headers,
+                extra_options={"check_response": False},
+            )
+            response.raise_for_status()
+            response_json = response.json()
+            if "path" not in response_json:
+                print(f"response from datasets/{revision_uuid}/file-system-abs-path:")
+                pprint(response_json)
+                raise ValueError(
+                    f"datasets/{revision_uuid}/file-system-abs-path"
+                    " did not return a path"
                 )
-                response.raise_for_status()
-                response_json = response.json()
-                if "path" not in response_json:
-                    print(f"response from datasets/{previous_revision_uuid}/file-system-abs-path:")
-                    pprint(response_json)
-                    raise ValueError(
-                        f"datasets/{previous_revision_uuid}/file-system-abs-path"
-                        " did not return a path"
-                    )
-                previous_revision_path = response_json["path"]
+            previous_revision_path = response_json["path"]
 
         print("data for dataset creation:")
         pprint(data)
@@ -1235,6 +1248,7 @@ def get_cwltool_base_cmd(tmpdir: Path) -> List[str]:
         # are created as *subdirectories* of 'cwl-tmp' and 'cwl-out-tmp'.
         "--tmpdir-prefix={}/".format(tmpdir / "cwl-tmp"),
         "--tmp-outdir-prefix={}/".format(tmpdir / "cwl-out-tmp"),
+        "--relax-path-checks",
     ]
 
 
