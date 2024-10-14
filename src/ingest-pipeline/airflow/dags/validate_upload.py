@@ -157,19 +157,22 @@ with HMDAG(
             extra_fields = {
                 "validation_message": report_txt,
             }
+            if not error_counts:
+                logging.info("ERROR: status is invalid but error_counts not found.")
         logging.info(
             f"""
                      status: {status.value}
                      validation_message: {extra_fields['validation_message']}
                      """
         )
-        logging.info(
-            f"""
-            ------------
-            Error counts:
-            {error_counts}
-            ------------
-            """)
+        if error_counts:
+            logging.info(
+                f"""
+                ------------
+                Error counts:
+                {error_counts}
+                ------------
+                """)
         StatusChanger(
             kwargs["ti"].xcom_pull(key="uuid"),
             get_auth_tok(**kwargs),
