@@ -4,9 +4,10 @@ import xmltodict
 from metadata_file import MetadataFile
 import tifffile
 
+
 class OMETiffMetadataFile(MetadataFile):
     """A metadata file type for OME-Tiff files"""
-    category_name = 'OME_TIFF';
+    category_name = 'OME_TIFF'
 
     def collect_metadata(self):
         print('parsing OME_TIFF from %s' % self.path)

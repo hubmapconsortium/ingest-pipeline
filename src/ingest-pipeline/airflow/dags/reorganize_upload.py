@@ -38,7 +38,6 @@ from utils import (
 )
 
 from misc.tools.split_and_create import reorganize
-from hubmap_operators.flex_multi_dag_run import FlexMultiDagRunOperator
 
 
 # Following are defaults which can be overridden later on
@@ -102,11 +101,12 @@ with HMDAG(
 ) as dag:
 
     def read_metadata_file(**kwargs):
-        md_fname = os.path.join(utils.get_tmp_dir_path(kwargs["run_id"]), kwargs["uuid_dataset"] + "-" + "rslt.yml")
+        md_fname = os.path.join(
+            utils.get_tmp_dir_path(kwargs["run_id"]), kwargs["uuid_dataset"] + "-" + "rslt.yml"
+        )
         with open(md_fname, "r") as f:
             scanned_md = yaml.safe_load(f)
         return scanned_md
-
 
     def find_uuid(**kwargs):
         uuid = kwargs["dag_run"].conf["uuid"]
@@ -138,10 +138,7 @@ with HMDAG(
         kwargs["ti"].xcom_push(key="uuid", value=uuid)
 
     t_find_uuid = PythonOperator(
-        task_id="find_uuid",
-        python_callable=find_uuid,
-        provide_context=True,
-        op_kwargs={}
+        task_id="find_uuid", python_callable=find_uuid, provide_context=True, op_kwargs={}
     )
 
     t_create_tmpdir = CreateTmpDirOperator(task_id="create_tmpdir")
@@ -178,10 +175,7 @@ with HMDAG(
             kwargs["ti"].xcom_push(key="split_stage_1", value="1")  # signal failure
 
     t_split_stage_1 = PythonOperator(
-        task_id="split_stage_1",
-        python_callable=split_stage_1,
-        provide_context=True,
-        op_kwargs={}
+        task_id="split_stage_1", python_callable=split_stage_1, provide_context=True, op_kwargs={}
     )
 
     t_maybe_keep_1 = BranchPythonOperator(
@@ -200,7 +194,7 @@ with HMDAG(
         uuid = kwargs["ti"].xcom_pull(task_ids="find_uuid", key="uuid")
         entity_host = HttpHook.get_connection("entity_api_connection").host
         try:
-            child_uuid_list, is_multiassay = reorganize(
+            child_uuid_list, is_multiassay, is_epic = reorganize(
                 uuid,
                 mode="unstop",
                 ingest=False,
@@ -212,6 +206,7 @@ with HMDAG(
             )
             kwargs["ti"].xcom_push(key="split_stage_2", value="0")  # signal success
             kwargs["ti"].xcom_push(key="is_multiassay", value=is_multiassay)
+            kwargs["ti"].xcom_push(key="is_epic", value=is_epic)
             for uuid in child_uuid_list:
 
                 def my_callable(**kwargs):
@@ -248,10 +243,7 @@ with HMDAG(
             kwargs["ti"].xcom_push(key="split_stage_2", value="1")  # signal failure
 
     t_split_stage_2 = PythonOperator(
-        task_id="split_stage_2",
-        python_callable=split_stage_2,
-        provide_context=True,
-        op_kwargs={}
+        task_id="split_stage_2", python_callable=split_stage_2, provide_context=True, op_kwargs={}
     )
 
     t_maybe_keep_2 = BranchPythonOperator(
@@ -277,8 +269,8 @@ with HMDAG(
             for lz_dir in "${WORK_DIRS[@]}"; \
             do \
             env PYTHONPATH=${PYTHONPATH}:$top_dir \
-            ${PYTHON_EXE} $src_dir/metadata_extract.py --out ./${lz_dir##*/}-rslt.yml --yaml "$lz_dir" \
-              >> session.log 2> error.log ;\
+            ${PYTHON_EXE} $src_dir/metadata_extract.py --out ./${lz_dir##*/}-rslt.yml --yaml \
+            "$lz_dir" >> session.log 2> error.log ;\
             done;
             if [ -s error.log ] ; \
             then \
@@ -333,7 +325,8 @@ with HMDAG(
             if send_status_msg(**kwargs):
                 scanned_md = read_metadata_file(**kwargs)  # Yes, it's getting re-read
                 print(
-                    f"Got CollectionType {scanned_md['collectiontype'] if 'collectiontype' in scanned_md else None} "
+                    f"""Got CollectionType {scanned_md['collectiontype'] 
+                    if 'collectiontype' in scanned_md else None} """
                 )
                 soft_data_assay_type = get_soft_data_assaytype(uuid, **kwargs)
                 print(f"Got {soft_data_assay_type} as the soft_data_type for UUID {uuid}")
@@ -353,25 +346,34 @@ with HMDAG(
 
     t_join = JoinOperator(task_id="join")
 
-    def flex_maybe_multiassay_spawn(**kwargs):
+    def flex_maybe_multiassay_epic_spawn(**kwargs):
         """
-        This will tigger DAG Runs if the upload was a MultiAssay to create its components a build basic metadata
+        This will tigger DAG Runs if the upload was a MultiAssay to create its components a build
+        basic metadata
         """
         print("kwargs:")
         pprint(kwargs)
         print("dag_run conf:")
         ctx = kwargs["dag_run"].conf
         pprint(ctx)
-        dag_id = "reorganize_multiassay"
-        process = "reorganize.multiassay"
 
         is_multiassay = kwargs["ti"].xcom_pull(task_ids="split_stage_2", key="is_multiassay")
+        is_epic = kwargs["ti"].xcom_pull(task_ids="split_stage_2", key="is_epic")
         failed = kwargs["ti"].xcom_pull(task_ids="send_status_msg")
-        if is_multiassay and not failed:
-            for uuid in kwargs["ti"].xcom_pull(
-                task_ids="split_stage_2", key="child_uuid_list"
-            ):
-                execution_date = datetime.now(pytz.timezone(airflow_conf.as_dict()["core"]["timezone"]))
+
+        if not failed:
+            if is_multiassay:
+                dag_id = "reorganize_multiassay"
+                process = "reorganize.multiassay"
+            elif is_epic:
+                dag_id = "transform_epic"
+                process = "transform.epic"
+            else:
+                return 0
+            for uuid in kwargs["ti"].xcom_pull(task_ids="split_stage_2", key="child_uuid_list"):
+                execution_date = datetime.now(
+                    pytz.timezone(airflow_conf.as_dict()["core"]["timezone"])
+                )
                 run_id = "{}_{}_{}".format(uuid, process, execution_date.isoformat())
                 conf = {
                     "process": process,
@@ -381,19 +383,13 @@ with HMDAG(
                     "uuid": uuid,
                 }
                 time.sleep(1)
-                print(f"Triggering reorganization for UUID {uuid}")
+                print(f"Triggering {dag_id} for UUID {uuid}")
                 trigger_dag(dag_id, run_id, conf, execution_date=execution_date)
         return 0
 
-    # t_maybe_multiassay_spawn = FlexMultiDagRunOperator(
-    #     task_id="flex_maybe_spawn",
-    #     dag=dag,
-    #     trigger_dag_id="scan_and_begin_processing",
-    #     python_callable=flex_maybe_multiassay_spawn,
-    # )
-    t_maybe_multiassay_spawn = PythonOperator(
-        task_id="flex_maybe_spawn",
-        python_callable=flex_maybe_multiassay_spawn,
+    t_maybe_multiassay_epic_spawn = PythonOperator(
+        task_id="flex_maybe_spawn_multi_or_epic",
+        python_callable=flex_maybe_multiassay_epic_spawn,
         provide_context=True,
     )
 
@@ -422,7 +418,7 @@ with HMDAG(
         >> t_join
         >> t_preserve_info
         >> t_cleanup_tmpdir
-        >> t_maybe_multiassay_spawn
+        >> t_maybe_multiassay_epic_spawn
     )
 
     t_maybe_keep_1 >> t_set_dataset_error

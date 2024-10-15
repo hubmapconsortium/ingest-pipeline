@@ -93,8 +93,9 @@ def create_fake_uuid_generator():
 
 def get_canonical_assay_type(row, dataset_type=None):
     # TODO: check if this needs to be rewrite to support old style metadata
-    file_dataset_type = row["assay_type"] if hasattr(row, "assay_type") else row["dataset_type"]
-    return dataset_type if dataset_type is not None else file_dataset_type
+    return dataset_type if dataset_type is not None else (row["assay_type"]
+                                                          if hasattr(row, "assay_type")
+                                                          else row["dataset_type"])
 
 
 def create_new_uuid(row, source_entity, entity_factory, primary_entity, dryrun=False):
@@ -103,7 +104,7 @@ def create_new_uuid(row, source_entity, entity_factory, primary_entity, dryrun=F
     """
     global FAKE_UUID_GENERATOR
     canonical_assay_type = row["canonical_assay_type"]
-    orig_assay_type = row["assay_type"] if hasattr(row, "assay_type") else row["dataset_type"]
+    # orig_assay_type = row["assay_type"] if hasattr(row, "assay_type") else row["dataset_type"]
     rec_identifier = row["data_path"].strip("/")
     assert rec_identifier and rec_identifier != ".", "Bad data_path!"
     info_txt_root = None
@@ -121,6 +122,7 @@ def create_new_uuid(row, source_entity, entity_factory, primary_entity, dryrun=F
     assert info_txt_root is not None, "Expected a Dataset or an Upload"
     info_txt = info_txt_root + " : " + rec_identifier
     contains_human_genetic_sequences = primary_entity.get("contains-pii")
+    is_epic = primary_entity.get("is-epic")
     # Check consistency in case this is a Dataset, which will have this info
     if "contains_human_genetic_sequences" in source_entity.prop_dct:
         assert (
@@ -136,12 +138,13 @@ def create_new_uuid(row, source_entity, entity_factory, primary_entity, dryrun=F
         description = source_entity.prop_dct["lab_dataset_id"] + " : " + rec_identifier
     else:
         description = ": " + rec_identifier
-    sample_id_list = row["tissue_id"] if hasattr(row, "tissue_id") else row["parent_sample_id"]
+    sample_id_list = (row["tissue_id"] if hasattr(row, "tissue_id")
+                      else row["parent_sample_id"]) if not is_epic else row.get("parent_dataset_id")
     direct_ancestor_uuids = []
     for sample_id in sample_id_list.split(","):
         sample_id = sample_id.strip()
         sample_uuid = entity_factory.id_to_uuid(sample_id)
-        print(f"including tissue_id {sample_id} ({sample_uuid})")
+        print(f"including tissue_id/dataset_id {sample_id} ({sample_uuid})")
         direct_ancestor_uuids.append(sample_uuid)
     direct_ancestor_uuids = list(set(direct_ancestor_uuids))  # remove any duplicates
     assert direct_ancestor_uuids, "No tissue ids found?"
@@ -160,6 +163,7 @@ def create_new_uuid(row, source_entity, entity_factory, primary_entity, dryrun=F
             direct_ancestor_uuids=direct_ancestor_uuids,
             group_uuid=group_uuid,
             description=description,
+            is_epic=is_epic,
         )
         return rslt["uuid"]
 
@@ -191,7 +195,7 @@ def populate(row, source_entity, entity_factory, dryrun=False, components=None):
     }
     non_global_files = row.get("non_global_files")
     print(f"Is {uuid} part of a shared upload? {is_shared_upload}")
-    if non_global_files and not math.isnan(non_global_files):
+    if non_global_files and not pd.isna(non_global_files):
         print(f"Non global files: {non_global_files}")
         # Catch case 1
         assert (
@@ -258,14 +262,6 @@ def populate(row, source_entity, entity_factory, dryrun=False, components=None):
                     sep="\t",
                     index=False,
                 )
-
-    if is_shared_upload:
-        copy_shared_data(kid_path, source_entity, non_global_files, dryrun)
-    else:
-        # This moves everything in the source_data_path over to the dataset path
-        # So part of non-shared uploads
-        copy_data_path(kid_path, source_entity.full_path / old_data_path, dryrun)
-
     # START REGION - INDEPENDENT OF SHARED/NON-SHARED STATUS
     # This moves extras over to the dataset extras directory
     copy_extras(dest_extras_path, source_entity, dryrun)
@@ -277,6 +273,13 @@ def populate(row, source_entity, entity_factory, dryrun=False, components=None):
         dryrun,
     )
     # END REGION - INDEPENDENT OF SHARED/NON-SHARED STATUS
+
+    if is_shared_upload:
+        copy_shared_data(kid_path, source_entity, non_global_files, dryrun)
+    else:
+        # This moves everything in the source_data_path over to the dataset path
+        # So part of non-shared uploads
+        copy_data_path(kid_path, source_entity.full_path / old_data_path, dryrun)
 
     print(f"{old_data_path} -> {uuid} -> full path: {kid_path}")
 
@@ -348,7 +351,7 @@ def copy_contrib_antibodies(dest_extras_path, source_entity, old_paths, dryrun):
             else:
                 print(
                     f"""Probably already copied/moved {src_path} 
-                                  to {dest_path} {"it exists" if dest_path.exists() else "missing file"}"""
+                    to {dest_path} {"it exists" if dest_path.exists() else "missing file"}"""
                 )
 
 
@@ -516,7 +519,7 @@ def reorganize(source_uuid, **kwargs) -> Union[Tuple, None]:
                         time.sleep(30)
 
     print(json.dumps(dag_config))
-    return child_uuid_list, full_entity.is_multiassay
+    return child_uuid_list, full_entity.is_multiassay, full_entity.is_epic
 
 
 def create_multiassay_component(
