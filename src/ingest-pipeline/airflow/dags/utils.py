@@ -1403,7 +1403,14 @@ def make_send_status_msg_function(
             # Refactoring metadata structure
             contacts = []
             if metadata_fun:
-                md["files"] = md["metadata"].pop("files_info_alt_path", [])
+                # Always override the value if files_info_alt_path is set, or if md["files"] is empty
+                files_info_alt_path = md["metadata"].pop("files_info_alt_path", [])
+                md["files"] = (
+                    files_info_alt_path
+                    if files_info_alt_path or not md.get("files")
+                    else md["files"]
+                )
+
                 md["extra_metadata"] = {
                     "collectiontype": md["metadata"].pop("collectiontype", None)
                 }
