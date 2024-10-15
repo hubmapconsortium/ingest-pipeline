@@ -66,10 +66,11 @@ with HMDAG(
     pipeline_name = "tsv_to_mudata"
 
     cwl_workflows = get_absolute_workflows(
-            Path("epic-obj-csv-to-mudata", "pipeline.cwl"),
-            Path("portal-containers", "seg-mudata-to-zarr.cwl"),
-            Path("ome-tiff-pyramid", "pipeline.cwl"),
-            Path("portal-containers", "ome-tiff-offsets.cwl"),)
+        Path("epic-obj-csv-to-mudata", "pipeline.cwl"),
+        Path("portal-containers", "seg-mudata-to-zarr.cwl"),
+        Path("ome-tiff-pyramid", "pipeline.cwl"),
+        Path("portal-containers", "ome-tiff-offsets.cwl"),
+    )
 
     t_log_info = LogInfoOperator(task_id="log_info")
 
