@@ -413,7 +413,7 @@ with HMDAG(
             "pipeline_exec_cwl_ome_tiff_offsets",
             "move_data",
         ],
-        cwl_workflows=list(cwl_workflows.values()),
+        cwl_workflows=cwl_workflows,
         uuid_src_task_id="create_or_use_dataset",
         metadata_fun=gather_metadata,
     )
