@@ -113,6 +113,7 @@ with HMDAG(
                 http_conn_id="ingest_api_connection",
                 dataset_name_callable=build_dataset_name,
                 dataset_type_callable=epic_get_dataset_type,
+                creation_action="External Process",
                 **kwargs,
             )
             return abs_path
@@ -416,7 +417,6 @@ with HMDAG(
         cwl_workflows=cwl_workflows,
         uuid_src_task_id="create_or_use_dataset",
         metadata_fun=gather_metadata,
-        creation_action="External Process",
     )
 
     t_send_status = PythonOperator(
