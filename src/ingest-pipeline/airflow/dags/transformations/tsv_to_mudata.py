@@ -113,6 +113,7 @@ with HMDAG(
                 http_conn_id="ingest_api_connection",
                 dataset_name_callable=build_dataset_name,
                 dataset_type_callable=epic_get_dataset_type,
+                creation_action="External Process",
                 **kwargs,
             )
             return abs_path
