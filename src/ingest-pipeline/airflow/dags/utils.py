@@ -813,7 +813,7 @@ def pythonop_send_create_dataset(**kwargs) -> str:
         else:
             dataset_type = kwargs["dataset_type_callable"](**kwargs)
 
-        creation_action = kwargs.get("creation", "Central Process")
+        creation_action = kwargs.get("creation_action", "Central Process")
 
         data = {
             "direct_ancestor_uuids": source_uuids,
