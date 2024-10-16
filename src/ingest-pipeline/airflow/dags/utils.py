@@ -333,7 +333,10 @@ def get_dataset_type_previous_version(**kwargs) -> List[str]:
         return dataset_uuid
 
     ds_rslt = pythonop_get_dataset_state(dataset_uuid_callable=my_callable, **kwargs)
-    assert ds_rslt["status"] in ["QA", "Published"], "Current status of dataset is not QA or better"
+    assert ds_rslt["status"] in [
+        "QA",
+        "Published",
+    ], "Current status of dataset is not QA or better"
     return ds_rslt["dataset_type"]
 
 
@@ -347,7 +350,10 @@ def get_dataname_previous_version(**kwargs) -> str:
         return dataset_uuid
 
     ds_rslt = pythonop_get_dataset_state(dataset_uuid_callable=my_callable, **kwargs)
-    assert ds_rslt["status"] in ["QA", "Published"], "Current status of dataset is not QA or better"
+    assert ds_rslt["status"] in [
+        "QA",
+        "Published",
+    ], "Current status of dataset is not QA or better"
     return ds_rslt["dataset_info"]
 
 
@@ -807,13 +813,15 @@ def pythonop_send_create_dataset(**kwargs) -> str:
         else:
             dataset_type = kwargs["dataset_type_callable"](**kwargs)
 
+        creation_action = kwargs.get("creation", "Central Process")
+
         data = {
             "direct_ancestor_uuids": source_uuids,
             "dataset_info": dataset_name,
             "dataset_type": dataset_type,
             "group_uuid": parent_group_uuid,
             "contains_human_genetic_sequences": False,
-            "creation_action": "Central Process",
+            "creation_action": creation_action,
         }
         if "previous_revision_uuid_callable" in kwargs:
             previous_revision_uuid = kwargs["previous_revision_uuid_callable"](**kwargs)
@@ -833,8 +841,7 @@ def pythonop_send_create_dataset(**kwargs) -> str:
                 print(f"response from datasets/{revision_uuid}/file-system-abs-path:")
                 pprint(response_json)
                 raise ValueError(
-                    f"datasets/{revision_uuid}/file-system-abs-path"
-                    " did not return a path"
+                    f"datasets/{revision_uuid}/file-system-abs-path did not return a path"
                 )
             previous_revision_path = response_json["path"]
 

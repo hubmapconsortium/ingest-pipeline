@@ -416,6 +416,7 @@ with HMDAG(
         cwl_workflows=cwl_workflows,
         uuid_src_task_id="create_or_use_dataset",
         metadata_fun=gather_metadata,
+        creation_action="External Process",
     )
 
     t_send_status = PythonOperator(
