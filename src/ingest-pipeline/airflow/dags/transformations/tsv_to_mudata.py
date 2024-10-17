@@ -118,9 +118,8 @@ with HMDAG(
             )
             return abs_path
         else:
-            kwargs["ti"].xcom_push(
-                key="derived_dataset_uuid", value=epic_get_original_dataset_uuid
-            )
+            original_dataset_uuid = epic_get_original_dataset_uuid(**kwargs)
+            kwargs["ti"].xcom_push(key="derived_dataset_uuid", value=original_dataset_uuid)
             return current_dataset_path
 
     t_create_or_use_dataset = PythonOperator(
@@ -302,7 +301,7 @@ with HMDAG(
             *get_cwltool_base_cmd(tmpdir),
             workflow,
             "--ometiff_directory",
-            data_dir,
+            f"{data_dir}/derived/segmentation_masks",
         ]
 
         return join_quote_command_str(command)
