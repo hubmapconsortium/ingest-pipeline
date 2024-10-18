@@ -389,13 +389,11 @@ with HMDAG(
     def gather_metadata(**kwargs):
         # First we gather the metadata from the parent dataset
         # We only need to copy the metadata if we created a new dataset
-        metadata = {}
-        if epic_get_original_dataset_uuid(**kwargs) != epic_get_dataset_uuid_to_process(**kwargs):
-            original_dataset = pythonop_get_dataset_state(
-                dataset_uuid_callable=epic_get_original_dataset_uuid, **kwargs
-            )
-            print(original_dataset)
-            metadata |= original_dataset.get("metadata", {})
+        original_dataset = pythonop_get_dataset_state(
+            dataset_uuid_callable=epic_get_original_dataset_uuid, **kwargs
+        )
+        print(original_dataset)
+        metadata = original_dataset.get("metadata", {})
 
         # Then we gather the metadata from the mudata transformation output
         # Always have to gather the metadata from the transformation
