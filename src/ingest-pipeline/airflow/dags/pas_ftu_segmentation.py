@@ -130,16 +130,60 @@ with HMDAG(
 
     prepare_cwl_ome_tiff_pyramid = DummyOperator(task_id="prepare_cwl_ome_tiff_pyramid")
 
-    def build_cwltool_cwl_ome_tiff_pyramid(**kwargs):
+    def build_cwltool_cwl_ome_tiff_pyramid_raw(**kwargs):
         run_id = kwargs["run_id"]
 
         # tmpdir is temp directory in /hubmap-tmp
         tmpdir = get_tmp_dir_path(run_id)
         print("tmpdir: ", tmpdir)
 
-        # data directory is the stitched images, which are found in tmpdir
+        # data directory is the primary dataset's directory
         data_dir = get_parent_data_dir(**kwargs)
         print("data_dir: ", data_dir)
+
+        # this is the call to the CWL
+        command = [
+            *get_cwltool_base_cmd(tmpdir),
+            cwl_workflows["ome_tiff_pyramid"],
+            "--ometiff_directory",
+            data_dir,
+        ]
+        return join_quote_command_str(command)
+
+    t_build_cmd_ome_tiff_pyramid_raw = PythonOperator(
+        task_id="build_cwl_ome_tiff_pyramid_raw",
+        python_callable=build_cwltool_cwl_ome_tiff_pyramid_raw,
+        provide_context=True,
+    )
+
+    t_pipeline_exec_cwl_ome_tiff_pyramid_raw = BashOperator(
+        task_id="pipeline_exec_cwl_ome_tiff_pyramid_raw",
+        bash_command=""" \
+        tmp_dir={{tmp_dir_path(run_id)}} ; \
+        mkdir -p ${tmp_dir}/cwl_out ; \
+        cd ${tmp_dir}/cwl_out ; \
+        {{ti.xcom_pull(task_ids='build_cwl_ome_tiff_pyramid_raw')}} >> $tmp_dir/session.log 2>&1 ; \
+        echo $?
+        """,
+    )
+
+    t_maybe_keep_cwl_ome_tiff_pyramid_raw = BranchPythonOperator(
+        task_id="maybe_keep_cwl_ome_tiff_pyramid_raw",
+        python_callable=utils.pythonop_maybe_keep,
+        provide_context=True,
+        op_kwargs={
+            "next_op": "build_cwl_ome_tiff_pyramid_processed",
+            "bail_op": "set_dataset_error",
+            "test_op": "pipeline_exec_cwl_ome_tiff_pyramid_raw",
+        },
+    )
+
+    def build_cwltool_cwl_ome_tiff_pyramid_processed(**kwargs):
+        run_id = kwargs["run_id"]
+
+        # tmpdir is temp directory in /hubmap-tmp
+        tmpdir = get_tmp_dir_path(run_id)
+        print("tmpdir: ", tmpdir)
 
         # this is the call to the CWL
         command = [
@@ -150,31 +194,31 @@ with HMDAG(
         ]
         return join_quote_command_str(command)
 
-    t_build_cmd_ome_tiff_pyramid = PythonOperator(
-        task_id="build_cwl_ome_tiff_pyramid",
-        python_callable=build_cwltool_cwl_ome_tiff_pyramid,
+    t_build_cmd_ome_tiff_pyramid_processed = PythonOperator(
+        task_id="build_cwl_ome_tiff_pyramid_processed",
+        python_callable=build_cwltool_cwl_ome_tiff_pyramid_processed,
         provide_context=True,
     )
 
-    t_pipeline_exec_cwl_ome_tiff_pyramid = BashOperator(
-        task_id="pipeline_exec_cwl_ome_tiff_pyramid",
+    t_pipeline_exec_cwl_ome_tiff_pyramid_processed = BashOperator(
+        task_id="pipeline_exec_cwl_ome_tiff_pyramid_processed",
         bash_command=""" \
         tmp_dir={{tmp_dir_path(run_id)}} ; \
         mkdir -p ${tmp_dir}/cwl_out ; \
         cd ${tmp_dir}/cwl_out ; \
-        {{ti.xcom_pull(task_ids='build_cwl_ome_tiff_pyramid')}} >> $tmp_dir/session.log 2>&1 ; \
+        {{ti.xcom_pull(task_ids='build_cwl_ome_tiff_pyramid_processed')}} >> $tmp_dir/session.log 2>&1 ; \
         echo $?
         """,
     )
 
-    t_maybe_keep_cwl_ome_tiff_pyramid = BranchPythonOperator(
-        task_id="maybe_keep_cwl_ome_tiff_pyramid",
+    t_maybe_keep_cwl_ome_tiff_pyramid_processed = BranchPythonOperator(
+        task_id="maybe_keep_cwl_ome_tiff_pyramid_processed",
         python_callable=utils.pythonop_maybe_keep,
         provide_context=True,
         op_kwargs={
             "next_op": "prepare_cwl_ome_tiff_offsets",
             "bail_op": "set_dataset_error",
-            "test_op": "pipeline_exec_cwl_ome_tiff_pyramid",
+            "test_op": "pipeline_exec_cwl_ome_tiff_pyramid_processed",
         },
     )
 
@@ -294,9 +338,12 @@ with HMDAG(
         >> t_pipeline_exec_cwl_segmentation
         >> t_maybe_keep_cwl_segmentation
         >> prepare_cwl_ome_tiff_pyramid
-        >> t_build_cmd_ome_tiff_pyramid
-        >> t_pipeline_exec_cwl_ome_tiff_pyramid
-        >> t_maybe_keep_cwl_ome_tiff_pyramid
+        >> t_build_cmd_ome_tiff_pyramid_raw
+        >> t_pipeline_exec_cwl_ome_tiff_pyramid_raw
+        >> t_maybe_keep_cwl_ome_tiff_pyramid_raw
+        >> t_build_cmd_ome_tiff_pyramid_processed
+        >> t_pipeline_exec_cwl_ome_tiff_pyramid_processed
+        >> t_maybe_keep_cwl_ome_tiff_pyramid_processed
         >> prepare_cwl_ome_tiff_offsets
         >> t_build_cmd_ome_tiff_offsets
         >> t_pipeline_exec_cwl_ome_tiff_offsets
@@ -307,7 +354,8 @@ with HMDAG(
         >> t_join
     )
     t_maybe_keep_cwl_segmentation >> t_set_dataset_error
-    t_maybe_keep_cwl_ome_tiff_pyramid >> t_set_dataset_error
+    t_maybe_keep_cwl_ome_tiff_pyramid_raw >> t_set_dataset_error
+    t_maybe_keep_cwl_ome_tiff_pyramid_processed >> t_set_dataset_error
     t_maybe_keep_cwl_ome_tiff_offsets >> t_set_dataset_error
     t_set_dataset_error >> t_join
     t_join >> t_cleanup_tmpdir
