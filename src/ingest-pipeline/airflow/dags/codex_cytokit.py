@@ -189,7 +189,9 @@ with HMDAG('codex_cytokit',
             '--cytokit_output',
             data_dir / 'cytokit',
             '--slicing_pipeline_config',
-            data_dir / 'pipelineConfig.json'
+            data_dir / 'pipelineConfig.json',
+            '--data_dir',
+            get_parent_data_dir(**kwargs),
         ]
 
         return join_quote_command_str(command)
@@ -246,7 +248,7 @@ with HMDAG('codex_cytokit',
             *get_cwltool_base_cmd(tmpdir),
             cwl_workflows['deepcelltypes'],
             '--data_dir',
-            data_dir / 'pipeline_output',
+            data_dir,
         ]
 
         return join_quote_command_str(command)
