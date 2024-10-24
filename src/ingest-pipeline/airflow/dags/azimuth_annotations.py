@@ -70,6 +70,7 @@ with HMDAG(
         Path("azimuth-annotate", "pipeline.cwl"),
         Path("portal-containers", "h5ad-to-arrow.cwl"),
         Path("portal-containers", "anndata-to-ui.cwl"),
+        Path("portal-containers", "mudata-to-ui.cwl")
     )
 
     prepare_cwl1 = DummyOperator(task_id="prepare_cwl1")
@@ -88,7 +89,7 @@ with HMDAG(
 
         organ_list = list(set(ds_rslt["organs"]))
         organ_code = organ_list[0] if len(organ_list) == 1 else "multi"
-        assay, matrix, secondary_analysis = get_assay_previous_version(**kwargs)
+        assay, matrix, secondary_analysis, _ = get_assay_previous_version(**kwargs)
 
         command = [
             *get_cwltool_base_cmd(tmpdir),
@@ -109,15 +110,17 @@ with HMDAG(
         run_id = kwargs["run_id"]
         tmpdir = get_tmp_dir_path(run_id)
         print("tmpdir: ", tmpdir)
+        assay, matrix, secondary_analysis, workflow = get_assay_previous_version(**kwargs)
 
         command = [
             *get_cwltool_base_cmd(tmpdir),
-            cwl_workflows_annotations[1],
+            cwl_workflows_annotations[workflow],
             "--input_dir",
             # This pipeline invocation runs in a 'hubmap_ui' subdirectory,
             # so use the parent directory as input
             "..",
         ]
+        kwargs["ti"].xcom_push(key="skip_cwl3", value=0 if workflow == 1 else 1)
 
         return join_quote_command_str(command)
 
@@ -209,9 +212,21 @@ with HMDAG(
         python_callable=utils.pythonop_maybe_keep,
         provide_context=True,
         op_kwargs={
-            "next_op": "prepare_cwl3",
+            "next_op": "maybe_skipp_cwl3",
             "bail_op": "set_dataset_error",
             "test_op": "convert_for_ui",
+        },
+    )
+
+    t_maybe_skip_cwl3 = BranchPythonOperator(
+        task_id="maybe_skip_cwl3",
+        python_callable=utils.pythonop_maybe_keep,
+        provide_context=True,
+        op_kwargs={
+            "next_op": "move_data",
+            "bail_op": "prepare_cwl3",
+            "test_op": "build_cmd2",
+            "test_key": "skip_cwl3",
         },
     )
 
@@ -281,11 +296,11 @@ with HMDAG(
     )
 
     t_log_info = LogInfoOperator(task_id="log_info")
+    t_move_data = MoveDataOperator(task_id="move_data")
     t_join = JoinOperator(task_id="join")
     t_create_tmpdir = CreateTmpDirOperator(task_id="create_tmpdir")
     t_cleanup_tmpdir = CleanupTmpDirOperator(task_id="cleanup_tmpdir")
     t_set_dataset_processing = SetDatasetProcessingOperator(task_id="set_dataset_processing")
-    t_move_data = MoveDataOperator(task_id="move_data")
 
     (
         t_log_info
@@ -301,6 +316,7 @@ with HMDAG(
         >> t_build_cmd2
         >> t_convert_for_ui
         >> t_maybe_keep_cwl2
+        >> t_maybe_skip_cwl3
         >> prepare_cwl3
         >> t_build_cmd4
         >> t_convert_for_ui_2
@@ -313,5 +329,6 @@ with HMDAG(
     t_maybe_keep_cwl1 >> t_set_dataset_error
     t_maybe_keep_cwl2 >> t_set_dataset_error
     t_maybe_keep_cwl3 >> t_set_dataset_error
+    t_move_data >> t_build_provenance >> t_send_status >> t_join
     t_set_dataset_error >> t_join
     t_join >> t_cleanup_tmpdir
