@@ -46,7 +46,7 @@ if [ -z "$repo_env" ]; then
     exit "The environment variable HUBMAP_INSTANCE is not set."
 fi
 
-for machine in "${codcc_machines[@]}"; do
+for machine in "${hive_machines[@]}"; do
        	# Rsync repo to machine
         rsync -a --exclude "src/ingest-pipeline/airflow/logs" $repo_dir/ $machine:$repo_dir
 
