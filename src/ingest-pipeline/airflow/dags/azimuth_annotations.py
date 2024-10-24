@@ -329,6 +329,6 @@ with HMDAG(
     t_maybe_keep_cwl1 >> t_set_dataset_error
     t_maybe_keep_cwl2 >> t_set_dataset_error
     t_maybe_keep_cwl3 >> t_set_dataset_error
-    t_move_data >> t_build_provenance >> t_send_status >> t_join
+    t_maybe_skip_cwl3 >> t_move_data >> t_build_provenance >> t_send_status >> t_join
     t_set_dataset_error >> t_join
     t_join >> t_cleanup_tmpdir
