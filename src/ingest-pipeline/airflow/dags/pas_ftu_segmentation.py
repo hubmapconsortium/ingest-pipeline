@@ -168,7 +168,7 @@ with HMDAG(
         python_callable=utils.pythonop_maybe_keep,
         provide_context=True,
         op_kwargs={
-            "next_op": "build_cwltool_cwl_ome_tiff_pyramid_raw",
+            "next_op": "build_cwl_ome_tiff_pyramid_raw",
             "bail_op": "set_dataset_error",
             "test_op": "pipeline_exec_cwl_ome_tiff_pyramid_processed",
         },
