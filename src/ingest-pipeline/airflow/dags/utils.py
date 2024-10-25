@@ -1266,6 +1266,8 @@ def get_cwltool_base_cmd(tmpdir: Path) -> List[str]:
 def build_provenance_function(cwl_workflows: List[Path]) -> Callable[..., List]:
     def build_provenance(**kwargs) -> List:
         dataset_uuid = get_previous_revision_uuid(**kwargs)
+        if dataset_uuid is None:
+            dataset_uuid = kwargs["dag_run"].conf.get("parent_submission_id", [None])[0]
         assert dataset_uuid is not None, "Missing previous_version_uuid"
 
         def my_callable(**kwargs):

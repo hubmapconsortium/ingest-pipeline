@@ -296,7 +296,7 @@ with HMDAG(
     )
 
     t_log_info = LogInfoOperator(task_id="log_info")
-    t_move_data = MoveDataOperator(task_id="move_data")
+    t_move_data = MoveDataOperator(task_id="move_data", tigger_rule="all_done")
     t_join = JoinOperator(task_id="join")
     t_create_tmpdir = CreateTmpDirOperator(task_id="create_tmpdir")
     t_cleanup_tmpdir = CleanupTmpDirOperator(task_id="cleanup_tmpdir")
