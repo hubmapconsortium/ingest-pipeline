@@ -120,7 +120,7 @@ with HMDAG(
             # so use the parent directory as input
             "..",
         ]
-        kwargs["ti"].xcom_push(key="skip_cwl3", value=0 if workflow == 1 else 1)
+        kwargs["ti"].xcom_push(key="skip_cwl3", value=1 if workflow == 1 else 0)
 
         return join_quote_command_str(command)
 
