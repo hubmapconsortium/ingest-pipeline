@@ -60,8 +60,14 @@ with HMDAG(
     },
 ) as dag:
     pipeline_name = "azimuth_annotate"
-    cwl_workflows_files = get_absolute_workflows(
+    cwl_workflows_files_salmon = get_absolute_workflows(
         Path("salmon-rnaseq", "pipeline.cwl"),
+        Path("azimuth-annotate", "pipeline.cwl"),
+        Path("portal-containers", "h5ad-to-arrow.cwl"),
+        Path("portal-containers", "anndata-to-ui.cwl"),
+    )
+    cwl_workflows_files_multiome = get_absolute_workflows(
+        Path("multiome-rna-atac-pipeline", "pipeline.cwl"),
         Path("azimuth-annotate", "pipeline.cwl"),
         Path("portal-containers", "h5ad-to-arrow.cwl"),
         Path("portal-containers", "anndata-to-ui.cwl"),
@@ -266,18 +272,34 @@ with HMDAG(
         },
     )
 
-    send_status_msg = make_send_status_msg_function(
-        dag_file=__file__,
-        retcode_ops=[
-            "pipeline_exec",
-            "pipeline_exec_azimuth_annotate",
-            "move_data",
-            "convert_for_ui",
-            "convert_for_ui_2",
-        ],
-        cwl_workflows=cwl_workflows_files,
-        no_provenance=True,
-    )
+    def send_status_msg(**kwargs):
+        multiome = kwargs["ti"].xcom_pull(task_ids="build_cmd2", key="skip_cwl3")
+        if multiome == 1:
+            return make_send_status_msg_function(
+                dag_file=__file__,
+                retcode_ops=[
+                    "pipeline_exec",
+                    "pipeline_exec_azimuth_annotate",
+                    "move_data",
+                    "convert_for_ui",
+                    "convert_for_ui_2",
+                ],
+                cwl_workflows=cwl_workflows_files_salmon,
+                no_provenance=True,
+            )
+        else:
+            return make_send_status_msg_function(
+                dag_file=__file__,
+                retcode_ops=[
+                    "pipeline_exec",
+                    "pipeline_exec_azimuth_annotate",
+                    "move_data",
+                    "convert_for_ui",
+                    "convert_for_ui_2",
+                ],
+                cwl_workflows=cwl_workflows_files_multiome,
+                no_provenance=True,
+            )
 
     build_provenance = build_provenance_function(
         cwl_workflows=cwl_workflows_annotations,
@@ -326,9 +348,15 @@ with HMDAG(
         >> t_send_status
         >> t_join
     )
+    (
+        t_maybe_skip_cwl3
+        >> t_move_data
+        >> t_build_provenance
+        >> t_send_status
+        >> t_join
+    )
     t_maybe_keep_cwl1 >> t_set_dataset_error
     t_maybe_keep_cwl2 >> t_set_dataset_error
     t_maybe_keep_cwl3 >> t_set_dataset_error
-    t_maybe_skip_cwl3 >> t_move_data >> t_build_provenance >> t_send_status >> t_join
     t_set_dataset_error >> t_join
     t_join >> t_cleanup_tmpdir
