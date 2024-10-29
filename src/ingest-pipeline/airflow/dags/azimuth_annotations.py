@@ -272,34 +272,31 @@ with HMDAG(
         },
     )
 
-    def send_status_msg(**kwargs):
-        multiome = kwargs["ti"].xcom_pull(task_ids="build_cmd2", key="skip_cwl3")
-        if multiome == 1:
-            return make_send_status_msg_function(
-                dag_file=__file__,
-                retcode_ops=[
-                    "pipeline_exec",
-                    "pipeline_exec_azimuth_annotate",
-                    "move_data",
-                    "convert_for_ui",
-                    "convert_for_ui_2",
-                ],
-                cwl_workflows=cwl_workflows_files_salmon,
-                no_provenance=True,
-            )
-        else:
-            return make_send_status_msg_function(
-                dag_file=__file__,
-                retcode_ops=[
-                    "pipeline_exec",
-                    "pipeline_exec_azimuth_annotate",
-                    "move_data",
-                    "convert_for_ui",
-                    "convert_for_ui_2",
-                ],
-                cwl_workflows=cwl_workflows_files_multiome,
-                no_provenance=True,
-            )
+    send_status_msg_salmon = make_send_status_msg_function(
+        dag_file=__file__,
+        retcode_ops=[
+            "pipeline_exec",
+            "pipeline_exec_azimuth_annotate",
+            "move_data",
+            "convert_for_ui",
+            "convert_for_ui_2",
+        ],
+        cwl_workflows=cwl_workflows_files_salmon,
+        no_provenance=True,
+    )
+
+    send_status_msg_multiome = make_send_status_msg_function(
+        dag_file=__file__,
+        retcode_ops=[
+            "pipeline_exec",
+            "pipeline_exec_azimuth_annotate",
+            "move_data",
+            "convert_for_ui",
+            "convert_for_ui_2",
+        ],
+        cwl_workflows=cwl_workflows_files_multiome,
+        no_provenance=True,
+    )
 
     build_provenance = build_provenance_function(
         cwl_workflows=cwl_workflows_annotations,
@@ -311,9 +308,14 @@ with HMDAG(
         provide_context=True,
     )
 
-    t_send_status = PythonOperator(
-        task_id="send_status_msg",
-        python_callable=send_status_msg,
+    t_send_status_salmon = PythonOperator(
+        task_id="send_status_msg_salmon",
+        python_callable=send_status_msg_salmon,
+        provide_context=True,
+    )
+    t_send_status_multiome = PythonOperator(
+        task_id="send_status_msg_multiome",
+        python_callable=send_status_msg_multiome,
         provide_context=True,
     )
 
@@ -345,14 +347,14 @@ with HMDAG(
         >> t_maybe_keep_cwl3
         >> t_move_data
         >> t_build_provenance
-        >> t_send_status
+        >> t_send_status_salmon
         >> t_join
     )
     (
         t_maybe_skip_cwl3
         >> t_move_data
         >> t_build_provenance
-        >> t_send_status
+        >> t_send_status_multiome
         >> t_join
     )
     t_maybe_keep_cwl1 >> t_set_dataset_error
