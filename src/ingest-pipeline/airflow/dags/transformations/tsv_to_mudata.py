@@ -60,7 +60,7 @@ with HMDAG(
     user_defined_macros={
         "tmp_dir_path": get_tmp_dir_path,
         # TODO: Update this to use a different resource.
-        "preserve_scratch": get_preserve_scratch_resource("pas_ftu_segmentation"),
+        "preserve_scratch": get_preserve_scratch_resource("tsv_to_mudata"),
     },
 ) as dag:
     pipeline_name = "tsv_to_mudata"
