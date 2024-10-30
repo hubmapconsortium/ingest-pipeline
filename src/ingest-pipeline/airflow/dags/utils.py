@@ -977,7 +977,8 @@ def pythonop_get_dataset_state(**kwargs) -> Dict:
         response.raise_for_status()
         ds_rslt = response.json()
         print("ds rslt:")
-        pprint(ds_rslt)
+        # pprint(ds_rslt) temporarily removed due to increasing complexity in the json
+        print(ds_rslt)
     except HTTPError as e:
         print(f"ERROR: {e}")
         if e.response.status_code == codes.unauthorized:
@@ -1281,7 +1282,7 @@ def build_provenance_function(cwl_workflows: List[Path]) -> Callable[..., List]:
         )
         new_dag_provenance.extend(get_git_provenance_list([*cwl_workflows]))
         for data in ds_rslt["ingest_metadata"]["dag_provenance_list"]:
-            if "salmon" in data["origin"]:
+            if "salmon" in data["origin"] or "multiome" in data["origin"]:
                 new_dag_provenance.append(data)
         kwargs["dag_run"].conf["dag_provenance_list"] = new_dag_provenance
         return kwargs["dag_run"].conf["dag_provenance_list"]
