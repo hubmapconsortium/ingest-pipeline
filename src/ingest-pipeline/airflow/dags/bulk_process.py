@@ -175,7 +175,7 @@ with HMDAG(
                 "ingest_id": kwargs["run_id"],
                 "crypt_auth_tok": kwargs["crypt_auth_tok"],
                 "parent_lz_path": lz_path,
-                "parent_submission_id": parent_submission,
+                "parent_submission_id": [parent_submission],
                 "previous_version_uuid": prev_version_uuid,
                 "metadata": metadata,
                 "dag_provenance_list": utils.get_git_provenance_list(__file__),
