@@ -333,13 +333,10 @@ with HMDAG(
         tmpdir = get_tmp_dir_path(run_id)
         print("tmpdir: ", tmpdir)
 
-        def epic_get_parent_uuid(**kwargs):
-            # Get parent dataset uuid, grab first one (for now)
-            parent_dataset_uuids = epic_get_parent_dataset_uuids(**kwargs)
-            return parent_dataset_uuids[0]
+        parent_dataset_uuids = epic_get_parent_dataset_uuids(**kwargs)
 
         parent_dataset = pythonop_get_dataset_state(
-            dataset_uuid_callable=epic_get_parent_uuid, **kwargs
+            dataset_uuid_callable=lambda **kwargs: parent_dataset_uuids[0], **kwargs
         )
 
         data_dir = parent_dataset["local_directory_full_path"]
