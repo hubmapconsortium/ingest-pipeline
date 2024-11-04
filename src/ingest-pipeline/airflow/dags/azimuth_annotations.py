@@ -321,7 +321,8 @@ with HMDAG(
 
     t_log_info = LogInfoOperator(task_id="log_info")
     t_move_data = MoveDataOperator(task_id="move_data", trigger_rule="all_done")
-    t_join = JoinOperator(task_id="join")
+    t_join_salmon = JoinOperator(task_id="join_salmon")
+    t_join_multiome = JoinOperator(task_id="join_multiome")
     t_create_tmpdir = CreateTmpDirOperator(task_id="create_tmpdir")
     t_cleanup_tmpdir = CleanupTmpDirOperator(task_id="cleanup_tmpdir")
     t_set_dataset_processing = SetDatasetProcessingOperator(task_id="set_dataset_processing")
@@ -348,17 +349,18 @@ with HMDAG(
         >> t_move_data
         >> t_build_provenance
         >> t_send_status_salmon
-        >> t_join
+        >> t_join_salmon
     )
     (
         t_maybe_skip_cwl3
         >> t_move_data
         >> t_build_provenance
         >> t_send_status_multiome
-        >> t_join
+        >> t_join_multiome
+        >> t_cleanup_tmpdir
     )
     t_maybe_keep_cwl1 >> t_set_dataset_error
     t_maybe_keep_cwl2 >> t_set_dataset_error
     t_maybe_keep_cwl3 >> t_set_dataset_error
-    t_set_dataset_error >> t_join
-    t_join >> t_cleanup_tmpdir
+    t_set_dataset_error >> t_join_salmon
+    t_join_salmon >> t_cleanup_tmpdir
