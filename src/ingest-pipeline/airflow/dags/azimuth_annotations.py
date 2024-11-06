@@ -337,7 +337,8 @@ with HMDAG(
     )
 
     t_log_info = LogInfoOperator(task_id="log_info")
-    t_move_data = MoveDataOperator(task_id="move_data", trigger_rule="all_done")
+    t_move_data_salmon = MoveDataOperator(task_id="move_data_salmon")
+    t_move_data_multiome = MoveDataOperator(task_id="move_data_multiome")
     t_join_salmon = JoinOperator(task_id="join_salmon")
     t_join_multiome = JoinOperator(task_id="join_multiome")
     t_create_tmpdir = CreateTmpDirOperator(task_id="create_tmpdir")
@@ -363,14 +364,14 @@ with HMDAG(
         >> t_build_cmd4
         >> t_convert_for_ui_2
         >> t_maybe_keep_cwl3
-        >> t_move_data
+        >> t_move_data_salmon
         >> t_build_provenance_salmon
         >> t_send_status_salmon
         >> t_join_salmon
     )
     (
         t_maybe_skip_cwl3
-        >> t_move_data
+        >> t_move_data_multiome
         >> t_build_provenance_multiome
         >> t_send_status_multiome
         >> t_join_multiome
