@@ -236,7 +236,7 @@ with HMDAG(
         python_callable=utils.pythonop_maybe_keep,
         provide_context=True,
         op_kwargs={
-            "next_op": "move_data",
+            "next_op": "move_data_multiome",
             "bail_op": "prepare_cwl3",
             "test_op": "build_cmd2",
             "test_key": "skip_cwl3",
