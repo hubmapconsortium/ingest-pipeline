@@ -271,7 +271,6 @@ with HMDAG(
         task_id="set_dataset_error",
         python_callable=utils.pythonop_set_dataset_state,
         provide_context=True,
-        trigger_rule="all_done",
         op_kwargs={
             "dataset_uuid_callable": get_dataset_uuid,
             "ds_state": "Error",
