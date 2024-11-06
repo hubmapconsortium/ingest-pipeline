@@ -30,6 +30,7 @@ from utils import (
     get_tmp_dir_path,
     HMDAG,
     get_queue_resource,
+    get_threads_resource,
     get_preserve_scratch_resource,
 )
 
@@ -94,6 +95,8 @@ with HMDAG('ometiff_pyramid',
         command = [
             *get_cwltool_base_cmd(tmpdir),
             cwl_workflows[0],
+            "--processes",
+            get_threads_resource(dag.dag_id),
             '--ometiff_directory',
             data_dir,
         ]
