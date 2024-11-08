@@ -91,8 +91,10 @@ with HMDAG(
             "--cytoplasm_markers",
             "In115",
             "--membrane_markers",
-            "La139" "--nucleus_markers",
-            "Ir191" "--input_dir",
+            "La139",
+            "--nucleus_markers",
+            "Ir191",
+            "--input_dir",
             data_dir / "data",
         ]
 
