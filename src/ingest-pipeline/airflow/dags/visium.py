@@ -175,6 +175,8 @@ with HMDAG(
         command = [
             *get_cwltool_base_cmd(tmpdir),
             cwl_workflows[3],
+            "--processes",
+            get_threads_resource(dag.dag_id),
             "--ometiff_directory",
             data_dir / "lab_processed/images/",
             "--output_filename",
@@ -194,6 +196,8 @@ with HMDAG(
         command = [
             *get_cwltool_base_cmd(tmpdir),
             cwl_workflows[4],
+            "--processes",
+            get_threads_resource(dag.dag_id),
             "--input_dir",
             data_dir / "ometiff-pyramids",
         ]
