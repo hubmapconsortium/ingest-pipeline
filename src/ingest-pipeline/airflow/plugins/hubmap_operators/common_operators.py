@@ -45,6 +45,10 @@ class CreateTmpDirOperator(BashOperator):
 class CleanupTmpDirOperator(BashOperator):
     # @apply_defaults
     def __init__(self, **kwargs):
+        if "trigger_rule" in kwargs:
+            trigger_rule = kwargs.pop("trigger_rule")
+        else:
+            trigger_rule = 'all_success'
         super().__init__(
             bash_command="""
             tmp_dir="{{tmp_dir_path(run_id)}}" ; \
@@ -60,7 +64,7 @@ class CleanupTmpDirOperator(BashOperator):
             fi
             """,
             env={'rmscratch': '{{"true" if preserve_scratch is defined and not preserve_scratch else "false"}}'},
-            trigger_rule='all_success',
+            trigger_rule=trigger_rule,
             **kwargs
             )
 
