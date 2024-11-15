@@ -23,6 +23,7 @@ from utils import (
     get_preserve_scratch_resource,
     pythonop_get_dataset_state,
     get_dataset_type_organ_based,
+    get_threads_resource,
 )
 from hubmap_operators.common_operators import (
     CleanupTmpDirOperator,
@@ -141,6 +142,8 @@ with HMDAG(
         command = [
             *get_cwltool_base_cmd(tmpdir),
             cwl_workflows["ome_tiff_pyramid"],
+            "--processes",
+            get_threads_resource(dag.dag_id),
             "--ometiff_directory",
             ".",
         ]
@@ -189,6 +192,8 @@ with HMDAG(
         command = [
             *get_cwltool_base_cmd(tmpdir),
             cwl_workflows["ome_tiff_pyramid"],
+            "--processes",
+            get_threads_resource(dag.dag_id),
             "--ometiff_directory",
             data_dir,
         ]
