@@ -196,8 +196,6 @@ with HMDAG(
         command = [
             *get_cwltool_base_cmd(tmpdir),
             cwl_workflows[4],
-            "--processes",
-            get_threads_resource(dag.dag_id),
             "--input_dir",
             data_dir / "ometiff-pyramids",
         ]
