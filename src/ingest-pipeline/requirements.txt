@@ -32,7 +32,7 @@ sqlalchemy==1.4.15
 xmlschema==1.9.2
 WTForms==2.3.3
 hubmap_sdk==1.0.2
-pandas==1.1.5
+pandas==1.2.0
 authlib==0.15.6
 google-api-python-client==2.52.0
 google-auth-httplib2==0.1.0
