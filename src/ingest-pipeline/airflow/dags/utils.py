@@ -91,6 +91,7 @@ GIT_CHECKOUT_COMMAND = [
 GIT_LOG_COMMAND = [GIT, "log", "-n1", "--oneline"]
 GIT_ORIGIN_COMMAND = [GIT, "config", "--get", "remote.origin.url"]
 GIT_ROOT_COMMAND = [GIT, "rev-parse", "--show-toplevel"]
+GIT_VERSION_TAG_COMMAND = [GIT, "tag", "--points-at", "HEAD"]
 SHA1SUM_COMMAND = ["sha1sum", "{fname}"]
 FILE_TYPE_MATCHERS = [
     (r"^.*\.csv$", "csv"),  # format is (regex, type)
@@ -358,11 +359,11 @@ def get_dataname_previous_version(**kwargs) -> str:
 
 
 def get_assay_previous_version(**kwargs) -> tuple:
-    """ Returns information based on previous run to indicate how the re-annotation should process:
-        position 1: Assay indicator for pipeline decision
-        position 2: Matrix file
-        position 3: Secondary analysis file
-        position 4: pipeline position in workflow array"""
+    """Returns information based on previous run to indicate how the re-annotation should process:
+    position 1: Assay indicator for pipeline decision
+    position 2: Matrix file
+    position 3: Secondary analysis file
+    position 4: pipeline position in workflow array"""
     dataset_type = get_dataname_previous_version(**kwargs).split("__")[0]
     if dataset_type == "salmon_rnaseq_10x":
         return "10x_v3", "expr.h5ad", "secondary_analysis.h5ad", 1
@@ -554,29 +555,75 @@ def get_git_provenance_list(file_list: Iterable[str]) -> List[Mapping[str, Any]]
     """
     Given a list of file paths, return a list of dicts of the form:
 
-      [{'name':<file base name>, 'hash':<file commit hash>, 'origin':<file git origin>},...]
+      [
+      {'name':<file base name>, 'hash':<file commit hash>, 'origin':<file git origin>,
+      'version': <file git version>, 'input_parameters': <list of input parameters>,
+      'documentation': <optional file documentation url>
+      },...]
     """
     if isinstance(file_list, str):  # sadly, a str is an Iterable[str]
         file_list = [file_list]
-    name_l = file_list
-    hash_l = [get_git_commits(realpath(fname)) for fname in file_list]
-    origin_l = [get_git_origins(realpath(fname)) for fname in file_list]
-    root_l = get_git_root_paths(file_list)
-    rel_name_l = [relpath(name, root) for name, root in zip(name_l, root_l)]
-    # Make sure each repo appears only once
-    repo_d = {
-        origin: {"name": name, "hash": hashed}
-        for origin, name, hashed in zip(origin_l, rel_name_l, hash_l)
-    }
-    rslt = []
-    for origin in repo_d:
-        dct = repo_d[origin].copy()
-        dct["origin"] = origin
-        if not dct["name"].endswith("cwl"):
-            del dct["name"]  # include explicit names for workflows only
-        rslt.append(dct)
-    # pprint(rslt)
-    return rslt
+
+    result = []
+    for file in file_list:
+        # If file is string, convert to dict so that get calls do not fail
+        if isinstance(file, str):
+            file = {"workflow_path": file}
+
+        fname = file["workflow_path"]
+
+        # If not cwl file, ignore
+        if not fname.endswith("cwl"):
+            continue
+
+        root = get_git_root_paths(fname)
+        result.append(
+            {
+                "name": relpath(fname, root),
+                "hash": get_git_commits(realpath(fname)),
+                "origin": get_git_origins(realpath(fname)),
+                "version": get_pipeline_version(realpath(fname)),
+                "input_parameters": file.get("input_parameters", []),
+                "documentation_url": file.get("documentation_url"),
+            }
+        )
+
+    return result
+
+
+def get_pipeline_version(path: str) -> str:
+    """
+    Given a cwl file path, return the pipeline version
+    First try to get the GIT version tag
+    Then try to get the docker container version tag in the CWL file
+    Otherwise return empty string
+    """
+    pipeline_version = ""
+
+    path = Path(path)
+    if path.suffix != ".cwl":
+        return pipeline_version
+
+    try:
+        parent_dir = path.parent
+        pipeline_version = check_output(GIT_VERSION_TAG_COMMAND, cwd=parent_dir)
+        pipeline_version = pipeline_version.strip().decode("utf-8")
+    except CalledProcessError as e:
+        # Git will fail if this is not running from a git repo
+        print(e.output)
+
+    # If no tag found, check the cwl file
+    if pipeline_version == "":
+        with open(path, "r") as file:
+            content = file.read()
+
+        match = re.search(r"dockerPull:\s*([\w./\-:]+)", content)
+        if match:
+            docker_info = match.group(1)
+            if ":" in docker_info:
+                _, pipeline_version = match.group(1).rsplit(":", 1)
+
+    return pipeline_version
 
 
 def _get_file_type(path: Path) -> str:
@@ -1293,7 +1340,7 @@ def build_provenance_function(cwl_workflows: List[Path]) -> Callable[..., List]:
 def make_send_status_msg_function(
     dag_file: str,
     retcode_ops: List[str],
-    cwl_workflows: List[Path],
+    cwl_workflows: Union[List[Path], List[Dict]],
     uuid_src_task_id: str = "send_create_dataset",
     dataset_uuid_fun: Optional[Callable[..., str]] = None,
     dataset_lz_path_fun: Optional[Callable[..., str]] = None,
@@ -1301,6 +1348,8 @@ def make_send_status_msg_function(
     include_file_metadata: Optional[bool] = True,
     no_provenance: Optional[bool] = False,
     ivt_path_fun: Optional[Callable[..., Path]] = None,
+    workflow_description: Optional[str] = None,
+    workflow_version: Optional[str] = None,
 ) -> Callable[..., bool]:
     """
     The function which is generated by this function will return a boolean,
@@ -1399,6 +1448,7 @@ def make_send_status_msg_function(
                     if "dag_provenance_list" in kwargs["dag_run"].conf
                     else []
                 )
+
                 dag_prv.extend(get_git_provenance_list(files_for_provenance))
                 md["dag_provenance_list"] = dag_prv
 
@@ -1447,6 +1497,8 @@ def make_send_status_msg_function(
                 antibodies = md["metadata"].pop("antibodies", [])
                 contributors = md["metadata"].pop("contributors", [])
                 md["calculated_metadata"] = md["metadata"].pop("calculated_metadata", {})
+                md["workflow_version"] = workflow_version
+                md["workflow_description"] = workflow_description
                 md["metadata"] = md["metadata"].pop("metadata", [])
                 for contrib in contributors:
                     if "is_contact" in contrib:

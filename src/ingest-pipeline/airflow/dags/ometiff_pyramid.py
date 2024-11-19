@@ -64,13 +64,28 @@ with HMDAG(
 ) as dag:
     # does the name need to match the filename?
     pipeline_name = "ometiff_pyramid"
+    workflow_version = "1.0.0"
+    workflow_description = ""
 
-    cwl_workflows = get_absolute_workflows(
-        # this workflow creates the image pyramid
-        Path("ome-tiff-pyramid", "pipeline.cwl"),
-        # this workflow computes the offsets
-        Path("portal-containers", "ome-tiff-offsets.cwl"),
-    )
+    cwl_workflows = [
+        {
+            "workflow_path": get_absolute_workflows(Path("ome-tiff-pyramid", "pipeline.cwl"))[0],
+            "input_parameters": [
+                {"parameter_name": "--processes", "value": ""},
+                {"parameter_name": "--ometiff_directory", "value": ""},
+            ],
+            "documentation_url": "",
+        },
+        {
+            "workflow_path": get_absolute_workflows(
+                Path("portal-containers", "ome-tiff-offsets.cwl")
+            )[0],
+            "input_parameters": [
+                {"parameter_name": "--input_directory", "value": "./ometiff-pyramids"},
+            ],
+            "documentation_url": "",
+        },
+    ]
 
     def build_dataset_name(**kwargs):
         return inner_build_dataset_name(dag.dag_id, pipeline_name, **kwargs)
@@ -90,15 +105,15 @@ with HMDAG(
         data_dir = get_parent_data_dir(**kwargs)
         print("data_dir: ", data_dir)
 
+        workflow = cwl_workflows[0]
+        workflow["input_parameters"][0]["value"] = get_threads_resource(dag.dag_id)
+        workflow["input_parameters"][1]["value"] = data_dir
+
         # this is the call to the CWL
-        command = [
-            *get_cwltool_base_cmd(tmpdir),
-            cwl_workflows[0],
-            "--processes",
-            get_threads_resource(dag.dag_id),
-            "--ometiff_directory",
-            data_dir,
-        ]
+        command = [*get_cwltool_base_cmd(tmpdir), workflow["workflow_path"]]
+        for param in workflow["input_parameters"]:
+            command.append(param["parameter_name"])
+            command.append(param["value"])
 
         return join_quote_command_str(command)
 
@@ -130,13 +145,17 @@ with HMDAG(
         tmpdir = get_tmp_dir_path(run_id)
         print("tmpdir: ", tmpdir)
 
+        workflow = cwl_workflows[1]
+
         # this is the call to the CWL
         command = [
             *get_cwltool_base_cmd(tmpdir),
-            cwl_workflows[1],
-            "--input_directory",
-            "./ometiff-pyramids",
+            workflow["workflow_path"],
         ]
+
+        for param in workflow["input_parameters"]:
+            command.append(param["parameter_name"])
+            command.append(param["value"])
 
         return join_quote_command_str(command)
 
@@ -210,6 +229,8 @@ with HMDAG(
         dag_file=__file__,
         retcode_ops=["pipeline_exec_cwl1", "pipeline_exec_cwl2", "move_data"],
         cwl_workflows=cwl_workflows,
+        workflow_description=workflow_description,
+        workflow_version=workflow_version,
     )
     t_send_status = PythonOperator(
         task_id="send_status_msg",
