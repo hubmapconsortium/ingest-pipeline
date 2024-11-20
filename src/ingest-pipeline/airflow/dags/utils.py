@@ -262,10 +262,17 @@ def find_pipeline_manifests(cwl_files: Iterable[Path]) -> List[Path]:
         if isinstance(cwl_file, dict):
             cwl_file = cwl_file["workflow_path"]
 
+        if isinstance(cwl_file, str):
+            cwl_file = Path(cwl_file)
+
         manifest_file = cwl_file.with_name(f"{cwl_file.stem}-manifest.json")
         if manifest_file.is_file():
             manifests.append(manifest_file)
     return manifests
+
+
+def get_absolute_workflow(workflow: Path) -> Path:
+    return PIPELINE_BASE_DIR / workflow
 
 
 def get_absolute_workflows(*workflows: Path) -> List[Path]:
@@ -276,7 +283,7 @@ def get_absolute_workflows(*workflows: Path) -> List[Path]:
       already absolute, they are returned unchanged; if relative,
       they are anchored to `PIPELINE_BASE_DIR`
     """
-    return [PIPELINE_BASE_DIR / workflow for workflow in workflows]
+    return [get_absolute_workflow(workflow) for workflow in workflows]
 
 
 def get_named_absolute_workflows(**workflow_kwargs: Path) -> Dict[str, Path]:
@@ -573,7 +580,7 @@ def get_git_provenance_list(file_list: Iterable[str]) -> List[Mapping[str, Any]]
         if isinstance(file, str):
             file = {"workflow_path": file}
 
-        fname = str(file["workflow_path"])
+        fname = file["workflow_path"]
 
         # If not cwl file, ignore
         if not fname.endswith("cwl"):
@@ -1343,7 +1350,7 @@ def build_provenance_function(cwl_workflows: List[Path]) -> Callable[..., List]:
 def make_send_status_msg_function(
     dag_file: str,
     retcode_ops: List[str],
-    cwl_workflows: Union[List[Path], List[Dict]],
+    cwl_workflows: Union[List[Path], Callable[..., List[Dict]]],
     uuid_src_task_id: str = "send_create_dataset",
     dataset_uuid_fun: Optional[Callable[..., str]] = None,
     dataset_lz_path_fun: Optional[Callable[..., str]] = None,
@@ -1428,14 +1435,17 @@ def make_send_status_msg_function(
         status = None
         extra_fields = {}
 
+        inner_cwl_workflows = cwl_workflows(**kwargs) if callable(cwl_workflows) else cwl_workflows
+
         ds_rslt = pythonop_get_dataset_state(
             dataset_uuid_callable=lambda **kwargs: dataset_uuid, **kwargs
         )
         if success:
+
             md = {}
             files_for_provenance = [
                 dag_file,
-                *cwl_workflows,
+                *inner_cwl_workflows,
             ]
             if ivt_path_fun:
                 files_for_provenance.append(ivt_path_fun(**kwargs))
@@ -1472,7 +1482,7 @@ def make_send_status_msg_function(
                         thumbnail_file_abs_path = []
                     #########################################################################
 
-            manifest_files = find_pipeline_manifests(cwl_workflows)
+            manifest_files = find_pipeline_manifests(inner_cwl_workflows)
             if include_file_metadata and ds_dir is not None and not ds_dir == "":
                 md.update(
                     get_file_metadata_dict(

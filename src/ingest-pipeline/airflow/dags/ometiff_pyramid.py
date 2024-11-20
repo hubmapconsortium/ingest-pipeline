@@ -17,7 +17,7 @@ from hubmap_operators.common_operators import (
 
 import utils
 from utils import (
-    get_absolute_workflows,
+    get_absolute_workflow,
     get_cwltool_base_cmd,
     get_dataset_uuid,
     get_parent_dataset_uuids_list,
@@ -67,9 +67,10 @@ with HMDAG(
     workflow_version = "1.0.0"
     workflow_description = ""
 
+    # Because PosixPath objects are non JSON-serializable, we have to cast them as str
     cwl_workflows = [
         {
-            "workflow_path": get_absolute_workflows(Path("ome-tiff-pyramid", "pipeline.cwl"))[0],
+            "workflow_path": str(get_absolute_workflow(Path("ome-tiff-pyramid", "pipeline.cwl"))),
             "input_parameters": [
                 {"parameter_name": "--processes", "value": ""},
                 {"parameter_name": "--ometiff_directory", "value": ""},
@@ -77,9 +78,9 @@ with HMDAG(
             "documentation_url": "",
         },
         {
-            "workflow_path": get_absolute_workflows(
-                Path("portal-containers", "ome-tiff-offsets.cwl")
-            )[0],
+            "workflow_path": str(
+                get_absolute_workflow(Path("portal-containers", "ome-tiff-offsets.cwl"))
+            ),
             "input_parameters": [
                 {"parameter_name": "--input_directory", "value": "./ometiff-pyramids"},
             ],
@@ -106,15 +107,17 @@ with HMDAG(
         print("data_dir: ", data_dir)
 
         workflow = cwl_workflows[0]
-        cwl_workflows[0]["input_parameters"][0]["value"] = get_threads_resource(dag.dag_id)
-        cwl_workflows[0]["input_parameters"][1]["value"] = data_dir
+        workflow["input_parameters"][0]["value"] = get_threads_resource(dag.dag_id)
+        workflow["input_parameters"][1]["value"] = str(data_dir)
 
         # this is the call to the CWL
-        command = [*get_cwltool_base_cmd(tmpdir), workflow["workflow_path"]]
+        command = [*get_cwltool_base_cmd(tmpdir), Path(workflow["workflow_path"])]
         for param in workflow["input_parameters"]:
             command.append(param["parameter_name"])
             command.append(param["value"])
 
+        print(cwl_workflows)
+        kwargs["ti"].xcom_push(key="cwl_workflows", value=cwl_workflows)
         return join_quote_command_str(command)
 
     t_build_cmd1 = PythonOperator(
@@ -145,18 +148,21 @@ with HMDAG(
         tmpdir = get_tmp_dir_path(run_id)
         print("tmpdir: ", tmpdir)
 
-        workflow = cwl_workflows[1]
+        workflows = kwargs["ti"].xcom_pull(key="cwl_workflows")
+        workflow = workflows[1]
 
         # this is the call to the CWL
         command = [
             *get_cwltool_base_cmd(tmpdir),
-            workflow["workflow_path"],
+            Path(workflow["workflow_path"]),
         ]
 
         for param in workflow["input_parameters"]:
             command.append(param["parameter_name"])
             command.append(param["value"])
 
+        print(workflows)
+        kwargs["ti"].xcom_push(key="cwl_workflows", value=workflows)
         return join_quote_command_str(command)
 
     t_build_cmd2 = PythonOperator(
@@ -228,7 +234,7 @@ with HMDAG(
     send_status_msg = make_send_status_msg_function(
         dag_file=__file__,
         retcode_ops=["pipeline_exec_cwl1", "pipeline_exec_cwl2", "move_data"],
-        cwl_workflows=cwl_workflows,
+        cwl_workflows=lambda **kwargs: kwargs["ti"].xcom_pull(key="cwl_workflows"),
         workflow_description=workflow_description,
         workflow_version=workflow_version,
     )
