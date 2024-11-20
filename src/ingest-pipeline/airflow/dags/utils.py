@@ -259,6 +259,9 @@ def find_pipeline_manifests(cwl_files: Iterable[Path]) -> List[Path]:
     """
     manifests = []
     for cwl_file in cwl_files:
+        if isinstance(cwl_file, dict):
+            cwl_file = cwl_file["workflow_path"]
+
         manifest_file = cwl_file.with_name(f"{cwl_file.stem}-manifest.json")
         if manifest_file.is_file():
             manifests.append(manifest_file)
@@ -570,7 +573,7 @@ def get_git_provenance_list(file_list: Iterable[str]) -> List[Mapping[str, Any]]
         if isinstance(file, str):
             file = {"workflow_path": file}
 
-        fname = file["workflow_path"]
+        fname = str(file["workflow_path"])
 
         # If not cwl file, ignore
         if not fname.endswith("cwl"):

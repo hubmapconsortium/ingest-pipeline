@@ -106,8 +106,8 @@ with HMDAG(
         print("data_dir: ", data_dir)
 
         workflow = cwl_workflows[0]
-        workflow["input_parameters"][0]["value"] = get_threads_resource(dag.dag_id)
-        workflow["input_parameters"][1]["value"] = data_dir
+        cwl_workflows[0]["input_parameters"][0]["value"] = get_threads_resource(dag.dag_id)
+        cwl_workflows[0]["input_parameters"][1]["value"] = data_dir
 
         # this is the call to the CWL
         command = [*get_cwltool_base_cmd(tmpdir), workflow["workflow_path"]]
