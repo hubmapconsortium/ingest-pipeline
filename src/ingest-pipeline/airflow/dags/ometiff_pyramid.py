@@ -116,7 +116,6 @@ with HMDAG(
             command.append(param["parameter_name"])
             command.append(param["value"])
 
-        print(cwl_workflows)
         kwargs["ti"].xcom_push(key="cwl_workflows", value=cwl_workflows)
         return join_quote_command_str(command)
 
@@ -161,7 +160,6 @@ with HMDAG(
             command.append(param["parameter_name"])
             command.append(param["value"])
 
-        print(workflows)
         kwargs["ti"].xcom_push(key="cwl_workflows", value=workflows)
         return join_quote_command_str(command)
 
