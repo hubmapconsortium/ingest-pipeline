@@ -625,13 +625,11 @@ def get_pipeline_version(path: str) -> str:
     # If no tag found, check the cwl file
     if pipeline_version == "":
         with open(path, "r") as file:
-            content = file.read()
+            content = yaml.safe_load(file)
 
-        match = re.search(r"dockerPull:\s*([\w./\-:]+)", content)
-        if match:
-            docker_info = match.group(1)
-            if ":" in docker_info:
-                _, pipeline_version = match.group(1).rsplit(":", 1)
+        if docker_info := content.get("hints", {}).get("DockerRequirements", {}).get("dockerPull"):
+            if isinstance(docker_info, str):
+                _, pipeline_version = docker_info.split(":")
 
     return pipeline_version
 
