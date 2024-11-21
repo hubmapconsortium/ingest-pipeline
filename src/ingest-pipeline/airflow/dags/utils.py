@@ -1323,6 +1323,7 @@ def get_cwltool_base_cmd(tmpdir: Path) -> List[str]:
 
 def build_provenance_function(cwl_workflows: List[Path]) -> Callable[..., List]:
     def build_provenance(**kwargs) -> List:
+        # TODO: Modify
         dataset_uuid = get_previous_revision_uuid(**kwargs)
         if dataset_uuid is None:
             dataset_uuid = kwargs["dag_run"].conf.get("parent_submission_id", [None])[0]
@@ -1443,6 +1444,12 @@ def make_send_status_msg_function(
         if success:
 
             md = {}
+
+            if workflow_version:
+                md["workflow_version"] = workflow_version
+            if workflow_description:
+                md["workflow_description"] = workflow_description
+
             files_for_provenance = [
                 dag_file,
                 *inner_cwl_workflows,
@@ -1450,6 +1457,7 @@ def make_send_status_msg_function(
             if ivt_path_fun:
                 files_for_provenance.append(ivt_path_fun(**kwargs))
             if no_provenance:
+                # This is used for the Azimuth runs
                 md["dag_provenance_list"] = kwargs["dag_run"].conf["dag_provenance_list"].copy()
             elif "dag_provenance" in kwargs["dag_run"].conf:
                 md["dag_provenance"] = kwargs["dag_run"].conf["dag_provenance"].copy()
@@ -1510,8 +1518,6 @@ def make_send_status_msg_function(
                 antibodies = md["metadata"].pop("antibodies", [])
                 contributors = md["metadata"].pop("contributors", [])
                 md["calculated_metadata"] = md["metadata"].pop("calculated_metadata", {})
-                md["workflow_version"] = workflow_version
-                md["workflow_description"] = workflow_description
                 md["metadata"] = md["metadata"].pop("metadata", [])
                 for contrib in contributors:
                     if "is_contact" in contrib:
