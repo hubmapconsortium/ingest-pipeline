@@ -165,7 +165,7 @@ with HMDAG(
         tmpdir = get_tmp_dir_path(run_id)
         print("tmpdir: ", tmpdir)
 
-        workflows = kwargs["ti"].xcom_pull(key="cwl_workflows")
+        workflows = kwargs["ti"].xcom_pull(key="cwl_workflows", task_ids="build_cwl_segmentation")
         workflow = workflows[1]
         workflow["input_parameters"][0]["value"] = get_threads_resource(dag.dag_id)
 
@@ -217,7 +217,9 @@ with HMDAG(
         data_dir = get_parent_data_dir(**kwargs)
         print("data_dir: ", data_dir)
 
-        workflows = kwargs["ti"].xcom_pull(key="cwl_workflows")
+        workflows = kwargs["ti"].xcom_pull(
+            key="cwl_workflows", task_ids="build_cwl_ome_tiff_pyramid_processed"
+        )
         workflow = workflows[2]
         workflow["input_parameters"][0]["value"] = get_threads_resource(dag.dag_id)
         workflow["input_parameters"][1]["value"] = str(data_dir)
@@ -270,7 +272,9 @@ with HMDAG(
         data_dir = tmpdir / "cwl_out"
         print("data_dir: ", data_dir)
 
-        workflows = kwargs["ti"].xcom_pull(key="cwl_workflows")
+        workflows = kwargs["ti"].xcom_pull(
+            key="cwl_workflows", task_ids="build_cwltool_cwl_ome_tiff_pyramid_raw"
+        )
         workflow = workflows[3]
         workflow["input_parameters"][0]["value"] = str(data_dir / "ometiff-pyramids")
 
