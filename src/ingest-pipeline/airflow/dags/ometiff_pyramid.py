@@ -147,7 +147,7 @@ with HMDAG(
         tmpdir = get_tmp_dir_path(run_id)
         print("tmpdir: ", tmpdir)
 
-        workflows = kwargs["ti"].xcom_pull(key="cwl_workflows")
+        workflows = kwargs["ti"].xcom_pull(key="cwl_workflows", task_ids="build_cmd1")
         workflow = workflows[1]
 
         # this is the call to the CWL
