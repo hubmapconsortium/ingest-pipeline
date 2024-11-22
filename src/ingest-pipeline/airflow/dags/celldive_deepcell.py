@@ -73,7 +73,7 @@ with HMDAG(
         {
             "workflow_path": str(get_absolute_workflow(Path("sprm", "pipeline.cwl"))),
             "input_parameters": [
-                {"parameter_name": "--enabled_manhole", "value": ""},
+                {"parameter_name": "--enable_manhole", "value": ""},
                 {"parameter_name": "--options_present=celldive", "value": ""},
                 {"parameter_name": "--image_dir", "value": ""},
                 {"parameter_name": "--processes", "value": ""},
@@ -127,14 +127,6 @@ with HMDAG(
             "documentation_url": "",
         },
     ]
-
-    segmentation = (Path(pipeline_name, "pipeline.cwl"),)
-    sprm = (Path("sprm", "pipeline.cwl"),)
-    create_vis_symlink_archive = (Path("create-vis-symlink-archive", "pipeline.cwl"),)
-    ome_tiff_pyramid = (Path("ome-tiff-pyramid", "pipeline.cwl"),)
-    ome_tiff_offsets = (Path("portal-containers", "ome-tiff-offsets.cwl"),)
-    sprm_to_json = (Path("portal-containers", "sprm-to-json.cwl"),)
-    sprm_to_anndata = (Path("portal-containers", "sprm-to-anndata.cwl"),)
 
     def build_dataset_name(**kwargs):
         return inner_build_dataset_name(dag.dag_id, pipeline_name, **kwargs)
