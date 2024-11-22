@@ -18,7 +18,6 @@ from hubmap_operators.common_operators import (
 import utils
 from utils import (
     get_absolute_workflow,
-    get_cwltool_base_cmd,
     get_dataset_uuid,
     get_parent_dataset_uuids_list,
     get_parent_data_dir,
@@ -109,10 +108,10 @@ with HMDAG(
 
         # [--processes, --ometiff_directory]
         input_param_vals = [get_threads_resource(dag.dag_id), str(data_dir)]
-
         command = get_cwl_cmd_from_workflows(
             cwl_workflows, 0, input_param_vals, tmpdir, kwargs["ti"]
         )
+
         return join_quote_command_str(command)
 
     t_build_cmd1 = PythonOperator(
@@ -126,7 +125,6 @@ with HMDAG(
         bash_command=""" \
         tmp_dir={{tmp_dir_path(run_id)}} ; \
         mkdir -p ${tmp_dir}/cwl_out ; \
-        cd ${tmp_dir}/cwl_out ; \
         {{ti.xcom_pull(task_ids='build_cmd1')}} > $tmp_dir/session.log 2>&1 ; \
         echo $?
         """,
@@ -144,7 +142,7 @@ with HMDAG(
         print("tmpdir: ", tmpdir)
 
         workflows = kwargs["ti"].xcom_pull(key="cwl_workflows", task_ids="build_cmd1")
-
+        # ["--input_directory"]
         command = get_cwl_cmd_from_workflows(workflows, 1, [], tmpdir, kwargs["ti"])
 
         return join_quote_command_str(command)
@@ -218,7 +216,9 @@ with HMDAG(
     send_status_msg = make_send_status_msg_function(
         dag_file=__file__,
         retcode_ops=["pipeline_exec_cwl1", "pipeline_exec_cwl2", "move_data"],
-        cwl_workflows=lambda **kwargs: kwargs["ti"].xcom_pull(key="cwl_workflows"),
+        cwl_workflows=lambda **kwargs: kwargs["ti"].xcom_pull(
+            key="cwl_workflows", task_ids="build_cmd2"
+        ),
         workflow_description=workflow_description,
         workflow_version=workflow_version,
     )
