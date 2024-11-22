@@ -272,7 +272,12 @@ def find_pipeline_manifests(cwl_files: Iterable[Path]) -> List[Path]:
 
 
 def get_cwl_cmd_from_workflows(
-    workflows: List[Dict], workflow_index: int, input_param_vals: List, tmp_dir: Path, ti
+    workflows: List[Dict],
+    workflow_index: int,
+    input_param_vals: List,
+    tmp_dir: Path,
+    ti,
+    cwl_param_vals: Optional[List[Dict]] = None,
 ) -> List:
     """
     :param workflows: Iterable of workflow dictionaries
@@ -287,14 +292,28 @@ def get_cwl_cmd_from_workflows(
 
     # Update the input parameters based on the list of input values
     for i, param_val in enumerate(input_param_vals):
-        workflow["input_parameters"][i]["value"] = param_val
+        if param_val:
+            workflow["input_parameters"][i]["value"] = param_val
 
     # Get the cwl invocation
-    command = [*get_cwltool_base_cmd(tmp_dir), Path(workflow["workflow_path"])]
+    command = [*get_cwltool_base_cmd(tmp_dir), "--outdir", str(tmp_dir / "cwl_out")]
+
+    for param in cwl_param_vals if cwl_param_vals is not None else []:
+        if isinstance(param["value"], list):
+            for param_val in param["value"]:
+                command.extend([param["parameter_name"], param_val])
+        else:
+            command.extend([param["parameter_name"], param["value"]])
+
+    command.append(Path(workflow["workflow_path"]))
 
     # Extend the command with the input parameters
     for param in workflow["input_parameters"]:
-        command.extend([param["parameter_name"], param["value"]])
+        if isinstance(param["value"], list):
+            for param_val in param["value"]:
+                command.extend([param["parameter_name"], param_val])
+        else:
+            command.extend([param["parameter_name"], param["value"]])
 
     # Update the workflows list with the new input parameter values
     ti.xcom_push(key="cwl_workflows", value=workflows)
