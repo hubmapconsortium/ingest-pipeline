@@ -290,12 +290,11 @@ def get_cwl_cmd_from_workflows(
         workflow["input_parameters"][i]["value"] = param_val
 
     # Get the cwl invocation
-    command = [*get_cwltool_base_cmd(tmp_dir), Path(workflow["input_parameters"])]
+    command = [*get_cwltool_base_cmd(tmp_dir), Path(workflow["workflow_path"])]
 
     # Extend the command with the input parameters
-    command.extend(
-        [param["parameter_name"], param["values"]] for param in workflow["input_parameters"]
-    )
+    for param in workflow["input_parameters"]:
+        command.extend([param["parameter_name"], param["value"]])
 
     # Update the workflows list with the new input parameter values
     ti.xcom_push(key="cwl_workflows", value=workflows)
@@ -658,7 +657,7 @@ def get_pipeline_version(path: str) -> str:
         with open(path, "r") as file:
             content = yaml.safe_load(file)
 
-        if docker_info := content.get("hints", {}).get("DockerRequirements", {}).get("dockerPull"):
+        if docker_info := content.get("hints", {}).get("DockerRequirement", {}).get("dockerPull"):
             if isinstance(docker_info, str):
                 _, pipeline_version = docker_info.split(":")
 
