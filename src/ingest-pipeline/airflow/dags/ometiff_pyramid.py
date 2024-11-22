@@ -32,6 +32,7 @@ from utils import (
     get_queue_resource,
     get_threads_resource,
     get_preserve_scratch_resource,
+    get_cwl_cmd_from_workflows,
 )
 
 # after running this DAG you should have on disk
@@ -106,17 +107,12 @@ with HMDAG(
         data_dir = get_parent_data_dir(**kwargs)
         print("data_dir: ", data_dir)
 
-        workflow = cwl_workflows[0]
-        workflow["input_parameters"][0]["value"] = get_threads_resource(dag.dag_id)
-        workflow["input_parameters"][1]["value"] = str(data_dir)
+        # [--processes, --ometiff_directory]
+        input_param_vals = [get_threads_resource(dag.dag_id), str(data_dir)]
 
-        # this is the call to the CWL
-        command = [*get_cwltool_base_cmd(tmpdir), Path(workflow["workflow_path"])]
-        for param in workflow["input_parameters"]:
-            command.append(param["parameter_name"])
-            command.append(param["value"])
-
-        kwargs["ti"].xcom_push(key="cwl_workflows", value=cwl_workflows)
+        command = get_cwl_cmd_from_workflows(
+            cwl_workflows, 0, input_param_vals, tmpdir, kwargs["ti"]
+        )
         return join_quote_command_str(command)
 
     t_build_cmd1 = PythonOperator(
@@ -148,19 +144,9 @@ with HMDAG(
         print("tmpdir: ", tmpdir)
 
         workflows = kwargs["ti"].xcom_pull(key="cwl_workflows", task_ids="build_cmd1")
-        workflow = workflows[1]
 
-        # this is the call to the CWL
-        command = [
-            *get_cwltool_base_cmd(tmpdir),
-            Path(workflow["workflow_path"]),
-        ]
+        command = get_cwl_cmd_from_workflows(workflows, 1, [], tmpdir, kwargs["ti"])
 
-        for param in workflow["input_parameters"]:
-            command.append(param["parameter_name"])
-            command.append(param["value"])
-
-        kwargs["ti"].xcom_push(key="cwl_workflows", value=workflows)
         return join_quote_command_str(command)
 
     t_build_cmd2 = PythonOperator(

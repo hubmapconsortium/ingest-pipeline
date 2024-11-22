@@ -24,6 +24,7 @@ from utils import (
     pythonop_get_dataset_state,
     get_dataset_type_organ_based,
     get_threads_resource,
+    get_cwl_cmd_from_workflows,
 )
 from hubmap_operators.common_operators import (
     CleanupTmpDirOperator,
@@ -116,16 +117,12 @@ with HMDAG(
         organ_list = list(set(ds_rslt["organs"]))
         organ_code = organ_list[0] if len(organ_list) == 1 else "multi"
 
-        workflow = cwl_workflows[0]
-        workflow["input_parameters"][0]["value"] = str(data_dir)
-        workflow["input_parameters"][1]["value"] = organ_code
+        # [--data_directory, --tissue_type]
+        input_param_vals = [str(data_dir), organ_code]
 
-        command = [*get_cwltool_base_cmd(tmpdir), Path(workflow["workflow_path"])]
-        for param in workflow["input_parameters"]:
-            command.append(param["parameter_name"])
-            command.append(param["value"])
-
-        kwargs["ti"].xcom_push(key="cwl_workflows", value=cwl_workflows)
+        command = get_cwl_cmd_from_workflows(
+            cwl_workflows, 0, input_param_vals, tmpdir, kwargs["ti"]
+        )
         return join_quote_command_str(command)
 
     t_build_cwl_segmentation = PythonOperator(
@@ -166,16 +163,11 @@ with HMDAG(
         print("tmpdir: ", tmpdir)
 
         workflows = kwargs["ti"].xcom_pull(key="cwl_workflows", task_ids="build_cwl_segmentation")
-        workflow = workflows[1]
-        workflow["input_parameters"][0]["value"] = get_threads_resource(dag.dag_id)
 
-        # this is the call to the CWL
-        command = [*get_cwltool_base_cmd(tmpdir), Path(workflow["workflow_path"])]
-        for param in workflow["input_parameters"]:
-            command.append(param["parameter_name"])
-            command.append(param["value"])
+        # [--processes]
+        input_param_vals = [get_threads_resource(dag.dag_id)]
 
-        kwargs["ti"].xcom_push(key="cwl_workflows", value=workflows)
+        command = get_cwl_cmd_from_workflows(workflows, 1, input_param_vals, tmpdir, kwargs["ti"])
         return join_quote_command_str(command)
 
     t_build_cmd_ome_tiff_pyramid_processed = PythonOperator(
@@ -220,17 +212,11 @@ with HMDAG(
         workflows = kwargs["ti"].xcom_pull(
             key="cwl_workflows", task_ids="build_cwl_ome_tiff_pyramid_processed"
         )
-        workflow = workflows[2]
-        workflow["input_parameters"][0]["value"] = get_threads_resource(dag.dag_id)
-        workflow["input_parameters"][1]["value"] = str(data_dir)
 
-        # this is the call to the CWL
-        command = [*get_cwltool_base_cmd(tmpdir), Path(workflow["workflow_path"])]
-        for param in workflow["input_parameters"]:
-            command.append(param["parameter_name"])
-            command.append(param["value"])
+        # [--processes, --ometiff_directory]
+        input_param_vals = [get_threads_resource(dag.dag_id), str(data_dir)]
 
-        kwargs["ti"].xcom_push(key="cwl_workflows", value=workflows)
+        command = get_cwl_cmd_from_workflows(workflows, 2, input_param_vals, tmpdir, kwargs["ti"])
         return join_quote_command_str(command)
 
     t_build_cmd_ome_tiff_pyramid_raw = PythonOperator(
@@ -275,16 +261,11 @@ with HMDAG(
         workflows = kwargs["ti"].xcom_pull(
             key="cwl_workflows", task_ids="build_cwltool_cwl_ome_tiff_pyramid_raw"
         )
-        workflow = workflows[3]
-        workflow["input_parameters"][0]["value"] = str(data_dir / "ometiff-pyramids")
 
-        # this is the call to the CWL
-        command = [*get_cwltool_base_cmd(tmpdir), Path(workflow["workflow_path"])]
-        for param in workflow["input_parameters"]:
-            command.append(param["parameter_name"])
-            command.append(param["value"])
+        # [--input_dir]
+        input_param_vals = [str(data_dir / "ometiff-pyramids")]
+        command = get_cwl_cmd_from_workflows(workflows, 3, input_param_vals, tmpdir, kwargs["ti"])
 
-        kwargs["ti"].xcom_push(key="cwl_workflows", value=workflows)
         return join_quote_command_str(command)
 
     t_build_cmd_ome_tiff_offsets = PythonOperator(

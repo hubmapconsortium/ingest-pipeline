@@ -271,6 +271,37 @@ def find_pipeline_manifests(cwl_files: Iterable[Path]) -> List[Path]:
     return manifests
 
 
+def get_cwl_cmd_from_workflows(
+    workflows: List[Dict], workflow_index: int, input_param_vals: List, tmp_dir: Path, ti
+) -> List:
+    """
+    :param workflows: Iterable of workflow dictionaries
+    :param workflow_index: index of workflow to build
+    :param input_param_vals: list of input parameter values
+    :param tmp_dir: temporary directory
+    :param ti: task instance
+    :return: list of cwl command and parameters
+    """
+    # Grab the workflow from the list of workflows
+    workflow = workflows[workflow_index]
+
+    # Update the input parameters based on the list of input values
+    for i, param_val in enumerate(input_param_vals):
+        workflow["input_parameters"][i]["value"] = param_val
+
+    # Get the cwl invocation
+    command = [*get_cwltool_base_cmd(tmp_dir), Path(workflow["input_parameters"])]
+
+    # Extend the command with the input parameters
+    command.extend(
+        [param["parameter_name"], param["values"]] for param in workflow["input_parameters"]
+    )
+
+    # Update the workflows list with the new input parameter values
+    ti.xcom_push(key="cwl_workflows", value=workflows)
+    return command
+
+
 def get_absolute_workflow(workflow: Path) -> Path:
     return PIPELINE_BASE_DIR / workflow
 
