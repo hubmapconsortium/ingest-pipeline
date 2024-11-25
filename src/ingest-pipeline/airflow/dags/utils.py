@@ -631,21 +631,21 @@ def get_git_provenance_list(file_list: Iterable[str]) -> List[Mapping[str, Any]]
 
         fname = file["workflow_path"]
 
-        # If not cwl file, ignore
-        if not fname.endswith("cwl"):
-            continue
-
         root = get_git_root_paths(fname)
-        result.append(
-            {
-                "name": relpath(fname, root),
-                "hash": get_git_commits(realpath(fname)),
-                "origin": get_git_origins(realpath(fname)),
-                "version": get_pipeline_version(realpath(fname)),
-                "input_parameters": file.get("input_parameters", []),
-                "documentation_url": file.get("documentation_url"),
-            }
-        )
+        dag_prov_entry = {
+            "name": relpath(fname, root),
+            "hash": get_git_commits(realpath(fname)),
+            "origin": get_git_origins(realpath(fname)),
+            "version": get_pipeline_version(realpath(fname)),
+            "input_parameters": file.get("input_parameters", []),
+            "documentation_url": file.get("documentation_url"),
+        }
+
+        # If not cwl file, delete the "name" attribute
+        if not fname.endswith("cwl"):
+            del dag_prov_entry["name"]
+
+        result.append(dag_prov_entry)
 
     return result
 
@@ -660,8 +660,6 @@ def get_pipeline_version(path: str) -> str:
     pipeline_version = ""
 
     path = Path(path)
-    if path.suffix != ".cwl":
-        return pipeline_version
 
     try:
         parent_dir = path.parent
@@ -672,6 +670,9 @@ def get_pipeline_version(path: str) -> str:
         print(e.output)
 
     # If no tag found, check the cwl file
+    if path.suffix != ".cwl":
+        return pipeline_version
+
     if pipeline_version == "":
         with open(path, "r") as file:
             content = yaml.safe_load(file)
@@ -1405,7 +1406,6 @@ def make_send_status_msg_function(
     metadata_fun: Optional[Callable[..., dict]] = None,
     include_file_metadata: Optional[bool] = True,
     no_provenance: Optional[bool] = False,
-    ivt_path_fun: Optional[Callable[..., Path]] = None,
     workflow_description: Optional[str] = None,
     workflow_version: Optional[str] = None,
 ) -> Callable[..., bool]:
@@ -1501,8 +1501,7 @@ def make_send_status_msg_function(
                 dag_file,
                 *inner_cwl_workflows,
             ]
-            if ivt_path_fun:
-                files_for_provenance.append(ivt_path_fun(**kwargs))
+
             if no_provenance:
                 # This is used for the Azimuth runs
                 md["dag_provenance_list"] = kwargs["dag_run"].conf["dag_provenance_list"].copy()
