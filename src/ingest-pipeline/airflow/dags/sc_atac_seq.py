@@ -18,7 +18,7 @@ from hubmap_operators.common_operators import (
 import utils
 from utils import (
     SequencingDagParameters,
-    get_absolute_workflows,
+    get_absolute_workflow,
     get_cwltool_base_cmd,
     get_dataset_uuid,
     get_parent_dataset_uuids_list,
@@ -33,6 +33,7 @@ from utils import (
     get_queue_resource,
     get_threads_resource,
     get_preserve_scratch_resource,
+    get_cwl_cmd_from_workflows,
 )
 
 
@@ -61,10 +62,34 @@ def generate_atac_seq_dag(params: SequencingDagParameters) -> DAG:
             "preserve_scratch": get_preserve_scratch_resource(params.dag_id),
         },
     ) as dag:
-        cwl_workflows = get_absolute_workflows(
-            Path("sc-atac-seq-pipeline", "sc_atac_seq_prep_process_analyze.cwl"),
-            Path("portal-containers", "scatac-csv-to-arrow.cwl"),
-        )
+        workflow_version = "1.0.0"
+        workflow_description = ""
+
+        cwl_workflows = [
+            {
+                "workflow_path": str(
+                    get_absolute_workflow(
+                        Path("sc-atac-seq-pipeline", "sc_atac_seq_prep_process_analyze.cwl")
+                    )
+                ),
+                "input_parameters": [
+                    {"parameter_name": "--assay", "value": ""},
+                    {"parameter_name": "--exclude_bam", "value": ""},
+                    {"parameter_name": "--threads", "value": ""},
+                    {"parameter_name": "--sequence_directory", "value": []},
+                ],
+                "documentation_url": "",
+            },
+            {
+                "workflow_path": str(
+                    get_absolute_workflow(Path("portal-containers", "scatac-csv-to-arrow.cwl"))
+                ),
+                "input_parameters": [
+                    {"parameter_name": "--input_dir", "value": "."},
+                ],
+                "documentation_url": "",
+            },
+        ]
 
         def build_dataset_name(**kwargs):
             return inner_build_dataset_name(dag.dag_id, params.pipeline_name, **kwargs)
@@ -80,21 +105,21 @@ def generate_atac_seq_dag(params: SequencingDagParameters) -> DAG:
             data_dirs = get_parent_data_dirs_list(**kwargs)
             print("data_dirs: ", data_dirs)
 
-            command = [
-                *get_cwltool_base_cmd(tmpdir),
-                "--outdir",
-                tmpdir / "cwl_out",
-                "--parallel",
-                cwl_workflows[0],
-                "--assay",
+            # [--assay, --exclude_bam, --threads, --sequence_directory]
+            input_param_vals = [
                 params.assay,
-                "--exclude_bam",
-                "--threads",
+                "",
                 get_threads_resource(dag.dag_id),
+                [str(data_dir) for data_dir in data_dirs],
             ]
-            for data_dir in data_dirs:
-                command.append("--sequence_directory")
-                command.append(data_dir)
+
+            cwl_params = [
+                {"parameter_name": "--parallel", "value": ""},
+            ]
+
+            command = get_cwl_cmd_from_workflows(
+                cwl_workflows, 0, input_param_vals, tmpdir, kwargs["ti"], cwl_params
+            )
 
             return join_quote_command_str(command)
 
@@ -103,12 +128,10 @@ def generate_atac_seq_dag(params: SequencingDagParameters) -> DAG:
             tmpdir = get_tmp_dir_path(run_id)
             print("tmpdir: ", tmpdir)
 
-            command = [
-                *get_cwltool_base_cmd(tmpdir),
-                cwl_workflows[1],
-                "--input_dir",
-                ".",
-            ]
+            workflows = kwargs["ti"].xcom_pull(key="cwl_workflows", task_ids="build_cmd1")
+
+            # [--input_dir]
+            command = get_cwl_cmd_from_workflows(workflows, 1, [], tmpdir, kwargs["ti"])
 
             return join_quote_command_str(command)
 
@@ -194,7 +217,11 @@ def generate_atac_seq_dag(params: SequencingDagParameters) -> DAG:
         send_status_msg = make_send_status_msg_function(
             dag_file=__file__,
             retcode_ops=["pipeline_exec", "move_data", "make_arrow1"],
-            cwl_workflows=cwl_workflows,
+            cwl_workflows=lambda **kwargs: kwargs["ti"].xcom_pull(
+                key="cwl_workflows", task_ids="build_cmd2"
+            ),
+        workflow_description=workflow_description,
+        workflow_version=workflow_version,
         )
 
         t_send_status = PythonOperator(
