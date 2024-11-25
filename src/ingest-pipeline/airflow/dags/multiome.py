@@ -83,6 +83,8 @@ def generate_multiome_dag(params: MultiomeSequencingDagParameters) -> DAG:
             "preserve_scratch": get_preserve_scratch_resource(params.dag_id),
         },
     ) as dag:
+        workflow_version = "1.0.0"
+        workflow_description = ""
 
         cwl_workflows = [
             {
@@ -345,6 +347,8 @@ def generate_multiome_dag(params: MultiomeSequencingDagParameters) -> DAG:
             cwl_workflows=lambda **kwargs: kwargs["ti"].xcom_pull(
                 key="cwl_workflows", task_ids="build_cmd3"
             ),
+            workflow_description=workflow_description,
+            workflow_version=workflow_version,
         )
 
         t_send_status = PythonOperator(

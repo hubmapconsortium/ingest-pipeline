@@ -57,6 +57,9 @@ with HMDAG(
     },
 ) as dag:
     pipeline_name = "bulk-atac-seq"
+    workflow_version = "1.0.0"
+    workflow_description = ""
+
     cwl_workflows = [
         {
             "workflow_path": str(
@@ -152,6 +155,8 @@ with HMDAG(
         cwl_workflows=lambda **kwargs: kwargs["ti"].xcom_pull(
             key="cwl_workflows", task_ids="build_cmd1"
         ),
+        workflow_description=workflow_description,
+        workflow_version=workflow_version,
     )
     t_send_status = PythonOperator(
         task_id="send_status_msg",

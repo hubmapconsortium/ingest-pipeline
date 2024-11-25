@@ -58,6 +58,8 @@ with HMDAG(
     },
 ) as dag:
     pipeline_name = "codex-pipeline"
+    workflow_version = "1.0.0"
+    workflow_description = ""
     steps_dir = Path(pipeline_name) / "steps"
 
     cwl_workflows = [
@@ -697,6 +699,8 @@ with HMDAG(
         cwl_workflows=lambda **kwargs: kwargs["ti"].xcom_pull(
             key="cwl_workflows", task_ids="build_cmd_sprm_to_anndata"
         ),
+        workflow_description=workflow_description,
+        workflow_version=workflow_version,
     )
 
     t_send_status = PythonOperator(

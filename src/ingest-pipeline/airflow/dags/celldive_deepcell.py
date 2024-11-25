@@ -59,6 +59,9 @@ with HMDAG(
     },
 ) as dag:
     pipeline_name = "celldive-pipeline"
+    workflow_version = "1.0.0"
+    workflow_description = ""
+
     cwl_workflows = [
         {
             "workflow_path": str(get_absolute_workflow(Path(pipeline_name, "pipeline.cwl"))),
@@ -530,6 +533,8 @@ with HMDAG(
         cwl_workflows=lambda **kwargs: kwargs["ti"].xcom_pull(
             key="cwl_workflows", task_ids="build_cmd_sprm_to_anndata"
         ),
+        workflow_description=workflow_description,
+        workflow_version=workflow_version,
     )
 
     t_send_status = PythonOperator(
