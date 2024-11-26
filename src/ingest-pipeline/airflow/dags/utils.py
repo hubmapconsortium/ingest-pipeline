@@ -825,6 +825,13 @@ def pythonop_maybe_keep(**kwargs) -> str:
         return bail_op
 
 
+def pythonop_dataset_dryrun(**kwargs) -> str:
+    if kwargs["dag_run"].conf.get("dryrun"):
+        return kwargs["bail_op"]
+    else:
+        return kwargs["next_op"]
+
+
 def pythonop_maybe_multiassay(**kwargs) -> str:
     """
     accepts the following via the caller's op_kwargs:

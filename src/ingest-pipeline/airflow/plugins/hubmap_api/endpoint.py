@@ -481,6 +481,70 @@ def request_bulk_ingest():
     return HubmapApiResponse.bad_request("Nothing to ingest")
 
 
+@csrf.exempt
+@api_bp.route("/request_dev_analysis", methods=["POST"])
+# @secured(groups="HuBMAP-read")
+def request_dev_analysis():
+    auth_tok = _auth_tok_from_environment()
+
+    # decode input
+    data = request.get_json(force=True)
+
+    LOGGER.debug("request_ingest data: {}".format(str(data)))
+    # Test and extract required parameters
+    try:
+        collection_type = _get_required_string(data, "collection_type")
+        uuid_list = _get_required_string(data, "uuid_list")
+    except HubmapApiInputException as e:
+        return HubmapApiResponse.bad_request(
+            "Must specify {} to request data be ingested".format(str(e))
+        )
+
+    try:
+        dag_id = config("ingest_map", "launch.multi")
+    except AirflowConfigException:
+        return HubmapApiResponse.bad_request("{} is not a known ingestion process".format("launch.multi"))
+
+    try:
+        session = settings.Session()
+
+        # Produce one and only one run
+        tz = pytz.timezone(config("core", "timezone"))
+        execution_date = datetime.now(tz)
+        LOGGER.info("starting {} with execution_date: {}".format(dag_id, execution_date))
+
+        run_id = "{}_{}_{}".format(uuid_list, "launch.multi", execution_date.isoformat())
+        ingest_id = run_id
+
+        conf = {
+            "collection_type": collection_type,
+            "uuid_list": uuid_list,
+            "dryrun": True,
+        }
+
+        if find_dag_runs(session, dag_id, run_id, execution_date):
+            # The run already happened??
+            raise AirflowException("The request happened twice?")
+
+        try:
+            dr = trigger_dag(dag_id, run_id, conf, execution_date=execution_date)
+        except AirflowException as err:
+            LOGGER.error(err)
+            raise AirflowException("Attempt to trigger run produced an error: {}".format(err))
+        LOGGER.info("dagrun follows: {}".format(dr))
+        session.close()
+    except HubmapApiInputException as e:
+        return HubmapApiResponse.bad_request(str(e))
+    except ValueError as e:
+        return HubmapApiResponse.server_error(str(e))
+    except AirflowException as e:
+        return HubmapApiResponse.server_error(str(e))
+    except Exception as e:
+        return HubmapApiResponse.server_error(str(e))
+
+    return HubmapApiResponse.success({"launch_id": ingest_id, "run_id": run_id})
+
+
 def generic_invoke_dag_on_uuid(uuid, process_name):
     auth_tok = _auth_tok_from_environment()
     process = process_name
