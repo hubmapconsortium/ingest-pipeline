@@ -385,6 +385,7 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
         t_maybe_keep_cwl3 >> t_set_dataset_error
         t_maybe_keep_cwl4 >> t_set_dataset_error
         t_set_dataset_error >> t_join
+        t_maybe_create_dataset >> t_join
         t_join >> t_cleanup_tmpdir
 
     return dag
