@@ -290,9 +290,19 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
             python_callable=utils.pythonop_maybe_keep,
             provide_context=True,
             op_kwargs={
-                "next_op": "move_data",
+                "next_op": "maybe_create_dataset",
                 "bail_op": "set_dataset_error",
                 "test_op": "convert_for_ui_2",
+            },
+        )
+
+        t_maybe_create_dataset = BranchPythonOperator(
+            task_id="maybe_create_dataset",
+            python_callable=utils.pythonop_dataset_dryrun,
+            provide_context=True,
+            op_kwargs={
+                "next_op": "send_create_dataset",
+                "bail_op": "join",
             },
         )
 
@@ -347,8 +357,7 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
         (
             t_log_info
             >> t_create_tmpdir
-            >> t_send_create_dataset
-            >> t_set_dataset_processing
+            # >> t_set_dataset_processing
             >> prepare_cwl1
             >> t_build_cmd1
             >> t_pipeline_exec
@@ -365,6 +374,8 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
             >> t_build_cmd4
             >> t_convert_for_ui_2
             >> t_maybe_keep_cwl4
+            >> t_maybe_create_dataset
+            >> t_send_create_dataset
             >> t_move_data
             >> t_send_status
             >> t_join
