@@ -49,7 +49,7 @@ default_args = {
     "on_failure_callback": utils.create_dataset_state_error_callback(get_uuid_for_error),
 }
 
-with (HMDAG(
+with HMDAG(
     "azimuth_annotations",
     schedule_interval=None,
     is_paused_upon_creation=False,
@@ -58,7 +58,7 @@ with (HMDAG(
         "tmp_dir_path": get_tmp_dir_path,
         "preserve_scratch": get_preserve_scratch_resource("azimuth_annotations"),
     },
-) as dag):
+) as dag:
     pipeline_name = "azimuth_annotate"
 
     cwl_workflows_annotations_salmon = [
@@ -148,7 +148,7 @@ with (HMDAG(
             ],
             "documentation_url": "",
         },
-        *cwl_workflows_annotations_multiome
+        *cwl_workflows_annotations_multiome,
     ]
 
     prepare_cwl1 = DummyOperator(task_id="prepare_cwl1")
