@@ -251,7 +251,7 @@ class HMDAG(DAG):
         super().add_task(task)
 
 
-def find_pipeline_manifests(cwl_files: Iterable[Path]) -> List[Path]:
+def find_pipeline_manifests(cwl_files: Union[List[Path], List[Dict], str]) -> List[Path]:
     """
     Constructs manifest paths from CWL files (strip '.cwl', append
     '-manifest.json'), and check whether each manifest exists. Return
@@ -260,7 +260,7 @@ def find_pipeline_manifests(cwl_files: Iterable[Path]) -> List[Path]:
     manifests = []
     for cwl_file in cwl_files:
         if isinstance(cwl_file, dict):
-            cwl_file = cwl_file["workflow_path"]
+            cwl_file = Path(cwl_file["workflow_path"])
 
         if isinstance(cwl_file, str):
             cwl_file = Path(cwl_file)
@@ -1369,27 +1369,30 @@ def get_cwltool_base_cmd(tmpdir: Path) -> List[str]:
     ]
 
 
-def build_provenance_function(cwl_workflows: List[Path]) -> Callable[..., List]:
+def build_provenance_function(cwl_workflows: Callable[..., List[Dict]]) -> Callable[..., List]:
     def build_provenance(**kwargs) -> List:
-        # TODO: Modify
+        # Get the previous revisions metadata
         dataset_uuid = get_previous_revision_uuid(**kwargs)
         if dataset_uuid is None:
             dataset_uuid = kwargs["dag_run"].conf.get("parent_submission_id", [None])[0]
         assert dataset_uuid is not None, "Missing previous_version_uuid"
+        ds_rslt = pythonop_get_dataset_state(
+            dataset_uuid_callable=lambda **kwargs: dataset_uuid, **kwargs
+        )
 
-        def my_callable(**kwargs):
-            return dataset_uuid
-
-        ds_rslt = pythonop_get_dataset_state(dataset_uuid_callable=my_callable, **kwargs)
+        # Generate a new dag provenance
         new_dag_provenance = (
             kwargs["dag_run"].conf["dag_provenance_list"]
             if "dag_provenance_list" in kwargs["dag_run"].conf
             else []
         )
+
         new_dag_provenance.extend(get_git_provenance_list([*cwl_workflows]))
+
+        # Look through the previous revision for the pipeline invocations
         for data in ds_rslt["ingest_metadata"]["dag_provenance_list"]:
             if "salmon" in data["origin"] or "multiome" in data["origin"]:
-                new_dag_provenance.append(data)
+                new_dag_provenance.insert(0, data)
         kwargs["dag_run"].conf["dag_provenance_list"] = new_dag_provenance
         return kwargs["dag_run"].conf["dag_provenance_list"]
 
