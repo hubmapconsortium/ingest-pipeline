@@ -65,7 +65,7 @@ with HMDAG(
         {
             "workflow_path": str(get_absolute_workflow(Path(pipeline_name, "pipeline.cwl"))),
             "input_parameters": [
-                {"parameter_name": "--gpus=all", "value": ""},
+                {"parameter_name": "--gpus", "value": "all"},
                 {"parameter_name": "--meta_path", "value": ""},
                 {"parameter_name": "--segmentation_method", "value": "deepcell"},
                 {"parameter_name": "--data_dir", "value": ""},

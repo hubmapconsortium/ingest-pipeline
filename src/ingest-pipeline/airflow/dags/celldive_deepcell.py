@@ -66,7 +66,7 @@ with HMDAG(
         {
             "workflow_path": str(get_absolute_workflow(Path(pipeline_name, "pipeline.cwl"))),
             "input_parameters": [
-                {"parameter_name": "--gpus=all", "value": ""},
+                {"parameter_name": "--gpus", "value": "all"},
                 {"parameter_name": "--meta_path", "value": ""},
                 {"parameter_name": "--segmentation_method", "value": "deepcell"},
                 {"parameter_name": "--data_dir", "value": ""},
@@ -77,7 +77,7 @@ with HMDAG(
             "workflow_path": str(get_absolute_workflow(Path("sprm", "pipeline.cwl"))),
             "input_parameters": [
                 {"parameter_name": "--enable_manhole", "value": ""},
-                {"parameter_name": "--options_present=celldive", "value": ""},
+                {"parameter_name": "--options_present", "value": "celldive"},
                 {"parameter_name": "--image_dir", "value": ""},
                 {"parameter_name": "--processes", "value": ""},
                 {"parameter_name": "--mask_dir", "value": ""},

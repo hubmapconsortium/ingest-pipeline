@@ -68,7 +68,7 @@ with HMDAG(
                 get_absolute_workflow(steps_dir / "illumination_first_stitching.cwl")
             ),
             "input_parameters": [
-                {"parameter_name": "--gpus=0,1", "value": ""},
+                {"parameter_name": "--gpus", "value": "0,1"},
                 {"parameter_name": "--data_dir", "value": ""},
             ],
             "documentation_url": "",
