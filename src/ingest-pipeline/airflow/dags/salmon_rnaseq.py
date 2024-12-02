@@ -129,7 +129,8 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
 
             # get organ type
             ds_rslt = pythonop_get_dataset_state(
-                dataset_uuid_callable=get_dataset_uuid,
+                dataset_uuid_callable=lambda **kwargs:
+                kwargs["dag_run"].conf["parent_submission_id"][0],
                 **kwargs
             )
 
@@ -351,7 +352,7 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
         t_join = JoinOperator(task_id="join")
         t_create_tmpdir = CreateTmpDirOperator(task_id="create_tmpdir")
         t_cleanup_tmpdir = CleanupTmpDirOperator(task_id="cleanup_tmpdir")
-        t_set_dataset_processing = SetDatasetProcessingOperator(task_id="set_dataset_processing")
+        # t_set_dataset_processing = SetDatasetProcessingOperator(task_id="set_dataset_processing")
         t_move_data = MoveDataOperator(task_id="move_data")
 
         (
