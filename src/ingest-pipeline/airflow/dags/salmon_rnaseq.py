@@ -381,30 +381,33 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
         t_join = JoinOperator(task_id="join")
         t_create_tmpdir = CreateTmpDirOperator(task_id="create_tmpdir")
         t_cleanup_tmpdir = CleanupTmpDirOperator(task_id="cleanup_tmpdir")
-        # t_set_dataset_processing = SetDatasetProcessingOperator(task_id="set_dataset_processing")
         t_move_data = MoveDataOperator(task_id="move_data")
 
         (
             t_log_info
             >> t_create_tmpdir
-            # >> t_set_dataset_processing
+
             >> prepare_cwl1
             >> t_build_cmd1
             >> t_pipeline_exec
             >> t_maybe_keep_cwl1
+
             >> prepare_cwl2
             >> t_build_cmd2
             >> t_pipeline_exec_azimuth_annotate
             >> t_maybe_keep_cwl2
+
             >> prepare_cwl3
             >> t_build_cmd3
             >> t_convert_for_ui
             >> t_maybe_keep_cwl3
+
             >> prepare_cwl4
             >> t_build_cmd4
             >> t_convert_for_ui_2
             >> t_maybe_keep_cwl4
             >> t_maybe_create_dataset
+
             >> t_send_create_dataset
             >> t_move_data
             >> t_send_status

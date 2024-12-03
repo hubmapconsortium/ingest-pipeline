@@ -178,9 +178,19 @@ def generate_atac_seq_dag(params: SequencingDagParameters) -> DAG:
             python_callable=utils.pythonop_maybe_keep,
             provide_context=True,
             op_kwargs={
-                "next_op": "move_data",
+                "next_op": "maybe_create_dataset",
                 "bail_op": "set_dataset_error",
                 "test_op": "make_arrow1",
+            },
+        )
+
+        t_maybe_create_dataset = BranchPythonOperator(
+            task_id="maybe_create_dataset",
+            python_callable=utils.pythonop_dataset_dryrun,
+            provide_context=True,
+            op_kwargs={
+                "next_op": "send_create_dataset",
+                "bail_op": "join",
             },
         )
 
@@ -229,22 +239,24 @@ def generate_atac_seq_dag(params: SequencingDagParameters) -> DAG:
         t_join = JoinOperator(task_id="join")
         t_create_tmpdir = CreateTmpDirOperator(task_id="create_tmpdir")
         t_cleanup_tmpdir = CleanupTmpDirOperator(task_id="cleanup_tmpdir")
-        t_set_dataset_processing = SetDatasetProcessingOperator(task_id="set_dataset_processing")
         t_move_data = MoveDataOperator(task_id="move_data")
 
         (
             t_log_info
             >> t_create_tmpdir
-            >> t_send_create_dataset
-            >> t_set_dataset_processing
+
             >> prepare_cwl1
             >> t_build_cmd1
             >> t_pipeline_exec
             >> t_maybe_keep_cwl1
+
             >> prepare_cwl2
             >> t_build_cmd2
             >> t_make_arrow1
             >> t_maybe_keep_cwl2
+            >> t_maybe_create_dataset
+
+            >> t_send_create_dataset
             >> t_move_data
             >> t_send_status
             >> t_join
@@ -252,6 +264,7 @@ def generate_atac_seq_dag(params: SequencingDagParameters) -> DAG:
         t_maybe_keep_cwl1 >> t_set_dataset_error
         t_maybe_keep_cwl2 >> t_set_dataset_error
         t_set_dataset_error >> t_join
+        t_maybe_create_dataset >> t_join
         t_join >> t_cleanup_tmpdir
 
     return dag
