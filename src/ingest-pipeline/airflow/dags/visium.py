@@ -115,16 +115,13 @@ with HMDAG(
             get_threads_resource(dag.dag_id),
             "--organism",
             source_type,
+            "--fastq_dir",
+            data_dir / "raw/fastq/",
+            "--img_dir",
+            data_dir,
+            "--metadata_dir",
+            data_dir,
         ]
-
-        command.append("--fastq_dir")
-        command.append(data_dir / "raw/fastq/")
-
-        command.append("--img_dir")
-        command.append(data_dir)
-
-        command.append("--metadata_dir")
-        command.append(data_dir)
 
         return join_quote_command_str(command)
 
@@ -337,9 +334,19 @@ with HMDAG(
         python_callable=utils.pythonop_maybe_keep,
         provide_context=True,
         op_kwargs={
-            "next_op": "move_data",
+            "next_op": "maybe_create_dataset",
             "bail_op": "set_dataset_error",
             "test_op": "pipeline_exec_cwl_ome_tiff_offsets",
+        },
+    )
+
+    t_maybe_create_dataset = BranchPythonOperator(
+        task_id="maybe_create_dataset",
+        python_callable=utils.pythonop_dataset_dryrun,
+        provide_context=True,
+        op_kwargs={
+            "next_op": "send_create_dataset",
+            "bail_op": "join",
         },
     )
 
@@ -384,34 +391,39 @@ with HMDAG(
     t_join = JoinOperator(task_id="join")
     t_create_tmpdir = CreateTmpDirOperator(task_id="create_tmpdir")
     t_cleanup_tmpdir = CleanupTmpDirOperator(task_id="cleanup_tmpdir")
-    t_set_dataset_processing = SetDatasetProcessingOperator(task_id="set_dataset_processing")
     t_move_data = MoveDataOperator(task_id="move_data")
 
     (
         t_log_info
         >> t_create_tmpdir
-        >> t_send_create_dataset
-        >> t_set_dataset_processing
+
         >> prepare_cwl1
         >> t_build_cmd1
         >> t_pipeline_exec
         >> t_maybe_keep_cwl1
+
         >> prepare_cwl2
         >> t_build_cmd2
         >> t_convert_for_ui
         >> t_maybe_keep_cwl2
+
         >> prepare_cwl3
         >> t_build_cmd3
         >> t_convert_for_ui_2
         >> t_maybe_keep_cwl3
+
         >> prepare_cwl4
         >> t_build_cmd4
         >> t_pipeline_exec_cwl_ome_tiff_pyramid
         >> t_maybe_keep_cwl4
+
         >> prepare_cwl5
         >> t_build_cmd5
         >> t_pipeline_exec_cwl_ome_tiff_offsets
         >> t_maybe_keep_cwl5
+        >> t_maybe_create_dataset
+
+        >> t_send_create_dataset
         >> t_move_data
         >> t_send_status
         >> t_join
@@ -422,4 +434,5 @@ with HMDAG(
     t_maybe_keep_cwl4 >> t_set_dataset_error
     t_maybe_keep_cwl5 >> t_set_dataset_error
     t_set_dataset_error >> t_join
+    t_maybe_create_dataset >> t_join
     t_join >> t_cleanup_tmpdir
