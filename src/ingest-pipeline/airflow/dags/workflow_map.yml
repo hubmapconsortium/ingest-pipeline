@@ -131,3 +131,6 @@ workflow_map:
   - 'collection_type': '.*'
     'assay_type': '10x-multiome'
     'workflow': 'multiome_10x'
+  - 'collection_type': '.*'
+    'assay_type': 'segmentation-mask'
+    'workflow': 'tsv_to_mudata'

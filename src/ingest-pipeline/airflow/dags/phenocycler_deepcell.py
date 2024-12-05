@@ -21,6 +21,7 @@ from utils import (
     HMDAG,
     get_queue_resource,
     get_preserve_scratch_resource,
+    get_threads_resource,
 )
 from hubmap_operators.common_operators import (
     CleanupTmpDirOperator,
@@ -139,6 +140,8 @@ with HMDAG(
             *get_cwltool_base_cmd(tmpdir),
             cwl_workflows["sprm"],
             "--enable_manhole",
+            "--processes",
+            get_threads_resource(dag.dag_id),
             "--image_dir",
             data_dir / "pipeline_output/expr",
             "--mask_dir",
@@ -242,6 +245,8 @@ with HMDAG(
         command = [
             *get_cwltool_base_cmd(tmpdir),
             cwl_workflows["ome_tiff_pyramid"],
+            "--processes",
+            get_threads_resource(dag.dag_id),
             "--ometiff_directory",
             ".",
         ]
