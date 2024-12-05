@@ -1468,7 +1468,7 @@ def make_send_status_msg_function(
 
             try:
                 assert_json_matches_schema(md, "dataset_metadata_schema.yml")
-                metadata = md.pop("metadata", [])
+                metadata = md.pop("metadata", {})
                 files = md.pop("files", [])
                 extra_fields = {
                     "pipeline_message": "the process ran",
