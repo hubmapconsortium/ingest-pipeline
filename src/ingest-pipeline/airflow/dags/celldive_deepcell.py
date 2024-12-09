@@ -197,8 +197,6 @@ with HMDAG(
             cwl_workflows["create_vis_symlink_archive"],
             "--ometiff_dir",
             data_dir / "pipeline_output",
-            "--processes",
-            get_threads_resource(dag.dag_id),
             "--sprm_output",
             data_dir / "sprm_outputs",
         ]
