@@ -339,7 +339,7 @@ with HMDAG(
         retcode_ops=[
             "pipeline_exec",
             "pipeline_exec_azimuth_annotate",
-            "move_data",
+            "move_data_salmon",
             "convert_for_ui",
             "convert_for_ui_2",
         ],
@@ -352,7 +352,7 @@ with HMDAG(
         retcode_ops=[
             "pipeline_exec",
             "pipeline_exec_azimuth_annotate",
-            "move_data",
+            "move_data_multiome",
             "convert_for_ui",
             "convert_for_ui_2",
         ],

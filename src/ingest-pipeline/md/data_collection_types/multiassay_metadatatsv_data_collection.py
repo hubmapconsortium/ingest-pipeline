@@ -101,7 +101,7 @@ class MultiassayMetadataTSVDataCollection(DataCollection):
 
                     if "metadata" in fname and fname.endswith(".tsv"):
                         assert isinstance(this_md, list), "metadata.tsv did not produce a list"
-                        if "must-contain" in response and component_process is None:
+                        if response["must-contain"] and component_process is None:
                             print("MULTI ASSAY FOUND")
                             for rec in this_md:
                                 this_dict = {"metadata": rec}

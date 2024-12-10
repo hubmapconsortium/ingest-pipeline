@@ -356,6 +356,9 @@ def build_dataset_name(dag_id: str, pipeline_str: str, **kwargs) -> str:
 
 def get_parent_dataset_uuids_list(**kwargs) -> List[str]:
     uuid_list = kwargs["dag_run"].conf["parent_submission_id"]
+    if kwargs["dag"].dag_id == "azimuth_annotations":
+        uuid_list = pythonop_get_dataset_state(dataset_uuid_callable=lambda **kwargs: uuid_list[0],
+                                               **kwargs).get("parent_dataset_uuid_list")
     if not isinstance(uuid_list, list):
         uuid_list = [uuid_list]
     return uuid_list
@@ -425,23 +428,23 @@ def get_assay_previous_version(**kwargs) -> tuple:
     position 4: pipeline position in workflow array"""
     dataset_type = get_dataname_previous_version(**kwargs).split("__")[0]
     if dataset_type == "salmon_rnaseq_10x":
-        return "10x_v3", "expr.h5ad", "secondary_analysis.h5ad", 1
+        return "10x_v3", "expr.h5ad", "secondary_analysis.h5ad", 0
     if dataset_type == "salmon_rnaseq_10x_sn":
-        return "10x_v3_sn", "expr.h5ad", "secondary_analysis.h5ad", 1
+        return "10x_v3_sn", "expr.h5ad", "secondary_analysis.h5ad", 0
     if dataset_type == "salmon_rnaseq_10x_v2":
-        return "10x_v2", "expr.h5ad", "secondary_analysis.h5ad", 1
+        return "10x_v2", "expr.h5ad", "secondary_analysis.h5ad", 0
     if dataset_type == "salmon_rnaseq_10x_v2_sn":
-        return "10x_v2_sn", "expr.h5ad", "secondary_analysis.h5ad", 1
+        return "10x_v2_sn", "expr.h5ad", "secondary_analysis.h5ad", 0
     if dataset_type == "salmon_rnaseq_sciseq":
-        return "sciseq", "expr.h5ad", "secondary_analysis.h5ad", 1
+        return "sciseq", "expr.h5ad", "secondary_analysis.h5ad", 0
     if dataset_type == "salmon_rnaseq_snareseq":
-        return "snareseq", "expr.h5ad", "secondary_analysis.h5ad", 1
+        return "snareseq", "expr.h5ad", "secondary_analysis.h5ad", 0
     if dataset_type == "salmon_rnaseq_slideseq":
-        return "slideseq", "expr.h5ad", "secondary_analysis.h5ad", 1
+        return "slideseq", "expr.h5ad", "secondary_analysis.h5ad", 0
     if dataset_type == "multiome_10x":
-        return "10x_V3_sn", "mudata_raw.h5mu", "secondary_analysis.h5mu", 3
+        return "10x_V3_sn", "mudata_raw.h5mu", "secondary_analysis.h5mu", 1
     if dataset_type == "multiome_snareseq":
-        return "snareseq", "mudata_raw.h5mu", "secondary_analysis.h5mu", 3
+        return "snareseq", "mudata_raw.h5mu", "secondary_analysis.h5mu", 1
 
 
 def get_parent_dataset_paths_list(**kwargs) -> List[Path]:
@@ -939,7 +942,7 @@ def pythonop_send_create_dataset(**kwargs) -> str:
                 data["previous_revision_uuid"] = previous_revision_uuid
                 revision_uuid = previous_revision_uuid
             else:
-                revision_uuid = source_uuids[0]
+                revision_uuid = kwargs["dag_run"].conf["parent_submission_id"][0]
             response = HttpHook("GET", http_conn_id=http_conn_id).run(
                 endpoint=f"datasets/{revision_uuid}/file-system-abs-path",
                 headers=headers,
@@ -1037,11 +1040,8 @@ def restructure_entity_metadata(raw_metadata: JSONType) -> JSONType:
     de-restructured version can be used by workflows in liu of the original.
     """
     md = {}
-    if "ingest_metadata" in raw_metadata:
-        if "metadata" in raw_metadata["ingest_metadata"]:
-            md["metadata"] = deepcopy(raw_metadata["ingest_metadata"]["metadata"])
-        if "extra_metadata" in raw_metadata["ingest_metadata"]:
-            md.update(raw_metadata["ingest_metadata"]["extra_metadata"])
+    if "metadata" in raw_metadata:
+        md["metadata"] = deepcopy(raw_metadata["metadata"])
     if "contributors" in raw_metadata:
         md["contributors"] = deepcopy(raw_metadata["contributors"])
     if "antibodies" in raw_metadata:
@@ -1525,19 +1525,19 @@ def make_send_status_msg_function(
             if metadata_fun:
                 md["metadata"] = metadata_fun(**kwargs)
 
-            thumbnail_file_abs_path = []
-            if dataset_lz_path_fun:
-                dataset_dir_abs_path = dataset_lz_path_fun(**kwargs)
-                if dataset_dir_abs_path:
-                    #########################################################################
-                    # Added by Zhou 6/16/2021 for registering thumbnail image
-                    # This is the only place that uses this hardcoded extras/thumbnail.jpg
-                    thumbnail_file_abs_path = join(dataset_dir_abs_path, "extras/thumbnail.jpg")
-                    if exists(thumbnail_file_abs_path):
-                        thumbnail_file_abs_path = thumbnail_file_abs_path
-                    else:
-                        thumbnail_file_abs_path = []
-                    #########################################################################
+            # thumbnail_file_abs_path = []
+            # if dataset_lz_path_fun:
+            #     dataset_dir_abs_path = dataset_lz_path_fun(**kwargs)
+            #     if dataset_dir_abs_path:
+            #         #########################################################################
+            #         # Added by Zhou 6/16/2021 for registering thumbnail image
+            #         # This is the only place that uses this hardcoded extras/thumbnail.jpg
+            #         thumbnail_file_abs_path = join(dataset_dir_abs_path, "extras/thumbnail.jpg")
+            #         if exists(thumbnail_file_abs_path):
+            #             thumbnail_file_abs_path = thumbnail_file_abs_path
+            #         else:
+            #             thumbnail_file_abs_path = []
+            #         #########################################################################
 
             manifest_files = find_pipeline_manifests(inner_cwl_workflows)
             if include_file_metadata and ds_dir is not None and not ds_dir == "":
@@ -1563,7 +1563,7 @@ def make_send_status_msg_function(
                 md["extra_metadata"] = {
                     "collectiontype": md["metadata"].pop("collectiontype", None)
                 }
-                md["thumbnail_file_abs_path"] = thumbnail_file_abs_path
+                # md["thumbnail_file_abs_path"] = thumbnail_file_abs_path
                 antibodies = md["metadata"].pop("antibodies", [])
                 contributors = md["metadata"].pop("contributors", [])
                 md["calculated_metadata"] = md["metadata"].pop("calculated_metadata", {})
@@ -1591,8 +1591,12 @@ def make_send_status_msg_function(
 
             try:
                 assert_json_matches_schema(md, "dataset_metadata_schema.yml")
+                metadata = md.pop("metadata", {})
+                files = md.pop("files", [])
                 extra_fields = {
                     "pipeline_message": "the process ran",
+                    "metadata": metadata,
+                    "files": files,
                     "ingest_metadata": md,
                 }
                 if metadata_fun:
@@ -1612,7 +1616,7 @@ def make_send_status_msg_function(
                 extra_fields = {
                     "status": "Error",
                     "pipeline_message": "internal error; schema violation: {}".format(e),
-                    "ingest_metadata": {},
+                    "metadata": {},
                 }
                 return_status = False
         else:
