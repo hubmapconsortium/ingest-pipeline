@@ -324,7 +324,7 @@ def get_dataset_type_organ_based(**kwargs) -> str:
     )
     if kwargs["dag"].dag_id == "pas_ftu_segmentation":
         pipeline_shorthand = "Kaggle-1 " + pipeline_shorthand
-    elif kwargs["dag"].dag_id == "kaggle_2_segmentation":
+    if kwargs["dag"].dag_id == "kaggle_2_segmentation":
         pipeline_shorthand = "Kaggle-2 " + pipeline_shorthand
 
     return f"{ds_rslt['dataset_type']} [{pipeline_shorthand}]"
