@@ -11,9 +11,8 @@ from airflow.operators.dummy import DummyOperator
 import utils
 from utils import (
     pythonop_set_dataset_state,
-    get_cwltool_base_cmd,
     get_parent_dataset_uuid,
-    get_absolute_workflows,
+    get_absolute_workflow,
     build_dataset_name as inner_build_dataset_name,
     get_uuid_for_error,
     join_quote_command_str,
@@ -27,6 +26,7 @@ from utils import (
     get_parent_dataset_path,
     pythonop_send_create_dataset,
     get_threads_resource,
+    get_cwl_cmd_from_workflows,
 )
 from hubmap_operators.common_operators import (
     CleanupTmpDirOperator,
@@ -65,13 +65,48 @@ with HMDAG(
     },
 ) as dag:
     pipeline_name = "tsv_to_mudata"
+    workflow_version = "1.0.0"
+    workflow_description = ""
 
-    cwl_workflows = get_absolute_workflows(
-        Path("epic-obj-csv-to-mudata", "pipeline.cwl"),
-        Path("portal-containers", "seg-mudata-to-zarr.cwl"),
-        Path("ome-tiff-pyramid", "pipeline.cwl"),
-        Path("portal-containers", "ome-tiff-offsets.cwl"),
-    )
+    cwl_workflows = [
+        {
+            "workflow_path": str(get_absolute_workflow(Path("epic-obj-csv-to-mudata", "pipeline.cwl"))),
+            "input_parameters": [
+                {"parameter_name": "--data_dir", "value": ""},
+            ],
+            "documentation_url": "",
+        },
+        {
+            "workflow_path": str(get_absolute_workflow(Path("portal-containers", "seg-mudata-to-zarr.cwl"))),
+            "input_parameters": [
+                {"parameter_name": "--input_dir", "value": ".."},
+            ],
+            "documentation_url": "",
+        },
+        {
+            "workflow_path": str(get_absolute_workflow(Path("ome-tiff-pyramid", "pipeline.cwl"))),
+            "input_parameters": [
+                {"parameter_name": "--processes", "value": ""},
+                {"parameter_name": "--ometiff_directory", "value": ""},
+            ],
+            "documentation_url": "",
+        },
+        {
+            "workflow_path": str(get_absolute_workflow(Path("ome-tiff-pyramid", "pipeline.cwl"))),
+            "input_parameters": [
+                {"parameter_name": "--processes", "value": ""},
+                {"parameter_name": "--ometiff_directory", "value": ""},
+            ],
+            "documentation_url": "",
+        },
+        {
+            "workflow_path": str(get_absolute_workflow(Path("portal-containers", "ome-tiff-offsets.cwl"))),
+            "input_parameters": [
+                {"parameter_name": "--input_directory", "value": "./ometiff-pyramids"},
+            ],
+            "documentation_url": "",
+        },
+    ]
 
     t_log_info = LogInfoOperator(task_id="log_info")
 
@@ -196,15 +231,9 @@ with HMDAG(
         data_dir = ti.xcom_pull(task_ids="create_or_use_dataset")
         print("data_dir: ", data_dir)
 
-        workflow = cwl_workflows[0]
-
-        command = [
-            *get_cwltool_base_cmd(tmpdir),
-            # "--singularity",
-            workflow,
-            "--data_dir",
-            data_dir,
-        ]
+        # [data_dir]
+        input_param_vals = [str(data_dir)]
+        command = get_cwl_cmd_from_workflows(cwl_workflows, 0, input_param_vals, tmpdir, ti)
 
         return join_quote_command_str(command)
 
@@ -241,16 +270,10 @@ with HMDAG(
         tmpdir = get_tmp_dir_path(run_id)
         print("tmpdir: ", tmpdir)
 
-        workflow = cwl_workflows[1]
+        workflows = kwargs["ti"].xcom_pull(key="cwl_workflows", task_ids="build_cwl_cmd_tsv_to_mudata")
 
-        command = [
-            *get_cwltool_base_cmd(tmpdir),
-            workflow,
-            "--input_dir",
-            # This pipeline invocation runs in a 'hubmap_ui' subdirectory,
-            # so use the parent directory as input
-            "..",
-        ]
+        # [input_dir]
+        command = get_cwl_cmd_from_workflows(workflows, 1, [], tmpdir, kwargs["ti"])
 
         return join_quote_command_str(command)
 
@@ -296,16 +319,11 @@ with HMDAG(
         data_dir = ti.xcom_pull(task_ids="create_or_use_dataset")
         print("data_dir: ", data_dir)
 
-        workflow = cwl_workflows[2]
-        # this is the call to the CWL
-        command = [
-            *get_cwltool_base_cmd(tmpdir),
-            workflow,
-            "--processes",
-            get_threads_resource(dag.dag_id),
-            "--ometiff_directory",
-            f"{data_dir}/derived/segmentation_masks",
-        ]
+        workflows = kwargs["ti"].xcom_pull(key="cwl_workflows", task_ids="build_cwl_cmd_seg_mudata_to_zarr")
+
+        # [processes, ometiff_directory]
+        input_param_vals = [get_threads_resource(dag.dag_id), f"{data_dir}/derived/segmentation_masks"]
+        command = get_cwl_cmd_from_workflows(workflows, 2, input_param_vals, tmpdir, ti)
 
         return join_quote_command_str(command)
 
@@ -342,17 +360,12 @@ with HMDAG(
         data_dir = parent_dataset["local_directory_full_path"]
         print("data_dir: ", data_dir)
 
-        workflow = cwl_workflows[2]
+        workflows = kwargs["ti"].xcom_pull(key="cwl_workflows", task_ids="build_cwl_cmd_ome_tiff_pyramid_processed")
 
-        # this is the call to the CWL
-        command = [
-            *get_cwltool_base_cmd(tmpdir),
-            workflow,
-            "--processes",
-            get_threads_resource(dag.dag_id),
-            "--ometiff_directory",
-            data_dir,
-        ]
+        # [processes, ometiff_directory]
+        input_param_vals = [get_threads_resource(dag.dag_id), str(data_dir)]
+        command = get_cwl_cmd_from_workflows(workflows, 3, input_param_vals, tmpdir, kwargs["ti"])
+
         return join_quote_command_str(command)
 
     t_build_cmd_ome_tiff_pyramid_raw = PythonOperator(
@@ -391,15 +404,10 @@ with HMDAG(
         tmpdir = get_tmp_dir_path(run_id)
         print("tmpdir: ", tmpdir)
 
-        workflow = cwl_workflows[3]
+        workflows = kwargs["ti"].xcom_pull(key="cwl_workflows", task_ids="build_cwl_ome_tiff_pyramid_raw")
 
-        # this is the call to the CWL
-        command = [
-            *get_cwltool_base_cmd(tmpdir),
-            workflow,
-            "--input_directory",
-            "./ometiff-pyramids",
-        ]
+        # [input_directory]
+        command = get_cwl_cmd_from_workflows(workflows, 4, [], tmpdir, kwargs["ti"])
 
         return join_quote_command_str(command)
 
@@ -472,9 +480,13 @@ with HMDAG(
             "pipeline_exec_cwl_ome_tiff_offsets",
             "move_data",
         ],
-        cwl_workflows=cwl_workflows,
+        cwl_workflows=lambda **kwargs: kwargs["ti"].xcom_pull(
+            key="cwl_workflows", task_ids="build_cwl_cmd_ome_tiff_offsets"
+        ),
         uuid_src_task_id="create_or_use_dataset",
         metadata_fun=gather_metadata,
+        workflow_description=workflow_description,
+        workflow_version=workflow_version,
     )
 
     t_send_status = PythonOperator(
