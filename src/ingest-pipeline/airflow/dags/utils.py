@@ -320,7 +320,7 @@ def get_dataset_type_organ_based(**kwargs) -> str:
     organ_list = list(set(ds_rslt["organs"]))
     organ_code = organ_list[0] if len(organ_list) == 1 else "multi"
     pipeline_shorthand = (
-        "Kaggle-1 Glomerulus Segmentation" if organ_code in ["LK", "RK"] else "Image Pyramid"
+        "Segmentation" if organ_code in ["LK", "RK", "LI", "SP"] else "Image Pyramid"
     )
 
     return f"{ds_rslt['dataset_type']} [{pipeline_shorthand}]"
