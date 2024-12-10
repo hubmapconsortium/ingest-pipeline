@@ -70,14 +70,18 @@ with HMDAG(
 
     cwl_workflows = [
         {
-            "workflow_path": str(get_absolute_workflow(Path("epic-obj-csv-to-mudata", "pipeline.cwl"))),
+            "workflow_path": str(
+                get_absolute_workflow(Path("epic-obj-csv-to-mudata", "pipeline.cwl"))
+            ),
             "input_parameters": [
                 {"parameter_name": "--data_dir", "value": ""},
             ],
             "documentation_url": "",
         },
         {
-            "workflow_path": str(get_absolute_workflow(Path("portal-containers", "seg-mudata-to-zarr.cwl"))),
+            "workflow_path": str(
+                get_absolute_workflow(Path("portal-containers", "seg-mudata-to-zarr.cwl"))
+            ),
             "input_parameters": [
                 {"parameter_name": "--input_dir", "value": ".."},
             ],
@@ -100,7 +104,9 @@ with HMDAG(
             "documentation_url": "",
         },
         {
-            "workflow_path": str(get_absolute_workflow(Path("portal-containers", "ome-tiff-offsets.cwl"))),
+            "workflow_path": str(
+                get_absolute_workflow(Path("portal-containers", "ome-tiff-offsets.cwl"))
+            ),
             "input_parameters": [
                 {"parameter_name": "--input_directory", "value": "./ometiff-pyramids"},
             ],
@@ -270,7 +276,9 @@ with HMDAG(
         tmpdir = get_tmp_dir_path(run_id)
         print("tmpdir: ", tmpdir)
 
-        workflows = kwargs["ti"].xcom_pull(key="cwl_workflows", task_ids="build_cwl_cmd_tsv_to_mudata")
+        workflows = kwargs["ti"].xcom_pull(
+            key="cwl_workflows", task_ids="build_cwl_cmd_tsv_to_mudata"
+        )
 
         # [input_dir]
         command = get_cwl_cmd_from_workflows(workflows, 1, [], tmpdir, kwargs["ti"])
@@ -319,10 +327,15 @@ with HMDAG(
         data_dir = ti.xcom_pull(task_ids="create_or_use_dataset")
         print("data_dir: ", data_dir)
 
-        workflows = kwargs["ti"].xcom_pull(key="cwl_workflows", task_ids="build_cwl_cmd_seg_mudata_to_zarr")
+        workflows = kwargs["ti"].xcom_pull(
+            key="cwl_workflows", task_ids="build_cwl_cmd_seg_mudata_to_zarr"
+        )
 
         # [processes, ometiff_directory]
-        input_param_vals = [get_threads_resource(dag.dag_id), f"{data_dir}/derived/segmentation_masks"]
+        input_param_vals = [
+            get_threads_resource(dag.dag_id),
+            f"{data_dir}/derived/segmentation_masks",
+        ]
         command = get_cwl_cmd_from_workflows(workflows, 2, input_param_vals, tmpdir, ti)
 
         return join_quote_command_str(command)
@@ -360,7 +373,9 @@ with HMDAG(
         data_dir = parent_dataset["local_directory_full_path"]
         print("data_dir: ", data_dir)
 
-        workflows = kwargs["ti"].xcom_pull(key="cwl_workflows", task_ids="build_cwl_cmd_ome_tiff_pyramid_processed")
+        workflows = kwargs["ti"].xcom_pull(
+            key="cwl_workflows", task_ids="build_cwl_cmd_ome_tiff_pyramid_processed"
+        )
 
         # [processes, ometiff_directory]
         input_param_vals = [get_threads_resource(dag.dag_id), str(data_dir)]
@@ -404,7 +419,9 @@ with HMDAG(
         tmpdir = get_tmp_dir_path(run_id)
         print("tmpdir: ", tmpdir)
 
-        workflows = kwargs["ti"].xcom_pull(key="cwl_workflows", task_ids="build_cwl_ome_tiff_pyramid_raw")
+        workflows = kwargs["ti"].xcom_pull(
+            key="cwl_workflows", task_ids="build_cwl_ome_tiff_pyramid_raw"
+        )
 
         # [input_directory]
         command = get_cwl_cmd_from_workflows(workflows, 4, [], tmpdir, kwargs["ti"])
