@@ -247,6 +247,8 @@ with HMDAG(
         command = [
             *get_cwltool_base_cmd(tmpdir),
             cwl_workflows["ome_tiff_pyramid"],
+            "--processes",
+            get_threads_resource(dag.dag_id),
             "--ometiff_directory",
             ".",
         ]
