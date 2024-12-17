@@ -73,3 +73,6 @@
 [submodule "src/ingest-pipeline/airflow/dags/cwl/kaggle-2-segmentation"]
 	path = src/ingest-pipeline/airflow/dags/cwl/kaggle-2-segmentation
 	url = https://github.com/hubmapconsortium/kaggle-2-segmentation
+[submodule "src/ingest-pipeline/airflow/dags/cwl/ribca"]
+	path = src/ingest-pipeline/airflow/dags/cwl/ribca
+	url = https://github.com/hubmapconsortium/ribca
