@@ -841,7 +841,9 @@ def pythonop_send_create_dataset(**kwargs) -> str:
                 data["previous_revision_uuid"] = previous_revision_uuid
                 revision_uuid = previous_revision_uuid
             else:
-                revision_uuid = kwargs["dag_run"].conf["parent_submission_id"][0]
+                revision_uuid = kwargs["dag_run"].conf["parent_submission_id"][0] \
+                    if isinstance(kwargs["dag_run"].conf["parent_submission_id"], list) \
+                    else kwargs["dag_run"].conf["parent_submission_id"]
             response = HttpHook("GET", http_conn_id=http_conn_id).run(
                 endpoint=f"datasets/{revision_uuid}/file-system-abs-path",
                 headers=headers,
