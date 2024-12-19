@@ -709,6 +709,10 @@ with HMDAG(
         >> t_build_cwl_ometiff_second_stitching
         >> t_pipeline_exec_cwl_ometiff_second_stitching
         >> t_maybe_keep_cwl_ometiff_second_stitching
+        >> prepare_cwl_ribca
+        >> t_build_cmd_ribca
+        >> t_pipeline_exec_cwl_ribca
+        >> t_maybe_keep_cwl_ribca
         >> prepare_cwl_deepcelltypes
         >> t_build_cmd_deepcelltypes
         >> t_pipeline_exec_cwl_deepcelltypes
