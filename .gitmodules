@@ -70,3 +70,9 @@
 [submodule "src/ingest-pipeline/airflow/dags/cwl/epic-obj-csv-to-mudata"]
 	path = src/ingest-pipeline/airflow/dags/cwl/epic-obj-csv-to-mudata
 	url = https://github.com/hubmapconsortium/epic-obj-csv-to-mudata
+[submodule "src/ingest-pipeline/airflow/dags/cwl/kaggle-2-segmentation"]
+	path = src/ingest-pipeline/airflow/dags/cwl/kaggle-2-segmentation
+	url = https://github.com/hubmapconsortium/kaggle-2-segmentation
+[submodule "src/ingest-pipeline/airflow/dags/cwl/visium-pipeline"]
+	path = src/ingest-pipeline/airflow/dags/cwl/visium-pipeline
+	url = https://github.com/hubmapconsortium/visium-pipeline
