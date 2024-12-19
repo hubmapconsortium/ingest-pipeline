@@ -255,7 +255,7 @@ with HMDAG(
         return join_quote_command_str(command)
 
     t_build_cmd_ribca = PythonOperator(
-        task_id="build_cmd_deepcelltypes",
+        task_id="build_cmd_ribca",
         python_callable=build_cwltool_cmd_ribca,
         provide_context=True,
     )
@@ -697,57 +697,46 @@ with HMDAG(
         >> t_create_tmpdir
         >> t_send_create_dataset
         >> t_set_dataset_processing
-
         >> prepare_cwl_illumination_first_stitching
         >> t_build_cwl_illumination_first_stitching
         >> t_pipeline_exec_cwl_illumination_first_stitching
         >> t_maybe_keep_cwl_illumination_first_stitching
-
         >> prepare_cwl_cytokit
         >> t_build_cwl_cytokit
         >> t_pipeline_exec_cwl_cytokit
         >> t_maybe_keep_cwl_cytokit
-
         >> prepare_cwl_ometiff_second_stitching
         >> t_build_cwl_ometiff_second_stitching
         >> t_pipeline_exec_cwl_ometiff_second_stitching
         >> t_maybe_keep_cwl_ometiff_second_stitching
-
         >> prepare_cwl_deepcelltypes
         >> t_build_cmd_deepcelltypes
         >> t_pipeline_exec_cwl_deepcelltypes
         >> t_maybe_keep_cwl_deepcelltypes
-
         >> prepare_cwl_sprm
         >> t_build_cmd_sprm
         >> t_pipeline_exec_cwl_sprm
         >> t_maybe_keep_cwl_sprm
-
         >> prepare_cwl_create_vis_symlink_archive
         >> t_build_cmd_create_vis_symlink_archive
         >> t_pipeline_exec_cwl_create_vis_symlink_archive
         >> t_maybe_keep_cwl_create_vis_symlink_archive
-
         >> prepare_cwl_ome_tiff_pyramid
         >> t_build_cmd_ome_tiff_pyramid
         >> t_pipeline_exec_cwl_ome_tiff_pyramid
         >> t_maybe_keep_cwl_ome_tiff_pyramid
-
         >> prepare_cwl_ome_tiff_offsets
         >> t_build_cmd_ome_tiff_offsets
         >> t_pipeline_exec_cwl_ome_tiff_offsets
         >> t_maybe_keep_cwl_ome_tiff_offsets
-
         >> prepare_cwl_sprm_to_json
         >> t_build_cmd_sprm_to_json
         >> t_pipeline_exec_cwl_sprm_to_json
         >> t_maybe_keep_cwl_sprm_to_json
-
         >> prepare_cwl_sprm_to_anndata
         >> t_build_cmd_sprm_to_anndata
         >> t_pipeline_exec_cwl_sprm_to_anndata
         >> t_maybe_keep_cwl_sprm_to_anndata
-
         >> t_move_data
         >> t_expand_symlinks
         >> t_send_status
