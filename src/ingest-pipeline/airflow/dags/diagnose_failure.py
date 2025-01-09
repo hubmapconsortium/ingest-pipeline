@@ -91,10 +91,8 @@ with HMDAG('diagnose_failure',
                     parent_ds_rslt['data_types']
                 )
                 if ('metadata' in parent_ds_rslt
-                        and 'metadata' in parent_ds_rslt['metadata']
-                        and 'data_path' in parent_ds_rslt['metadata']['metadata']):
-                    parent_dataset_data_path_list.append(parent_ds_rslt['metadata']
-                                                         ['metadata']['data_path'])
+                        and 'data_path' in parent_ds_rslt['metadata']):
+                    parent_dataset_data_path_list.append(parent_ds_rslt['metadata']['data_path'])
                 else:
                     parent_dataset_data_path_list.append(None)
             ds_rslt['parent_dataset_full_path_list'] = parent_dataset_full_path_list
