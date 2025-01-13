@@ -87,7 +87,6 @@ with HMDAG(
             *get_cwltool_base_cmd(tmpdir),
             # '--singularity',
             workflow,
-            "--gpus=all",
             "--cytoplasm_markers",
             "In115",
             "--membrane_markers",
