@@ -76,3 +76,6 @@
 [submodule "src/ingest-pipeline/airflow/dags/cwl/visium-pipeline"]
 	path = src/ingest-pipeline/airflow/dags/cwl/visium-pipeline
 	url = https://github.com/hubmapconsortium/visium-pipeline
+[submodule "src/ingest-pipeline/airflow/dags/cwl/imc-3d-segmentation"]
+	path = src/ingest-pipeline/airflow/dags/cwl/imc-3d-segmentation
+	url = https://github.com/hubmapconsortium/imc-3d-segmentation
