@@ -1,6 +1,5 @@
 from datetime import datetime, timedelta
 from pathlib import Path
-import pandas as pd
 
 from airflow.operators.bash import BashOperator
 from airflow.operators.dummy import DummyOperator
@@ -120,15 +119,12 @@ with HMDAG(
             "--threads",
             get_threads_resource(dag.dag_id),
             "--organism",
-            source_type
-
+            source_type,
+            "--fastq_dir",
+            data_dir,
+            "--metadata_dir",
+            data_dir
         ]
-
-        command.append("--fastq_dir")
-        command.append(data_dir)
-
-        command.append("--metadata_dir")
-        command.append(data_dir)
 
         return join_quote_command_str(command)
 
@@ -214,8 +210,8 @@ with HMDAG(
     )
 
     t_build_cmd4 = PythonOperator(
-        task_id="build_cmd3",
-        python_callable=build_cwltool_cmd3,
+        task_id="build_cmd4",
+        python_callable=build_cwltool_cmd4,
         provide_context=True,
     )
 
@@ -298,7 +294,7 @@ with HMDAG(
     )
 
     t_maybe_keep_cwl4 = BranchPythonOperator(
-        task_id="maybe_keep_cwl3",
+        task_id="maybe_keep_cwl4",
         python_callable=utils.pythonop_maybe_keep,
         provide_context=True,
         op_kwargs={

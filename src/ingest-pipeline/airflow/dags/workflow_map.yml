@@ -134,3 +134,6 @@ workflow_map:
   - 'collection_type': '.*'
     'assay_type': 'segmentation-mask'
     'workflow': 'tsv_to_mudata'
+  - 'collection_type': '.*'
+    'assay_type': 'scRNAseq-with-probes'
+    'workflow': 'rna_with_probes'
