@@ -93,9 +93,11 @@ def create_fake_uuid_generator():
 
 def get_canonical_assay_type(row, dataset_type=None):
     # TODO: check if this needs to be rewrite to support old style metadata
-    return dataset_type if dataset_type is not None else (row["assay_type"]
-                                                          if hasattr(row, "assay_type")
-                                                          else row["dataset_type"])
+    return (
+        dataset_type
+        if dataset_type is not None
+        else (row["assay_type"] if hasattr(row, "assay_type") else row["dataset_type"])
+    )
 
 
 def create_new_uuid(row, source_entity, entity_factory, primary_entity, dryrun=False):
@@ -138,8 +140,11 @@ def create_new_uuid(row, source_entity, entity_factory, primary_entity, dryrun=F
         description = source_entity.prop_dct["lab_dataset_id"] + " : " + rec_identifier
     else:
         description = ": " + rec_identifier
-    sample_id_list = (row["tissue_id"] if hasattr(row, "tissue_id")
-                      else row["parent_sample_id"]) if not is_epic else row.get("parent_dataset_id")
+    sample_id_list = (
+        (row["tissue_id"] if hasattr(row, "tissue_id") else row["parent_sample_id"])
+        if not is_epic
+        else row.get("parent_dataset_id")
+    )
     direct_ancestor_uuids = []
     for sample_id in sample_id_list.split(","):
         sample_id = sample_id.strip()
@@ -215,6 +220,7 @@ def populate(row, source_entity, entity_factory, dryrun=False, components=None):
             assert (
                 non_global_file.exists()
             ), f"Non global file {non_global_file.as_posix()} does not exist in {source_entity.full_path}"
+        row["non_global_files"] = ""
     else:
         # Catch case 2
         assert (
