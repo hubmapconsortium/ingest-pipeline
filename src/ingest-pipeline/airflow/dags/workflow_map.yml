@@ -135,5 +135,5 @@ workflow_map:
     'assay_type': 'segmentation-mask'
     'workflow': 'tsv_to_mudata'
   - 'collection_type': '.*'
-    'assay_type': 'GeoMx'
+    'assay_type': 'geomx_ngs'
     'workflow': 'geomx'
