@@ -921,6 +921,8 @@ def pythonop_set_dataset_state(**kwargs) -> None:
     'message' : update message, saved as dataset metadata element "pipeline_messsage".
                 The default is not to save any message.
     """
+    if kwargs["dag_run"].conf.get("dryrun"):
+        return
     for arg in ["dataset_uuid_callable"]:
         assert arg in kwargs, "missing required argument {}".format(arg)
     dataset_uuid = kwargs["dataset_uuid_callable"](**kwargs)
@@ -1562,6 +1564,8 @@ def create_dataset_state_error_callback(
         """
         This routine is meant to be
         """
+        if kwargs["dag_run"].conf.get("dryrun"):
+            return None
         msg = "An internal error occurred in the {} workflow step {}".format(
             context_dict["dag"].dag_id, context_dict["task"].task_id
         )
