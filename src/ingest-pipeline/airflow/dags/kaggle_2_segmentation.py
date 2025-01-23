@@ -262,9 +262,19 @@ with HMDAG(
         python_callable=utils.pythonop_maybe_keep,
         provide_context=True,
         op_kwargs={
-            "next_op": "move_data",
+            "next_op": "maybe_create_dataset",
             "bail_op": "set_dataset_error",
             "test_op": "pipeline_exec_cwl_ome_tiff_offsets",
+        },
+    )
+
+    t_maybe_create_dataset = BranchPythonOperator(
+        task_id="maybe_create_dataset",
+        python_callable=utils.pythonop_dataset_dryrun,
+        provide_context=True,
+        op_kwargs={
+            "next_op": "send_create_dataset",
+            "bail_op": "join",
         },
     )
 
@@ -330,23 +340,28 @@ with HMDAG(
     (
         t_log_info
         >> t_create_tmpdir
-        >> t_send_create_dataset
-        >> t_set_dataset_processing
+
         >> prepare_cwl_segmentation
         >> t_build_cwl_segmentation
         >> t_pipeline_exec_cwl_segmentation
         >> t_maybe_keep_cwl_segmentation
+
         >> prepare_cwl_ome_tiff_pyramid
         >> t_build_cmd_ome_tiff_pyramid_processed
         >> t_pipeline_exec_cwl_ome_tiff_pyramid_processed
         >> t_maybe_keep_cwl_ome_tiff_pyramid_processed
+
         >> t_build_cmd_ome_tiff_pyramid_raw
         >> t_pipeline_exec_cwl_ome_tiff_pyramid_raw
         >> t_maybe_keep_cwl_ome_tiff_pyramid_raw
+
         >> prepare_cwl_ome_tiff_offsets
         >> t_build_cmd_ome_tiff_offsets
         >> t_pipeline_exec_cwl_ome_tiff_offsets
         >> t_maybe_keep_cwl_ome_tiff_offsets
+        >> t_maybe_create_dataset
+
+        >> t_send_create_dataset
         >> t_move_data
         >> t_expand_symlinks
         >> t_send_status
