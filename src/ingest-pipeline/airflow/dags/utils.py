@@ -297,8 +297,9 @@ def build_dataset_name(dag_id: str, pipeline_str: str, **kwargs) -> str:
 def get_parent_dataset_uuids_list(**kwargs) -> List[str]:
     uuid_list = kwargs["dag_run"].conf["parent_submission_id"]
     if kwargs["dag"].dag_id == "azimuth_annotations":
-        uuid_list = pythonop_get_dataset_state(dataset_uuid_callable=lambda **kwargs: uuid_list[0],
-                                               **kwargs).get("parent_dataset_uuid_list")
+        uuid_list = pythonop_get_dataset_state(
+            dataset_uuid_callable=lambda **kwargs: uuid_list[0], **kwargs
+        ).get("parent_dataset_uuid_list")
     if not isinstance(uuid_list, list):
         uuid_list = [uuid_list]
     return uuid_list
@@ -365,11 +366,11 @@ def get_dataname_previous_version(**kwargs) -> str:
 
 
 def get_assay_previous_version(**kwargs) -> tuple:
-    """ Returns information based on previous run to indicate how the re-annotation should process:
-        position 1: Assay indicator for pipeline decision
-        position 2: Matrix file
-        position 3: Secondary analysis file
-        position 4: pipeline position in workflow array"""
+    """Returns information based on previous run to indicate how the re-annotation should process:
+    position 1: Assay indicator for pipeline decision
+    position 2: Matrix file
+    position 3: Secondary analysis file
+    position 4: pipeline position in workflow array"""
     dataset_type = get_dataname_previous_version(**kwargs).split("__")[0]
     if dataset_type == "salmon_rnaseq_10x":
         return "10x_v3", "expr.h5ad", "secondary_analysis.h5ad", 0
@@ -841,9 +842,11 @@ def pythonop_send_create_dataset(**kwargs) -> str:
                 data["previous_revision_uuid"] = previous_revision_uuid
                 revision_uuid = previous_revision_uuid
             else:
-                revision_uuid = kwargs["dag_run"].conf["parent_submission_id"][0] \
-                    if isinstance(kwargs["dag_run"].conf["parent_submission_id"], list) \
+                revision_uuid = (
+                    kwargs["dag_run"].conf["parent_submission_id"][0]
+                    if isinstance(kwargs["dag_run"].conf["parent_submission_id"], list)
                     else kwargs["dag_run"].conf["parent_submission_id"]
+                )
             response = HttpHook("GET", http_conn_id=http_conn_id).run(
                 endpoint=f"datasets/{revision_uuid}/file-system-abs-path",
                 headers=headers,
@@ -1452,7 +1455,6 @@ def make_send_status_msg_function(
                 # md["thumbnail_file_abs_path"] = thumbnail_file_abs_path
                 antibodies = md["metadata"].pop("antibodies", [])
                 contributors = md["metadata"].pop("contributors", [])
-                md["calculated_metadata"] = md["metadata"].pop("calculated_metadata", {})
                 md["metadata"] = md["metadata"].pop("metadata", [])
                 for contrib in contributors:
                     if "is_contact" in contrib:
@@ -1478,12 +1480,14 @@ def make_send_status_msg_function(
             try:
                 assert_json_matches_schema(md, "dataset_metadata_schema.yml")
                 metadata = md.pop("metadata", {})
+                calculated_metadata = metadata.pop("calculated_metadata", {})
                 files = md.pop("files", [])
                 extra_fields = {
                     "pipeline_message": "the process ran",
                     "metadata": metadata,
                     "files": files,
                     "ingest_metadata": md,
+                    "calculated_metadata": calculated_metadata,
                 }
                 if metadata_fun:
                     extra_fields.update(
