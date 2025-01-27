@@ -58,7 +58,7 @@ with HMDAG(
 ) as dag:
     pipeline_name = "bulk-atac-seq"
     workflow_version = "1.0.0"
-    workflow_description = ""
+    workflow_description = "The bulk ATAC seq pipeline performs short read alignment to the HG38 reference genome using HISAT-2, and then calls peaks on the resulting BAM file using MACS2."
 
     cwl_workflows = [
         {

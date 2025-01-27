@@ -124,11 +124,7 @@ COMPILED_RESOURCE_MAP: Optional[List[Tuple[Pattern, int, Dict[str, Any]]]] = Non
 # are the only fields which differ between assays and DAGs
 SequencingDagParameters = namedtuple(
     "SequencingDagParameters",
-    [
-        "dag_id",
-        "pipeline_name",
-        "assay",
-    ],
+    ["dag_id", "pipeline_name", "assay", "workflow_description"],
 )
 
 # TODO: rethink this, now that it's getting more and more unwieldy
@@ -357,8 +353,9 @@ def build_dataset_name(dag_id: str, pipeline_str: str, **kwargs) -> str:
 def get_parent_dataset_uuids_list(**kwargs) -> List[str]:
     uuid_list = kwargs["dag_run"].conf["parent_submission_id"]
     if kwargs["dag"].dag_id == "azimuth_annotations":
-        uuid_list = pythonop_get_dataset_state(dataset_uuid_callable=lambda **kwargs: uuid_list[0],
-                                               **kwargs).get("parent_dataset_uuid_list")
+        uuid_list = pythonop_get_dataset_state(
+            dataset_uuid_callable=lambda **kwargs: uuid_list[0], **kwargs
+        ).get("parent_dataset_uuid_list")
     if not isinstance(uuid_list, list):
         uuid_list = [uuid_list]
     return uuid_list
@@ -946,9 +943,11 @@ def pythonop_send_create_dataset(**kwargs) -> str:
                 data["previous_revision_uuid"] = previous_revision_uuid
                 revision_uuid = previous_revision_uuid
             else:
-                revision_uuid = kwargs["dag_run"].conf["parent_submission_id"][0] \
-                    if isinstance(kwargs["dag_run"].conf["parent_submission_id"], list) \
+                revision_uuid = (
+                    kwargs["dag_run"].conf["parent_submission_id"][0]
+                    if isinstance(kwargs["dag_run"].conf["parent_submission_id"], list)
                     else kwargs["dag_run"].conf["parent_submission_id"]
+                )
             response = HttpHook("GET", http_conn_id=http_conn_id).run(
                 endpoint=f"datasets/{revision_uuid}/file-system-abs-path",
                 headers=headers,

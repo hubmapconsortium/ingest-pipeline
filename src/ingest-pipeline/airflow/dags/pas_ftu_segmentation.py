@@ -62,7 +62,9 @@ with HMDAG(
 ) as dag:
     pipeline_name = "pas-ftu-segmentation-pipeline"
     workflow_version = "1.0.0"
-    workflow_description = ""
+    workflow_description = (
+        "The Kaggle 1 pipeline segments glomeruli in PAS-stained histology images of kidney."
+    )
 
     cwl_workflows = [
         {

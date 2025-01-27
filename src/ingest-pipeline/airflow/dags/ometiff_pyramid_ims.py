@@ -68,7 +68,9 @@ with HMDAG(
 ) as dag:
     pipeline_name = "ometiff_pyramid_ims"
     workflow_version = "1.0.0"
-    workflow_description = ""
+    workflow_description = (
+        "The Image Pyramid pipeline converts OME-TIFF images into OME-TIFF pyramids."
+    )
 
     cwl_workflows = [
         {

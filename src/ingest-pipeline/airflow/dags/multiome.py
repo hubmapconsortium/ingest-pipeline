@@ -84,7 +84,7 @@ def generate_multiome_dag(params: MultiomeSequencingDagParameters) -> DAG:
         },
     ) as dag:
         workflow_version = "1.0.0"
-        workflow_description = ""
+        workflow_description = "The pipeline for multiome RNA-ATACseq data uses Salmon for alignment free quasi mapping of reads from RNA sequencing to the HG38 reference genome and HISAT2 for short read alignment of ATACseq reads to the same genome.  Barcodes are then mapped between components of the assay to generate an annotated data matrix with consolidated RNA and ATACseq data.  This annotated data matrix is then passed to the Muon package for dimensionality reduction, clustering, and multiomic factor analysis.  Cell type annotations are provided by Azimuth when available for the type of tissue being analyzed."
 
         cwl_workflows = [
             {

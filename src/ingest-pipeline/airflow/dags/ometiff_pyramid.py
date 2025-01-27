@@ -65,7 +65,9 @@ with HMDAG(
     # does the name need to match the filename?
     pipeline_name = "ometiff_pyramid"
     workflow_version = "1.0.0"
-    workflow_description = ""
+    workflow_description = (
+        "The Image Pyramid pipeline converts OME-TIFF images into OME-TIFF pyramids."
+    )
 
     # Because PosixPath objects are non JSON-serializable, we have to cast them as str
     cwl_workflows = [
