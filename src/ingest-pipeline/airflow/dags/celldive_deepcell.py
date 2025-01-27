@@ -98,6 +98,7 @@ with HMDAG(
         {
             "workflow_path": str(get_absolute_workflow(Path("ome-tiff-pyramid", "pipeline.cwl"))),
             "input_parameters": [
+                {"parameter_name": "--processes", "value": ""},
                 {"parameter_name": "--ometiff_directory", "value": "."},
             ],
             "documentation_url": "",
@@ -302,9 +303,13 @@ with HMDAG(
             key="cwl_workflows", task_ids="build_cmd_create_vis_symlink_archive"
         )
 
-        # ["--ometiff_directory"]
+        # ["-processes", "--ometiff_directory"]
+        input_param_vals = [
+            get_threads_resource(dag.dag_id),
+            "."
+        ]
+      
         command = get_cwl_cmd_from_workflows(workflows, 3, [], tmpdir, kwargs["ti"])
-
         return join_quote_command_str(command)
 
     t_build_cmd_ome_tiff_pyramid = PythonOperator(

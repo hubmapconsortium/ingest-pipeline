@@ -380,8 +380,12 @@ def get_dataset_type_organ_based(**kwargs) -> str:
     organ_list = list(set(ds_rslt["organs"]))
     organ_code = organ_list[0] if len(organ_list) == 1 else "multi"
     pipeline_shorthand = (
-        "Kaggle-1 Glomerulus Segmentation" if organ_code in ["LK", "RK"] else "Image Pyramid"
+        "Segmentation" if organ_code in ["LK", "RK", "LI", "SP"] else "Image Pyramid"
     )
+    if kwargs["dag"].dag_id == "pas_ftu_segmentation":
+        pipeline_shorthand = "Kaggle-1 " + pipeline_shorthand
+    elif kwargs["dag"].dag_id == "kaggle_2_segmentation":
+        pipeline_shorthand = "Kaggle-2 " + pipeline_shorthand
 
     return f"{ds_rslt['dataset_type']} [{pipeline_shorthand}]"
 
@@ -942,7 +946,9 @@ def pythonop_send_create_dataset(**kwargs) -> str:
                 data["previous_revision_uuid"] = previous_revision_uuid
                 revision_uuid = previous_revision_uuid
             else:
-                revision_uuid = kwargs["dag_run"].conf["parent_submission_id"][0]
+                revision_uuid = kwargs["dag_run"].conf["parent_submission_id"][0] \
+                    if isinstance(kwargs["dag_run"].conf["parent_submission_id"], list) \
+                    else kwargs["dag_run"].conf["parent_submission_id"]
             response = HttpHook("GET", http_conn_id=http_conn_id).run(
                 endpoint=f"datasets/{revision_uuid}/file-system-abs-path",
                 headers=headers,

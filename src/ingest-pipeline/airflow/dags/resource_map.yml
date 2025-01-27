@@ -6,26 +6,26 @@ resource_map:
     'preserve_scratch': false
     'lanes': 1
     'tasks':
-    - 'task_re': '.*'
-      'queue': 'general'
-      'threads': 1
+      - 'task_re': '.*'
+        'queue': 'general'
+        'threads': 1
   - 'dag_re': 'gen_pub_ancillary'
     'preserve_scratch': true
     'lanes': 2
     'tasks':
-    - 'task_re': '.*'
-      'queue': 'general'
-      'threads': 2
+      - 'task_re': '.*'
+        'queue': 'general'
+        'threads': 2
   - 'dag_re': 'celldive_deepcell'
     'preserve_scratch': true
     'lanes': 2
     'tasks':
-    - 'task_re': '.*segmentation'
-      'queue': 'gpu000_q1'
-      'threads': 6
-    - 'task_re': '.*'
-      'queue': 'general'
-      'threads': 16
+      - 'task_re': '.*segmentation'
+        'queue': 'gpu000_q1'
+        'threads': 6
+      - 'task_re': '.*'
+        'queue': 'general'
+        'threads': 16
   - 'dag_re': 'mibi_deepcell'
     'preserve_scratch': true
     'lanes': 2
@@ -51,34 +51,34 @@ resource_map:
     'lanes': 2
     # 'lanes': 12
     'tasks':
-    - 'task_re': '.*'
-      'queue': 'general'
-      'threads': 6
+      - 'task_re': '.*'
+        'queue': 'general'
+        'threads': 6
   - 'dag_re': 'generate_bdbag'
     'preserve_scratch': true
     'lanes': 1
     'tasks':
-    - 'task_re': '.*'
-      'queue': 'general'
-      'threads': 6
+      - 'task_re': '.*'
+        'queue': 'general'
+        'threads': 6
   - 'dag_re': 'generate_usage_report'
     'preserve_scratch': true
     'lanes': 1
     'tasks':
-    - 'task_re': '.*'
-      'queue': 'general'
-      'threads': 6
+      - 'task_re': '.*'
+        'queue': 'general'
+        'threads': 6
   - 'dag_re': 'codex_cytokit'
     'preserve_scratch': true
     'lanes': 2
     # 'lanes': 6
     'tasks':
-    - 'task_re': '.*cwl_cytokit'
-      'queue': 'gpu000_q1'
-      'threads': 6
-    - 'task_re': '.*'
-      'queue': 'general'
-      'threads': 6
+      - 'task_re': '.*cwl_cytokit'
+        'queue': 'gpu000_q1'
+        'threads': 6
+      - 'task_re': '.*'
+        'queue': 'general'
+        'threads': 6
   - 'dag_re': 'pas_ftu_segmentation'
     'preserve_scratch': true
     'lanes': 2
@@ -94,54 +94,62 @@ resource_map:
     'lanes': 2
     # 'lanes': 6
     'tasks':
-    - 'task_re': '.*'
-      'queue': 'general'
-      'threads': 6
+      - 'task_re': '.*'
+        'queue': 'general'
+        'threads': 6
+  - 'dag_re': 'geomx'
+    'preserve_scratch': true
+    'lanes': 2
+    # 'lanes': 6
+    'tasks':
+      - 'task_re': '.*'
+        'queue': 'general'
+        'threads': 6
   - 'dag_re': 'launch_checksums'
     'preserve_scratch': true
     'lanes': 2
     'tasks':
-    - 'task_re': '.*'
-      'queue': 'general'
-      'threads': 6
+      - 'task_re': '.*'
+        'queue': 'general'
+        'threads': 6
   - 'dag_re': 'scan_and_begin_processing'
     'preserve_scratch': true
     'lanes': 2
     'tasks':
-    - 'task_re': 'run_validation'
-      'queue': 'validate'
-      'coreuse': 60
-    - 'task_re': '.*'
-      'queue': 'general'
-      'threads': 6
+      - 'task_re': 'run_validation'
+        'queue': 'validate'
+        'coreuse': 60
+      - 'task_re': '.*'
+        'queue': 'general'
+        'threads': 6
   - 'dag_re': 'validate_upload'
     'preserve_scratch': true
     'lanes': 2
     'tasks':
-    - 'task_re': 'run_validation'
-      'queue': 'validate'
-      'coreuse': 60
-    - 'task_re': '.*'
-      'queue': 'general'
-      'threads': 6
+      - 'task_re': 'run_validation'
+        'queue': 'validate'
+        'coreuse': 60
+      - 'task_re': '.*'
+        'queue': 'general'
+        'threads': 6
   - 'dag_re': 'validation_test'
     'preserve_scratch': true
     'lanes': 2
     'tasks':
-    - 'task_re': 'run_validation'
-      'queue': 'validate'
-      'coreuse': 60
-    - 'task_re': '.*'
-      'queue': 'general'
-      'threads': 6
+      - 'task_re': 'run_validation'
+        'queue': 'validate'
+        'coreuse': 60
+      - 'task_re': '.*'
+        'queue': 'general'
+        'threads': 6
   - 'dag_re': 'sc_atac_seq_.*'
     'preserve_scratch': true
     'lanes': 2
     # 'lanes': 11
     'tasks':
-    - 'task_re': '.*'
-      'queue': 'general'
-      'threads': 6
+      - 'task_re': '.*'
+        'queue': 'general'
+        'threads': 6
   - 'dag_re': '.*metadata'
     'preserve_scratch': true
     'lanes': 2
@@ -174,6 +182,16 @@ resource_map:
     'preserve_scratch': true
     'lanes': 2
     'tasks':
+      - 'task_re': '.*'
+        'queue': 'general'
+        'threads': 6
+  - 'dag_re': 'kaggle_2_segmentation'
+    'preserve_scratch': true
+    'lanes': 2
+    'tasks':
+      - 'task_re': '.*segmentation'
+        'queue': 'gpu000_q1'
+        'threads': 6
       - 'task_re': '.*'
         'queue': 'general'
         'threads': 6
