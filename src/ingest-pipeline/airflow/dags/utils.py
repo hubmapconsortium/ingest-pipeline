@@ -1571,7 +1571,6 @@ def make_send_status_msg_function(
                 # md["thumbnail_file_abs_path"] = thumbnail_file_abs_path
                 antibodies = md["metadata"].pop("antibodies", [])
                 contributors = md["metadata"].pop("contributors", [])
-                md["calculated_metadata"] = md["metadata"].pop("calculated_metadata", {})
                 md["metadata"] = md["metadata"].pop("metadata", [])
                 for contrib in contributors:
                     if "is_contact" in contrib:
@@ -1597,12 +1596,14 @@ def make_send_status_msg_function(
             try:
                 assert_json_matches_schema(md, "dataset_metadata_schema.yml")
                 metadata = md.pop("metadata", {})
+                calculated_metadata = metadata.pop("calculated_metadata", {})
                 files = md.pop("files", [])
                 extra_fields = {
                     "pipeline_message": "the process ran",
                     "metadata": metadata,
                     "files": files,
                     "ingest_metadata": md,
+                    "calculated_metadata": calculated_metadata,
                 }
                 if metadata_fun:
                     extra_fields.update(
