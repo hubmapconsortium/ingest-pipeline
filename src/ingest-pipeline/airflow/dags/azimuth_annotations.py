@@ -15,8 +15,7 @@ from hubmap_operators.common_operators import (
 
 import utils
 from utils import (
-    get_absolute_workflows,
-    get_cwltool_base_cmd,
+    get_absolute_workflow,
     get_dataset_uuid,
     get_parent_dataset_uuids_list,
     get_previous_revision_uuid,
@@ -32,6 +31,7 @@ from utils import (
     get_dataname_previous_version,
     build_provenance_function,
     get_assay_previous_version,
+    get_cwl_cmd_from_workflows,
 )
 
 
@@ -60,27 +60,96 @@ with HMDAG(
     },
 ) as dag:
     pipeline_name = "azimuth_annotate"
-    cwl_workflows_files_salmon = get_absolute_workflows(
-        Path("salmon-rnaseq", "pipeline.cwl"),
-        Path("azimuth-annotate", "pipeline.cwl"),
-        Path("portal-containers", "h5ad-to-arrow.cwl"),
-        Path("portal-containers", "anndata-to-ui.cwl"),
-    )
-    cwl_workflows_files_multiome = get_absolute_workflows(
-        Path("multiome-rna-atac-pipeline", "pipeline.cwl"),
-        Path("azimuth-annotate", "pipeline.cwl"),
-        Path("portal-containers", "h5ad-to-arrow.cwl"),
-        Path("portal-containers", "anndata-to-ui.cwl"),
-    )
-    cwl_workflows_annotations_salmon = get_absolute_workflows(
-        Path("azimuth-annotate", "pipeline.cwl"),
-        Path("portal-containers", "h5ad-to-arrow.cwl"),
-        Path("portal-containers", "anndata-to-ui.cwl"),
-    )
-    cwl_workflows_annotations_multiome = get_absolute_workflows(
-        Path("azimuth-annotate", "pipeline.cwl"),
-        Path("portal-containers", "mudata-to-ui.cwl"),
-    )
+
+    cwl_workflows_annotations_salmon = [
+        {
+            "workflow_path": str(get_absolute_workflow(Path("azimuth-annotate", "pipeline.cwl"))),
+            "input_parameters": [
+                {"parameter_name": "--reference", "value": ""},
+                {"parameter_name": "--matrix", "value": "expr.h5ad"},
+                {
+                    "parameter_name": "--secondary-analysis-matrix",
+                    "value": "secondary_analysis.h5ad",
+                },
+                {"parameter_name": "--assay", "value": ""},
+            ],
+            "documentation_url": "",
+        },
+        {
+            "workflow_path": str(
+                get_absolute_workflow(Path("portal-containers", "h5ad-to-arrow.cwl"))
+            ),
+            "input_parameters": [
+                {"parameter_name": "--input_dir", "value": ".."},
+            ],
+            "documentation_url": "",
+        },
+        {
+            "workflow_path": str(
+                get_absolute_workflow(Path("portal-containers", "anndata-to-ui.cwl"))
+            ),
+            "input_parameters": [
+                {"parameter_name": "--input_dir", "value": ".."},
+            ],
+            "documentation_url": "",
+        },
+    ]
+    cwl_workflows_annotations_multiome = [
+        {
+            "workflow_path": str(get_absolute_workflow(Path("azimuth-annotate", "pipeline.cwl"))),
+            "input_parameters": [
+                {"parameter_name": "--reference", "value": ""},
+                {"parameter_name": "--matrix", "value": "mudata_raw.h5mu"},
+                {
+                    "parameter_name": "--secondary-analysis-matrix",
+                    "value": "secondary_analysis.h5mu",
+                },
+                {"parameter_name": "--assay", "value": ""},
+            ],
+            "documentation_url": "",
+        },
+        {
+            "workflow_path": str(
+                get_absolute_workflow(Path("portal-containers", "mudata-to-ui.cwl"))
+            ),
+            "input_parameters": [
+                {"parameter_name": "--input_dir", "value": ".."},
+            ],
+            "documentation_url": "",
+        },
+    ]
+
+    cwl_workflows_files_salmon = [
+        {
+            "workflow_path": str(get_absolute_workflow(Path("salmon-rnaseq", "pipeline.cwl"))),
+            "input_parameters": [
+                {"parameter_name": "--assay", "value": ""},
+                {"parameter_name": "--threads", "value": ""},
+                {"parameter_name": "--organism", "value": ""},
+                {"parameter_name": "--fastq_dir", "value": []},
+            ],
+            "documentation_url": "",
+        },
+        *cwl_workflows_annotations_salmon,
+    ]
+    cwl_workflows_files_multiome = [
+        {
+            "workflow_path": str(
+                get_absolute_workflow(Path("multiome-rna-atac-pipeline", "pipeline.cwl"))
+            ),
+            "input_parameters": [
+                {"parameter_name": "--threads_rna", "value": ""},
+                {"parameter_name": "--threads_atac", "value": ""},
+                {"parameter_name": "--organism", "value": ""},
+                {"parameter_name": "--assay_rna", "value": ""},
+                {"parameter_name": "--fastq_dir_rna", "value": []},
+                {"parameter_name": "--assay_atac", "value": ""},
+                {"parameter_name": "--fastq_dir_atac", "value": []},
+            ],
+            "documentation_url": "",
+        },
+        *cwl_workflows_annotations_multiome,
+    ]
 
     prepare_cwl1 = DummyOperator(task_id="prepare_cwl1")
 
@@ -100,21 +169,17 @@ with HMDAG(
         organ_code = organ_list[0] if len(organ_list) == 1 else "multi"
         assay, matrix, secondary_analysis, _ = get_assay_previous_version(**kwargs)
 
-        command = [
-            *get_cwltool_base_cmd(tmpdir),
-            cwl_workflows_annotations_salmon[0],
-            "--reference",
-            organ_code,
-            "--matrix",
-            matrix,
-            "--secondary-analysis-matrix",
-            secondary_analysis,
-            "--assay",
-            assay,
-        ]
+        workflows = (
+            cwl_workflows_annotations_multiome
+            if "mudata" in secondary_analysis
+            else cwl_workflows_annotations_salmon
+        )
+
+        # [--reference, --matrix, --secondary-analysis-matrix, --assay]
+        input_param_vals = [organ_code, matrix, secondary_analysis, assay]
+        command = get_cwl_cmd_from_workflows(workflows, 0, input_param_vals, tmpdir, kwargs["ti"])
 
         return join_quote_command_str(command)
-
 
     def build_cwltool_cmd2(**kwargs):
         run_id = kwargs["run_id"]
@@ -122,36 +187,27 @@ with HMDAG(
         print("tmpdir: ", tmpdir)
         assay, matrix, secondary_analysis, workflow = get_assay_previous_version(**kwargs)
 
-        command = [
-            *get_cwltool_base_cmd(tmpdir),
-            cwl_workflows_annotations_salmon[1] if workflow == 0 else
-            cwl_workflows_annotations_multiome[1],
-            "--input_dir",
-            # This pipeline invocation runs in a 'hubmap_ui' subdirectory,
-            # so use the parent directory as input
-            "..",
-        ]
+        workflows = kwargs["ti"].xcom_pull(key="cwl_workflows", task_ids="build_cmd1")
+
+        # [--input_dir]
+        input_param_vals = []
+        command = get_cwl_cmd_from_workflows(workflows, 1, input_param_vals, tmpdir, kwargs["ti"])
         kwargs["ti"].xcom_push(key="skip_cwl3", value=1 if workflow == 0 else 0)
 
         return join_quote_command_str(command)
-
 
     def build_cwltool_cmd4(**kwargs):
         run_id = kwargs["run_id"]
         tmpdir = get_tmp_dir_path(run_id)
         print("tmpdir: ", tmpdir)
 
-        command = [
-            *get_cwltool_base_cmd(tmpdir),
-            cwl_workflows_annotations_salmon[2],
-            "--input_dir",
-            # This pipeline invocation runs in a 'hubmap_ui' subdirectory,
-            # so use the parent directory as input
-            "..",
-        ]
+        workflows = kwargs["ti"].xcom_pull(key="cwl_workflows", task_ids="build_cmd2")
+
+        # [--input_dir]
+        input_param_vals = []
+        command = get_cwl_cmd_from_workflows(workflows, 2, input_param_vals, tmpdir, kwargs["ti"])
 
         return join_quote_command_str(command)
-
 
     t_build_cmd1 = PythonOperator(
         task_id="build_cmd1",
@@ -305,11 +361,15 @@ with HMDAG(
     )
 
     build_provenance_salmon = build_provenance_function(
-        cwl_workflows=cwl_workflows_annotations_salmon,
+        cwl_workflows=lambda **kwargs: kwargs["ti"].xcom_pull(
+            key="cwl_workflows", task_ids="build_cmd4"
+        ),
     )
 
     build_provenance_multiome = build_provenance_function(
-        cwl_workflows=cwl_workflows_annotations_multiome,
+        cwl_workflows=lambda **kwargs: kwargs["ti"].xcom_pull(
+            key="cwl_workflows", task_ids="build_cmd2"
+        ),
     )
 
     t_build_provenance_salmon = PythonOperator(
