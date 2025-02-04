@@ -431,6 +431,7 @@ with HMDAG(
         >> t_build_cmd_ome_tiff_offsets
         >> t_pipeline_exec_cwl_ome_tiff_offsets
         >> t_maybe_keep_cwl_ome_tiff_offsets
+
         >> prepare_cwl_ome_tiff_metadata
         >> t_build_cmd_ome_tiff_metadata
         >> t_pipeline_exec_cwl_ome_tiff_metadata
