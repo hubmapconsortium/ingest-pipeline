@@ -15,8 +15,7 @@ from hubmap_operators.common_operators import (
 
 import utils
 from utils import (
-    get_absolute_workflows,
-    get_cwltool_base_cmd,
+    get_absolute_workflow,
     get_dataset_uuid,
     get_parent_dataset_uuids_list,
     get_parent_data_dirs_list,
@@ -30,6 +29,7 @@ from utils import (
     HMDAG,
     get_queue_resource,
     get_preserve_scratch_resource,
+    get_cwl_cmd_from_workflows,
 )
 
 default_args = {
@@ -57,9 +57,21 @@ with HMDAG(
     },
 ) as dag:
     pipeline_name = "bulk-atac-seq"
-    cwl_workflows = get_absolute_workflows(
-        Path("sc-atac-seq-pipeline", "bulk-atac-seq-pipeline.cwl"),
-    )
+    workflow_version = "1.0.0"
+    workflow_description = "The bulk ATAC seq pipeline performs short read alignment to the HG38 reference genome using HISAT-2, and then calls peaks on the resulting BAM file using MACS2."
+
+    cwl_workflows = [
+        {
+            "workflow_path": str(
+                get_absolute_workflow(Path("sc-atac-seq-pipeline", "bulk-atac-seq-pipeline.cwl"))
+            ),
+            "input_parameters": [
+                {"parameter_name": "--threads", "value": ""},
+                {"parameter_name": "--sequence_directory", "value": []},
+            ],
+            "documentation_url": "",
+        }
+    ]
 
     def build_dataset_name(**kwargs):
         return inner_build_dataset_name(dag.dag_id, pipeline_name, **kwargs)
@@ -72,18 +84,17 @@ with HMDAG(
 
         data_dirs = get_parent_data_dirs_list(**kwargs)
 
-        command = [
-            *get_cwltool_base_cmd(tmpdir),
-            "--outdir",
-            tmpdir / "cwl_out",
-            "--parallel",
-            cwl_workflows[0],
-            "--threads",
+        # ["--threads", "--sequence_directory"]
+        input_param_vals = [
             get_threads_resource(dag.dag_id),
+            [str(data_dir) for data_dir in data_dirs],
         ]
-        for data_dir in data_dirs:
-            command.append("--sequence_directory")
-            command.append(data_dir)
+        cwl_params = [
+            {"parameter_name": "--parallel", "value": ""},
+        ]
+        command = get_cwl_cmd_from_workflows(
+            cwl_workflows, 0, input_param_vals, tmpdir, kwargs["ti"], cwl_params
+        )
 
         return join_quote_command_str(command)
 
@@ -151,7 +162,11 @@ with HMDAG(
     send_status_msg = make_send_status_msg_function(
         dag_file=__file__,
         retcode_ops=["pipeline_exec", "move_data"],
-        cwl_workflows=cwl_workflows,
+        cwl_workflows=lambda **kwargs: kwargs["ti"].xcom_pull(
+            key="cwl_workflows", task_ids="build_cmd1"
+        ),
+        workflow_description=workflow_description,
+        workflow_version=workflow_version,
     )
     t_send_status = PythonOperator(
         task_id="send_status_msg",

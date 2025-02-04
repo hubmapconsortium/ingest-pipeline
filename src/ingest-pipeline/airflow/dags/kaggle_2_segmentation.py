@@ -23,6 +23,7 @@ from utils import (
     get_preserve_scratch_resource,
     pythonop_get_dataset_state,
     get_dataset_type_organ_based,
+    get_threads_resource,
 )
 from hubmap_operators.common_operators import (
     CleanupTmpDirOperator,
@@ -65,6 +66,7 @@ with HMDAG(
         create_vis_symlink_archive=Path("create-vis-symlink-archive", "pipeline.cwl"),
         ome_tiff_pyramid=Path("ome-tiff-pyramid", "pipeline.cwl"),
         ome_tiff_offsets=Path("portal-containers", "ome-tiff-offsets.cwl"),
+        ome_tiff_metadata=Path("portal-containers", "ome-tiff-metadata.cwl"),
     )
 
     def build_dataset_name(**kwargs):
@@ -140,6 +142,8 @@ with HMDAG(
         command = [
             *get_cwltool_base_cmd(tmpdir),
             cwl_workflows["ome_tiff_pyramid"],
+            "--processes",
+            get_threads_resource(dag.dag_id),
             "--ometiff_directory",
             ".",
         ]
@@ -188,6 +192,8 @@ with HMDAG(
         command = [
             *get_cwltool_base_cmd(tmpdir),
             cwl_workflows["ome_tiff_pyramid"],
+            "--processes",
+            get_threads_resource(dag.dag_id),
             "--ometiff_directory",
             data_dir,
         ]
@@ -262,9 +268,56 @@ with HMDAG(
         python_callable=utils.pythonop_maybe_keep,
         provide_context=True,
         op_kwargs={
-            "next_op": "maybe_create_dataset",
+            "next_op": "prepare_cwl_ome_tiff_metadata",
             "bail_op": "set_dataset_error",
             "test_op": "pipeline_exec_cwl_ome_tiff_offsets",
+        },
+    )
+
+    prepare_cwl_ome_tiff_metadata = DummyOperator(task_id="prepare_cwl_ome_tiff_metadata")
+
+    def build_cwltool_cmd_ome_tiff_metadata(**kwargs):
+        run_id = kwargs["run_id"]
+        tmpdir = get_tmp_dir_path(run_id)
+        print("tmpdir: ", tmpdir)
+        parent_data_dir = get_parent_data_dir(**kwargs)
+        print("parent_data_dir: ", parent_data_dir)
+        data_dir = tmpdir / "cwl_out"
+        print("data_dir: ", data_dir)
+
+        command = [
+            *get_cwltool_base_cmd(tmpdir),
+            cwl_workflows["ome_tiff_metadata"],
+            "--input_dir",
+            data_dir / "ometiff-pyramids",
+        ]
+
+        return join_quote_command_str(command)
+
+    t_build_cmd_ome_tiff_metadata = PythonOperator(
+        task_id="build_cmd_ome_tiff_metadata",
+        python_callable=build_cwltool_cmd_ome_tiff_metadata,
+        provide_context=True,
+    )
+
+    t_pipeline_exec_cwl_ome_tiff_metadata = BashOperator(
+        task_id="pipeline_exec_cwl_ome_tiff_metadata",
+        bash_command=""" \
+        tmp_dir={{tmp_dir_path(run_id)}} ; \
+        cd ${tmp_dir}/cwl_out ; \
+        {{ti.xcom_pull(task_ids='build_cmd_ome_tiff_metadata')}} >> ${tmp_dir}/session.log 2>&1 ; \
+        echo $?
+        """,
+    )
+
+    t_maybe_keep_cwl_ome_tiff_metadata = BranchPythonOperator(
+        task_id="maybe_keep_cwl_ome_tiff_metadata",
+        python_callable=utils.pythonop_maybe_keep,
+        provide_context=True,
+        op_kwargs={
+            "next_op": "maybe_create_dataset",
+            "bail_op": "set_dataset_error",
+            "test_op": "pipeline_exec_cwl_ome_tiff_metadata",
         },
     )
 
@@ -359,6 +412,11 @@ with HMDAG(
         >> t_build_cmd_ome_tiff_offsets
         >> t_pipeline_exec_cwl_ome_tiff_offsets
         >> t_maybe_keep_cwl_ome_tiff_offsets
+
+        >> prepare_cwl_ome_tiff_metadata
+        >> t_build_cmd_ome_tiff_metadata
+        >> t_pipeline_exec_cwl_ome_tiff_metadata
+        >> t_maybe_keep_cwl_ome_tiff_metadata
         >> t_maybe_create_dataset
 
         >> t_send_create_dataset

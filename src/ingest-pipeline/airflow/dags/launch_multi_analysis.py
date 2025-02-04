@@ -65,8 +65,8 @@ with HMDAG(
         - local directory full path of the dataset
         """
         print(f"Starting uuid {uuid} with avoid previous version {avoid_previous_version}")
-        ds_rslt = utils.pythonop_get_dataset_state(
-            dataset_uuid_callable=lambda **kwargs: uuid, **kwargs)
+        my_callable = lambda **kwargs: uuid
+        ds_rslt = utils.pythonop_get_dataset_state(dataset_uuid_callable=my_callable, **kwargs)
         if not ds_rslt:
             raise AirflowException(f"Invalid uuid/doi for group: {uuid}")
         print("ds_rslt:")

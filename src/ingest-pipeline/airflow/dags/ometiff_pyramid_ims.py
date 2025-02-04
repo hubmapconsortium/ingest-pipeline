@@ -18,8 +18,7 @@ from hubmap_operators.common_operators import (
 
 import utils
 from utils import (
-    get_cwltool_base_cmd,
-    get_absolute_workflows,
+    get_absolute_workflow,
     get_dataset_uuid,
     get_parent_dataset_uuids_list,
     get_parent_data_dir,
@@ -33,6 +32,7 @@ from utils import (
     get_queue_resource,
     get_threads_resource,
     get_preserve_scratch_resource,
+    get_cwl_cmd_from_workflows,
 )
 
 # Passed directly to the pipeline
@@ -66,15 +66,32 @@ with HMDAG(
         "preserve_scratch": get_preserve_scratch_resource("ometiff_pyramid_ims"),
     },
 ) as dag:
-    # does the name need to match the filename?
     pipeline_name = "ometiff_pyramid_ims"
-
-    cwl_workflows = get_absolute_workflows(
-        # this workflow creates the image pyramid
-        Path("ome-tiff-pyramid", "pipeline.cwl"),
-        # this workflow computes the offsets
-        Path("portal-containers", "ome-tiff-offsets.cwl"),
+    workflow_version = "1.0.0"
+    workflow_description = (
+        "The Image Pyramid pipeline converts OME-TIFF images into OME-TIFF pyramids."
     )
+
+    cwl_workflows = [
+        {
+            "workflow_path": str(get_absolute_workflow(Path("ome-tiff-pyramid", "pipeline.cwl"))),
+            "input_parameters": [
+                {"parameter_name": "--processes", "value": ""},
+                {"parameter_name": "--downsample_type", "value": DOWNSAMPLE_TYPE},
+                {"parameter_name": "--ometiff_directory", "value": ""},
+            ],
+            "documentation_url": "",
+        },
+        {
+            "workflow_path": str(
+                get_absolute_workflow(Path("portal-containers", "ome-tiff-offsets.cwl"))
+            ),
+            "input_parameters": [
+                {"parameter_name": "--input_directory", "value": "./ometiff-pyramids"},
+            ],
+            "documentation_url": "",
+        },
+    ]
 
     def build_dataset_name(**kwargs):
         return inner_build_dataset_name(dag.dag_id, pipeline_name, **kwargs)
@@ -94,17 +111,12 @@ with HMDAG(
         data_dir = get_parent_data_dir(**kwargs)
         print("data_dir: ", data_dir)
 
+        # [--processes, --downsample_type, --ometiff_directory]
+        input_param_vals = [get_threads_resource(dag.dag_id), "", str(data_dir)]
+        command = get_cwl_cmd_from_workflows(
+            cwl_workflows, 0, input_param_vals, tmpdir, kwargs["ti"]
+        )
         # this is the call to the CWL
-        command = [
-            *get_cwltool_base_cmd(tmpdir),
-            cwl_workflows[0],
-            "--processes",
-            get_threads_resource(dag.dag_id),
-            "--downsample_type",
-            DOWNSAMPLE_TYPE,
-            "--ometiff_directory",
-            data_dir,
-        ]
 
         return join_quote_command_str(command)
 
@@ -119,7 +131,6 @@ with HMDAG(
         bash_command=""" \
         tmp_dir={{tmp_dir_path(run_id)}} ; \
         mkdir -p ${tmp_dir}/cwl_out ; \
-        cd ${tmp_dir}/cwl_out ; \
         {{ti.xcom_pull(task_ids='build_cmd1')}} > $tmp_dir/session.log 2>&1 ; \
         echo $?
         """,
@@ -136,13 +147,9 @@ with HMDAG(
         tmpdir = get_tmp_dir_path(run_id)
         print("tmpdir: ", tmpdir)
 
-        # this is the call to the CWL
-        command = [
-            *get_cwltool_base_cmd(tmpdir),
-            cwl_workflows[1],
-            "--input_directory",
-            "./ometiff-pyramids",
-        ]
+        workflows = kwargs["ti"].xcom_pull(key="cwl_workflows", task_ids="build_cmd1")
+        # [--input_directory]
+        command = get_cwl_cmd_from_workflows(workflows, 1, [], tmpdir, kwargs["ti"])
 
         return join_quote_command_str(command)
 
@@ -225,7 +232,11 @@ with HMDAG(
     send_status_msg = make_send_status_msg_function(
         dag_file=__file__,
         retcode_ops=["pipeline_exec_cwl1", "pipeline_exec_cwl2", "move_data"],
-        cwl_workflows=cwl_workflows,
+        cwl_workflows=lambda **kwargs: kwargs["ti"].xcom_pull(
+            key="cwl_workflows", task_ids="build_cmd2"
+        ),
+        workflow_description=workflow_description,
+        workflow_version=workflow_version,
     )
 
     t_send_status = PythonOperator(

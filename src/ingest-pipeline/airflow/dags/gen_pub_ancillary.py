@@ -80,7 +80,10 @@ with HMDAG(
         else:
             uuid = parent_l
 
-        ds_rslt = pythonop_get_dataset_state(dataset_uuid_callable=lambda **kwargs: uuid, **kwargs)
+        def my_callable(**kwargs):
+            return uuid
+
+        ds_rslt = pythonop_get_dataset_state(dataset_uuid_callable=my_callable, **kwargs)
         if not ds_rslt:
             raise AirflowException(f"Invalid uuid/doi for group: {uuid}")
         print("ds_rslt:")
