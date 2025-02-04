@@ -419,6 +419,7 @@ def get_salmon_dag_params(assay: str) -> SequencingDagParameters:
         dag_id=f"salmon_rnaseq_{assay}",
         pipeline_name=f"salmon-rnaseq-{assay}",
         assay=assay,
+        workflow_description="The pipeline for RNASeq",
     )
 
 
