@@ -264,9 +264,59 @@ with HMDAG(
         python_callable=utils.pythonop_maybe_keep,
         provide_context=True,
         op_kwargs={
-            "next_op": "prepare_cwl_deepcelltypes",
+            "next_op": "prepare_cwl_ribca",
             "bail_op": "set_dataset_error",
             "test_op": "pipeline_exec_cwl_ometiff_second_stitching",
+        },
+    )
+
+    prepare_cwl_ribca = DummyOperator(task_id="prepare_cwl_ribca")
+
+
+    def build_cwltool_cwl_ribca(**kwargs):
+        run_id = kwargs["run_id"]
+        tmpdir = get_tmp_dir_path(run_id)
+        print("tmpdir: ", tmpdir)
+        parent_data_dir = get_parent_data_dir(**kwargs)
+        print("parent_data_dir: ", parent_data_dir)
+        data_dir = tmpdir / "cwl_out"
+        print("data_dir: ", data_dir)
+
+        workflows = kwargs["ti"].xcom_pull(
+            key="cwl_workflows", task_ids="build_cwl_ometiff_second_stitching"
+        )
+
+        # [--data_dir]
+        input_param_vals = [str(data_dir)]
+        command = get_cwl_cmd_from_workflows(workflows, 4, input_param_vals, tmpdir, kwargs["ti"])
+
+        return join_quote_command_str(command)
+
+
+    t_build_cmd_ribca = PythonOperator(
+        task_id="build_cwl_ribca",
+        python_callable=build_cwltool_cwl_ribca,
+        provide_context=True,
+    )
+
+    t_pipeline_exec_cwl_ribca = BashOperator(
+        task_id="pipeline_exec_cwl_ribca",
+        bash_command=""" \
+                tmp_dir={{tmp_dir_path(run_id)}} ; \
+                cd ${tmp_dir}/cwl_out ; \
+                {{ti.xcom_pull(task_ids='build_cmd_ribca')}} >> ${tmp_dir}/session.log 2>&1 ; \
+                echo $?
+                """,
+    )
+
+    t_maybe_keep_cwl_ribca = BranchPythonOperator(
+        task_id="maybe_keep_cwl_ribca",
+        python_callable=utils.pythonop_maybe_keep,
+        provide_context=True,
+        op_kwargs={
+            "next_op": "prepare_cwl_deepcelltypes",
+            "bail_op": "set_dataset_error",
+            "test_op": "pipeline_exec_cwl_ribca",
         },
     )
 
@@ -291,7 +341,7 @@ with HMDAG(
         print("data_dir: ", data_dir)
 
         workflows = kwargs["ti"].xcom_pull(
-            key="cwl_workflows", task_ids="build_cwl_ometiff_second_stitching"
+            key="cwl_workflows", task_ids="build_cwl_ribca"
         )
 
         input_parameters = [
@@ -726,6 +776,11 @@ with HMDAG(
         >> t_build_cmd_deepcelltypes
         >> t_pipeline_exec_cwl_deepcelltypes
         >> t_maybe_keep_cwl_deepcelltypes
+
+        >> prepare_cwl_ribca
+        >> t_build_cmd_ribca
+        >> t_pipeline_exec_cwl_ribca
+        >> t_maybe_keep_cwl_ribca
 
         >> prepare_cwl_sprm
         >> t_build_cmd_sprm
