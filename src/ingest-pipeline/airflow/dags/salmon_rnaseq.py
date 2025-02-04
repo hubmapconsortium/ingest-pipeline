@@ -419,6 +419,7 @@ def get_salmon_dag_params(assay: str) -> SequencingDagParameters:
         dag_id=f"salmon_rnaseq_{assay}",
         pipeline_name=f"salmon-rnaseq-{assay}",
         assay=assay,
+        workflow_description="The pipeline for RNASeq",
     )
 
 
@@ -428,21 +429,25 @@ salmon_dag_params: List[SequencingDagParameters] = [
         dag_id="salmon_rnaseq_10x",
         pipeline_name="salmon-rnaseq",
         assay="10x_v3",
+        workflow_description="The pipeline for RNASeq",
     ),
     SequencingDagParameters(
         dag_id="salmon_rnaseq_10x_sn",
         pipeline_name="salmon-rnaseq",
         assay="10x_v3_sn",
+        workflow_description="The pipeline for RNASeq",
     ),
     SequencingDagParameters(
         dag_id="salmon_rnaseq_10x_v2",
         pipeline_name="salmon-rnaseq",
         assay="10x_v2",
+        workflow_description="The pipeline for RNASeq",
     ),
     SequencingDagParameters(
         dag_id="salmon_rnaseq_10x_v2_sn",
         pipeline_name="salmon-rnaseq",
         assay="10x_v2_sn",
+        workflow_description="The pipeline for RNASeq",
     ),
     get_salmon_dag_params("sciseq"),
     get_salmon_dag_params("slideseq"),
