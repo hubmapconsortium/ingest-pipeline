@@ -389,7 +389,9 @@ with HMDAG(
             "pipeline_exec_cwl_ome_tiff_offsets",
             "move_data",
         ],
-        cwl_workflows=list(cwl_workflows.values()),
+        cwl_workflows=lambda **kwargs: kwargs["ti"].xcom_pull(
+            key="cwl_workflows", task_ids="build_cmd_ome_tiff_metadata"
+        ),
     )
 
     t_send_status = PythonOperator(
