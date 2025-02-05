@@ -81,6 +81,13 @@ with HMDAG(
             ]
         },
         {
+            "workflow_path": str(get_absolute_workflows(Path("ome-tiff-pyramid", "pipeline.cwl"))),
+            "input_parameters": [
+                {"parameter_name": "--processes", "value": ""},
+                {"parameter_name": "--ometiff-directory", "value": ""}
+            ]
+        },
+        {
             "workflow_path": str(get_absolute_workflows(Path("portal-containers", "ome-tiff-offsets.cwl"))),
             "input_parameters": [
                 {"parameter_name": "--input_dir", "value": ""},
@@ -214,7 +221,7 @@ with HMDAG(
 
         # ["--processes", "--ometiff_directory]
         input_param_vals = [get_threads_resource(dag.dag_id), str(data_dir)]
-        command = get_cwl_cmd_from_workflows(workflows, 1, input_param_vals, tmpdir, kwargs["ti"])
+        command = get_cwl_cmd_from_workflows(workflows, 2, input_param_vals, tmpdir, kwargs["ti"])
 
         return join_quote_command_str(command)
 
@@ -261,7 +268,7 @@ with HMDAG(
 
         # ["--input_dir]
         input_param_vals = [str(data_dir / "ometiff-pyramids")]
-        command = get_cwl_cmd_from_workflows(workflows, 2, input_param_vals, tmpdir, kwargs["ti"])
+        command = get_cwl_cmd_from_workflows(workflows, 3, input_param_vals, tmpdir, kwargs["ti"])
 
         return join_quote_command_str(command)
 
@@ -307,7 +314,7 @@ with HMDAG(
 
         # ["--input_dir]
         input_param_vals = [str(data_dir / "ometiff-pyramids")]
-        command = get_cwl_cmd_from_workflows(workflows, 3, input_param_vals, tmpdir, kwargs["ti"])
+        command = get_cwl_cmd_from_workflows(workflows, 4, input_param_vals, tmpdir, kwargs["ti"])
 
         return join_quote_command_str(command)
 
