@@ -63,7 +63,7 @@ with HMDAG(
 ) as dag:
     pipeline_name = "kaggle-2-segmentation"
     workflow_version = "1.0.0"
-    workflow_description = "The pipeline for Kaggle-2 Segmentation"
+    workflow_description = "The Kaggle 2 pipeline segments crypts of leiberkuhn in H&E-stained histology images of intestine."
     cwl_workflows = [
         {
             "workflow_path": str(get_absolute_workflows(Path(pipeline_name, "pipeline.cwl"))),
@@ -71,21 +71,23 @@ with HMDAG(
                 {"parameter_name": "--data_directory", "value": ""},
                 {"parameter_name": "--tissue_type", "value": ""},
             ],
-            "documentation_url": ""
+            "documentation_url": "",
         },
         {
             "workflow_path": str(get_absolute_workflows(Path("ome-tiff-pyramid", "pipeline.cwl"))),
             "input_parameters": [
                 {"parameter_name": "--processes", "value": ""},
                 {"parameter_name": "--ometiff-directory", "value": ""}
-            ]
+            ],
+            "documentation_url": "",
         },
         {
             "workflow_path": str(get_absolute_workflows(Path("ome-tiff-pyramid", "pipeline.cwl"))),
             "input_parameters": [
                 {"parameter_name": "--processes", "value": ""},
                 {"parameter_name": "--ometiff-directory", "value": ""}
-            ]
+            ],
+            "documentation_url": "",
         },
         {
             "workflow_path": str(get_absolute_workflows(Path("portal-containers", "ome-tiff-offsets.cwl"))),
@@ -97,7 +99,8 @@ with HMDAG(
             "workflow_path": str(get_absolute_workflows(Path("portal-containers", "ome-tiff-metadata.cwl"))),
             "input_parameters": [
                 {"parameter_name": "--input_dir", "value": ""},
-            ]
+            ],
+            "documentation_url": "",
         },
     ]
 
@@ -112,8 +115,6 @@ with HMDAG(
         print("tmpdir: ", tmpdir)
         data_dir = get_parent_data_dir(**kwargs)
         print("data_dir: ", data_dir)
-
-        workflow = cwl_workflows["segmentation"]
 
         # get organ type
         ds_rslt = pythonop_get_dataset_state(dataset_uuid_callable=get_dataset_uuid, **kwargs)
