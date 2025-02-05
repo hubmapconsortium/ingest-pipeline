@@ -63,7 +63,7 @@ with HMDAG(
 ) as dag:
     pipeline_name = "kaggle-2-segmentation"
     workflow_version = "1.0.0"
-    workflow_description = "The pipeline for Kaggle-2 Segmentation"
+    workflow_description = "The Kaggle 2 pipeline segments crypts of leiberkuhn in H&E-stained histology images of intestine."
     cwl_workflows = [
         {
             "workflow_path": str(get_absolute_workflows(Path(pipeline_name, "pipeline.cwl"))),
