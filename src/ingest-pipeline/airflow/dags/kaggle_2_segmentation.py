@@ -71,21 +71,23 @@ with HMDAG(
                 {"parameter_name": "--data_directory", "value": ""},
                 {"parameter_name": "--tissue_type", "value": ""},
             ],
-            "documentation_url": ""
+            "documentation_url": "",
         },
         {
             "workflow_path": str(get_absolute_workflows(Path("ome-tiff-pyramid", "pipeline.cwl"))),
             "input_parameters": [
                 {"parameter_name": "--processes", "value": ""},
                 {"parameter_name": "--ometiff-directory", "value": ""}
-            ]
+            ],
+            "documentation_url": "",
         },
         {
             "workflow_path": str(get_absolute_workflows(Path("ome-tiff-pyramid", "pipeline.cwl"))),
             "input_parameters": [
                 {"parameter_name": "--processes", "value": ""},
                 {"parameter_name": "--ometiff-directory", "value": ""}
-            ]
+            ],
+            "documentation_url": "",
         },
         {
             "workflow_path": str(get_absolute_workflows(Path("portal-containers", "ome-tiff-offsets.cwl"))),
@@ -97,7 +99,8 @@ with HMDAG(
             "workflow_path": str(get_absolute_workflows(Path("portal-containers", "ome-tiff-metadata.cwl"))),
             "input_parameters": [
                 {"parameter_name": "--input_dir", "value": ""},
-            ]
+            ],
+            "documentation_url": "",
         },
     ]
 
