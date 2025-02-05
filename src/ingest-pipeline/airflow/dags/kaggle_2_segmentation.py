@@ -9,7 +9,7 @@ import utils
 from utils import (
     get_cwltool_base_cmd,
     get_dataset_uuid,
-    get_named_absolute_workflows,
+    get_absolute_workflows,
     get_parent_dataset_uuids_list,
     get_parent_data_dir,
     build_dataset_name as inner_build_dataset_name,
@@ -23,6 +23,8 @@ from utils import (
     get_preserve_scratch_resource,
     pythonop_get_dataset_state,
     get_dataset_type_organ_based,
+    get_threads_resource,
+    get_cwl_cmd_from_workflows,
 )
 from hubmap_operators.common_operators import (
     CleanupTmpDirOperator,
@@ -60,12 +62,47 @@ with HMDAG(
     },
 ) as dag:
     pipeline_name = "kaggle-2-segmentation"
-    cwl_workflows = get_named_absolute_workflows(
-        segmentation=Path(pipeline_name, "pipeline.cwl"),
-        create_vis_symlink_archive=Path("create-vis-symlink-archive", "pipeline.cwl"),
-        ome_tiff_pyramid=Path("ome-tiff-pyramid", "pipeline.cwl"),
-        ome_tiff_offsets=Path("portal-containers", "ome-tiff-offsets.cwl"),
-    )
+    workflow_version = "1.0.0"
+    workflow_description = "The Kaggle 2 pipeline segments crypts of leiberkuhn in H&E-stained histology images of intestine."
+    cwl_workflows = [
+        {
+            "workflow_path": str(get_absolute_workflows(Path(pipeline_name, "pipeline.cwl"))),
+            "input_parameters": [
+                {"parameter_name": "--data_directory", "value": ""},
+                {"parameter_name": "--tissue_type", "value": ""},
+            ],
+            "documentation_url": "",
+        },
+        {
+            "workflow_path": str(get_absolute_workflows(Path("ome-tiff-pyramid", "pipeline.cwl"))),
+            "input_parameters": [
+                {"parameter_name": "--processes", "value": ""},
+                {"parameter_name": "--ometiff-directory", "value": ""}
+            ],
+            "documentation_url": "",
+        },
+        {
+            "workflow_path": str(get_absolute_workflows(Path("ome-tiff-pyramid", "pipeline.cwl"))),
+            "input_parameters": [
+                {"parameter_name": "--processes", "value": ""},
+                {"parameter_name": "--ometiff-directory", "value": ""}
+            ],
+            "documentation_url": "",
+        },
+        {
+            "workflow_path": str(get_absolute_workflows(Path("portal-containers", "ome-tiff-offsets.cwl"))),
+            "input_parameters": [
+                {"parameter_name": "--input_dir", "value": ""},
+            ]
+        },
+        {
+            "workflow_path": str(get_absolute_workflows(Path("portal-containers", "ome-tiff-metadata.cwl"))),
+            "input_parameters": [
+                {"parameter_name": "--input_dir", "value": ""},
+            ],
+            "documentation_url": "",
+        },
+    ]
 
     def build_dataset_name(**kwargs):
         return inner_build_dataset_name(dag.dag_id, pipeline_name, **kwargs)
@@ -79,23 +116,21 @@ with HMDAG(
         data_dir = get_parent_data_dir(**kwargs)
         print("data_dir: ", data_dir)
 
-        workflow = cwl_workflows["segmentation"]
-
         # get organ type
         ds_rslt = pythonop_get_dataset_state(dataset_uuid_callable=get_dataset_uuid, **kwargs)
 
         organ_list = list(set(ds_rslt["organs"]))
         organ_code = organ_list[0] if len(organ_list) == 1 else "multi"
 
-        command = [
-            *get_cwltool_base_cmd(tmpdir),
-            # "--singularity",
-            workflow,
-            "--data_directory",
+        # [--data_directory, --tissue_type]
+        input_param_vals = [
             data_dir,
-            "--tissue_type",
             organ_code,
         ]
+
+        command = get_cwl_cmd_from_workflows(
+            cwl_workflows, 0, input_param_vals, tmpdir, kwargs["ti"],
+        )
 
         return join_quote_command_str(command)
 
@@ -136,13 +171,12 @@ with HMDAG(
         tmpdir = get_tmp_dir_path(run_id)
         print("tmpdir: ", tmpdir)
 
-        # this is the call to the CWL
-        command = [
-            *get_cwltool_base_cmd(tmpdir),
-            cwl_workflows["ome_tiff_pyramid"],
-            "--ometiff_directory",
-            ".",
-        ]
+        workflows = kwargs["ti"].xcom_pull(key="cwl_workflows", task_ids="build_cwl_segmentation")
+
+        # ["--processes", "--ometiff_directory]
+        input_param_vals = [get_threads_resource(dag.dag_id), "."]
+        command = get_cwl_cmd_from_workflows(workflows, 1, input_param_vals, tmpdir, kwargs["ti"])
+
         return join_quote_command_str(command)
 
     t_build_cmd_ome_tiff_pyramid_processed = PythonOperator(
@@ -184,13 +218,12 @@ with HMDAG(
         data_dir = get_parent_data_dir(**kwargs)
         print("data_dir: ", data_dir)
 
-        # this is the call to the CWL
-        command = [
-            *get_cwltool_base_cmd(tmpdir),
-            cwl_workflows["ome_tiff_pyramid"],
-            "--ometiff_directory",
-            data_dir,
-        ]
+        workflows = kwargs["ti"].xcom_pull(key="cwl_workflows", task_ids="build_cwl_ome_tiff_pyramid_processed")
+
+        # ["--processes", "--ometiff_directory]
+        input_param_vals = [get_threads_resource(dag.dag_id), str(data_dir)]
+        command = get_cwl_cmd_from_workflows(workflows, 2, input_param_vals, tmpdir, kwargs["ti"])
+
         return join_quote_command_str(command)
 
     t_build_cmd_ome_tiff_pyramid_raw = PythonOperator(
@@ -232,12 +265,11 @@ with HMDAG(
         data_dir = tmpdir / "cwl_out"
         print("data_dir: ", data_dir)
 
-        command = [
-            *get_cwltool_base_cmd(tmpdir),
-            cwl_workflows["ome_tiff_offsets"],
-            "--input_dir",
-            data_dir / "ometiff-pyramids",
-        ]
+        workflows = kwargs["ti"].xcom_pull(key="cwl_workflows", task_ids="build_cwl_ome_tiff_pyramid_raw")
+
+        # ["--input_dir]
+        input_param_vals = [str(data_dir / "ometiff-pyramids")]
+        command = get_cwl_cmd_from_workflows(workflows, 3, input_param_vals, tmpdir, kwargs["ti"])
 
         return join_quote_command_str(command)
 
@@ -262,9 +294,55 @@ with HMDAG(
         python_callable=utils.pythonop_maybe_keep,
         provide_context=True,
         op_kwargs={
-            "next_op": "move_data",
+            "next_op": "prepare_cwl_ome_tiff_metadata",
             "bail_op": "set_dataset_error",
             "test_op": "pipeline_exec_cwl_ome_tiff_offsets",
+        },
+    )
+
+    prepare_cwl_ome_tiff_metadata = DummyOperator(task_id="prepare_cwl_ome_tiff_metadata")
+
+    def build_cwltool_cmd_ome_tiff_metadata(**kwargs):
+        run_id = kwargs["run_id"]
+        tmpdir = get_tmp_dir_path(run_id)
+        print("tmpdir: ", tmpdir)
+        parent_data_dir = get_parent_data_dir(**kwargs)
+        print("parent_data_dir: ", parent_data_dir)
+        data_dir = tmpdir / "cwl_out"
+        print("data_dir: ", data_dir)
+
+        workflows = kwargs["ti"].xcom_pull(key="cwl_workflows", task_ids="build_cwl_ome_tiff_offsets")
+
+        # ["--input_dir]
+        input_param_vals = [str(data_dir / "ometiff-pyramids")]
+        command = get_cwl_cmd_from_workflows(workflows, 4, input_param_vals, tmpdir, kwargs["ti"])
+
+        return join_quote_command_str(command)
+
+    t_build_cmd_ome_tiff_metadata = PythonOperator(
+        task_id="build_cmd_ome_tiff_metadata",
+        python_callable=build_cwltool_cmd_ome_tiff_metadata,
+        provide_context=True,
+    )
+
+    t_pipeline_exec_cwl_ome_tiff_metadata = BashOperator(
+        task_id="pipeline_exec_cwl_ome_tiff_metadata",
+        bash_command=""" \
+        tmp_dir={{tmp_dir_path(run_id)}} ; \
+        cd ${tmp_dir}/cwl_out ; \
+        {{ti.xcom_pull(task_ids='build_cmd_ome_tiff_metadata')}} >> ${tmp_dir}/session.log 2>&1 ; \
+        echo $?
+        """,
+    )
+
+    t_maybe_keep_cwl_ome_tiff_metadata = BranchPythonOperator(
+        task_id="maybe_keep_cwl_ome_tiff_metadata",
+        python_callable=utils.pythonop_maybe_keep,
+        provide_context=True,
+        op_kwargs={
+            "next_op": "move_data",
+            "bail_op": "set_dataset_error",
+            "test_op": "pipeline_exec_cwl_ome_tiff_metadata",
         },
     )
 
@@ -309,11 +387,12 @@ with HMDAG(
         dag_file=__file__,
         retcode_ops=[
             "pipeline_exec_cwl_segmentation",
-            "pipeline_exec_cwl_create_vis_symlink_archive",
             "pipeline_exec_cwl_ome_tiff_offsets",
             "move_data",
         ],
-        cwl_workflows=list(cwl_workflows.values()),
+        cwl_workflows=lambda **kwargs: kwargs["ti"].xcom_pull(
+            key="cwl_workflows", task_ids="build_cmd_ome_tiff_metadata"
+        ),
     )
 
     t_send_status = PythonOperator(
@@ -347,6 +426,10 @@ with HMDAG(
         >> t_build_cmd_ome_tiff_offsets
         >> t_pipeline_exec_cwl_ome_tiff_offsets
         >> t_maybe_keep_cwl_ome_tiff_offsets
+        >> prepare_cwl_ome_tiff_metadata
+        >> t_build_cmd_ome_tiff_metadata
+        >> t_pipeline_exec_cwl_ome_tiff_metadata
+        >> t_maybe_keep_cwl_ome_tiff_metadata
         >> t_move_data
         >> t_expand_symlinks
         >> t_send_status
