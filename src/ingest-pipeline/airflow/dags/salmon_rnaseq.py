@@ -6,6 +6,7 @@ from airflow import DAG
 from airflow.operators.bash import BashOperator
 from airflow.operators.dummy import DummyOperator
 from airflow.operators.python import BranchPythonOperator, PythonOperator
+from airflow.decorators import task
 from hubmap_operators.common_operators import (
     CleanupTmpDirOperator,
     CreateTmpDirOperator,
@@ -93,7 +94,14 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
         def build_dataset_name(**kwargs):
             return inner_build_dataset_name(dag.dag_id, params.pipeline_name, **kwargs)
 
-        prepare_cwl1 = DummyOperator(task_id="prepare_cwl1")
+        # prepare_cwl1 = DummyOperator(task_id="prepare_cwl1")
+
+        @task(task_id="prepare_cwl1")
+        def prepare_cwl1(**kwargs):
+            if kwargs["dag_run"].conf.get("dryrun"):
+                return "I sould be building a container"
+            else:
+                return "I'm ok not building a container"
 
         prepare_cwl2 = DummyOperator(task_id="prepare_cwl2")
 
