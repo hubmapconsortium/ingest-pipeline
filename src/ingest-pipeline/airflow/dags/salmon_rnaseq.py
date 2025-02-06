@@ -94,12 +94,11 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
         def build_dataset_name(**kwargs):
             return inner_build_dataset_name(dag.dag_id, params.pipeline_name, **kwargs)
 
-        # prepare_cwl1 = DummyOperator(task_id="prepare_cwl1")
-
         @task(task_id="prepare_cwl1")
         def prepare_cwl1_cmd(**kwargs):
             if kwargs["dag_run"].conf.get("dryrun"):
-                return "I sould be building a container"
+                cwl_path = cwl_workflows[0]["workflow_path"]
+                return f"I sould be building a container for {cwl_path}"
             else:
                 return "I'm ok not building a container"
 
