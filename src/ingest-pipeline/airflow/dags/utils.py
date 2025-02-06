@@ -311,6 +311,8 @@ def get_cwl_cmd_from_workflows(
         else:
             command.extend([param["parameter_name"], param["value"]])
 
+    command = list(filter(None, command))
+
     # Update the workflows list with the new input parameter values
     ti.xcom_push(key="cwl_workflows", value=workflows)
     return command
