@@ -77,7 +77,7 @@ with HMDAG(
             "workflow_path": str(get_absolute_workflow(Path("sprm", "pipeline.cwl"))),
             "input_parameters": [
                 {"parameter_name": "--enable_manhole", "value": ""},
-                {"parameter_name": "--options_present", "value": "celldive"},
+                {"parameter_name": "--options_preset", "value": "celldive"},
                 {"parameter_name": "--image_dir", "value": ""},
                 {"parameter_name": "--processes", "value": ""},
                 {"parameter_name": "--mask_dir", "value": ""},
