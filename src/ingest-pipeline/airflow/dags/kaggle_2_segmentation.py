@@ -7,7 +7,6 @@ from airflow.operators.dummy import DummyOperator
 
 import utils
 from utils import (
-    get_cwltool_base_cmd,
     get_dataset_uuid,
     get_absolute_workflows,
     get_parent_dataset_uuids_list,
@@ -117,7 +116,9 @@ with HMDAG(
         print("data_dir: ", data_dir)
 
         # get organ type
-        ds_rslt = pythonop_get_dataset_state(dataset_uuid_callable=get_dataset_uuid, **kwargs)
+        ds_rslt = pythonop_get_dataset_state(
+            dataset_uuid_callable=lambda **kwargs:
+            get_parent_dataset_uuids_list(**kwargs)[0], **kwargs)
 
         organ_list = list(set(ds_rslt["organs"]))
         organ_code = organ_list[0] if len(organ_list) == 1 else "multi"
