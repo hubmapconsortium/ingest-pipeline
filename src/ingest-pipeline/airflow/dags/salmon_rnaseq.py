@@ -164,7 +164,7 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
             # get organ type
             ds_rslt = pythonop_get_dataset_state(
                     dataset_uuid_callable=lambda **kwargs:
-                    get_parent_dataset_uuids_list(**kwargs)[0])
+                    get_parent_dataset_uuids_list(**kwargs)[0], **kwargs)
 
             organ_list = list(set(ds_rslt["organs"]))
             organ_code = organ_list[0] if len(organ_list) == 1 else "multi"
