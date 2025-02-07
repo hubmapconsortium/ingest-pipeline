@@ -16,7 +16,7 @@ from hubmap_operators.common_operators import (
 
 import utils
 from utils import (
-    get_absolute_workflows,
+    get_absolute_workflow,
     get_cwltool_base_cmd,
     get_dataset_uuid,
     get_parent_dataset_uuids_list,
@@ -28,10 +28,10 @@ from utils import (
     make_send_status_msg_function,
     get_tmp_dir_path,
     HMDAG,
-    pythonop_get_dataset_state,
     get_queue_resource,
     get_threads_resource,
     get_preserve_scratch_resource,
+    get_cwl_cmd_from_workflows,
 )
 
 
@@ -74,6 +74,56 @@ with HMDAG(
         Path("portal-containers", "ome-tiff-offsets.cwl"),
     )
 
+    workflow_version = "1.0.0"
+    workflow_description = "The pipeline for Visium data with probe-based sequencing results uses BWA for short read alignment to a custom genome index based on the probe set used for the assay and converts the resulting capture bead by gene matrix to the h5ad format, which is used by ScanPy for downstream analysis including dimensionality reduction, unsupervised clustering, and differential expression analysis. Additionally, spatial registration of barcodes to positions in histology data is done using the vendor’s alignment.json file where present, or performed automatically if the file is absent. These coordinates in conjunction with the sequencing data are used by SquidPy to perform some spatial analysis on the data."
+
+    cwl_workflows = [
+        {
+            "workflow_path": str(get_absolute_workflow(Path("visium-pipeline", "pipeline.cwl"))),
+            "input_parameters": [
+                {"parameter_name": "--outdir", "value": ""},
+                {"parameter_name": "--parallel", "value": ""},
+                {"parameter_name": "--assay", "value": ""},
+                {"parameter_name": "--threads", "value": ""},
+                {"parameter_name": "--fastq_dir", "value": ""},
+                {"parameter_name": "--img_dir", "value": ""},
+                {"parameter_name": "--metadata_dir", "value": ""},
+                {"parameter_name": "--visium_probe_set_version", "value": ""},
+            ],
+            "documentation_url": "",
+        },
+        {
+            "workflow_path": str(get_absolute_workflow(Path("portal-containers", "h5ad-to-arrow.cwl"))),
+            "input_parameters": [
+                {"parameter_name": "--input_dir", "value": ".."},
+            ],
+            "documentation_url": "",
+        },
+        {
+            "workflow_path": str(get_absolute_workflow(Path("portal-containers", "anndata-to-ui.cwl"))),
+            "input_parameters": [
+                {"parameter_name": "--input_dir", "value": ".."},
+            ],
+            "documentation_url": "",
+        },
+        {
+            "workflow_path": str(get_absolute_workflow(Path("omet-tiff-pyramid", "pipeline.cwl"))),
+            "input_parameters": [
+                {"parameter_name": "--processes", "value": ""},
+                {"parameter_name": "--ometiff_directory", "value": ""},
+                {"parameter_name": "--output_file_name", "value": ""},
+            ],
+            "documentation_url": "",
+        },
+        {
+            "workflow_path": str(get_absolute_workflow(Path("portal-containers", "omet-tiff-offsets.cwl"))),
+            "input_parameters": [
+                {"parameter_name": "--input_dir", "value": ""},
+            ],
+            "documentation_url": "",
+        }
+    ]
+
     def build_dataset_name(**kwargs):
         return inner_build_dataset_name(dag.dag_id, "visium-pipeline", **kwargs)
 
@@ -95,35 +145,26 @@ with HMDAG(
         data_dir = get_parent_data_dir(**kwargs)
         print("data_dirs: ", data_dir)
 
-        command = [
-            *get_cwltool_base_cmd(tmpdir),
-            "--outdir",
-            tmpdir / "cwl_out",
-            "--parallel",
-            cwl_workflows[0],
-            "--assay",
-            "visium-ff",
-            "--threads",
-            get_threads_resource(dag.dag_id),
-
-        ]
-
-        command.append("--fastq_dir")
-        command.append(data_dir / "raw/fastq/")
-
-        command.append("--img_dir")
-        command.append(data_dir / "lab_processed/images/")
-
-        command.append("--metadata_dir")
-        command.append(data_dir / "raw/")
-
         rna_metadata_file = find_rna_metadata_file(data_dir)
         metadata_df = pd.read_csv(rna_metadata_file, sep='\t')
         probe_set = metadata_df.oligo_probe_panel.iloc[0]
         probe_set_version = 2 if "v2" in probe_set else 1
 
-        command.append("--visium_probe_set_version")
-        command.append(probe_set_version)
+        # [--outdir, --parallel, --assay, --threads, --fastq_dir, --img_dir, --metadata_dir, --visium_probe_set_version]
+        input_param_vals = [
+            tmpdir / "cwl_out",
+            "",
+            "visium-ff",
+            get_threads_resource(dag.dag_id),
+            data_dir / "raw/fastq/",
+            data_dir / "lab_processed/images/",
+            data_dir / "raw",
+            probe_set_version,
+        ]
+
+        command = get_cwl_cmd_from_workflows(
+            cwl_workflows, 0, input_param_vals, tmpdir, kwargs["ti"]
+        )
 
         return join_quote_command_str(command)
 
@@ -132,14 +173,12 @@ with HMDAG(
         tmpdir = get_tmp_dir_path(run_id)
         print("tmpdir: ", tmpdir)
 
-        command = [
-            *get_cwltool_base_cmd(tmpdir),
-            cwl_workflows[1],
-            "--input_dir",
-            # This pipeline invocation runs in a 'hubmap_ui' subdirectory,
-            # so use the parent directory as input
-            "..",
-        ]
+        workflows = kwargs["ti"].xcom_pull(key="cwl_workflows", task_ids="build_cmd1")
+
+        # [--input_dir]
+        command = get_cwl_cmd_from_workflows(
+            workflows, 1, [], tmpdir, kwargs["ti"]
+        )
 
         return join_quote_command_str(command)
 
@@ -148,14 +187,12 @@ with HMDAG(
         tmpdir = get_tmp_dir_path(run_id)
         print("tmpdir: ", tmpdir)
 
-        command = [
-            *get_cwltool_base_cmd(tmpdir),
-            cwl_workflows[2],
-            "--input_dir",
-            # This pipeline invocation runs in a 'hubmap_ui' subdirectory,
-            # so use the parent directory as input
-            "..",
-        ]
+        workflows = kwargs["ti"].xcom_pull(key="cwl_workflows", task_ids="build_cmd2")
+
+        # [--input_dir]
+        command = get_cwl_cmd_from_workflows(
+            workflows, 2, [], tmpdir, kwargs["ti"]
+        )
 
         return join_quote_command_str(command)
 
@@ -170,17 +207,19 @@ with HMDAG(
         data_dir = get_parent_data_dir(**kwargs)
         print("data_dir: ", data_dir)
 
-        # this is the call to the CWL
-        command = [
-            *get_cwltool_base_cmd(tmpdir),
-            cwl_workflows[3],
-            "--processes",
+        workflows = kwargs["ti"].xcom_pull(key="cwl_workflows", task_ids="build_cmd3")
+
+        # [--processes, --ometiff_directory, --output_filename]
+        input_param_vals = [
             get_threads_resource(dag.dag_id),
-            "--ometiff_directory",
             data_dir / "lab_processed/images/",
-            "--output_filename",
             "visium_histology_hires_pyramid.ome.tif",
         ]
+
+        command = get_cwl_cmd_from_workflows(
+            workflows, 3, input_param_vals, tmpdir, kwargs["ti"]
+        )
+
         return join_quote_command_str(command)
 
     def build_cwltool_cmd5(**kwargs):
@@ -192,12 +231,13 @@ with HMDAG(
         data_dir = tmpdir / "cwl_out"
         print("data_dir: ", data_dir)
 
-        command = [
-            *get_cwltool_base_cmd(tmpdir),
-            cwl_workflows[4],
-            "--input_dir",
-            data_dir / "ometiff-pyramids",
-        ]
+        workflows = kwargs["ti"].xcom_pull(key="cwl_workflows", task_ids="build_cmd4")
+
+        # [--input_dir]
+        input_param_vals = [data_dir / "ometiff-pyramids"]
+        command = get_cwl_cmd_from_workflows(
+            workflows, 4, input_param_vals, tmpdir, kwargs["ti"]
+        )
 
         return join_quote_command_str(command)
 
@@ -380,7 +420,11 @@ with HMDAG(
     send_status_msg = make_send_status_msg_function(
         dag_file=__file__,
         retcode_ops=["pipeline_exec", "move_data", "convert_for_ui", "convert_for_ui_2"],
-        cwl_workflows=cwl_workflows,
+        cwl_workflows=lambda **kwargs: kwargs["ti"].xcom_pull(
+            key="cwl_workflows", task_ids="build_cmd5"
+        ),
+        workflow_description=workflow_description,
+        workflow_version=workflow_version,
     )
 
     t_send_status = PythonOperator(
