@@ -97,7 +97,8 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
         @task(task_id="prepare_cwl1")
         def prepare_cwl1_cmd(**kwargs):
             if kwargs["dag_run"].conf.get("dryrun"):
-                cwl_path = cwl_workflows[0]["workflow_path"]
+                cwl_path = Path(cwl_workflows[0]["workflow_path"]).parent
+                # multi-docker-build call here
                 return f"I sould be building a container for {cwl_path}"
             else:
                 return "I'm ok not building a container"
@@ -161,7 +162,9 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
             print("tmpdir: ", tmpdir)
 
             # get organ type
-            ds_rslt = pythonop_get_dataset_state(dataset_uuid_callable=get_dataset_uuid, **kwargs)
+            ds_rslt = pythonop_get_dataset_state(
+                    dataset_uuid_callable=lambda **kwargs:
+                    get_parent_dataset_uuids_list(**kwargs)[0])
 
             organ_list = list(set(ds_rslt["organs"]))
             organ_code = organ_list[0] if len(organ_list) == 1 else "multi"
