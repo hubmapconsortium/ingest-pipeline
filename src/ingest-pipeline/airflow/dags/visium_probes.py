@@ -66,13 +66,6 @@ with HMDAG(
         "preserve_scratch": get_preserve_scratch_resource("visium_with_probes"),
     },
 ) as dag:
-    cwl_workflows = get_absolute_workflows(
-        Path("visium-pipeline", "pipeline.cwl"),
-        Path("portal-containers", "h5ad-to-arrow.cwl"),
-        Path("portal-containers", "anndata-to-ui.cwl"),
-        Path("ome-tiff-pyramid", "pipeline.cwl"),
-        Path("portal-containers", "ome-tiff-offsets.cwl"),
-    )
 
     workflow_version = "1.0.0"
     workflow_description = "The pipeline for Visium data with probe-based sequencing results uses BWA for short read alignment to a custom genome index based on the probe set used for the assay and converts the resulting capture bead by gene matrix to the h5ad format, which is used by ScanPy for downstream analysis including dimensionality reduction, unsupervised clustering, and differential expression analysis. Additionally, spatial registration of barcodes to positions in histology data is done using the vendor’s alignment.json file where present, or performed automatically if the file is absent. These coordinates in conjunction with the sequencing data are used by SquidPy to perform some spatial analysis on the data."
