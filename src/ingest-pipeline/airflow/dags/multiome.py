@@ -19,7 +19,6 @@ from hubmap_operators.common_operators import (
 import utils
 from utils import (
     get_absolute_workflow,
-    get_cwltool_base_cmd,
     get_dataset_uuid,
     get_parent_dataset_uuids_list,
     get_parent_data_dirs_list,
@@ -183,9 +182,7 @@ def generate_multiome_dag(params: MultiomeSequencingDagParameters) -> DAG:
             # get organ type
             ds_rslt = pythonop_get_dataset_state(
                 dataset_uuid_callable=lambda **kwargs:
-                kwargs["dag_run"].conf["parent_submission_id"][0],
-                **kwargs
-            )
+                get_parent_dataset_uuids_list(**kwargs)[0], **kwargs)
 
             organ_list = list(set(ds_rslt["organs"]))
             organ_code = organ_list[0] if len(organ_list) == 1 else "multi"

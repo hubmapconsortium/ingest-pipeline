@@ -108,9 +108,7 @@ with HMDAG(
         # get organ type
         ds_rslt = pythonop_get_dataset_state(
             dataset_uuid_callable=lambda **kwargs:
-            kwargs["dag_run"].conf["parent_submission_id"][0],
-            **kwargs
-        )
+            get_parent_dataset_uuids_list(**kwargs)[0], **kwargs)
 
         organ_list = list(set(ds_rslt["organs"]))
         organ_code = organ_list[0] if len(organ_list) == 1 else "multi"
