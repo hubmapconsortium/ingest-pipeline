@@ -15,6 +15,7 @@ from hubmap_operators.common_operators import (
     MoveDataOperator,
     SetDatasetProcessingOperator,
 )
+from multi_docker_build.build_docker_images import build as docker_builder
 
 import utils
 from utils import (
@@ -120,6 +121,9 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
             if kwargs["dag_run"].conf.get("dryrun"):
                 cwl_path = Path(cwl_workflows[0]["workflow_path"]).parent
                 # multi-docker-build call here
+                docker_builder(tag_timestamp=False, tag_git_describe=False, tag="airflow-devel",
+                               push=False, ignore_missing_submodules=True, pretend=False,
+                               base_dir=cwl_path)
                 return f"I sould be building a container for {cwl_path}"
             else:
                 return "I'm ok not building a container"
