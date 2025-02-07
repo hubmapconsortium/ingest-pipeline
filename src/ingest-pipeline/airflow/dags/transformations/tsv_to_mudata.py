@@ -212,12 +212,10 @@ with HMDAG(
 
                 if file_ext == ".xlsx":
                     df = pd.read_excel(file_path)
-                elif file_ext == ".csv":
-                    df = pd.read_csv(file_path)
                 else:
                     continue
 
-                output_file = os.path.join(root, f"{file_name}.tsv")
+                output_file = os.path.join(data_dir, "/extras/transformations", f"{file_name}.tsv")
                 df.to_csv(output_file, sep="\t", index=False)
 
     t_convert_obj_by_feature_to_tsv = PythonOperator(
@@ -483,7 +481,7 @@ with HMDAG(
         # Then we gather the metadata from the mudata transformation output
         # Always have to gather the metadata from the transformation
         data_dir = kwargs["ti"].xcom_pull(task_ids="create_or_use_dataset")
-        output_metadata = json.load(open(f"{data_dir}/extras/transformations/metadata.json"))
+        output_metadata = json.load(open(f"{data_dir}/extras/transformations/calculated_metadata.json"))
         metadata["calculated_metadata"] = output_metadata
         return metadata
 
