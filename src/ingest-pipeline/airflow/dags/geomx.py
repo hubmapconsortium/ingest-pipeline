@@ -16,7 +16,7 @@ from hubmap_operators.common_operators import (
 
 import utils
 from utils import (
-    get_absolute_workflows,
+    get_absolute_workflow,
     get_cwltool_base_cmd,
     get_dataset_uuid,
     get_parent_dataset_uuids_list,
@@ -29,9 +29,8 @@ from utils import (
     get_tmp_dir_path,
     HMDAG,
     get_queue_resource,
-    get_threads_resource,
     get_preserve_scratch_resource,
-    pythonop_get_dataset_state,
+    get_cwl_cmd_from_workflows,
 )
 
 default_args = {
@@ -60,9 +59,20 @@ with HMDAG(
     },
 ) as dag:
     pipeline_name = "geomx"
-    cwl_workflows = get_absolute_workflows(
-        Path("geomx-pipeline", "pipeline.cwl"),
-    )
+    workflow_version = "1.0.0"
+    workflow_description = "The pipeline for GeoMx data converts the vendor’s proprietary file outputs into an area-of-interest by gene matrix in h5ad format."
+
+    cwl_workflows = [
+        {
+            "workflow_path": str(get_absolute_workflow(Path("geomx-pipeline", "pipeline.cwl"))),
+            "input_parameters": [
+                {"parameter_name": "--outdir", "value": ""},
+                {"parameter_name": "--parallel", "value": ""},
+                {"parameter_name": "--data_dir", "value": ""},
+            ],
+            "documentation_url": "",
+        }
+    ]
 
     def build_dataset_name(**kwargs):
         return inner_build_dataset_name(dag.dag_id, pipeline_name, **kwargs)
@@ -74,16 +84,16 @@ with HMDAG(
         tmpdir = get_tmp_dir_path(run_id)
         data_dir = get_parent_data_dir(**kwargs)
 
-        command = [
-            *get_cwltool_base_cmd(tmpdir),
-            "--relax-path-checks",
-            "--outdir",
+        # [--outdir, --parallel, --data_dir]
+        input_param_vals = [
             tmpdir / "cwl_out",
-            "--parallel",
-            cwl_workflows[0],
-            "--data_dir",
+            "",
             data_dir,
         ]
+
+        command = get_cwl_cmd_from_workflows(
+            cwl_workflows, 0, input_param_vals, tmpdir, kwargs["ti"]
+        )
 
         return join_quote_command_str(command)
 
@@ -151,7 +161,11 @@ with HMDAG(
     send_status_msg = make_send_status_msg_function(
         dag_file=__file__,
         retcode_ops=["pipeline_exec", "move_data"],
-        cwl_workflows=cwl_workflows,
+        cwl_workflows=lambda **kwargs: kwargs["ti"].xcom_pull(
+            key="cwl_workflows", task_ids="build_cmd1"
+        ),
+        workflow_description=workflow_description,
+        workflow_version=workflow_version,
     )
 
     t_send_status = PythonOperator(
