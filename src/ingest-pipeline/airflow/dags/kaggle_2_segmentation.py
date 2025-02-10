@@ -76,7 +76,7 @@ with HMDAG(
             "workflow_path": str(get_absolute_workflow(Path("ome-tiff-pyramid", "pipeline.cwl"))),
             "input_parameters": [
                 {"parameter_name": "--processes", "value": ""},
-                {"parameter_name": "--ometiff-directory", "value": ""}
+                {"parameter_name": "--ometiff_directory", "value": ""}
             ],
             "documentation_url": "",
         },
@@ -84,7 +84,7 @@ with HMDAG(
             "workflow_path": str(get_absolute_workflow(Path("ome-tiff-pyramid", "pipeline.cwl"))),
             "input_parameters": [
                 {"parameter_name": "--processes", "value": ""},
-                {"parameter_name": "--ometiff-directory", "value": ""}
+                {"parameter_name": "--ometiff_directory", "value": ""}
             ],
             "documentation_url": "",
         },
