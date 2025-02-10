@@ -310,7 +310,7 @@ with HMDAG(
         data_dir = tmpdir / "cwl_out"
         print("data_dir: ", data_dir)
 
-        workflows = kwargs["ti"].xcom_pull(key="cwl_workflows", task_ids="build_cwl_ome_tiff_offsets")
+        workflows = kwargs["ti"].xcom_pull(key="cwl_workflows", task_ids="build_cmd_ome_tiff_offsets")
 
         # ["--input_dir]
         input_param_vals = [str(data_dir / "ometiff-pyramids")]
