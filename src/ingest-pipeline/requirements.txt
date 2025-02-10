@@ -46,3 +46,4 @@ imagecodecs>=2023.3.16
 pendulum==2.1.2
 Flask-Session==0.5.0
 multi-docker-build==0.7.2
+hubmap-pipeline-release-mgmt==0.6.1

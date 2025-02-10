@@ -16,6 +16,7 @@ from hubmap_operators.common_operators import (
     SetDatasetProcessingOperator,
 )
 from multi_docker_build.build_docker_images import build as docker_builder
+from hubmap_pipeline_release_mgmt.tag_release_pipeline import adjust_cwl_docker_tags
 
 import utils
 from utils import (
@@ -106,6 +107,10 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
                                    base_dir=cwl_path)
                 except Exception as e:
                     return f"Error in docker builder: {e}"
+                try:
+                    adjust_cwl_docker_tags("airflow-devel")
+                except Exception as e:
+                    return f"Error adjusting docker tags: {e}"
                 return f"Container built for {cwl_path}"
             else:
                 return "No Container build required"
