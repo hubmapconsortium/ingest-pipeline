@@ -201,6 +201,7 @@ with HMDAG(
     # Convert the obj by feature files to TSV
     def convert_obj_by_feature_to_tsv(**kwargs):
         data_dir = kwargs["ti"].xcom_pull(task_ids="create_or_use_dataset")
+        os.mkdir(os.path.join(data_dir, "extras/transformations"))
         for root, dirs, files in os.walk(f"{data_dir}"):
             for file in files:
                 file_path = os.path.join(root, file)
@@ -211,11 +212,11 @@ with HMDAG(
                     continue
 
                 if file_ext == ".xlsx":
-                    df = pd.read_excel(file_path)
+                    df = pd.read_excel(file_path, engine="openpyxl")
                 else:
                     continue
 
-                output_file = os.path.join(data_dir, "/extras/transformations", f"{file_name}.tsv")
+                output_file = os.path.join(data_dir, "extras/transformations", f"{file_name}.tsv")
                 df.to_csv(output_file, sep="\t", index=False)
 
     t_convert_obj_by_feature_to_tsv = PythonOperator(
@@ -481,7 +482,9 @@ with HMDAG(
         # Then we gather the metadata from the mudata transformation output
         # Always have to gather the metadata from the transformation
         data_dir = kwargs["ti"].xcom_pull(task_ids="create_or_use_dataset")
-        output_metadata = json.load(open(f"{data_dir}/extras/transformations/calculated_metadata.json"))
+        output_metadata = json.load(
+            open(f"{data_dir}/extras/transformations/calculated_metadata.json")
+        )
         metadata["calculated_metadata"] = output_metadata
         return metadata
 
