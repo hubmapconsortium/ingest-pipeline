@@ -90,7 +90,6 @@ with HMDAG(
             ),
             "input_parameters": [
                 {"parameter_name": "--ometiff_dir", "value": ""},
-                {"parameter_name": "--processes", "value": ""},
                 {"parameter_name": "--sprm_output", "value": ""},
             ],
             "documentation_url": "",
@@ -249,10 +248,9 @@ with HMDAG(
 
         workflows = kwargs["ti"].xcom_pull(key="cwl_workflows", task_ids="build_cmd_sprm")
 
-        # ["--ometiff_dir", "--processes", "--sprm_output"]
+        # ["--ometiff_dir", "--sprm_output"]
         input_param_vals = [
             str(data_dir / "pipeline_output"),
-            get_threads_resource(dag.dag_id),
             str(data_dir / "sprm_outputs"),
         ]
         command = get_cwl_cmd_from_workflows(workflows, 2, input_param_vals, tmpdir, kwargs["ti"])
