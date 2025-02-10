@@ -126,10 +126,10 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
                                    push=False, ignore_missing_submodules=True, pretend=False,
                                    base_dir=cwl_path)
                 except Exception as e:
-                    print(f"Error in docker builder: {e}")
-                return f"I sould be building a container for {cwl_path}"
+                    return f"Error in docker builder: {e}"
+                return f"Container built for {cwl_path}"
             else:
-                return "I'm ok not building a container"
+                return "No Container build required"
 
         prepare_cwl1 = prepare_cwl1_cmd()
 
