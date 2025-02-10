@@ -7,9 +7,8 @@ from airflow.operators.dummy import DummyOperator
 
 import utils
 from utils import (
-    get_cwltool_base_cmd,
     get_dataset_uuid,
-    get_absolute_workflows,
+    get_absolute_workflow,
     get_parent_dataset_uuids_list,
     get_parent_data_dir,
     build_dataset_name as inner_build_dataset_name,
@@ -66,7 +65,7 @@ with HMDAG(
     workflow_description = "The Kaggle 2 pipeline segments crypts of Lieberkühn in H&E-stained histology images of intestine."
     cwl_workflows = [
         {
-            "workflow_path": str(get_absolute_workflows(Path(pipeline_name, "pipeline.cwl"))),
+            "workflow_path": str(get_absolute_workflow(Path(pipeline_name, "pipeline.cwl"))),
             "input_parameters": [
                 {"parameter_name": "--data_directory", "value": ""},
                 {"parameter_name": "--tissue_type", "value": ""},
@@ -74,7 +73,7 @@ with HMDAG(
             "documentation_url": "",
         },
         {
-            "workflow_path": str(get_absolute_workflows(Path("ome-tiff-pyramid", "pipeline.cwl"))),
+            "workflow_path": str(get_absolute_workflow(Path("ome-tiff-pyramid", "pipeline.cwl"))),
             "input_parameters": [
                 {"parameter_name": "--processes", "value": ""},
                 {"parameter_name": "--ometiff-directory", "value": ""}
@@ -82,7 +81,7 @@ with HMDAG(
             "documentation_url": "",
         },
         {
-            "workflow_path": str(get_absolute_workflows(Path("ome-tiff-pyramid", "pipeline.cwl"))),
+            "workflow_path": str(get_absolute_workflow(Path("ome-tiff-pyramid", "pipeline.cwl"))),
             "input_parameters": [
                 {"parameter_name": "--processes", "value": ""},
                 {"parameter_name": "--ometiff-directory", "value": ""}
@@ -90,13 +89,13 @@ with HMDAG(
             "documentation_url": "",
         },
         {
-            "workflow_path": str(get_absolute_workflows(Path("portal-containers", "ome-tiff-offsets.cwl"))),
+            "workflow_path": str(get_absolute_workflow(Path("portal-containers", "ome-tiff-offsets.cwl"))),
             "input_parameters": [
                 {"parameter_name": "--input_dir", "value": ""},
             ]
         },
         {
-            "workflow_path": str(get_absolute_workflows(Path("portal-containers", "ome-tiff-metadata.cwl"))),
+            "workflow_path": str(get_absolute_workflow(Path("portal-containers", "ome-tiff-metadata.cwl"))),
             "input_parameters": [
                 {"parameter_name": "--input_dir", "value": ""},
             ],
