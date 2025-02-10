@@ -124,7 +124,7 @@ with HMDAG(
 
         # [--data_directory, --tissue_type]
         input_param_vals = [
-            data_dir,
+            str(data_dir),
             organ_code,
         ]
 
