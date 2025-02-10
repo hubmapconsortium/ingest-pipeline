@@ -108,7 +108,7 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
                 except Exception as e:
                     return f"Error in docker builder: {e}"
                 try:
-                    adjust_cwl_docker_tags("airflow-devel")
+                    adjust_cwl_docker_tags(tag_without_v="airflow-devel", base_dir=cwl_path)
                 except Exception as e:
                     return f"Error adjusting docker tags: {e}"
                 return f"Container built for {cwl_path}"
