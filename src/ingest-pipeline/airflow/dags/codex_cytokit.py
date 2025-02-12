@@ -443,7 +443,6 @@ with HMDAG(
             str(data_dir / "deepcelltypes"),
         ]
         command = get_cwl_cmd_from_workflows(workflows, 5, input_param_vals, tmpdir, kwargs["ti"])
-        ]
 
         return join_quote_command_str(command)
 
