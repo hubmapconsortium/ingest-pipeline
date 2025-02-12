@@ -103,6 +103,14 @@ resource_map:
       - 'task_re': '.*'
         'queue': 'general'
         'threads': 6
+  - 'dag_re': 'geomx'
+    'preserve_scratch': true
+    'lanes': 2
+    # 'lanes': 6
+    'tasks':
+      - 'task_re': '.*'
+        'queue': 'general'
+        'threads': 6
   - 'dag_re': 'launch_checksums'
     'preserve_scratch': true
     'lanes': 2
@@ -188,7 +196,7 @@ resource_map:
     'lanes': 2
     'tasks':
       - 'task_re': '.*segmentation'
-        'queue': 'gpu000_q1'
+        'queue': 'gpu001_q1'
         'threads': 6
       - 'task_re': '.*'
         'queue': 'general'

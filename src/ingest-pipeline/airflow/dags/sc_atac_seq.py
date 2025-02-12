@@ -18,7 +18,7 @@ from hubmap_operators.common_operators import (
 import utils
 from utils import (
     SequencingDagParameters,
-    get_absolute_workflows,
+    get_absolute_workflow,
     get_cwltool_base_cmd,
     get_dataset_uuid,
     get_parent_dataset_uuids_list,
@@ -33,6 +33,7 @@ from utils import (
     get_queue_resource,
     get_threads_resource,
     get_preserve_scratch_resource,
+    get_cwl_cmd_from_workflows,
 )
 
 
@@ -61,10 +62,33 @@ def generate_atac_seq_dag(params: SequencingDagParameters) -> DAG:
             "preserve_scratch": get_preserve_scratch_resource(params.dag_id),
         },
     ) as dag:
-        cwl_workflows = get_absolute_workflows(
-            Path("sc-atac-seq-pipeline", "sc_atac_seq_prep_process_analyze.cwl"),
-            Path("portal-containers", "scatac-csv-to-arrow.cwl"),
-        )
+        workflow_version = "1.0.0"
+
+        cwl_workflows = [
+            {
+                "workflow_path": str(
+                    get_absolute_workflow(
+                        Path("sc-atac-seq-pipeline", "sc_atac_seq_prep_process_analyze.cwl")
+                    )
+                ),
+                "input_parameters": [
+                    {"parameter_name": "--assay", "value": ""},
+                    {"parameter_name": "--exclude_bam", "value": ""},
+                    {"parameter_name": "--threads", "value": ""},
+                    {"parameter_name": "--sequence_directory", "value": []},
+                ],
+                "documentation_url": "",
+            },
+            {
+                "workflow_path": str(
+                    get_absolute_workflow(Path("portal-containers", "scatac-csv-to-arrow.cwl"))
+                ),
+                "input_parameters": [
+                    {"parameter_name": "--input_dir", "value": "."},
+                ],
+                "documentation_url": "",
+            },
+        ]
 
         def build_dataset_name(**kwargs):
             return inner_build_dataset_name(dag.dag_id, params.pipeline_name, **kwargs)
@@ -80,21 +104,21 @@ def generate_atac_seq_dag(params: SequencingDagParameters) -> DAG:
             data_dirs = get_parent_data_dirs_list(**kwargs)
             print("data_dirs: ", data_dirs)
 
-            command = [
-                *get_cwltool_base_cmd(tmpdir),
-                "--outdir",
-                tmpdir / "cwl_out",
-                "--parallel",
-                cwl_workflows[0],
-                "--assay",
+            # [--assay, --exclude_bam, --threads, --sequence_directory]
+            input_param_vals = [
                 params.assay,
-                "--exclude_bam",
-                "--threads",
+                "",
                 get_threads_resource(dag.dag_id),
+                [str(data_dir) for data_dir in data_dirs],
             ]
-            for data_dir in data_dirs:
-                command.append("--sequence_directory")
-                command.append(data_dir)
+
+            cwl_params = [
+                {"parameter_name": "--parallel", "value": ""},
+            ]
+
+            command = get_cwl_cmd_from_workflows(
+                cwl_workflows, 0, input_param_vals, tmpdir, kwargs["ti"], cwl_params
+            )
 
             return join_quote_command_str(command)
 
@@ -103,12 +127,10 @@ def generate_atac_seq_dag(params: SequencingDagParameters) -> DAG:
             tmpdir = get_tmp_dir_path(run_id)
             print("tmpdir: ", tmpdir)
 
-            command = [
-                *get_cwltool_base_cmd(tmpdir),
-                cwl_workflows[1],
-                "--input_dir",
-                ".",
-            ]
+            workflows = kwargs["ti"].xcom_pull(key="cwl_workflows", task_ids="build_cmd1")
+
+            # [--input_dir]
+            command = get_cwl_cmd_from_workflows(workflows, 1, [], tmpdir, kwargs["ti"])
 
             return join_quote_command_str(command)
 
@@ -194,7 +216,11 @@ def generate_atac_seq_dag(params: SequencingDagParameters) -> DAG:
         send_status_msg = make_send_status_msg_function(
             dag_file=__file__,
             retcode_ops=["pipeline_exec", "move_data", "make_arrow1"],
-            cwl_workflows=cwl_workflows,
+            cwl_workflows=lambda **kwargs: kwargs["ti"].xcom_pull(
+                key="cwl_workflows", task_ids="build_cmd2"
+            ),
+            workflow_description=params.workflow_description,
+            workflow_version=workflow_version,
         )
 
         t_send_status = PythonOperator(
@@ -240,21 +266,25 @@ atacseq_dag_data: List[SequencingDagParameters] = [
         dag_id="sc_atac_seq_sci",
         pipeline_name="sci-atac-seq-pipeline",
         assay="sciseq",
+        workflow_description="The pipeline for multiome sciATACseq data uses HISAT2 for short read alignment of ATACseq reads HG38 reference genome and ArchR to convert the resulting BAM file to a cell by bin matrix, which is used to calculate TSS enrichment, differential enrichment of transcription factors, perform clustering of nuclei and additional analysis.",
     ),
     SequencingDagParameters(
         dag_id="sc_atac_seq_snare",
         pipeline_name="sc-atac-seq-pipeline",
         assay="snareseq",
+        workflow_description="The pipeline for multiome RNA-ATACseq data uses Salmon for alignment free quasi mapping of reads from RNA sequencing to the HG38 reference genome and HISAT2 for short read alignment of ATACseq reads to the same genome.  Barcodes are then mapped between components of the assay to generate an annotated data matrix with consolidated RNA and ATACseq data.  This annotated data matrix is then passed to the Muon package for dimensionality reduction, clustering, and multiomic factor analysis.  Cell type annotations are provided by Azimuth when available for the type of tissue being analyzed.",
     ),
     SequencingDagParameters(
         dag_id="sc_atac_seq_sn",
         pipeline_name="sn-atac-seq-pipeline",
         assay="snseq",
+        workflow_description="Thee pipeline for snATACseq data uses HISAT2 for short read alignment of ATACseq reads HG38 reference genome and ArchR to convert the resulting BAM file to a cell by bin matrix, which is used to calculate TSS enrichment, differential enrichment of transcription factors, perform clustering of nuclei and additional analysis.",
     ),
     SequencingDagParameters(
         dag_id="sc_atac_seq_multiome_10x",
         pipeline_name="sn-atac-seq-pipeline",
         assay="multiome_10x",
+        workflow_description="The pipeline for multiome RNA-ATACseq data uses Salmon for alignment free quasi mapping of reads from RNA sequencing to the HG38 reference genome and HISAT2 for short read alignment of ATACseq reads to the same genome.  Barcodes are then mapped between components of the assay to generate an annotated data matrix with consolidated RNA and ATACseq data.  This annotated data matrix is then passed to the Muon package for dimensionality reduction, clustering, and multiomic factor analysis.  Cell type annotations are provided by Azimuth when available for the type of tissue being analyzed.",
     ),
 ]
 

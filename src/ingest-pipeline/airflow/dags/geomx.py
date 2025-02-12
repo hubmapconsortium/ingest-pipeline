@@ -16,7 +16,8 @@ from hubmap_operators.common_operators import (
 
 import utils
 from utils import (
-    get_absolute_workflow,
+    get_absolute_workflows,
+    get_cwltool_base_cmd,
     get_dataset_uuid,
     get_parent_dataset_uuids_list,
     get_parent_data_dir,
@@ -31,7 +32,6 @@ from utils import (
     get_threads_resource,
     get_preserve_scratch_resource,
     pythonop_get_dataset_state,
-    get_cwl_cmd_from_workflows,
 )
 
 default_args = {
@@ -44,42 +44,25 @@ default_args = {
     "retries": 1,
     "retry_delay": timedelta(minutes=1),
     "xcom_push": True,
-    "queue": get_queue_resource("salmon_rnaseq_bulk"),
+    "queue": get_queue_resource("geomx"),
     "on_failure_callback": utils.create_dataset_state_error_callback(get_uuid_for_error),
 }
 
 
-def get_organism_name() -> str:
-    return "human"
-
-
 with HMDAG(
-    "salmon_rnaseq_bulk",
+    "geomx",
     schedule_interval=None,
     is_paused_upon_creation=False,
     default_args=default_args,
     user_defined_macros={
         "tmp_dir_path": get_tmp_dir_path,
-        "preserve_scratch": get_preserve_scratch_resource("salmon_rnaseq_bulk"),
+        "preserve_scratch": get_preserve_scratch_resource("geomx"),
     },
 ) as dag:
-    pipeline_name = "salmon-rnaseq-bulk"
-    workflow_version = "1.0.0"
-    workflow_description = "The bulk RNA pipeline uses alignment free quasimapping to the HG38 reference genome via Salmon quant to produce a sample by gene matrix in hdf format."
-
-    cwl_workflows = [
-        {
-            "workflow_path": str(
-                get_absolute_workflow(Path("salmon-rnaseq", "bulk-pipeline.cwl"))
-            ),
-            "input_parameters": [
-                {"parameter_name": "--fastq_dir", "value": ""},
-                {"parameter_name": "--threads", "value": ""},
-                {"parameter_name": "--organism", "value": ""},
-            ],
-            "documentation_url": "",
-        }
-    ]
+    pipeline_name = "geomx"
+    cwl_workflows = get_absolute_workflows(
+        Path("geomx-pipeline", "pipeline.cwl"),
+    )
 
     def build_dataset_name(**kwargs):
         return inner_build_dataset_name(dag.dag_id, pipeline_name, **kwargs)
@@ -91,33 +74,16 @@ with HMDAG(
         tmpdir = get_tmp_dir_path(run_id)
         data_dir = get_parent_data_dir(**kwargs)
 
-        source_type = ""
-        unique_source_types = set()
-        for parent_uuid in get_parent_dataset_uuids_list(**kwargs):
-            dataset_state = pythonop_get_dataset_state(
-                dataset_uuid_callable=lambda **kwargs: parent_uuid, **kwargs
-            )
-            source_type = dataset_state.get("source_type")
-            if source_type == "mixed":
-                print("Force failure. Should only be one unique source_type for a dataset.")
-            else:
-                unique_source_types.add(source_type)
-
-        if len(unique_source_types) > 1:
-            print("Force failure. Should only be one unique source_type for a dataset.")
-        else:
-            source_type = unique_source_types.pop().lower()
-
-        # [--fastq_dir, --threads, --organism]
-        input_param_vals = [str(data_dir), get_threads_resource(dag.dag_id), source_type]
-
-        cwl_params = [
-            {"parameter_name": "--parallel", "value": ""},
+        command = [
+            *get_cwltool_base_cmd(tmpdir),
+            "--relax-path-checks",
+            "--outdir",
+            tmpdir / "cwl_out",
+            "--parallel",
+            cwl_workflows[0],
+            "--data_dir",
+            data_dir,
         ]
-
-        command = get_cwl_cmd_from_workflows(
-            cwl_workflows, 0, input_param_vals, tmpdir, kwargs["ti"], cwl_params
-        )
 
         return join_quote_command_str(command)
 
@@ -156,7 +122,7 @@ with HMDAG(
             "http_conn_id": "ingest_api_connection",
             "previous_revision_uuid_callable": get_previous_revision_uuid,
             "dataset_name_callable": build_dataset_name,
-            "pipeline_shorthand": "Salmon",
+            "pipeline_shorthand": "AnnData",
         },
     )
 
@@ -175,11 +141,7 @@ with HMDAG(
     send_status_msg = make_send_status_msg_function(
         dag_file=__file__,
         retcode_ops=["pipeline_exec", "move_data"],
-        cwl_workflows=lambda **kwargs: kwargs["ti"].xcom_pull(
-            key="cwl_workflows", task_ids="build_cmd1"
-        ),
-        workflow_description=workflow_description,
-        workflow_version=workflow_version,
+        cwl_workflows=cwl_workflows,
     )
 
     t_send_status = PythonOperator(
