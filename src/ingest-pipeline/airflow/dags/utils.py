@@ -91,6 +91,7 @@ GIT_CHECKOUT_COMMAND = [
 GIT_LOG_COMMAND = [GIT, "log", "-n1", "--oneline"]
 GIT_ORIGIN_COMMAND = [GIT, "config", "--get", "remote.origin.url"]
 GIT_ROOT_COMMAND = [GIT, "rev-parse", "--show-toplevel"]
+GIT_VERSION_TAG_COMMAND = [GIT, "tag", "--points-at", "HEAD"]
 SHA1SUM_COMMAND = ["sha1sum", "{fname}"]
 FILE_TYPE_MATCHERS = [
     (r"^.*\.csv$", "csv"),  # format is (regex, type)
@@ -123,11 +124,7 @@ COMPILED_RESOURCE_MAP: Optional[List[Tuple[Pattern, int, Dict[str, Any]]]] = Non
 # are the only fields which differ between assays and DAGs
 SequencingDagParameters = namedtuple(
     "SequencingDagParameters",
-    [
-        "dag_id",
-        "pipeline_name",
-        "assay",
-    ],
+    ["dag_id", "pipeline_name", "assay", "workflow_description"],
 )
 
 # TODO: rethink this, now that it's getting more and more unwieldy
@@ -250,7 +247,7 @@ class HMDAG(DAG):
         super().add_task(task)
 
 
-def find_pipeline_manifests(cwl_files: Iterable[Path]) -> List[Path]:
+def find_pipeline_manifests(cwl_files: Union[List[Path], List[Dict], str]) -> List[Path]:
     """
     Constructs manifest paths from CWL files (strip '.cwl', append
     '-manifest.json'), and check whether each manifest exists. Return
@@ -258,10 +255,71 @@ def find_pipeline_manifests(cwl_files: Iterable[Path]) -> List[Path]:
     """
     manifests = []
     for cwl_file in cwl_files:
+        if isinstance(cwl_file, dict):
+            cwl_file = Path(cwl_file["workflow_path"])
+
+        if isinstance(cwl_file, str):
+            cwl_file = Path(cwl_file)
+
         manifest_file = cwl_file.with_name(f"{cwl_file.stem}-manifest.json")
         if manifest_file.is_file():
             manifests.append(manifest_file)
     return manifests
+
+
+def get_cwl_cmd_from_workflows(
+    workflows: List[Dict],
+    workflow_index: int,
+    input_param_vals: List,
+    tmp_dir: Path,
+    ti,
+    cwl_param_vals: Optional[List[Dict]] = None,
+) -> List:
+    """
+    :param workflows: Iterable of workflow dictionaries
+    :param workflow_index: index of workflow to build
+    :param input_param_vals: list of input parameter values
+    :param tmp_dir: temporary directory
+    :param ti: task instance
+    :return: list of cwl command and parameters
+    """
+    # Grab the workflow from the list of workflows
+    workflow = workflows[workflow_index]
+
+    # Update the input parameters based on the list of input values
+    for i, param_val in enumerate(input_param_vals):
+        if param_val:
+            workflow["input_parameters"][i]["value"] = param_val
+
+    # Get the cwl invocation
+    command = [*get_cwltool_base_cmd(tmp_dir), "--outdir", str(tmp_dir / "cwl_out")]
+
+    for param in cwl_param_vals if cwl_param_vals is not None else []:
+        if isinstance(param["value"], list):
+            for param_val in param["value"]:
+                command.extend([param["parameter_name"], param_val])
+        else:
+            command.extend([param["parameter_name"], param["value"]])
+
+    command.append(Path(workflow["workflow_path"]))
+
+    # Extend the command with the input parameters
+    for param in workflow["input_parameters"]:
+        if isinstance(param["value"], list):
+            for param_val in param["value"]:
+                command.extend([param["parameter_name"], param_val])
+        else:
+            command.extend([param["parameter_name"], param["value"]])
+
+    command = list(filter(None, command))
+
+    # Update the workflows list with the new input parameter values
+    ti.xcom_push(key="cwl_workflows", value=workflows)
+    return command
+
+
+def get_absolute_workflow(workflow: Path) -> Path:
+    return PIPELINE_BASE_DIR / workflow
 
 
 def get_absolute_workflows(*workflows: Path) -> List[Path]:
@@ -272,7 +330,7 @@ def get_absolute_workflows(*workflows: Path) -> List[Path]:
       already absolute, they are returned unchanged; if relative,
       they are anchored to `PIPELINE_BASE_DIR`
     """
-    return [PIPELINE_BASE_DIR / workflow for workflow in workflows]
+    return [get_absolute_workflow(workflow) for workflow in workflows]
 
 
 def get_named_absolute_workflows(**workflow_kwargs: Path) -> Dict[str, Path]:
@@ -297,8 +355,9 @@ def build_dataset_name(dag_id: str, pipeline_str: str, **kwargs) -> str:
 def get_parent_dataset_uuids_list(**kwargs) -> List[str]:
     uuid_list = kwargs["dag_run"].conf["parent_submission_id"]
     if kwargs["dag"].dag_id == "azimuth_annotations":
-        uuid_list = pythonop_get_dataset_state(dataset_uuid_callable=lambda **kwargs: uuid_list[0],
-                                               **kwargs).get("parent_dataset_uuid_list")
+        uuid_list = pythonop_get_dataset_state(
+            dataset_uuid_callable=lambda **kwargs: uuid_list[0], **kwargs
+        ).get("parent_dataset_uuid_list")
     if not isinstance(uuid_list, list):
         uuid_list = [uuid_list]
     return uuid_list
@@ -365,11 +424,11 @@ def get_dataname_previous_version(**kwargs) -> str:
 
 
 def get_assay_previous_version(**kwargs) -> tuple:
-    """ Returns information based on previous run to indicate how the re-annotation should process:
-        position 1: Assay indicator for pipeline decision
-        position 2: Matrix file
-        position 3: Secondary analysis file
-        position 4: pipeline position in workflow array"""
+    """Returns information based on previous run to indicate how the re-annotation should process:
+    position 1: Assay indicator for pipeline decision
+    position 2: Matrix file
+    position 3: Secondary analysis file
+    position 4: pipeline position in workflow array"""
     dataset_type = get_dataname_previous_version(**kwargs).split("__")[0]
     if dataset_type == "salmon_rnaseq_10x":
         return "10x_v3", "expr.h5ad", "secondary_analysis.h5ad", 0
@@ -561,29 +620,74 @@ def get_git_provenance_list(file_list: Iterable[str]) -> List[Mapping[str, Any]]
     """
     Given a list of file paths, return a list of dicts of the form:
 
-      [{'name':<file base name>, 'hash':<file commit hash>, 'origin':<file git origin>},...]
+      [
+      {'name':<file base name>, 'hash':<file commit hash>, 'origin':<file git origin>,
+      'version': <file git version>, 'input_parameters': <list of input parameters>,
+      'documentation': <optional file documentation url>
+      },...]
     """
     if isinstance(file_list, str):  # sadly, a str is an Iterable[str]
         file_list = [file_list]
-    name_l = file_list
-    hash_l = [get_git_commits(realpath(fname)) for fname in file_list]
-    origin_l = [get_git_origins(realpath(fname)) for fname in file_list]
-    root_l = get_git_root_paths(file_list)
-    rel_name_l = [relpath(name, root) for name, root in zip(name_l, root_l)]
-    # Make sure each repo appears only once
-    repo_d = {
-        origin: {"name": name, "hash": hashed}
-        for origin, name, hashed in zip(origin_l, rel_name_l, hash_l)
-    }
-    rslt = []
-    for origin in repo_d:
-        dct = repo_d[origin].copy()
-        dct["origin"] = origin
-        if not dct["name"].endswith("cwl"):
-            del dct["name"]  # include explicit names for workflows only
-        rslt.append(dct)
-    # pprint(rslt)
-    return rslt
+
+    result = []
+    for file in file_list:
+        # If file is string, convert to dict so that get calls do not fail
+        if isinstance(file, str):
+            file = {"workflow_path": file}
+
+        fname = file["workflow_path"]
+
+        root = get_git_root_paths(fname)
+        dag_prov_entry = {
+            "name": relpath(fname, root),
+            "hash": get_git_commits(realpath(fname)),
+            "origin": get_git_origins(realpath(fname)),
+            "version": get_pipeline_version(realpath(fname)),
+            "input_parameters": file.get("input_parameters", []),
+            "documentation_url": file.get("documentation_url"),
+        }
+
+        # If not cwl file, delete the "name" attribute
+        if not fname.endswith("cwl"):
+            del dag_prov_entry["name"]
+
+        result.append(dag_prov_entry)
+
+    return result
+
+
+def get_pipeline_version(path: str) -> str:
+    """
+    Given a cwl file path, return the pipeline version
+    First try to get the GIT version tag
+    Then try to get the docker container version tag in the CWL file
+    Otherwise return empty string
+    """
+    pipeline_version = ""
+
+    path = Path(path)
+
+    try:
+        parent_dir = path.parent
+        pipeline_version = check_output(GIT_VERSION_TAG_COMMAND, cwd=parent_dir)
+        pipeline_version = pipeline_version.strip().decode("utf-8")
+    except CalledProcessError as e:
+        # Git will fail if this is not running from a git repo
+        print(e.output)
+
+    # If no tag found, check the cwl file
+    if path.suffix != ".cwl":
+        return pipeline_version
+
+    if pipeline_version == "":
+        with open(path, "r") as file:
+            content = yaml.safe_load(file)
+
+        if docker_info := content.get("hints", {}).get("DockerRequirement", {}).get("dockerPull"):
+            if isinstance(docker_info, str):
+                _, pipeline_version = docker_info.split(":")
+
+    return pipeline_version
 
 
 def _get_file_type(path: Path) -> str:
@@ -716,6 +820,13 @@ def pythonop_maybe_keep(**kwargs) -> str:
         return bail_op
 
 
+def pythonop_dataset_dryrun(**kwargs) -> str:
+    if kwargs["dag_run"].conf.get("dryrun"):
+        return kwargs["bail_op"]
+    else:
+        return kwargs["next_op"]
+
+
 def pythonop_maybe_multiassay(**kwargs) -> str:
     """
     accepts the following via the caller's op_kwargs:
@@ -841,9 +952,11 @@ def pythonop_send_create_dataset(**kwargs) -> str:
                 data["previous_revision_uuid"] = previous_revision_uuid
                 revision_uuid = previous_revision_uuid
             else:
-                revision_uuid = kwargs["dag_run"].conf["parent_submission_id"][0] \
-                    if isinstance(kwargs["dag_run"].conf["parent_submission_id"], list) \
+                revision_uuid = (
+                    kwargs["dag_run"].conf["parent_submission_id"][0]
+                    if isinstance(kwargs["dag_run"].conf["parent_submission_id"], list)
                     else kwargs["dag_run"].conf["parent_submission_id"]
+                )
             response = HttpHook("GET", http_conn_id=http_conn_id).run(
                 endpoint=f"datasets/{revision_uuid}/file-system-abs-path",
                 headers=headers,
@@ -914,6 +1027,8 @@ def pythonop_set_dataset_state(**kwargs) -> None:
     'message' : update message, saved as dataset metadata element "pipeline_messsage".
                 The default is not to save any message.
     """
+    if kwargs["dag_run"].conf.get("dryrun"):
+        return
     for arg in ["dataset_uuid_callable"]:
         assert arg in kwargs, "missing required argument {}".format(arg)
     dataset_uuid = kwargs["dataset_uuid_callable"](**kwargs)
@@ -1270,26 +1385,30 @@ def get_cwltool_base_cmd(tmpdir: Path) -> List[str]:
     ]
 
 
-def build_provenance_function(cwl_workflows: List[Path]) -> Callable[..., List]:
+def build_provenance_function(cwl_workflows: Callable[..., List[Dict]]) -> Callable[..., List]:
     def build_provenance(**kwargs) -> List:
+        # Get the previous revisions metadata
         dataset_uuid = get_previous_revision_uuid(**kwargs)
         if dataset_uuid is None:
             dataset_uuid = kwargs["dag_run"].conf.get("parent_submission_id", [None])[0]
         assert dataset_uuid is not None, "Missing previous_version_uuid"
+        ds_rslt = pythonop_get_dataset_state(
+            dataset_uuid_callable=lambda **kwargs: dataset_uuid, **kwargs
+        )
 
-        def my_callable(**kwargs):
-            return dataset_uuid
-
-        ds_rslt = pythonop_get_dataset_state(dataset_uuid_callable=my_callable, **kwargs)
+        # Generate a new dag provenance
         new_dag_provenance = (
             kwargs["dag_run"].conf["dag_provenance_list"]
             if "dag_provenance_list" in kwargs["dag_run"].conf
             else []
         )
+
         new_dag_provenance.extend(get_git_provenance_list([*cwl_workflows]))
+
+        # Look through the previous revision for the pipeline invocations
         for data in ds_rslt["ingest_metadata"]["dag_provenance_list"]:
             if "salmon" in data["origin"] or "multiome" in data["origin"]:
-                new_dag_provenance.append(data)
+                new_dag_provenance.insert(0, data)
         kwargs["dag_run"].conf["dag_provenance_list"] = new_dag_provenance
         return kwargs["dag_run"].conf["dag_provenance_list"]
 
@@ -1299,14 +1418,15 @@ def build_provenance_function(cwl_workflows: List[Path]) -> Callable[..., List]:
 def make_send_status_msg_function(
     dag_file: str,
     retcode_ops: List[str],
-    cwl_workflows: List[Path],
+    cwl_workflows: Union[List[Path], Callable[..., List[Dict]]],
     uuid_src_task_id: str = "send_create_dataset",
     dataset_uuid_fun: Optional[Callable[..., str]] = None,
     dataset_lz_path_fun: Optional[Callable[..., str]] = None,
     metadata_fun: Optional[Callable[..., dict]] = None,
     include_file_metadata: Optional[bool] = True,
     no_provenance: Optional[bool] = False,
-    ivt_path_fun: Optional[Callable[..., Path]] = None,
+    workflow_description: Optional[str] = None,
+    workflow_version: Optional[str] = None,
 ) -> Callable[..., bool]:
     """
     The function which is generated by this function will return a boolean,
@@ -1382,18 +1502,27 @@ def make_send_status_msg_function(
         status = None
         extra_fields = {}
 
+        inner_cwl_workflows = cwl_workflows(**kwargs) if callable(cwl_workflows) else cwl_workflows
+
         ds_rslt = pythonop_get_dataset_state(
             dataset_uuid_callable=lambda **kwargs: dataset_uuid, **kwargs
         )
         if success:
+
             md = {}
+
+            if workflow_version:
+                md["workflow_version"] = workflow_version
+            if workflow_description:
+                md["workflow_description"] = workflow_description
+
             files_for_provenance = [
                 dag_file,
-                *cwl_workflows,
+                *inner_cwl_workflows,
             ]
-            if ivt_path_fun:
-                files_for_provenance.append(ivt_path_fun(**kwargs))
+
             if no_provenance:
+                # This is used for the Azimuth runs
                 md["dag_provenance_list"] = kwargs["dag_run"].conf["dag_provenance_list"].copy()
             elif "dag_provenance" in kwargs["dag_run"].conf:
                 md["dag_provenance"] = kwargs["dag_run"].conf["dag_provenance"].copy()
@@ -1405,6 +1534,7 @@ def make_send_status_msg_function(
                     if "dag_provenance_list" in kwargs["dag_run"].conf
                     else []
                 )
+
                 dag_prv.extend(get_git_provenance_list(files_for_provenance))
                 md["dag_provenance_list"] = dag_prv
 
@@ -1425,7 +1555,7 @@ def make_send_status_msg_function(
             #             thumbnail_file_abs_path = []
             #         #########################################################################
 
-            manifest_files = find_pipeline_manifests(cwl_workflows)
+            manifest_files = find_pipeline_manifests(inner_cwl_workflows)
             if include_file_metadata and ds_dir is not None and not ds_dir == "":
                 md.update(
                     get_file_metadata_dict(
@@ -1452,7 +1582,6 @@ def make_send_status_msg_function(
                 # md["thumbnail_file_abs_path"] = thumbnail_file_abs_path
                 antibodies = md["metadata"].pop("antibodies", [])
                 contributors = md["metadata"].pop("contributors", [])
-                md["calculated_metadata"] = md["metadata"].pop("calculated_metadata", {})
                 md["metadata"] = md["metadata"].pop("metadata", [])
                 for contrib in contributors:
                     if "is_contact" in contrib:
@@ -1478,12 +1607,14 @@ def make_send_status_msg_function(
             try:
                 assert_json_matches_schema(md, "dataset_metadata_schema.yml")
                 metadata = md.pop("metadata", {})
+                calculated_metadata = metadata.pop("calculated_metadata", {})
                 files = md.pop("files", [])
                 extra_fields = {
                     "pipeline_message": "the process ran",
                     "metadata": metadata,
                     "files": files,
                     "ingest_metadata": md,
+                    "calculated_metadata": calculated_metadata,
                 }
                 if metadata_fun:
                     extra_fields.update(
@@ -1555,6 +1686,8 @@ def create_dataset_state_error_callback(
         """
         This routine is meant to be
         """
+        if kwargs["dag_run"].conf.get("dryrun"):
+            return None
         msg = "An internal error occurred in the {} workflow step {}".format(
             context_dict["dag"].dag_id, context_dict["task"].task_id
         )
