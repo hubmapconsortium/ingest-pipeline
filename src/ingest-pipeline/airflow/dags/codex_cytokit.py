@@ -347,11 +347,11 @@ with HMDAG(
     t_pipeline_exec_cwl_ribca = BashOperator(
         task_id="pipeline_exec_cwl_ribca",
         bash_command=""" \
-                tmp_dir={{tmp_dir_path(run_id)}} ; \
-                cd ${tmp_dir}/cwl_out ; \
-                {{ti.xcom_pull(task_ids='build_cmd_ribca')}} >> ${tmp_dir}/session.log 2>&1 ; \
-                echo $?
-                """,
+        tmp_dir={{tmp_dir_path(run_id)}} ; \
+        cd ${tmp_dir}/cwl_out ; \
+        {{ti.xcom_pull(task_ids='build_cwl_ribca')}} >> ${tmp_dir}/session.log 2>&1 ; \
+        echo $?
+        """,
     )
 
     t_maybe_keep_cwl_ribca = BranchPythonOperator(
@@ -782,59 +782,72 @@ with HMDAG(
         >> t_create_tmpdir
         >> t_send_create_dataset
         >> t_set_dataset_processing
+
         >> prepare_cwl_illumination_first_stitching
         >> t_build_cwl_illumination_first_stitching
         >> t_pipeline_exec_cwl_illumination_first_stitching
         >> t_maybe_keep_cwl_illumination_first_stitching
+
         >> prepare_cwl_cytokit
         >> t_build_cwl_cytokit
         >> t_pipeline_exec_cwl_cytokit
         >> t_maybe_keep_cwl_cytokit
+
         >> prepare_cwl_ometiff_second_stitching
         >> t_build_cwl_ometiff_second_stitching
         >> t_pipeline_exec_cwl_ometiff_second_stitching
+        >> t_delete_internal_pipeline_files
         >> t_maybe_keep_cwl_ometiff_second_stitching
-        >> prepare_cwl_deepcelltypes
-        >> t_build_cmd_deepcelltypes
-        >> t_pipeline_exec_cwl_deepcelltypes
-        >> t_maybe_keep_cwl_deepcelltypes
+
         >> prepare_cwl_ribca
         >> t_build_cmd_ribca
         >> t_pipeline_exec_cwl_ribca
         >> t_maybe_keep_cwl_ribca
+
+        >> prepare_cwl_deepcelltypes
+        >> t_build_cmd_deepcelltypes
+        >> t_pipeline_exec_cwl_deepcelltypes
+        >> t_maybe_keep_cwl_deepcelltypes
+
         >> prepare_cwl_sprm
         >> t_build_cmd_sprm
         >> t_pipeline_exec_cwl_sprm
         >> t_maybe_keep_cwl_sprm
+
         >> prepare_cwl_create_vis_symlink_archive
         >> t_build_cmd_create_vis_symlink_archive
         >> t_pipeline_exec_cwl_create_vis_symlink_archive
         >> t_maybe_keep_cwl_create_vis_symlink_archive
+
         >> prepare_cwl_ome_tiff_pyramid
         >> t_build_cmd_ome_tiff_pyramid
         >> t_pipeline_exec_cwl_ome_tiff_pyramid
         >> t_maybe_keep_cwl_ome_tiff_pyramid
+
         >> prepare_cwl_ome_tiff_offsets
         >> t_build_cmd_ome_tiff_offsets
         >> t_pipeline_exec_cwl_ome_tiff_offsets
         >> t_maybe_keep_cwl_ome_tiff_offsets
+
         >> prepare_cwl_sprm_to_json
         >> t_build_cmd_sprm_to_json
         >> t_pipeline_exec_cwl_sprm_to_json
         >> t_maybe_keep_cwl_sprm_to_json
+
         >> prepare_cwl_sprm_to_anndata
         >> t_build_cmd_sprm_to_anndata
         >> t_pipeline_exec_cwl_sprm_to_anndata
         >> t_maybe_keep_cwl_sprm_to_anndata
+
         >> t_move_data
         >> t_expand_symlinks
         >> t_send_status
         >> t_join
     )
-    t_pipeline_exec_cwl_ometiff_second_stitching >> t_delete_internal_pipeline_files
     t_maybe_keep_cwl_illumination_first_stitching >> t_set_dataset_error
     t_maybe_keep_cwl_cytokit >> t_set_dataset_error
     t_maybe_keep_cwl_ometiff_second_stitching >> t_set_dataset_error
+    t_maybe_keep_cwl_ribca >> t_set_dataset_error
     t_maybe_keep_cwl_deepcelltypes >> t_set_dataset_error
     t_maybe_keep_cwl_sprm >> t_set_dataset_error
     t_maybe_keep_cwl_create_vis_symlink_archive >> t_set_dataset_error
