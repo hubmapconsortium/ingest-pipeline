@@ -333,7 +333,7 @@ with HMDAG(
 
         # [--data_dir]
         input_param_vals = [str(data_dir)]
-        command = get_cwl_cmd_from_workflows(workflows, 4, input_param_vals, tmpdir, kwargs["ti"])
+        command = get_cwl_cmd_from_workflows(workflows, 3, input_param_vals, tmpdir, kwargs["ti"])
 
         return join_quote_command_str(command)
 
