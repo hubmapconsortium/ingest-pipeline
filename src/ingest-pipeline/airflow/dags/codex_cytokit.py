@@ -89,6 +89,8 @@ with HMDAG(
                 {"parameter_name": "--cytokit_config", "value": ""},
                 {"parameter_name": "--cytokit_output", "value": ""},
                 {"parameter_name": "--slicing_pipeline_config", "value": ""},
+                {"parameter_name": "--num_concurrent_tasks", "value": ""}
+                {"parameter_name": "--data_dir", "value": ""}
             ],
             "documentation_url": "",
         },
@@ -267,11 +269,13 @@ with HMDAG(
 
         workflows = kwargs["ti"].xcom_pull(key="cwl_workflows", task_ids="build_cwl_cytokit")
 
-        # [--cytokit_config, --cytokit_output, --slicing_pipeline_config]
+        # [--cytokit_config, --cytokit_output, --slicing_pipeline_config, --num_concurrent_tasks, --data_dir]
         input_param_vals = [
             str(data_dir / "experiment.yaml"),
             str(data_dir / "cytokit"),
             str(data_dir / "pipelineConfig.json"),
+            get_threads_resource(dag.dag_id),
+            str(get_parent_data_dir(**kwargs)),
         ]
         command = get_cwl_cmd_from_workflows(workflows, 2, input_param_vals, tmpdir, kwargs["ti"])
 
