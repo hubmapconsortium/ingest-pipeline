@@ -118,7 +118,8 @@ with HMDAG(
                 {"parameter_name": "--processes", "value": ""},
                 {"parameter_name": "--image_dir", "value": ""},
                 {"parameter_name": "--mask_dir", "value": ""},
-                {"parameter_name": "--cell_types_file", "value": ""},
+                {"parameter_name": "--cell_types_directory", "value": ""},
+                {"parameter_name": "--cell_types_directory", "value": ""},
             ],
             "documentation_url": "",
         },
@@ -277,12 +278,12 @@ with HMDAG(
 
         workflows = kwargs["ti"].xcom_pull(key="cwl_workflows", task_ids="build_cwl_cytokit")
 
-        # [--cytokit_config, --cytokit_output, --slicing_pipeline_config]
+        # [--cytokit_config, --cytokit_output, --slicing_pipeline_config, --data_dir]
         input_param_vals = [
             str(data_dir / "experiment.yaml"),
             str(data_dir / "cytokit"),
             str(data_dir / "pipelineConfig.json"),
-            str(get_parent_data_dir(**kwargs)),
+            str(get_parent_data_dir(**kwargs))
         ]
         command = get_cwl_cmd_from_workflows(workflows, 2, input_param_vals, tmpdir, kwargs["ti"])
 
@@ -332,7 +333,7 @@ with HMDAG(
 
         # [--data_dir]
         input_param_vals = [str(data_dir)]
-        command = get_cwl_cmd_from_workflows(workflows, 4, input_param_vals, tmpdir, kwargs["ti"])
+        command = get_cwl_cmd_from_workflows(workflows, 3, input_param_vals, tmpdir, kwargs["ti"])
 
         return join_quote_command_str(command)
 
@@ -346,11 +347,11 @@ with HMDAG(
     t_pipeline_exec_cwl_ribca = BashOperator(
         task_id="pipeline_exec_cwl_ribca",
         bash_command=""" \
-                tmp_dir={{tmp_dir_path(run_id)}} ; \
-                cd ${tmp_dir}/cwl_out ; \
-                {{ti.xcom_pull(task_ids='build_cmd_ribca')}} >> ${tmp_dir}/session.log 2>&1 ; \
-                echo $?
-                """,
+        tmp_dir={{tmp_dir_path(run_id)}} ; \
+        cd ${tmp_dir}/cwl_out ; \
+        {{ti.xcom_pull(task_ids='build_cwl_ribca')}} >> ${tmp_dir}/session.log 2>&1 ; \
+        echo $?
+        """,
     )
 
     t_maybe_keep_cwl_ribca = BranchPythonOperator(
@@ -385,7 +386,7 @@ with HMDAG(
         print("data_dir: ", data_dir)
 
         workflows = kwargs["ti"].xcom_pull(
-            key="cwl_workflows", task_ids="build_cwl_ribca"
+        key="cwl_workflows", task_ids="build_cwl_ribca"
         )
 
         # [--data_dir]
@@ -433,13 +434,14 @@ with HMDAG(
 
         workflows = kwargs["ti"].xcom_pull(key="cwl_workflows", task_ids="build_cmd_deepcelltypes")
 
-        # [--enable_manhole, --processes, --image_dir, --mask_dir, --cell_types_file]
+        # [--enable_manhole, --processes, --image_dir, --mask_dir, --cell_types_directory, --cell_types_directory]
         input_param_vals = [
             "",
             get_threads_resource(dag.dag_id),
             str(data_dir / "pipeline_output/expr"),
             str(data_dir / "pipeline_output/mask"),
-            str(data_dir / "deepcelltypes_predictions.csv"),
+            str(data_dir / "ribca_for_sprm"),
+            str(data_dir / "deepcelltypes"),
         ]
         command = get_cwl_cmd_from_workflows(workflows, 5, input_param_vals, tmpdir, kwargs["ti"])
 
@@ -801,17 +803,18 @@ with HMDAG(
         >> prepare_cwl_ometiff_second_stitching
         >> t_build_cwl_ometiff_second_stitching
         >> t_pipeline_exec_cwl_ometiff_second_stitching
+        >> t_delete_internal_pipeline_files
         >> t_maybe_keep_cwl_ometiff_second_stitching
-
-        >> prepare_cwl_deepcelltypes
-        >> t_build_cmd_deepcelltypes
-        >> t_pipeline_exec_cwl_deepcelltypes
-        >> t_maybe_keep_cwl_deepcelltypes
 
         >> prepare_cwl_ribca
         >> t_build_cmd_ribca
         >> t_pipeline_exec_cwl_ribca
         >> t_maybe_keep_cwl_ribca
+
+        >> prepare_cwl_deepcelltypes
+        >> t_build_cmd_deepcelltypes
+        >> t_pipeline_exec_cwl_deepcelltypes
+        >> t_maybe_keep_cwl_deepcelltypes
 
         >> prepare_cwl_sprm
         >> t_build_cmd_sprm
@@ -850,10 +853,10 @@ with HMDAG(
         >> t_send_status
         >> t_join
     )
-    t_pipeline_exec_cwl_ometiff_second_stitching >> t_delete_internal_pipeline_files
     t_maybe_keep_cwl_illumination_first_stitching >> t_set_dataset_error
     t_maybe_keep_cwl_cytokit >> t_set_dataset_error
     t_maybe_keep_cwl_ometiff_second_stitching >> t_set_dataset_error
+    t_maybe_keep_cwl_ribca >> t_set_dataset_error
     t_maybe_keep_cwl_deepcelltypes >> t_set_dataset_error
     t_maybe_keep_cwl_sprm >> t_set_dataset_error
     t_maybe_keep_cwl_create_vis_symlink_archive >> t_set_dataset_error
