@@ -288,7 +288,7 @@ with HMDAG(
 
         # [--data_dir]
         input_param_vals = [str(data_dir)]
-        command = get_cwl_cmd_from_workflows(workflows, 4, input_param_vals, tmpdir, kwargs["ti"])
+        command = get_cwl_cmd_from_workflows(workflows, 3, input_param_vals, tmpdir, kwargs["ti"])
 
         return join_quote_command_str(command)
 
@@ -302,11 +302,11 @@ with HMDAG(
     t_pipeline_exec_cwl_ribca = BashOperator(
         task_id="pipeline_exec_cwl_ribca",
         bash_command=""" \
-                tmp_dir={{tmp_dir_path(run_id)}} ; \
-                cd ${tmp_dir}/cwl_out ; \
-                {{ti.xcom_pull(task_ids='build_cmd_ribca')}} >> ${tmp_dir}/session.log 2>&1 ; \
-                echo $?
-                """,
+        tmp_dir={{tmp_dir_path(run_id)}} ; \
+        cd ${tmp_dir}/cwl_out ; \
+        {{ti.xcom_pull(task_ids='build_cwl_ribca')}} >> ${tmp_dir}/session.log 2>&1 ; \
+        echo $?
+        """,
     )
 
     t_maybe_keep_cwl_ribca = BranchPythonOperator(
@@ -324,7 +324,7 @@ with HMDAG(
         task_id="delete_internal_pipeline_files",
         bash_command="""\
         tmp_dir={{tmp_dir_path(run_id)}} ; \
-        cd "${tmp_dir}"/cwl_out ; \
+        cd ${tmp_dir}/cwl_out ; \
         rm -rf cytokit new_tiles
         """,
     )
@@ -341,7 +341,7 @@ with HMDAG(
         print("data_dir: ", data_dir)
 
         workflows = kwargs["ti"].xcom_pull(
-            key="cwl_workflows", task_ids="build_cwl_ribca"
+        key="cwl_workflows", task_ids="build_cwl_ribca"
         )
 
         input_parameters = [
@@ -769,17 +769,18 @@ with HMDAG(
         >> prepare_cwl_ometiff_second_stitching
         >> t_build_cwl_ometiff_second_stitching
         >> t_pipeline_exec_cwl_ometiff_second_stitching
+        >> t_delete_internal_pipeline_files
         >> t_maybe_keep_cwl_ometiff_second_stitching
-
-        >> prepare_cwl_deepcelltypes
-        >> t_build_cmd_deepcelltypes
-        >> t_pipeline_exec_cwl_deepcelltypes
-        >> t_maybe_keep_cwl_deepcelltypes
 
         >> prepare_cwl_ribca
         >> t_build_cmd_ribca
         >> t_pipeline_exec_cwl_ribca
         >> t_maybe_keep_cwl_ribca
+
+        >> prepare_cwl_deepcelltypes
+        >> t_build_cmd_deepcelltypes
+        >> t_pipeline_exec_cwl_deepcelltypes
+        >> t_maybe_keep_cwl_deepcelltypes
 
         >> prepare_cwl_sprm
         >> t_build_cmd_sprm
@@ -818,10 +819,10 @@ with HMDAG(
         >> t_send_status
         >> t_join
     )
-    t_pipeline_exec_cwl_ometiff_second_stitching >> t_delete_internal_pipeline_files
     t_maybe_keep_cwl_illumination_first_stitching >> t_set_dataset_error
     t_maybe_keep_cwl_cytokit >> t_set_dataset_error
     t_maybe_keep_cwl_ometiff_second_stitching >> t_set_dataset_error
+    t_maybe_keep_cwl_ribca >> t_set_dataset_error
     t_maybe_keep_cwl_deepcelltypes >> t_set_dataset_error
     t_maybe_keep_cwl_sprm >> t_set_dataset_error
     t_maybe_keep_cwl_create_vis_symlink_archive >> t_set_dataset_error
