@@ -89,8 +89,8 @@ with HMDAG(
                 {"parameter_name": "--cytokit_config", "value": ""},
                 {"parameter_name": "--cytokit_output", "value": ""},
                 {"parameter_name": "--slicing_pipeline_config", "value": ""},
-                {"parameter_name": "--num_concurrent_tasks", "value": ""}
-                {"parameter_name": "--data_dir", "value": ""}
+                {"parameter_name": "--num_concurrent_tasks", "value": ""},
+                {"parameter_name": "--data_dir", "value": ""},
             ],
             "documentation_url": "",
         },
