@@ -292,7 +292,10 @@ def get_cwl_cmd_from_workflows(
             workflow["input_parameters"][i]["value"] = param_val
 
     # Get the cwl invocation
-    command = [*get_cwltool_base_cmd(tmp_dir), "--outdir", str(tmp_dir / "cwl_out")]
+    # command = [*get_cwltool_base_cmd(tmp_dir), "--outdir", str(tmp_dir / "cwl_out")]
+    # ToDo Removing outdir until it gets added to the workflow steps
+    command = [*get_cwltool_base_cmd(tmp_dir)]
+
 
     for param in cwl_param_vals if cwl_param_vals is not None else []:
         if isinstance(param["value"], list):

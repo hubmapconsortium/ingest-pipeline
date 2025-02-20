@@ -271,6 +271,8 @@ with HMDAG(
         task_id="pipeline_exec",
         bash_command=""" \
         tmp_dir={{tmp_dir_path(run_id)}} ; \
+        mkdir -p "${tmp_dir}"/cwl_out ; \
+        cd "${tmp_dir}"/cwl_out ; \
         {{ti.xcom_pull(task_ids='build_cmd1')}} > $tmp_dir/session.log 2>&1 ; \
         echo $?
         """,
@@ -281,7 +283,7 @@ with HMDAG(
         bash_command=""" \
         tmp_dir={{tmp_dir_path(run_id)}} ; \
         ds_dir="{{ti.xcom_pull(task_ids="send_create_dataset")}}" ; \
-        cd "$tmp_dir"/cwl_out ; \
+        cd "${tmp_dir}"/cwl_out ; \
         mkdir -p hubmap_ui ; \
         cd hubmap_ui ; \
         {{ti.xcom_pull(task_ids='build_cmd2')}} >> $tmp_dir/session.log 2>&1 ; \
@@ -294,7 +296,7 @@ with HMDAG(
         bash_command=""" \
         tmp_dir={{tmp_dir_path(run_id)}} ; \
         ds_dir="{{ti.xcom_pull(task_ids="send_create_dataset")}}" ; \
-        cd "$tmp_dir"/cwl_out ; \
+        cd "${tmp_dir}"/cwl_out ; \
         mkdir -p hubmap_ui ; \
         cd hubmap_ui ; \
         {{ti.xcom_pull(task_ids='build_cmd3')}} >> $tmp_dir/session.log 2>&1 ; \
@@ -306,8 +308,7 @@ with HMDAG(
         task_id="pipeline_exec_cwl_ome_tiff_pyramid",
         bash_command=""" \
         tmp_dir={{tmp_dir_path(run_id)}} ; \
-        mkdir -p ${tmp_dir}/cwl_out ; \
-        cd ${tmp_dir}/cwl_out ; \
+        cd "${tmp_dir}"/cwl_out ; \
         {{ti.xcom_pull(task_ids='build_cmd4')}} >> $tmp_dir/session.log 2>&1 ; \
         echo $?
         """,
@@ -317,7 +318,7 @@ with HMDAG(
         task_id="pipeline_exec_cwl_ome_tiff_offsets",
         bash_command=""" \
         tmp_dir={{tmp_dir_path(run_id)}} ; \
-        cd ${tmp_dir}/cwl_out ; \
+        cd "${tmp_dir}"/cwl_out ; \
         {{ti.xcom_pull(task_ids='build_cmd5')}} >> ${tmp_dir}/session.log 2>&1 ; \
         echo $?
         """,
