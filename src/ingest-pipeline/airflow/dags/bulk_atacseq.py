@@ -82,7 +82,6 @@ with HMDAG(
 
         cwl_params = [
             {"parameter_name": "--parallel", "value": ""},
-            {"parameter_name": "--outdir", "value": str(tmpdir)},
         ]
 
         input_parameters = [
@@ -109,6 +108,7 @@ with HMDAG(
         task_id="pipeline_exec",
         bash_command=""" \
         tmp_dir={{tmp_dir_path(run_id)}} ; \
+        mkdir -p ${tmp_dir}/cwl_out ; \
         {{ti.xcom_pull(task_ids='build_cmd1')}} > $tmp_dir/session.log 2>&1 ; \
         echo $?
         """,
