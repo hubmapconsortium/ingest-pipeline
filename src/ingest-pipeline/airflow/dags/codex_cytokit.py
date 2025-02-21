@@ -274,7 +274,7 @@ with HMDAG(
         task_id="delete_internal_pipeline_files",
         bash_command="""\
         tmp_dir={{tmp_dir_path(run_id)}} ; \
-        cd ${tmp_dir}/cwl_out ; \
+        cd "${tmp_dir}"/cwl_out ; \
         rm -rf cytokit new_tiles
         """,
     )
@@ -312,6 +312,7 @@ with HMDAG(
         task_id="pipeline_exec_cwl_deepcelltypes",
         bash_command=""" \
         tmp_dir={{tmp_dir_path(run_id)}} ; \
+        cd "${tmp_dir}"/cwl_out ; \
         {{ti.xcom_pull(task_ids='build_cmd_deepcelltypes')}} >> ${tmp_dir}/session.log 2>&1 ; \
         echo $?
         """,
