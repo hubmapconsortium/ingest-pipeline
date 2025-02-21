@@ -206,7 +206,9 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
             input_parameters = [
                 {"parameter_name": "--input_dir", "value": str(tmpdir / "cwl_out")},
             ]
-            command = get_cwl_cmd_from_workflows(workflows, 3, input_parameters, tmpdir, kwargs["ti"], cwl_parameters)
+            command = get_cwl_cmd_from_workflows(
+                workflows, 3, input_parameters, tmpdir, kwargs["ti"], cwl_parameters
+            )
 
             return join_quote_command_str(command)
 
