@@ -146,13 +146,16 @@ with HMDAG(
             workflows = cwl_workflows_annotations_multiome
             input_parameters = [
                 {"parameter_name": "--reference", "value": organ_code},
-                {"parameter_name": "--matrix", "value": str(tmpdir / "cwl_out/mudata_raw.h5mu")},
+                {
+                    "parameter_name": "--matrix",
+                    "value": str(tmpdir / "cwl_out/mudata_raw.h5mu"),
+                },
                 {
                     "parameter_name": "--secondary-analysis-matrix",
                     "value": str(tmpdir / "cwl_outsecondary_analysis.h5mu"),
                 },
                 {"parameter_name": "--assay", "value": assay},
-            ],
+            ]
         else:
             workflows = cwl_workflows_annotations_salmon
             input_parameters = [
@@ -183,7 +186,9 @@ with HMDAG(
         input_parameters = [
             {"parameter_name": "--input_dir", "value": str(tmpdir / "cwl_out")},
         ]
-        command = get_cwl_cmd_from_workflows(workflows, 1, input_parameters, tmpdir, kwargs["ti"], cwl_parameters)
+        command = get_cwl_cmd_from_workflows(
+            workflows, 1, input_parameters, tmpdir, kwargs["ti"], cwl_parameters
+        )
         kwargs["ti"].xcom_push(key="skip_cwl3", value=1 if workflow == 0 else 0)
 
         return join_quote_command_str(command)
@@ -201,7 +206,9 @@ with HMDAG(
         input_parameters = [
             {"parameter_name": "--input_dir", "value": str(tmpdir / "cwl_out")},
         ]
-        command = get_cwl_cmd_from_workflows(workflows, 2, input_parameters, tmpdir, kwargs["ti"], cwl_parameters)
+        command = get_cwl_cmd_from_workflows(
+            workflows, 2, input_parameters, tmpdir, kwargs["ti"], cwl_parameters
+        )
 
         return join_quote_command_str(command)
 
