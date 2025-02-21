@@ -128,7 +128,7 @@ with HMDAG(
         else:
             source_type = unique_source_types.pop().lower()
 
-        cwl_params = [
+        cwl_parameters = [
             {"parameter_name": "--parallel", "value": ""},
         ]
         input_parameters = [
@@ -141,7 +141,7 @@ with HMDAG(
         ]
 
         command = get_cwl_cmd_from_workflows(
-            cwl_workflows, 0, input_parameters, tmpdir, kwargs["ti"], cwl_params
+            cwl_workflows, 0, input_parameters, tmpdir, kwargs["ti"], cwl_parameters
         )
 
         return join_quote_command_str(command)
