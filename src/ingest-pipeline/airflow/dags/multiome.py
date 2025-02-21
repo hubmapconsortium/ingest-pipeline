@@ -91,39 +91,18 @@ def generate_multiome_dag(params: MultiomeSequencingDagParameters) -> DAG:
                 "workflow_path": str(
                     get_absolute_workflow(Path("multiome-rna-atac-pipeline", "pipeline.cwl"))
                 ),
-                "input_parameters": [
-                    {"parameter_name": "--threads_rna", "value": ""},
-                    {"parameter_name": "--threads_atac", "value": ""},
-                    {"parameter_name": "--organism", "value": ""},
-                    {"parameter_name": "--assay_rna", "value": ""},
-                    {"parameter_name": "--fastq_dir_rna", "value": []},
-                    {"parameter_name": "--assay_atac", "value": ""},
-                    {"parameter_name": "--fastq_dir_atac", "value": []},
-                ],
                 "documentation_url": "",
             },
             {
                 "workflow_path": str(
                     get_absolute_workflow(Path("azimuth-annotate", "pipeline.cwl"))
                 ),
-                "input_parameters": [
-                    {"parameter_name": "--reference", "value": ""},
-                    {"parameter_name": "--matrix", "value": "mudata_raw.h5mu"},
-                    {
-                        "parameter_name": "--secondary-analysis-matrix",
-                        "value": "secondary_analysis.h5mu",
-                    },
-                    {"parameter_name": "--assay", "value": ""},
-                ],
                 "documentation_url": "",
             },
             {
                 "workflow_path": str(
                     get_absolute_workflow(Path("portal-containers", "mudata-to-ui.cwl"))
                 ),
-                "input_parameters": [
-                    {"parameter_name": "--input_dir", "value": ".."},
-                ],
                 "documentation_url": "",
             },
         ]
@@ -162,35 +141,36 @@ def generate_multiome_dag(params: MultiomeSequencingDagParameters) -> DAG:
             else:
                 source_type = unique_source_types.pop().lower()
 
-            # [--threads_rna, --threads_atac, --organism]
-            input_param_vals = [
-                get_threads_resource(dag.dag_id),
-                get_threads_resource(dag.dag_id),
-                source_type,
-            ]
-
             cwl_params = [
                 {"parameter_name": "--parallel", "value": ""},
             ]
 
-            # [--assay_rna, --fastq_dir_rna, --assay_atac, --fastq_dir_atac]
-            for component in ["RNA", "ATAC"]:
-                input_param_vals.append(getattr(params, f"assay_{component.lower()}"))
-                input_param_vals.append(
-                    [str(data_dir / Path(f"raw/fastq/{component}")) for data_dir in data_dirs]
-                )
+            input_parameters = [
+                {"parameter_name": "--threads_rna", "value": get_threads_resource(dag.dag_id)},
+                {"parameter_name": "--threads_atac", "value": get_threads_resource(dag.dag_id)},
+                {"parameter_name": "--organism", "value": source_type},
+                {"parameter_name": "--assay_rna", "value": params.assay_rna},
+                {
+                    "parameter_name": "--fastq_dir_rna",
+                    "value": [str(data_dir / Path(f"raw/fastq/rna")) for data_dir in data_dirs],
+                },
+                {"parameter_name": "--assay_atac", "value": params.assay_atac},
+                {
+                    "parameter_name": "--fastq_dir_atac",
+                    "value": [str(data_dir / Path(f"raw/fastq/atac")) for data_dir in data_dirs],
+                },
+            ]
 
-            # Not always included: [--atac_metadata_file]
             atac_metadata_files = [find_atac_metadata_file(data_dir) for data_dir in data_dirs]
             if params.requires_one_atac_metadata_file:
                 if (count := len(atac_metadata_files)) != 1:
                     raise ValueError(f"Need 1 ATAC-seq metadata file, found {count}")
-                cwl_workflows[0]["input_parameters"].append(
+                input_parameters.append(
                     {"parameter_name": "--atac_metadata_file", "value": atac_metadata_files[0]}
                 )
 
             command = get_cwl_cmd_from_workflows(
-                cwl_workflows, 0, input_param_vals, tmpdir, kwargs["ti"], cwl_params
+                cwl_workflows, 0, input_parameters, tmpdir, kwargs["ti"], cwl_params
             )
 
             return join_quote_command_str(command)
@@ -208,10 +188,17 @@ def generate_multiome_dag(params: MultiomeSequencingDagParameters) -> DAG:
 
             workflows = kwargs["ti"].xcom_pull(key="cwl_workflows", task_ids="build_cmd1")
 
-            # [--reference, --matrix, --secondary-analysis-matrix, --assay]
-            input_param_vals = [organ_code, "", "", params.assay_azimuth]
+            input_parameters = [
+                {"parameter_name": "--reference", "value": organ_code},
+                {"parameter_name": "--matrix", "value": str(tmpdir / "cwl_out/mudata_raw.h5mu")},
+                {
+                    "parameter_name": "--secondary-analysis-matrix",
+                    "value": "secondary_analysis.h5mu",
+                },
+                {"parameter_name": "--assay", "value": params.assay_azimuth},
+            ]
             command = get_cwl_cmd_from_workflows(
-                workflows, 1, input_param_vals, tmpdir, kwargs["ti"]
+                workflows, 1, input_parameters, tmpdir, kwargs["ti"]
             )
 
             return join_quote_command_str(command)
@@ -223,8 +210,15 @@ def generate_multiome_dag(params: MultiomeSequencingDagParameters) -> DAG:
 
             workflows = kwargs["ti"].xcom_pull(key="cwl_workflows", task_ids="build_cmd2")
 
-            # [--input_dir]
-            command = get_cwl_cmd_from_workflows(workflows, 2, [], tmpdir, kwargs["ti"])
+            cwl_parameters = {
+                {"parameter_name": "--outdir", "value": str(tmpdir / "cwl_out/hubmap_ui")}
+            }
+            input_parameters = [
+                {"parameter_name": "--input_dir", "value": str(tmpdir / "cwl_out")},
+            ]
+            command = get_cwl_cmd_from_workflows(
+                workflows, 2, input_parameters, tmpdir, kwargs["ti"], cwl_parameters
+            )
 
             return join_quote_command_str(command)
 
@@ -250,6 +244,7 @@ def generate_multiome_dag(params: MultiomeSequencingDagParameters) -> DAG:
             task_id="pipeline_exec",
             bash_command=""" \
             tmp_dir={{tmp_dir_path(run_id)}} ; \
+            mkdir -p ${tmp_dir}/cwl_out ; \
             {{ti.xcom_pull(task_ids='build_cmd1')}} > $tmp_dir/session.log 2>&1 ; \
             echo $?
             """,
@@ -259,7 +254,6 @@ def generate_multiome_dag(params: MultiomeSequencingDagParameters) -> DAG:
             task_id="pipeline_exec_azimuth_annotate",
             bash_command=""" \
             tmp_dir={{tmp_dir_path(run_id)}} ; \
-            cd "$tmp_dir"/cwl_out ; \
             {{ti.xcom_pull(task_ids='build_cmd2')}} >> $tmp_dir/session.log 2>&1 ; \
             echo $?
             """,
@@ -270,9 +264,7 @@ def generate_multiome_dag(params: MultiomeSequencingDagParameters) -> DAG:
             bash_command=""" \
             tmp_dir={{tmp_dir_path(run_id)}} ; \
             ds_dir="{{ti.xcom_pull(task_ids="send_create_dataset")}}" ; \
-            cd "$tmp_dir"/cwl_out ; \
-            mkdir -p hubmap_ui ; \
-            cd hubmap_ui ; \
+            mkdir -p "$tmp_dir"/cwl_out/hubmap_ui ; \
             {{ti.xcom_pull(task_ids='build_cmd3')}} >> $tmp_dir/session.log 2>&1 ; \
             echo $?
             """,
