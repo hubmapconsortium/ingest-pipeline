@@ -268,7 +268,9 @@ with HMDAG(
         input_parameters = [
             {"parameter_name": "--input_dir", "value": str(tmpdir / "cwl_out")},
         ]
-        command = get_cwl_cmd_from_workflows(workflows, 1, input_parameters, tmpdir, kwargs["ti"], cwl_parameters)
+        command = get_cwl_cmd_from_workflows(
+            workflows, 1, input_parameters, tmpdir, kwargs["ti"], cwl_parameters
+        )
 
         return join_quote_command_str(command)
 
@@ -318,7 +320,10 @@ with HMDAG(
 
         input_parameters = [
             {"parameter_name": "--processes", "value": get_threads_resource(dag.dag_id)},
-            {"parameter_name": "--ometiff_directory", "value": f"{data_dir}/derived/segmentation_masks"},
+            {
+                "parameter_name": "--ometiff_directory",
+                "value": f"{data_dir}/derived/segmentation_masks",
+            },
         ]
         command = get_cwl_cmd_from_workflows(workflows, 2, input_parameters, tmpdir, ti)
 
@@ -406,9 +411,12 @@ with HMDAG(
         )
 
         input_parameters = [
-            {"parameter_name": "--input_directory", "value": str(tmpdir / "cwl_out/ometiff-pyramids")},
+            {
+                "parameter_name": "--input_directory",
+                "value": str(tmpdir / "cwl_out/ometiff-pyramids"),
+            },
         ]
-        command = get_cwl_cmd_from_workflows(workflows, 4, [], tmpdir, kwargs["ti"])
+        command = get_cwl_cmd_from_workflows(workflows, 4, input_parameters, tmpdir, kwargs["ti"])
 
         return join_quote_command_str(command)
 
