@@ -261,7 +261,9 @@ with HMDAG(
 
         # [--input_dir]
 
-        input_parameters = [{"parameter_name": "--input_dir", "value": str(data_dir / "ometiff-pyramids")}]
+        input_parameters = [
+            {"parameter_name": "--input_dir", "value": str(data_dir / "ometiff-pyramids")}
+        ]
         command = get_cwl_cmd_from_workflows(workflows, 3, input_parameters, tmpdir, kwargs["ti"])
 
         return join_quote_command_str(command)
@@ -307,7 +309,9 @@ with HMDAG(
             key="cwl_workflows", task_ids="build_cmd_ome_tiff_offsets"
         )
 
-        input_parameters = [{"parameter_name": "--input_dir", "value": str(data_dir / "ometiff-pyramids")}]
+        input_parameters = [
+            {"parameter_name": "--input_dir", "value": str(data_dir / "ometiff-pyramids")}
+        ]
         command = get_cwl_cmd_from_workflows(workflows, 4, input_parameters, tmpdir, kwargs["ti"])
 
         return join_quote_command_str(command)
