@@ -65,10 +65,6 @@ with HMDAG(
             "workflow_path": str(
                 get_absolute_workflow(Path("sc-atac-seq-pipeline", "bulk-atac-seq-pipeline.cwl"))
             ),
-            "input_parameters": [
-                {"parameter_name": "--threads", "value": ""},
-                {"parameter_name": "--sequence_directory", "value": []},
-            ],
             "documentation_url": "",
         }
     ]
@@ -84,16 +80,21 @@ with HMDAG(
 
         data_dirs = get_parent_data_dirs_list(**kwargs)
 
-        # ["--threads", "--sequence_directory"]
-        input_param_vals = [
-            get_threads_resource(dag.dag_id),
-            [str(data_dir) for data_dir in data_dirs],
-        ]
         cwl_params = [
             {"parameter_name": "--parallel", "value": ""},
+            {"parameter_name": "--outdir", "value": str(tmpdir)},
         ]
+
+        input_parameters = [
+            {"parameter_name": "--threads", "value": get_threads_resource(dag.dag_id)},
+            {
+                "parameter_name": "--sequence_directory",
+                "value": [str(data_dir) for data_dir in data_dirs],
+            },
+        ]
+
         command = get_cwl_cmd_from_workflows(
-            cwl_workflows, 0, input_param_vals, tmpdir, kwargs["ti"], cwl_params
+            cwl_workflows, 0, input_parameters, tmpdir, kwargs["ti"], cwl_params
         )
 
         return join_quote_command_str(command)
