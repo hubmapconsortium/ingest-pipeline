@@ -264,7 +264,7 @@ def generate_multiome_dag(params: MultiomeSequencingDagParameters) -> DAG:
             bash_command=""" \
             tmp_dir={{tmp_dir_path(run_id)}} ; \
             ds_dir="{{ti.xcom_pull(task_ids="send_create_dataset")}}" ; \
-            mkdir -p "$tmp_dir"/cwl_out/hubmap_ui ; \
+            mkdir -p ${tmp_dir}/cwl_out/hubmap_ui ; \
             {{ti.xcom_pull(task_ids='build_cmd3')}} >> $tmp_dir/session.log 2>&1 ; \
             echo $?
             """,
