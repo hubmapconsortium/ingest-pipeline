@@ -68,45 +68,24 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
         cwl_workflows = [
             {
                 "workflow_path": str(get_absolute_workflow(Path("salmon-rnaseq", "pipeline.cwl"))),
-                "input_parameters": [
-                    {"parameter_name": "--assay", "value": ""},
-                    {"parameter_name": "--threads", "value": ""},
-                    {"parameter_name": "--organism", "value": ""},
-                    {"parameter_name": "--fastq_dir", "value": []},
-                ],
                 "documentation_url": "",
             },
             {
                 "workflow_path": str(
                     get_absolute_workflow(Path("azimuth-annotate", "pipeline.cwl"))
                 ),
-                "input_parameters": [
-                    {"parameter_name": "--reference", "value": ""},
-                    {"parameter_name": "--matrix", "value": "expr.h5ad"},
-                    {
-                        "parameter_name": "--secondary-analysis-matrix",
-                        "value": "secondary_analysis.h5ad",
-                    },
-                    {"parameter_name": "--assay", "value": ""},
-                ],
                 "documentation_url": "",
             },
             {
                 "workflow_path": str(
                     get_absolute_workflow(Path("portal-containers", "h5ad-to-arrow.cwl"))
                 ),
-                "input_parameters": [
-                    {"parameter_name": "--input_dir", "value": ".."},
-                ],
                 "documentation_url": "",
             },
             {
                 "workflow_path": str(
                     get_absolute_workflow(Path("portal-containers", "anndata-to-ui.cwl"))
                 ),
-                "input_parameters": [
-                    {"parameter_name": "--input_dir", "value": ".."},
-                ],
                 "documentation_url": "",
             },
         ]
@@ -147,20 +126,22 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
             else:
                 source_type = unique_source_types.pop().lower()
 
-            # [--assay, --threads, --organism, --fastq_dir]
-            input_param_vals = [
-                params.assay,
-                get_threads_resource(dag.dag_id),
-                source_type,
-                [str(data_dir) for data_dir in data_dirs],
-            ]
-
             cwl_params = [
                 {"parameter_name": "--parallel", "value": ""},
             ]
 
+            input_parameters = [
+                {"parameter_name": "--assay", "value": params.assay},
+                {"parameter_name": "--threads", "value": get_threads_resource(dag.dag_id)},
+                {"parameter_name": "--organism", "value": source_type},
+                {
+                    "parameter_name": "--fastq_dir",
+                    "value": [str(data_dir) for data_dir in data_dirs],
+                },
+            ]
+
             command = get_cwl_cmd_from_workflows(
-                cwl_workflows, 0, input_param_vals, tmpdir, kwargs["ti"], cwl_params
+                cwl_workflows, 0, input_parameters, tmpdir, kwargs["ti"], cwl_params
             )
 
             return join_quote_command_str(command)
@@ -178,10 +159,17 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
 
             workflows = kwargs["ti"].xcom_pull(key="cwl_workflows", task_ids="build_cmd1")
 
-            # [--reference, --matrix, --secondary-analysis-matrix, --assay]
-            input_param_vals = [organ_code, "", "", params.assay]
+            input_parameters = [
+                {"parameter_name": "--reference", "value": organ_code},
+                {"parameter_name": "--matrix", "value": str(tmpdir / "cwl_out/expr.h5ad")},
+                {
+                    "parameter_name": "--secondary-analysis-matrix",
+                    "value": str(tmpdir / "cwl_out/secondary_analysis.h5ad"),
+                },
+                {"parameter_name": "--assay", "value": params.assay},
+            ]
             command = get_cwl_cmd_from_workflows(
-                workflows, 1, input_param_vals, tmpdir, kwargs["ti"]
+                workflows, 1, input_parameters, tmpdir, kwargs["ti"]
             )
 
             return join_quote_command_str(command)
@@ -193,8 +181,15 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
 
             workflows = kwargs["ti"].xcom_pull(key="cwl_workflows", task_ids="build_cmd2")
 
-            # [--input_dir]
-            command = get_cwl_cmd_from_workflows(workflows, 2, [], tmpdir, kwargs["ti"])
+            cwl_parameters = [
+                {"parameter_name": "--outdir", "value": str(tmpdir / "cwl_out/hubmap_ui")},
+            ]
+            input_parameters = [
+                {"parameter_name": "--input_dir", "value": str(tmpdir / "cwl_out")},
+            ]
+            command = get_cwl_cmd_from_workflows(
+                workflows, 2, input_parameters, tmpdir, kwargs["ti"], cwl_parameters
+            )
 
             return join_quote_command_str(command)
 
@@ -205,8 +200,13 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
 
             workflows = kwargs["ti"].xcom_pull(key="cwl_workflows", task_ids="build_cmd2")
 
-            # [--input_dir]
-            command = get_cwl_cmd_from_workflows(workflows, 3, [], tmpdir, kwargs["ti"])
+            cwl_parameters = [
+                {"parameter_name": "--outdir", "value": str(tmpdir / "cwl_out/hubmap_ui")},
+            ]
+            input_parameters = [
+                {"parameter_name": "--input_dir", "value": str(tmpdir / "cwl_out")},
+            ]
+            command = get_cwl_cmd_from_workflows(workflows, 3, input_parameters, tmpdir, kwargs["ti"], cwl_parameters)
 
             return join_quote_command_str(command)
 
@@ -238,6 +238,7 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
             task_id="pipeline_exec",
             bash_command=""" \
             tmp_dir={{tmp_dir_path(run_id)}} ; \
+            mkdir -p ${tmp_dir}/cwl_out ; \
             {{ti.xcom_pull(task_ids='build_cmd1')}} > $tmp_dir/session.log 2>&1 ; \
             echo $?
             """,
@@ -247,7 +248,6 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
             task_id="pipeline_exec_azimuth_annotate",
             bash_command=""" \
             tmp_dir={{tmp_dir_path(run_id)}} ; \
-            cd "$tmp_dir"/cwl_out ; \
             {{ti.xcom_pull(task_ids='build_cmd2')}} >> $tmp_dir/session.log 2>&1 ; \
             echo $?
             """,
@@ -258,9 +258,7 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
             bash_command=""" \
             tmp_dir={{tmp_dir_path(run_id)}} ; \
             ds_dir="{{ti.xcom_pull(task_ids="send_create_dataset")}}" ; \
-            cd "$tmp_dir"/cwl_out ; \
-            mkdir -p hubmap_ui ; \
-            cd hubmap_ui ; \
+            mkdir -p "$tmp_dir"/cwl_out/hubmap_ui ; \
             {{ti.xcom_pull(task_ids='build_cmd3')}} >> $tmp_dir/session.log 2>&1 ; \
             echo $?
             """,
@@ -271,9 +269,6 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
             bash_command=""" \
             tmp_dir={{tmp_dir_path(run_id)}} ; \
             ds_dir="{{ti.xcom_pull(task_ids="send_create_dataset")}}" ; \
-            cd "$tmp_dir"/cwl_out ; \
-            mkdir -p hubmap_ui ; \
-            cd hubmap_ui ; \
             {{ti.xcom_pull(task_ids='build_cmd4')}} >> $tmp_dir/session.log 2>&1 ; \
             echo $?
             """,
