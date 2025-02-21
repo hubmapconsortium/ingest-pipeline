@@ -71,21 +71,12 @@ def generate_atac_seq_dag(params: SequencingDagParameters) -> DAG:
                         Path("sc-atac-seq-pipeline", "sc_atac_seq_prep_process_analyze.cwl")
                     )
                 ),
-                "input_parameters": [
-                    {"parameter_name": "--assay", "value": ""},
-                    {"parameter_name": "--exclude_bam", "value": ""},
-                    {"parameter_name": "--threads", "value": ""},
-                    {"parameter_name": "--sequence_directory", "value": []},
-                ],
                 "documentation_url": "",
             },
             {
                 "workflow_path": str(
                     get_absolute_workflow(Path("portal-containers", "scatac-csv-to-arrow.cwl"))
                 ),
-                "input_parameters": [
-                    {"parameter_name": "--input_dir", "value": "."},
-                ],
                 "documentation_url": "",
             },
         ]
@@ -104,20 +95,21 @@ def generate_atac_seq_dag(params: SequencingDagParameters) -> DAG:
             data_dirs = get_parent_data_dirs_list(**kwargs)
             print("data_dirs: ", data_dirs)
 
-            # [--assay, --exclude_bam, --threads, --sequence_directory]
-            input_param_vals = [
-                params.assay,
-                "",
-                get_threads_resource(dag.dag_id),
-                [str(data_dir) for data_dir in data_dirs],
-            ]
-
             cwl_params = [
                 {"parameter_name": "--parallel", "value": ""},
             ]
+            input_parameters = [
+                {"parameter_name": "--assay", "value": params.assay},
+                {"parameter_name": "--exclude_bam", "value": ""},
+                {"parameter_name": "--threads", "value": get_threads_resource(dag.dag_id)},
+                {
+                    "parameter_name": "--sequence_directory",
+                    "value": [str(data_dir) for data_dir in data_dirs],
+                },
+            ]
 
             command = get_cwl_cmd_from_workflows(
-                cwl_workflows, 0, input_param_vals, tmpdir, kwargs["ti"], cwl_params
+                cwl_workflows, 0, input_parameters, tmpdir, kwargs["ti"], cwl_params
             )
 
             return join_quote_command_str(command)
@@ -129,8 +121,12 @@ def generate_atac_seq_dag(params: SequencingDagParameters) -> DAG:
 
             workflows = kwargs["ti"].xcom_pull(key="cwl_workflows", task_ids="build_cmd1")
 
-            # [--input_dir]
-            command = get_cwl_cmd_from_workflows(workflows, 1, [], tmpdir, kwargs["ti"])
+            input_parameters = [
+                {"parameter_name": "--input_dir", "value": str(tmpdir / "cwl_out")},
+            ]
+            command = get_cwl_cmd_from_workflows(
+                workflows, 1, input_parameters, tmpdir, kwargs["ti"]
+            )
 
             return join_quote_command_str(command)
 
@@ -150,6 +146,7 @@ def generate_atac_seq_dag(params: SequencingDagParameters) -> DAG:
             task_id="pipeline_exec",
             bash_command=""" \
             tmp_dir={{tmp_dir_path(run_id)}} ; \
+            mkdir -p ${tmp_dir}/cwl_out ; \
             {{ti.xcom_pull(task_ids='build_cmd1')}} > $tmp_dir/session.log 2>&1 ; \
             echo $?
             """,
@@ -160,7 +157,6 @@ def generate_atac_seq_dag(params: SequencingDagParameters) -> DAG:
             bash_command=""" \
             tmp_dir={{tmp_dir_path(run_id)}} ; \
             ds_dir="{{ti.xcom_pull(task_ids="send_create_dataset")}}" ; \
-            cd "$tmp_dir"/cwl_out ; \
             {{ti.xcom_pull(task_ids='build_cmd2')}} >> $tmp_dir/session.log 2>&1 ; \
             echo $?
             """,
