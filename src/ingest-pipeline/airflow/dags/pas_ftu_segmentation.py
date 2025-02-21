@@ -111,8 +111,6 @@ with HMDAG(
         organ_list = list(set(ds_rslt["organs"]))
         organ_code = organ_list[0] if len(organ_list) == 1 else "multi"
 
-        # [--data_directory, --tissue_type]
-
         input_parameters = [
             {"parameter_name": "--data_directory", "value": str(data_dir)},
             {"parameter_name": "--tissue_type", "value": organ_code},
@@ -258,8 +256,6 @@ with HMDAG(
         workflows = kwargs["ti"].xcom_pull(
             key="cwl_workflows", task_ids="build_cwl_ome_tiff_pyramid_raw"
         )
-
-        # [--input_dir]
 
         input_parameters = [
             {"parameter_name": "--input_dir", "value": str(data_dir / "ometiff-pyramids")}
