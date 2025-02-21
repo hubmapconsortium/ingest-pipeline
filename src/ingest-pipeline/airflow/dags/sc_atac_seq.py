@@ -19,7 +19,6 @@ import utils
 from utils import (
     SequencingDagParameters,
     get_absolute_workflow,
-    get_cwltool_base_cmd,
     get_dataset_uuid,
     get_parent_dataset_uuids_list,
     get_parent_data_dirs_list,
@@ -150,6 +149,8 @@ def generate_atac_seq_dag(params: SequencingDagParameters) -> DAG:
             task_id="pipeline_exec",
             bash_command=""" \
             tmp_dir={{tmp_dir_path(run_id)}} ; \
+            mkdir -p "${tmp_dir}"/cwl_out ; \
+            cd "${tmp_dir}"/cwl_out ; \
             {{ti.xcom_pull(task_ids='build_cmd1')}} > $tmp_dir/session.log 2>&1 ; \
             echo $?
             """,
@@ -160,7 +161,7 @@ def generate_atac_seq_dag(params: SequencingDagParameters) -> DAG:
             bash_command=""" \
             tmp_dir={{tmp_dir_path(run_id)}} ; \
             ds_dir="{{ti.xcom_pull(task_ids="send_create_dataset")}}" ; \
-            cd "$tmp_dir"/cwl_out ; \
+            cd "${tmp_dir}"/cwl_out ; \
             {{ti.xcom_pull(task_ids='build_cmd2')}} >> $tmp_dir/session.log 2>&1 ; \
             echo $?
             """,

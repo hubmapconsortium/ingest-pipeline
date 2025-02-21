@@ -158,7 +158,8 @@ with HMDAG(
         task_id="pipeline_exec_cwl_segmentation",
         bash_command=""" \
         tmp_dir={{tmp_dir_path(run_id)}} ; \
-        mkdir -p ${tmp_dir}/cwl_out ; \
+        mkdir -p "${tmp_dir}"/cwl_out ; \
+        cd "${tmp_dir}"/cwl_out ; \
         {{ti.xcom_pull(task_ids='build_cwl_segmentation')}} > $tmp_dir/session.log 2>&1 ; \
         echo $?
         """,
@@ -209,6 +210,7 @@ with HMDAG(
         task_id="pipeline_exec_cwl_sprm",
         bash_command=""" \
         tmp_dir={{tmp_dir_path(run_id)}} ; \
+        cd "${tmp_dir}"/cwl_out ; \
         {{ti.xcom_pull(task_ids='build_cmd_sprm')}} >> ${tmp_dir}/session.log 2>&1 ; \
         echo $?
         """,
@@ -259,6 +261,7 @@ with HMDAG(
         task_id="pipeline_exec_cwl_create_vis_symlink_archive",
         bash_command=""" \
         tmp_dir={{tmp_dir_path(run_id)}} ; \
+        cd "${tmp_dir}"/cwl_out ; \
         {{ti.xcom_pull(task_ids='build_cmd_create_vis_symlink_archive')}} >> ${tmp_dir}/session.log 2>&1 ; \
         echo $?
         """,
@@ -308,7 +311,7 @@ with HMDAG(
         task_id="pipeline_exec_cwl_ome_tiff_pyramid",
         bash_command=""" \
         tmp_dir={{tmp_dir_path(run_id)}} ; \
-        cd ${tmp_dir}/cwl_out ; \
+        cd "${tmp_dir}"/cwl_out ; \
         {{ti.xcom_pull(task_ids='build_cwl_ome_tiff_pyramid')}} >> $tmp_dir/session.log 2>&1 ; \
         echo $?
         """,
@@ -358,6 +361,7 @@ with HMDAG(
         task_id="pipeline_exec_cwl_ome_tiff_offsets",
         bash_command=""" \
         tmp_dir={{tmp_dir_path(run_id)}} ; \
+        cd "${tmp_dir}"/cwl_out ; \
         {{ti.xcom_pull(task_ids='build_cmd_ome_tiff_offsets')}} >> ${tmp_dir}/session.log 2>&1 ; \
         echo $?
         """,
@@ -407,6 +411,7 @@ with HMDAG(
         task_id="pipeline_exec_cwl_sprm_to_json",
         bash_command=""" \
         tmp_dir={{tmp_dir_path(run_id)}} ; \
+        cd "${tmp_dir}"/cwl_out ; \
         {{ti.xcom_pull(task_ids='build_cmd_sprm_to_json')}} >> ${tmp_dir}/session.log 2>&1 ; \
         echo $?
         """,
@@ -454,6 +459,7 @@ with HMDAG(
         task_id="pipeline_exec_cwl_sprm_to_anndata",
         bash_command=""" \
         tmp_dir={{tmp_dir_path(run_id)}} ; \
+        cd "${tmp_dir}"/cwl_out ; \
         {{ti.xcom_pull(task_ids='build_cmd_sprm_to_anndata')}} >> ${tmp_dir}/session.log 2>&1 ; \
         echo $?
         """,

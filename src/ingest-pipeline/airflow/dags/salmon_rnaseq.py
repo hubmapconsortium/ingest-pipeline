@@ -238,6 +238,8 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
             task_id="pipeline_exec",
             bash_command=""" \
             tmp_dir={{tmp_dir_path(run_id)}} ; \
+            mkdir -p "${tmp_dir}"/cwl_out ; \
+            cd "${tmp_dir}"/cwl_out ; \
             {{ti.xcom_pull(task_ids='build_cmd1')}} > $tmp_dir/session.log 2>&1 ; \
             echo $?
             """,
@@ -247,7 +249,7 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
             task_id="pipeline_exec_azimuth_annotate",
             bash_command=""" \
             tmp_dir={{tmp_dir_path(run_id)}} ; \
-            cd "$tmp_dir"/cwl_out ; \
+            cd "${tmp_dir}"/cwl_out ; \
             {{ti.xcom_pull(task_ids='build_cmd2')}} >> $tmp_dir/session.log 2>&1 ; \
             echo $?
             """,
@@ -258,7 +260,7 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
             bash_command=""" \
             tmp_dir={{tmp_dir_path(run_id)}} ; \
             ds_dir="{{ti.xcom_pull(task_ids="send_create_dataset")}}" ; \
-            cd "$tmp_dir"/cwl_out ; \
+            cd "${tmp_dir}"/cwl_out ; \
             mkdir -p hubmap_ui ; \
             cd hubmap_ui ; \
             {{ti.xcom_pull(task_ids='build_cmd3')}} >> $tmp_dir/session.log 2>&1 ; \
@@ -271,7 +273,7 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
             bash_command=""" \
             tmp_dir={{tmp_dir_path(run_id)}} ; \
             ds_dir="{{ti.xcom_pull(task_ids="send_create_dataset")}}" ; \
-            cd "$tmp_dir"/cwl_out ; \
+            cd "${tmp_dir}"/cwl_out ; \
             mkdir -p hubmap_ui ; \
             cd hubmap_ui ; \
             {{ti.xcom_pull(task_ids='build_cmd4')}} >> $tmp_dir/session.log 2>&1 ; \
