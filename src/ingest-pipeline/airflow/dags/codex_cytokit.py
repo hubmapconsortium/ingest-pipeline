@@ -324,7 +324,7 @@ with HMDAG(
         task_id="delete_internal_pipeline_files",
         bash_command="""\
         tmp_dir={{tmp_dir_path(run_id)}} ; \
-        cd ${tmp_dir}/cwl_out ; \
+        cd "${tmp_dir}"/cwl_out ; \
         rm -rf cytokit new_tiles
         """,
     )
