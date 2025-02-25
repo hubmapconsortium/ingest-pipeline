@@ -72,11 +72,6 @@ with HMDAG(
             "workflow_path": str(
                 get_absolute_workflow(Path("salmon-rnaseq", "bulk-pipeline.cwl"))
             ),
-            "input_parameters": [
-                {"parameter_name": "--fastq_dir", "value": ""},
-                {"parameter_name": "--threads", "value": ""},
-                {"parameter_name": "--organism", "value": ""},
-            ],
             "documentation_url": "",
         }
     ]
@@ -108,15 +103,17 @@ with HMDAG(
         else:
             source_type = unique_source_types.pop().lower()
 
-        # [--fastq_dir, --threads, --organism]
-        input_param_vals = [str(data_dir), get_threads_resource(dag.dag_id), source_type]
-
         cwl_params = [
             {"parameter_name": "--parallel", "value": ""},
         ]
+        input_parameters = [
+            {"parameter_name": "--fastq_dir", "value": str(data_dir)},
+            {"parameter_name": "--threads", "value": get_threads_resource(dag.dag_id)},
+            {"parameter_name": "--organism", "value": source_type},
+        ]
 
         command = get_cwl_cmd_from_workflows(
-            cwl_workflows, 0, input_param_vals, tmpdir, kwargs["ti"], cwl_params
+            cwl_workflows, 0, input_parameters, tmpdir, kwargs["ti"], cwl_params
         )
 
         return join_quote_command_str(command)
@@ -131,6 +128,7 @@ with HMDAG(
         task_id="pipeline_exec",
         bash_command=""" \
         tmp_dir={{tmp_dir_path(run_id)}} ; \
+        mkdir -p ${tmp_dir}/cwl_out ; \
         {{ti.xcom_pull(task_ids='build_cmd1')}} > $tmp_dir/session.log 2>&1 ; \
         echo $?
         """,

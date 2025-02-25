@@ -67,105 +67,54 @@ with HMDAG(
             "workflow_path": str(
                 get_absolute_workflow(steps_dir / "illumination_first_stitching.cwl")
             ),
-            "input_parameters": [
-                {"parameter_name": "--gpus", "value": "0,1"},
-                {"parameter_name": "--data_dir", "value": ""},
-            ],
             "documentation_url": "",
         },
         {
             "workflow_path": str(get_absolute_workflow(steps_dir / "run_cytokit.cwl")),
-            "input_parameters": [
-                {"parameter_name": "--data_dir", "value": ""},
-                {"parameter_name": "--yaml_config", "value": ""},
-            ],
             "documentation_url": "",
         },
         {
             "workflow_path": str(
                 get_absolute_workflow(steps_dir / "ometiff_second_stitching.cwl")
             ),
-            "input_parameters": [
-                {"parameter_name": "--cytokit_config", "value": ""},
-                {"parameter_name": "--cytokit_output", "value": ""},
-                {"parameter_name": "--slicing_pipeline_config", "value": ""},
-                {"parameter_name": "--data_dir", "value": ""},
-            ],
-            "documentation_url": "",
-        },
-        {
-            "workflow_path": str(
-                get_absolute_workflow(Path("ribca", "pipeline.cwl"))
-            ),
-            "input_parameters": [
-                {"parameter_name": "--data_dir", "value": ""},
-            ],
             "documentation_url": "",
         },
         {
             "workflow_path": str(
                 get_absolute_workflow(Path("deepcelltypes", "run_deepcelltypes.cwl"))
             ),
-            "input_parameters": [
-                {"parameter_name": "--data_dir", "value": ""},
-            ],
             "documentation_url": "",
         },
         {
             "workflow_path": str(get_absolute_workflow(Path("sprm", "pipeline.cwl"))),
-            "input_parameters": [
-                {"parameter_name": "--enable_manhole", "value": ""},
-                {"parameter_name": "--processes", "value": ""},
-                {"parameter_name": "--image_dir", "value": ""},
-                {"parameter_name": "--mask_dir", "value": ""},
-                {"parameter_name": "--cell_types_directory", "value": ""},
-                {"parameter_name": "--cell_types_directory", "value": ""},
-            ],
             "documentation_url": "",
         },
         {
             "workflow_path": str(
                 get_absolute_workflow(Path("create-vis-symlink-archive", "pipeline.cwl"))
             ),
-            "input_parameters": [
-                {"parameter_name": "--ometiff_dir", "value": ""},
-                {"parameter_name": "--sprm_output", "value": ""},
-            ],
             "documentation_url": "",
         },
         {
             "workflow_path": str(get_absolute_workflow(Path("ome-tiff-pyramid", "pipeline.cwl"))),
-            "input_parameters": [
-                {"parameter_name": "--processes", "value": ""},
-                {"parameter_name": "--ometiff_directory", "value": "."},
-            ],
             "documentation_url": "",
         },
         {
             "workflow_path": str(
                 get_absolute_workflow(Path("portal-containers", "ome-tiff-offsets.cwl"))
             ),
-            "input_parameters": [
-                {"parameter_name": "--input_dir", "value": ""},
-            ],
             "documentation_url": "",
         },
         {
             "workflow_path": str(
                 get_absolute_workflow(Path("portal-containers", "sprm-to-json.cwl"))
             ),
-            "input_parameters": [
-                {"parameter_name": "--input_dir", "value": ""},
-            ],
             "documentation_url": "",
         },
         {
             "workflow_path": str(
                 get_absolute_workflow(Path("portal-containers", "sprm-to-anndata.cwl"))
             ),
-            "input_parameters": [
-                {"parameter_name": "--input_dir", "value": ""},
-            ],
             "documentation_url": "",
         },
     ]
@@ -184,10 +133,13 @@ with HMDAG(
         data_dir = get_parent_data_dir(**kwargs)
         print("data_dir: ", data_dir)
 
-        # [--gpus=0,1, --data_dir]
-        input_param_vals = ["", str(data_dir)]
+        input_parameters = [
+            {"parameter_name": "--gpus", "value": "0,1"},
+            {"parameter_name": "--data_dir", "value": str(data_dir)},
+        ]
+
         command = get_cwl_cmd_from_workflows(
-            cwl_workflows, 0, input_param_vals, tmpdir, kwargs["ti"]
+            cwl_workflows, 0, input_parameters, tmpdir, kwargs["ti"]
         )
 
         return join_quote_command_str(command)
@@ -203,7 +155,6 @@ with HMDAG(
         bash_command=""" \
         tmp_dir={{tmp_dir_path(run_id)}} ; \
         mkdir -p ${tmp_dir}/cwl_out ; \
-        cd ${tmp_dir}/cwl_out ; \
         {{ti.xcom_pull(task_ids='build_cwl_illumination_first_stitching')}} > $tmp_dir/session.log 2>&1 ; \
         echo $?
         """,
@@ -233,9 +184,12 @@ with HMDAG(
             key="cwl_workflows", task_ids="build_cwl_illumination_first_stitching"
         )
 
-        # [--data_dir, --yaml_config]
-        input_param_vals = [str(data_dir / "new_tiles"), str(data_dir / "experiment.yaml")]
-        command = get_cwl_cmd_from_workflows(workflows, 1, input_param_vals, tmpdir, kwargs["ti"])
+        input_parameters = [
+            {"parameter_name": "--data_dir", "value": str(data_dir / "new_tiles")},
+            {"parameter_name": "--yaml_config", "value": str(data_dir / "experiment.yaml")},
+        ]
+
+        command = get_cwl_cmd_from_workflows(workflows, 1, input_parameters, tmpdir, kwargs["ti"])
 
         return join_quote_command_str(command)
 
@@ -278,14 +232,15 @@ with HMDAG(
 
         workflows = kwargs["ti"].xcom_pull(key="cwl_workflows", task_ids="build_cwl_cytokit")
 
-        # [--cytokit_config, --cytokit_output, --slicing_pipeline_config, --data_dir]
-        input_param_vals = [
-            str(data_dir / "experiment.yaml"),
-            str(data_dir / "cytokit"),
-            str(data_dir / "pipelineConfig.json"),
-            str(get_parent_data_dir(**kwargs))
+        input_parameters = [
+            {"parameter_name": "--cytokit_config", "value": str(data_dir / "experiment.yaml")},
+            {"parameter_name": "--cytokit_output", "value": str(data_dir / "cytokit")},
+            {"parameter_name": "--slicing_pipeline_config",
+             "value": str(data_dir / "pipelineConfig.json"), },
+            {"parameter_name": "--num_concurrent_tasks", "value": get_threads_resource(dag.dag_id)},
+            {"parameter_name": "--data_dir", "value": str(get_parent_data_dir(**kwargs))},
         ]
-        command = get_cwl_cmd_from_workflows(workflows, 2, input_param_vals, tmpdir, kwargs["ti"])
+        command = get_cwl_cmd_from_workflows(workflows, 2, input_parameters, tmpdir, kwargs["ti"])
 
         return join_quote_command_str(command)
 
@@ -369,7 +324,7 @@ with HMDAG(
         task_id="delete_internal_pipeline_files",
         bash_command="""\
         tmp_dir={{tmp_dir_path(run_id)}} ; \
-        cd ${tmp_dir}/cwl_out ; \
+        cd "${tmp_dir}"/cwl_out ; \
         rm -rf cytokit new_tiles
         """,
     )
@@ -389,9 +344,11 @@ with HMDAG(
         key="cwl_workflows", task_ids="build_cwl_ribca"
         )
 
-        # [--data_dir]
-        input_param_vals = [str(data_dir)]
-        command = get_cwl_cmd_from_workflows(workflows, 4, input_param_vals, tmpdir, kwargs["ti"])
+        input_parameters = [
+            {"parameter_name": "--data_dir", "value": str(data_dir / "pipeline_output")},
+        ]
+
+        command = get_cwl_cmd_from_workflows(workflows, 3, input_parameters, tmpdir, kwargs["ti"])
 
         return join_quote_command_str(command)
 
@@ -434,16 +391,18 @@ with HMDAG(
 
         workflows = kwargs["ti"].xcom_pull(key="cwl_workflows", task_ids="build_cmd_deepcelltypes")
 
-        # [--enable_manhole, --processes, --image_dir, --mask_dir, --cell_types_directory, --cell_types_directory]
-        input_param_vals = [
-            "",
-            get_threads_resource(dag.dag_id),
-            str(data_dir / "pipeline_output/expr"),
-            str(data_dir / "pipeline_output/mask"),
-            str(data_dir / "ribca_for_sprm"),
-            str(data_dir / "deepcelltypes"),
+        input_parameters = [
+            {"parameter_name": "--enable_manhole", "value": ""},
+            {"parameter_name": "--processes", "value": get_threads_resource(dag.dag_id)},
+            {"parameter_name": "--image_dir", "value": str(data_dir / "pipeline_output/expr")},
+            {"parameter_name": "--mask_dir", "value": str(data_dir / "pipeline_output/mask")},
+            {
+                "parameter_name": "--cell_types_file",
+                "value": str(data_dir / "deepcelltypes_predictions.csv"),
+            },
         ]
-        command = get_cwl_cmd_from_workflows(workflows, 5, input_param_vals, tmpdir, kwargs["ti"])
+
+        command = get_cwl_cmd_from_workflows(workflows, 4, input_parameters, tmpdir, kwargs["ti"])
 
         return join_quote_command_str(command)
 
@@ -488,9 +447,11 @@ with HMDAG(
 
         workflows = kwargs["ti"].xcom_pull(key="cwl_workflows", task_ids="build_cmd_sprm")
 
-        # [--ometiff_dir, --sprm_output]
-        input_param_vals = [str(data_dir / "pipeline_output"), str(data_dir / "sprm_outputs")]
-        command = get_cwl_cmd_from_workflows(workflows, 6, input_param_vals, tmpdir, kwargs["ti"])
+        input_parameters = [
+            {"parameter_name": "--ometiff_dir", "value": str(data_dir / "pipeline_output")},
+            {"parameter_name": "--sprm_output", "value": str(data_dir / "sprm_outputs")},
+        ]
+        command = get_cwl_cmd_from_workflows(workflows, 5, input_parameters, tmpdir, kwargs["ti"])
 
         return join_quote_command_str(command)
 
@@ -537,9 +498,11 @@ with HMDAG(
             key="cwl_workflows", task_ids="build_cmd_create_vis_symlink_archive"
         )
 
-        # [--processes, --ometiff_directory]
-        input_param_vals = [get_threads_resource(dag.dag_id), ""]
-        command = get_cwl_cmd_from_workflows(workflows, 7, input_param_vals, tmpdir, kwargs["ti"])
+        input_parameters = [
+            {"parameter_name": "--processes", "value": get_threads_resource(dag.dag_id)},
+            {"parameter_name": "--ometiff_directory", "value": str(tmpdir / "cwl_out")},
+        ]
+        command = get_cwl_cmd_from_workflows(workflows, 6, input_parameters, tmpdir, kwargs["ti"])
 
         return join_quote_command_str(command)
 
@@ -553,7 +516,6 @@ with HMDAG(
         task_id="pipeline_exec_cwl_ome_tiff_pyramid",
         bash_command=""" \
         tmp_dir={{tmp_dir_path(run_id)}} ; \
-        cd ${tmp_dir}/cwl_out ; \
         {{ti.xcom_pull(task_ids='build_cwl_ome_tiff_pyramid')}} >> $tmp_dir/session.log 2>&1 ; \
         echo $?
         """,
@@ -585,9 +547,10 @@ with HMDAG(
             key="cwl_workflows", task_ids="build_cwl_ome_tiff_pyramid"
         )
 
-        # [--input_dir]
-        input_param_vals = [str(data_dir / "ometiff-pyramids")]
-        command = get_cwl_cmd_from_workflows(workflows, 8, input_param_vals, tmpdir, kwargs["ti"])
+        input_parameters = [
+            {"parameter_name": "--input_dir", "value": str(data_dir / "ometiff-pyramids")},
+        ]
+        command = get_cwl_cmd_from_workflows(workflows, 7, input_parameters, tmpdir, kwargs["ti"])
 
         return join_quote_command_str(command)
 
@@ -632,9 +595,10 @@ with HMDAG(
             key="cwl_workflows", task_ids="build_cmd_ome_tiff_offsets"
         )
 
-        # [--input_dir]
-        input_param_vals = [str(data_dir / "sprm_outputs")]
-        command = get_cwl_cmd_from_workflows(workflows, 9, input_param_vals, tmpdir, kwargs["ti"])
+        input_parameters = [
+            {"parameter_name": "--input_dir", "value": str(data_dir / "sprm_outputs")},
+        ]
+        command = get_cwl_cmd_from_workflows(workflows, 8, input_parameters, tmpdir, kwargs["ti"])
 
         return join_quote_command_str(command)
 
@@ -677,9 +641,11 @@ with HMDAG(
 
         workflows = kwargs["ti"].xcom_pull(key="cwl_workflows", task_ids="build_cmd_sprm_to_json")
 
-        # [--input_dir]
-        input_param_vals = [str(data_dir / "sprm_outputs")]
-        command = get_cwl_cmd_from_workflows(workflows, 10, input_param_vals, tmpdir, kwargs["ti"])
+        input_parameters = [
+            {"parameter_name": "--input_dir", "value": str(data_dir / "sprm_outputs")},
+        ]
+
+        command = get_cwl_cmd_from_workflows(workflows, 9, input_parameters, tmpdir, kwargs["ti"])
 
         return join_quote_command_str(command)
 

@@ -64,53 +64,28 @@ with HMDAG(
     cwl_workflows = [
         {
             "workflow_path": str(get_absolute_workflow(Path("salmon-rnaseq", "pipeline.cwl"))),
-            "input_parameters": [
-                {"parameter_name": "--assay", "value": "visium-ff"},
-                {"parameter_name": "--threads", "value": ""},
-                {"parameter_name": "--organism", "value": ""},
-                {"parameter_name": "--fastq_dir", "value": ""},
-                {"parameter_name": "--img_dir", "value": ""},
-                {"parameter_name": "--metadata_dir", "value": ""},
-            ],
             "documentation_url": "",
         },
         {
             "workflow_path": str(
                 get_absolute_workflow(Path("portal-containers", "h5ad-to-arrow.cwl"))
             ),
-            "input_parameters": [
-                {"parameter_name": "--input_dir", "value": ".."},
-            ],
             "documentation_url": "",
         },
         {
             "workflow_path": str(
                 get_absolute_workflow(Path("portal-containers", "anndata-to-ui.cwl"))
             ),
-            "input_parameters": [
-                {"parameter_name": "--input_dir", "value": ".."},
-            ],
             "documentation_url": "",
         },
         {
             "workflow_path": str(get_absolute_workflow(Path("ome-tiff-pyramid", "pipeline.cwl"))),
-            "input_parameters": [
-                {"parameter_name": "--processes", "value": ""},
-                {"parameter_name": "--ometiff_directory", "value": ""},
-                {
-                    "parameter_name": "--output_filename",
-                    "value": "visium_histology_hires_pyramid.ome.tif",
-                },
-            ],
             "documentation_url": "",
         },
         {
             "workflow_path": str(
                 get_absolute_workflow(Path("portal-containers", "ome-tiff-offsets.cwl"))
             ),
-            "input_parameters": [
-                {"parameter_name": "--input_dir", "value": ""},
-            ],
             "documentation_url": "",
         },
     ]
@@ -153,22 +128,20 @@ with HMDAG(
         else:
             source_type = unique_source_types.pop().lower()
 
-        # [--assay, --threads, --organism, --fastq_dir, --img_dir, --metadata_dir]
-        input_param_vals = [
-            "",
-            get_threads_resource(dag.dag_id),
-            source_type,
-            str(data_dir / "raw/fastq/"),
-            str(data_dir),
-            str(data_dir),
-        ]
-
-        cwl_params = [
+        cwl_parameters = [
             {"parameter_name": "--parallel", "value": ""},
+        ]
+        input_parameters = [
+            {"parameter_name": "--assay", "value": "visium-ff"},
+            {"parameter_name": "--threads", "value": get_threads_resource(dag.dag_id)},
+            {"parameter_name": "--organism", "value": source_type},
+            {"parameter_name": "--fastq_dir", "value": str(data_dir / "raw/fastq")},
+            {"parameter_name": "--img_dir", "value": str(data_dir)},
+            {"parameter_name": "--metadata_dir", "value": str(data_dir)},
         ]
 
         command = get_cwl_cmd_from_workflows(
-            cwl_workflows, 0, input_param_vals, tmpdir, kwargs["ti"], cwl_params
+            cwl_workflows, 0, input_parameters, tmpdir, kwargs["ti"], cwl_parameters
         )
 
         return join_quote_command_str(command)
@@ -180,8 +153,15 @@ with HMDAG(
 
         workflows = kwargs["ti"].xcom_pull(key="cwl_workflows", task_ids="build_cmd1")
 
-        # [--input_dir]
-        command = get_cwl_cmd_from_workflows(workflows, 1, [], tmpdir, kwargs["ti"])
+        cwl_parameters = [
+            {"parameter_name": "--outdir", "value": str(tmpdir / "cwl_out/hubmap_ui")},
+        ]
+        input_parameters = [
+            {"parameter_name": "--input_dir", "value": str(tmpdir / "cwl_out")},
+        ]
+        command = get_cwl_cmd_from_workflows(
+            workflows, 1, input_parameters, tmpdir, kwargs["ti"], cwl_parameters
+        )
 
         return join_quote_command_str(command)
 
@@ -192,8 +172,15 @@ with HMDAG(
 
         workflows = kwargs["ti"].xcom_pull(key="cwl_workflows", task_ids="build_cmd2")
 
-        # [--input_dir]
-        command = get_cwl_cmd_from_workflows(workflows, 2, [], tmpdir, kwargs["ti"])
+        cwl_parameters = [
+            {"parameter_name": "--outdir", "value": str(tmpdir / "cwl_out/hubmap_ui")},
+        ]
+        input_parameters = [
+            {"parameter_name": "--input_dir", "value": str(tmpdir / "cwl_out")},
+        ]
+        command = get_cwl_cmd_from_workflows(
+            workflows, 2, input_parameters, tmpdir, kwargs["ti"], cwl_parameters
+        )
 
         return join_quote_command_str(command)
 
@@ -210,13 +197,18 @@ with HMDAG(
 
         workflows = kwargs["ti"].xcom_pull(key="cwl_workflows", task_ids="build_cmd3")
 
-        # [--processes, --ometiff_directory, --output_filename]
-        input_param_vals = [
-            get_threads_resource(dag.dag_id),
-            str(data_dir / "lab_processed/images/"),
-            "",
+        input_parameters = [
+            {"parameter_name": "--processes", "value": get_threads_resource(dag.dag_id)},
+            {
+                "parameter_name": "--ometiff_directory",
+                "value": str(data_dir / "lab_processed/images/"),
+            },
+            {
+                "parameter_name": "--output_filename",
+                "value": str(tmpdir / "cwl_out/visium_histology_hires_pyramid.ome.tif"),
+            },
         ]
-        command = get_cwl_cmd_from_workflows(workflows, 3, input_param_vals, tmpdir, kwargs["ti"])
+        command = get_cwl_cmd_from_workflows(workflows, 3, input_parameters, tmpdir, kwargs["ti"])
 
         return join_quote_command_str(command)
 
@@ -231,9 +223,10 @@ with HMDAG(
 
         workflows = kwargs["ti"].xcom_pull(key="cwl_workflows", task_ids="build_cmd4")
 
-        # [--input_dir]
-        input_param_vals = [str(data_dir / "ometiff-pyramids")]
-        command = get_cwl_cmd_from_workflows(workflows, 4, input_param_vals, tmpdir, kwargs["ti"])
+        input_parameters = [
+            {"parameter_name": "--input_dir", "value": str(data_dir / "ometiff-pyramids")},
+        ]
+        command = get_cwl_cmd_from_workflows(workflows, 4, input_parameters, tmpdir, kwargs["ti"])
 
         return join_quote_command_str(command)
 
@@ -271,6 +264,7 @@ with HMDAG(
         task_id="pipeline_exec",
         bash_command=""" \
         tmp_dir={{tmp_dir_path(run_id)}} ; \
+        mkdir -p ${tmp_dir}/cwl_out ; \
         {{ti.xcom_pull(task_ids='build_cmd1')}} > $tmp_dir/session.log 2>&1 ; \
         echo $?
         """,
@@ -281,9 +275,7 @@ with HMDAG(
         bash_command=""" \
         tmp_dir={{tmp_dir_path(run_id)}} ; \
         ds_dir="{{ti.xcom_pull(task_ids="send_create_dataset")}}" ; \
-        cd "$tmp_dir"/cwl_out ; \
-        mkdir -p hubmap_ui ; \
-        cd hubmap_ui ; \
+        mkdir -p ${tmp_dir}/cwl_out/hubmap_ui ; \
         {{ti.xcom_pull(task_ids='build_cmd2')}} >> $tmp_dir/session.log 2>&1 ; \
         echo $?
         """,
@@ -294,9 +286,6 @@ with HMDAG(
         bash_command=""" \
         tmp_dir={{tmp_dir_path(run_id)}} ; \
         ds_dir="{{ti.xcom_pull(task_ids="send_create_dataset")}}" ; \
-        cd "$tmp_dir"/cwl_out ; \
-        mkdir -p hubmap_ui ; \
-        cd hubmap_ui ; \
         {{ti.xcom_pull(task_ids='build_cmd3')}} >> $tmp_dir/session.log 2>&1 ; \
         echo $?
         """,
@@ -306,8 +295,6 @@ with HMDAG(
         task_id="pipeline_exec_cwl_ome_tiff_pyramid",
         bash_command=""" \
         tmp_dir={{tmp_dir_path(run_id)}} ; \
-        mkdir -p ${tmp_dir}/cwl_out ; \
-        cd ${tmp_dir}/cwl_out ; \
         {{ti.xcom_pull(task_ids='build_cmd4')}} >> $tmp_dir/session.log 2>&1 ; \
         echo $?
         """,
@@ -317,7 +304,6 @@ with HMDAG(
         task_id="pipeline_exec_cwl_ome_tiff_offsets",
         bash_command=""" \
         tmp_dir={{tmp_dir_path(run_id)}} ; \
-        cd ${tmp_dir}/cwl_out ; \
         {{ti.xcom_pull(task_ids='build_cmd5')}} >> ${tmp_dir}/session.log 2>&1 ; \
         echo $?
         """,
