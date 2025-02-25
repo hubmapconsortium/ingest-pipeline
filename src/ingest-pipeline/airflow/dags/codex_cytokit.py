@@ -235,10 +235,10 @@ with HMDAG(
         input_parameters = [
             {"parameter_name": "--cytokit_config", "value": str(data_dir / "experiment.yaml")},
             {"parameter_name": "--cytokit_output", "value": str(data_dir / "cytokit")},
-            {
-                "parameter_name": "--slicing_pipeline_config",
-                "value": str(data_dir / "pipelineConfig.json"),
-            },
+            {"parameter_name": "--slicing_pipeline_config",
+             "value": str(data_dir / "pipelineConfig.json"), },
+            {"parameter_name": "--num_concurrent_tasks", "value": get_threads_resource(dag.dag_id)},
+            {"parameter_name": "--data_dir", "value": str(get_parent_data_dir(**kwargs))},
         ]
         command = get_cwl_cmd_from_workflows(workflows, 2, input_parameters, tmpdir, kwargs["ti"])
 
