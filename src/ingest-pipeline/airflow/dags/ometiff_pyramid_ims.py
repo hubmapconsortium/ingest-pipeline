@@ -75,20 +75,12 @@ with HMDAG(
     cwl_workflows = [
         {
             "workflow_path": str(get_absolute_workflow(Path("ome-tiff-pyramid", "pipeline.cwl"))),
-            "input_parameters": [
-                {"parameter_name": "--processes", "value": ""},
-                {"parameter_name": "--downsample_type", "value": DOWNSAMPLE_TYPE},
-                {"parameter_name": "--ometiff_directory", "value": ""},
-            ],
             "documentation_url": "",
         },
         {
             "workflow_path": str(
                 get_absolute_workflow(Path("portal-containers", "ome-tiff-offsets.cwl"))
             ),
-            "input_parameters": [
-                {"parameter_name": "--input_directory", "value": "./ometiff-pyramids"},
-            ],
             "documentation_url": "",
         },
     ]
@@ -111,12 +103,14 @@ with HMDAG(
         data_dir = get_parent_data_dir(**kwargs)
         print("data_dir: ", data_dir)
 
-        # [--processes, --downsample_type, --ometiff_directory]
-        input_param_vals = [get_threads_resource(dag.dag_id), "", str(data_dir)]
+        input_parameters = [
+            {"parameter_name": "--processes", "value": get_threads_resource(dag.dag_id)},
+            {"parameter_name": "--downsample_type", "value": DOWNSAMPLE_TYPE},
+            {"parameter_name": "--ometiff_directory", "value": str(data_dir)},
+        ]
         command = get_cwl_cmd_from_workflows(
-            cwl_workflows, 0, input_param_vals, tmpdir, kwargs["ti"]
+            cwl_workflows, 0, input_parameters, tmpdir, kwargs["ti"]
         )
-        # this is the call to the CWL
 
         return join_quote_command_str(command)
 
@@ -130,8 +124,7 @@ with HMDAG(
         task_id="pipeline_exec_cwl1",
         bash_command=""" \
         tmp_dir={{tmp_dir_path(run_id)}} ; \
-        mkdir -p "${tmp_dir}"/cwl_out ; \
-        cd "${tmp_dir}"/cwl_out ; \
+        mkdir -p ${tmp_dir}/cwl_out ; \
         {{ti.xcom_pull(task_ids='build_cmd1')}} > $tmp_dir/session.log 2>&1 ; \
         echo $?
         """,
@@ -149,8 +142,14 @@ with HMDAG(
         print("tmpdir: ", tmpdir)
 
         workflows = kwargs["ti"].xcom_pull(key="cwl_workflows", task_ids="build_cmd1")
-        # [--input_directory]
-        command = get_cwl_cmd_from_workflows(workflows, 1, [], tmpdir, kwargs["ti"])
+
+        input_parameters = [
+            {
+                "parameter_name": "--input_directory",
+                "value": str(tmpdir / "cwl_out/ometiff-pyramids"),
+            },
+        ]
+        command = get_cwl_cmd_from_workflows(workflows, 1, input_parameters, tmpdir, kwargs["ti"])
 
         return join_quote_command_str(command)
 
@@ -164,7 +163,6 @@ with HMDAG(
         task_id="pipeline_exec_cwl2",
         bash_command=""" \
         tmp_dir={{tmp_dir_path(run_id)}} ; \
-        cd "${tmp_dir}"/cwl_out ; \
         {{ti.xcom_pull(task_ids='build_cmd2')}} >> $tmp_dir/session.log 2>&1 ; \
         echo $?
         """,
