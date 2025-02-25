@@ -64,57 +64,30 @@ with HMDAG(
     cwl_workflows_annotations_salmon = [
         {
             "workflow_path": str(get_absolute_workflow(Path("azimuth-annotate", "pipeline.cwl"))),
-            "input_parameters": [
-                {"parameter_name": "--reference", "value": ""},
-                {"parameter_name": "--matrix", "value": "expr.h5ad"},
-                {
-                    "parameter_name": "--secondary-analysis-matrix",
-                    "value": "secondary_analysis.h5ad",
-                },
-                {"parameter_name": "--assay", "value": ""},
-            ],
             "documentation_url": "",
         },
         {
             "workflow_path": str(
                 get_absolute_workflow(Path("portal-containers", "h5ad-to-arrow.cwl"))
             ),
-            "input_parameters": [
-                {"parameter_name": "--input_dir", "value": ".."},
-            ],
             "documentation_url": "",
         },
         {
             "workflow_path": str(
                 get_absolute_workflow(Path("portal-containers", "anndata-to-ui.cwl"))
             ),
-            "input_parameters": [
-                {"parameter_name": "--input_dir", "value": ".."},
-            ],
             "documentation_url": "",
         },
     ]
     cwl_workflows_annotations_multiome = [
         {
             "workflow_path": str(get_absolute_workflow(Path("azimuth-annotate", "pipeline.cwl"))),
-            "input_parameters": [
-                {"parameter_name": "--reference", "value": ""},
-                {"parameter_name": "--matrix", "value": "mudata_raw.h5mu"},
-                {
-                    "parameter_name": "--secondary-analysis-matrix",
-                    "value": "secondary_analysis.h5mu",
-                },
-                {"parameter_name": "--assay", "value": ""},
-            ],
             "documentation_url": "",
         },
         {
             "workflow_path": str(
                 get_absolute_workflow(Path("portal-containers", "mudata-to-ui.cwl"))
             ),
-            "input_parameters": [
-                {"parameter_name": "--input_dir", "value": ".."},
-            ],
             "documentation_url": "",
         },
     ]
@@ -169,15 +142,33 @@ with HMDAG(
         organ_code = organ_list[0] if len(organ_list) == 1 else "multi"
         assay, matrix, secondary_analysis, _ = get_assay_previous_version(**kwargs)
 
-        workflows = (
-            cwl_workflows_annotations_multiome
-            if "mudata" in secondary_analysis
-            else cwl_workflows_annotations_salmon
-        )
+        if "mudata" in secondary_analysis:
+            workflows = cwl_workflows_annotations_multiome
+            input_parameters = [
+                {"parameter_name": "--reference", "value": organ_code},
+                {
+                    "parameter_name": "--matrix",
+                    "value": str(tmpdir / "cwl_out/mudata_raw.h5mu"),
+                },
+                {
+                    "parameter_name": "--secondary-analysis-matrix",
+                    "value": str(tmpdir / "cwl_outsecondary_analysis.h5mu"),
+                },
+                {"parameter_name": "--assay", "value": assay},
+            ]
+        else:
+            workflows = cwl_workflows_annotations_salmon
+            input_parameters = [
+                {"parameter_name": "--reference", "value": organ_code},
+                {"parameter_name": "--matrix", "value": str(tmpdir / "cwl_out/expr.h5ad")},
+                {
+                    "parameter_name": "--secondary-analysis-matrix",
+                    "value": str(tmpdir / "cwl_out/secondary_analysis.h5ad"),
+                },
+                {"parameter_name": "--assay", "value": assay},
+            ]
 
-        # [--reference, --matrix, --secondary-analysis-matrix, --assay]
-        input_param_vals = [organ_code, matrix, secondary_analysis, assay]
-        command = get_cwl_cmd_from_workflows(workflows, 0, input_param_vals, tmpdir, kwargs["ti"])
+        command = get_cwl_cmd_from_workflows(workflows, 0, input_parameters, tmpdir, kwargs["ti"])
 
         return join_quote_command_str(command)
 
@@ -189,9 +180,15 @@ with HMDAG(
 
         workflows = kwargs["ti"].xcom_pull(key="cwl_workflows", task_ids="build_cmd1")
 
-        # [--input_dir]
-        input_param_vals = []
-        command = get_cwl_cmd_from_workflows(workflows, 1, input_param_vals, tmpdir, kwargs["ti"])
+        cwl_parameters = [
+            {"parameter_name": "--outdir", "value": str(tmpdir / "cwl_out/hubmap_ui")},
+        ]
+        input_parameters = [
+            {"parameter_name": "--input_dir", "value": str(tmpdir / "cwl_out")},
+        ]
+        command = get_cwl_cmd_from_workflows(
+            workflows, 1, input_parameters, tmpdir, kwargs["ti"], cwl_parameters
+        )
         kwargs["ti"].xcom_push(key="skip_cwl3", value=1 if workflow == 0 else 0)
 
         return join_quote_command_str(command)
@@ -203,9 +200,15 @@ with HMDAG(
 
         workflows = kwargs["ti"].xcom_pull(key="cwl_workflows", task_ids="build_cmd2")
 
-        # [--input_dir]
-        input_param_vals = []
-        command = get_cwl_cmd_from_workflows(workflows, 2, input_param_vals, tmpdir, kwargs["ti"])
+        cwl_parameters = [
+            {"parameter_name": "--outdir", "value": str(tmpdir / "cwl_out/hubmap_ui")},
+        ]
+        input_parameters = [
+            {"parameter_name": "--input_dir", "value": str(tmpdir / "cwl_out")},
+        ]
+        command = get_cwl_cmd_from_workflows(
+            workflows, 2, input_parameters, tmpdir, kwargs["ti"], cwl_parameters
+        )
 
         return join_quote_command_str(command)
 
@@ -233,7 +236,7 @@ with HMDAG(
         task_id="pipeline_exec_azimuth_annotate",
         bash_command=""" \
         tmp_dir={{tmp_dir_path(run_id)}} ; \
-        cd "$tmp_dir"/cwl_out ; \
+        mkdir -p ${tmp_dir}/cwl_out ; \
         {{ti.xcom_pull(task_ids='build_cmd1')}} >> $tmp_dir/session.log 2>&1 ; \
         echo $?
         """,
@@ -244,9 +247,7 @@ with HMDAG(
         bash_command=""" \
         tmp_dir={{tmp_dir_path(run_id)}} ; \
         ds_dir="{{ti.xcom_pull(task_ids="send_create_dataset")}}" ; \
-        cd "$tmp_dir"/cwl_out ; \
-        mkdir -p hubmap_ui ; \
-        cd hubmap_ui ; \
+        mkdir -p ${tmp_dir}/cwl_out/hubmap_ui ; \
         {{ti.xcom_pull(task_ids='build_cmd2')}} >> $tmp_dir/session.log 2>&1 ; \
         echo $?
         """,
@@ -257,9 +258,6 @@ with HMDAG(
         bash_command=""" \
         tmp_dir={{tmp_dir_path(run_id)}} ; \
         ds_dir="{{ti.xcom_pull(task_ids="send_create_dataset")}}" ; \
-        cd "$tmp_dir"/cwl_out ; \
-        mkdir -p hubmap_ui ; \
-        cd hubmap_ui ; \
         {{ti.xcom_pull(task_ids='build_cmd4')}} >> $tmp_dir/session.log 2>&1 ; \
         echo $?
         """,

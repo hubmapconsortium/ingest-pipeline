@@ -285,24 +285,26 @@ def get_cwl_cmd_from_workflows(
     """
     # Grab the workflow from the list of workflows
     workflow = workflows[workflow_index]
-
-    # Update the input parameters based on the list of input values
-    for i, param_val in enumerate(input_param_vals):
-        if param_val:
-            workflow["input_parameters"][i]["value"] = param_val
+    workflow["input_parameters"] = input_param_vals
 
     # Get the cwl invocation
-    # command = [*get_cwltool_base_cmd(tmp_dir), "--outdir", str(tmp_dir / "cwl_out")]
-    # ToDo Removing outdir until it gets added to the workflow steps
     command = [*get_cwltool_base_cmd(tmp_dir)]
 
-
+    # Rather than setting outdir, cycle through cwl_param vals and see whether its present
+    # if not, then we set it to the default value.
+    outdir_present = False
     for param in cwl_param_vals if cwl_param_vals is not None else []:
+        if param["parameter_name"] == "--outdir":
+            outdir_present = True
+
         if isinstance(param["value"], list):
             for param_val in param["value"]:
                 command.extend([param["parameter_name"], param_val])
         else:
             command.extend([param["parameter_name"], param["value"]])
+
+    if not outdir_present:
+        command.extend(["--outdir", str(tmp_dir / "cwl_out")])
 
     command.append(Path(workflow["workflow_path"]))
 
