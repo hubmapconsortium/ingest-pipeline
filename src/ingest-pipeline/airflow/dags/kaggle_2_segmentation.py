@@ -103,7 +103,9 @@ with HMDAG(
         print("data_dir: ", data_dir)
 
         # get organ type
-        ds_rslt = pythonop_get_dataset_state(dataset_uuid_callable=get_dataset_uuid, **kwargs)
+        ds_rslt = pythonop_get_dataset_state(
+            dataset_uuid_callable=lambda **kwargs:
+            get_parent_dataset_uuids_list(**kwargs)[0], **kwargs)
 
         organ_list = list(set(ds_rslt["organs"]))
         organ_code = organ_list[0] if len(organ_list) == 1 else "multi"
@@ -112,13 +114,7 @@ with HMDAG(
             {"parameter_name": "--data_directory", "value": str(data_dir)},
             {"parameter_name": "--tissue_type", "value": organ_code},
         ]
-        command = get_cwl_cmd_from_workflows(
-            cwl_workflows,
-            0,
-            input_parameters,
-            tmpdir,
-            kwargs["ti"],
-        )
+        command = get_cwl_cmd_from_workflows(cwl_workflows, 0, input_parameters, tmpdir, kwargs["ti"])
 
         return join_quote_command_str(command)
 

@@ -81,6 +81,12 @@ with HMDAG(
         },
         {
             "workflow_path": str(
+                get_absolute_workflow(Path("ribca", "pipeline.cwl"))
+            ),
+            "documentation_url": "",
+        },
+        {
+            "workflow_path": str(
                 get_absolute_workflow(Path("deepcelltypes", "run_deepcelltypes.cwl"))
             ),
             "documentation_url": "",
@@ -286,9 +292,10 @@ with HMDAG(
             key="cwl_workflows", task_ids="build_cwl_ometiff_second_stitching"
         )
 
-        # [--data_dir]
-        input_param_vals = [str(data_dir)]
-        command = get_cwl_cmd_from_workflows(workflows, 3, input_param_vals, tmpdir, kwargs["ti"])
+        input_parameters = [
+            {"parameter_name": "--data_dir", "value": str(data_dir)}
+        ]
+        command = get_cwl_cmd_from_workflows(workflows, 3, input_parameters, tmpdir, kwargs["ti"])
 
         return join_quote_command_str(command)
 
@@ -341,14 +348,14 @@ with HMDAG(
         print("data_dir: ", data_dir)
 
         workflows = kwargs["ti"].xcom_pull(
-        key="cwl_workflows", task_ids="build_cwl_ribca"
+            key="cwl_workflows", task_ids="build_cwl_ribca"
         )
 
         input_parameters = [
-            {"parameter_name": "--data_dir", "value": str(data_dir / "pipeline_output")},
+            {"parameter_name": "--data_dir", "value": str(data_dir)},
         ]
 
-        command = get_cwl_cmd_from_workflows(workflows, 3, input_parameters, tmpdir, kwargs["ti"])
+        command = get_cwl_cmd_from_workflows(workflows, 4, input_parameters, tmpdir, kwargs["ti"])
 
         return join_quote_command_str(command)
 
@@ -396,13 +403,11 @@ with HMDAG(
             {"parameter_name": "--processes", "value": get_threads_resource(dag.dag_id)},
             {"parameter_name": "--image_dir", "value": str(data_dir / "pipeline_output/expr")},
             {"parameter_name": "--mask_dir", "value": str(data_dir / "pipeline_output/mask")},
-            {
-                "parameter_name": "--cell_types_file",
-                "value": str(data_dir / "deepcelltypes_predictions.csv"),
-            },
+            {"parameter_name": "--cell_types_directory", "value": str(data_dir / "ribca_for_sprm")},
+            {"parameter_name": "--cell_types_directory", "value": str(data_dir / "deepcelltypes")},
         ]
 
-        command = get_cwl_cmd_from_workflows(workflows, 4, input_parameters, tmpdir, kwargs["ti"])
+        command = get_cwl_cmd_from_workflows(workflows, 5, input_parameters, tmpdir, kwargs["ti"])
 
         return join_quote_command_str(command)
 
@@ -451,7 +456,7 @@ with HMDAG(
             {"parameter_name": "--ometiff_dir", "value": str(data_dir / "pipeline_output")},
             {"parameter_name": "--sprm_output", "value": str(data_dir / "sprm_outputs")},
         ]
-        command = get_cwl_cmd_from_workflows(workflows, 5, input_parameters, tmpdir, kwargs["ti"])
+        command = get_cwl_cmd_from_workflows(workflows, 6, input_parameters, tmpdir, kwargs["ti"])
 
         return join_quote_command_str(command)
 
@@ -502,7 +507,7 @@ with HMDAG(
             {"parameter_name": "--processes", "value": get_threads_resource(dag.dag_id)},
             {"parameter_name": "--ometiff_directory", "value": str(tmpdir / "cwl_out")},
         ]
-        command = get_cwl_cmd_from_workflows(workflows, 6, input_parameters, tmpdir, kwargs["ti"])
+        command = get_cwl_cmd_from_workflows(workflows, 7, input_parameters, tmpdir, kwargs["ti"])
 
         return join_quote_command_str(command)
 
@@ -550,7 +555,7 @@ with HMDAG(
         input_parameters = [
             {"parameter_name": "--input_dir", "value": str(data_dir / "ometiff-pyramids")},
         ]
-        command = get_cwl_cmd_from_workflows(workflows, 7, input_parameters, tmpdir, kwargs["ti"])
+        command = get_cwl_cmd_from_workflows(workflows, 8, input_parameters, tmpdir, kwargs["ti"])
 
         return join_quote_command_str(command)
 
@@ -598,7 +603,7 @@ with HMDAG(
         input_parameters = [
             {"parameter_name": "--input_dir", "value": str(data_dir / "sprm_outputs")},
         ]
-        command = get_cwl_cmd_from_workflows(workflows, 8, input_parameters, tmpdir, kwargs["ti"])
+        command = get_cwl_cmd_from_workflows(workflows, 9, input_parameters, tmpdir, kwargs["ti"])
 
         return join_quote_command_str(command)
 
@@ -645,7 +650,7 @@ with HMDAG(
             {"parameter_name": "--input_dir", "value": str(data_dir / "sprm_outputs")},
         ]
 
-        command = get_cwl_cmd_from_workflows(workflows, 9, input_parameters, tmpdir, kwargs["ti"])
+        command = get_cwl_cmd_from_workflows(workflows, 10, input_parameters, tmpdir, kwargs["ti"])
 
         return join_quote_command_str(command)
 
