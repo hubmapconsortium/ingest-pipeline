@@ -17,7 +17,6 @@ from hubmap_operators.common_operators import (
 import utils
 from utils import (
     get_absolute_workflow,
-    get_cwltool_base_cmd,
     get_dataset_uuid,
     get_parent_dataset_uuids_list,
     get_parent_data_dir,
@@ -49,12 +48,14 @@ default_args = {
     "on_failure_callback": utils.create_dataset_state_error_callback(get_uuid_for_error),
 }
 
+
 def find_rna_metadata_file(data_dir: Path) -> Path:
     for path in data_dir.glob("*.tsv"):
         name_lower = path.name.lower()
         if path.is_file() and "rna" in name_lower and "metadata" in name_lower:
             return path
     raise ValueError("Couldn't find RNA-seq metadata file")
+
 
 with HMDAG(
     "visium_with_probes",
@@ -73,46 +74,22 @@ with HMDAG(
     cwl_workflows = [
         {
             "workflow_path": str(get_absolute_workflow(Path("visium-pipeline", "pipeline.cwl"))),
-            "input_parameters": [
-                {"parameter_name": "--outdir", "value": ""},
-                {"parameter_name": "--parallel", "value": ""},
-                {"parameter_name": "--assay", "value": ""},
-                {"parameter_name": "--threads", "value": ""},
-                {"parameter_name": "--fastq_dir", "value": ""},
-                {"parameter_name": "--img_dir", "value": ""},
-                {"parameter_name": "--metadata_dir", "value": ""},
-                {"parameter_name": "--visium_probe_set_version", "value": ""},
-            ],
             "documentation_url": "",
         },
         {
             "workflow_path": str(get_absolute_workflow(Path("portal-containers", "h5ad-to-arrow.cwl"))),
-            "input_parameters": [
-                {"parameter_name": "--input_dir", "value": ".."},
-            ],
             "documentation_url": "",
         },
         {
             "workflow_path": str(get_absolute_workflow(Path("portal-containers", "anndata-to-ui.cwl"))),
-            "input_parameters": [
-                {"parameter_name": "--input_dir", "value": ".."},
-            ],
             "documentation_url": "",
         },
         {
             "workflow_path": str(get_absolute_workflow(Path("omet-tiff-pyramid", "pipeline.cwl"))),
-            "input_parameters": [
-                {"parameter_name": "--processes", "value": ""},
-                {"parameter_name": "--ometiff_directory", "value": ""},
-                {"parameter_name": "--output_file_name", "value": ""},
-            ],
             "documentation_url": "",
         },
         {
             "workflow_path": str(get_absolute_workflow(Path("portal-containers", "omet-tiff-offsets.cwl"))),
-            "input_parameters": [
-                {"parameter_name": "--input_dir", "value": ""},
-            ],
             "documentation_url": "",
         }
     ]
@@ -143,20 +120,19 @@ with HMDAG(
         probe_set = metadata_df.oligo_probe_panel.iloc[0]
         probe_set_version = 2 if "v2" in probe_set else 1
 
-        # [--outdir, --parallel, --assay, --threads, --fastq_dir, --img_dir, --metadata_dir, --visium_probe_set_version]
-        input_param_vals = [
-            tmpdir / "cwl_out",
-            "",
-            "visium-ff",
-            get_threads_resource(dag.dag_id),
-            data_dir / "raw/fastq/",
-            data_dir / "lab_processed/images/",
-            data_dir / "raw",
-            probe_set_version,
+        input_parameters = [
+            {"parameter_name": "--outdir", "value": str(tmpdir / "cwl_out")},
+            {"parameter_name": "--parallel", "value": ""},
+            {"parameter_name": "--assay", "value": "visium-ff"},
+            {"parameter_name": "--threads", "value": get_threads_resource(dag.dag_id)},
+            {"parameter_name": "--fastq_dir", "value": str(data_dir / "raw/fastq/")},
+            {"parameter_name": "--img_dir", "value": str(data_dir / "lab_processed/images/")},
+            {"parameter_name": "--metadata_dir", "value": str(data_dir / "raw")},
+            {"parameter_name": "--visium_probe_set_version", "value": probe_set_version},
         ]
 
         command = get_cwl_cmd_from_workflows(
-            cwl_workflows, 0, input_param_vals, tmpdir, kwargs["ti"]
+            cwl_workflows, 0, input_parameters, tmpdir, kwargs["ti"]
         )
 
         return join_quote_command_str(command)
@@ -168,9 +144,11 @@ with HMDAG(
 
         workflows = kwargs["ti"].xcom_pull(key="cwl_workflows", task_ids="build_cmd1")
 
-        # [--input_dir]
+        input_parameters = [
+            {"parameter_name": "--input_dir", "value": ".."},
+        ]
         command = get_cwl_cmd_from_workflows(
-            workflows, 1, [], tmpdir, kwargs["ti"]
+            workflows, 1, input_parameters, tmpdir, kwargs["ti"]
         )
 
         return join_quote_command_str(command)
@@ -182,9 +160,11 @@ with HMDAG(
 
         workflows = kwargs["ti"].xcom_pull(key="cwl_workflows", task_ids="build_cmd2")
 
-        # [--input_dir]
+        input_parameters = [
+            {"parameter_name": "--input_dir", "value": ".."},
+        ]
         command = get_cwl_cmd_from_workflows(
-            workflows, 2, [], tmpdir, kwargs["ti"]
+            workflows, 2, input_parameters, tmpdir, kwargs["ti"]
         )
 
         return join_quote_command_str(command)
@@ -202,15 +182,14 @@ with HMDAG(
 
         workflows = kwargs["ti"].xcom_pull(key="cwl_workflows", task_ids="build_cmd3")
 
-        # [--processes, --ometiff_directory, --output_filename]
-        input_param_vals = [
-            get_threads_resource(dag.dag_id),
-            data_dir / "lab_processed/images/",
-            "visium_histology_hires_pyramid.ome.tif",
+        input_parameters = [
+            {"parameter_name": "--processes", "value": get_threads_resource(dag.dag_id)},
+            {"parameter_name": "--ometiff_directory", "value": str(data_dir / "lab_processed/images/")},
+            {"parameter_name": "--output_filename", "value": "visium_histology_hires_pyramid.ome.tif"},
         ]
 
         command = get_cwl_cmd_from_workflows(
-            workflows, 3, input_param_vals, tmpdir, kwargs["ti"]
+            workflows, 3, input_parameters, tmpdir, kwargs["ti"]
         )
 
         return join_quote_command_str(command)
@@ -226,10 +205,11 @@ with HMDAG(
 
         workflows = kwargs["ti"].xcom_pull(key="cwl_workflows", task_ids="build_cmd4")
 
-        # [--input_dir]
-        input_param_vals = [data_dir / "ometiff-pyramids"]
+        input_parameters = [
+            {"parameter_name": "--input_dir", "value": str(data_dir / "ometiff-pyramids")},
+        ]
         command = get_cwl_cmd_from_workflows(
-            workflows, 4, input_param_vals, tmpdir, kwargs["ti"]
+            workflows, 4, input_parameters, tmpdir, kwargs["ti"]
         )
 
         return join_quote_command_str(command)
