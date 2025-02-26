@@ -152,12 +152,12 @@ def generate_multiome_dag(params: MultiomeSequencingDagParameters) -> DAG:
                 {"parameter_name": "--assay_rna", "value": params.assay_rna},
                 {
                     "parameter_name": "--fastq_dir_rna",
-                    "value": [str(data_dir / Path(f"raw/fastq/rna")) for data_dir in data_dirs],
+                    "value": [str(data_dir / Path(f"raw/fastq/RNA")) for data_dir in data_dirs],
                 },
                 {"parameter_name": "--assay_atac", "value": params.assay_atac},
                 {
                     "parameter_name": "--fastq_dir_atac",
-                    "value": [str(data_dir / Path(f"raw/fastq/atac")) for data_dir in data_dirs],
+                    "value": [str(data_dir / Path(f"raw/fastq/ATAC")) for data_dir in data_dirs],
                 },
             ]
 
