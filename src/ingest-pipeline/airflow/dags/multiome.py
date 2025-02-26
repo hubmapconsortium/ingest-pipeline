@@ -166,7 +166,7 @@ def generate_multiome_dag(params: MultiomeSequencingDagParameters) -> DAG:
                 if (count := len(atac_metadata_files)) != 1:
                     raise ValueError(f"Need 1 ATAC-seq metadata file, found {count}")
                 input_parameters.append(
-                    {"parameter_name": "--atac_metadata_file", "value": atac_metadata_files[0]}
+                    {"parameter_name": "--atac_metadata_file", "value": str(atac_metadata_files[0])}
                 )
 
             command = get_cwl_cmd_from_workflows(
