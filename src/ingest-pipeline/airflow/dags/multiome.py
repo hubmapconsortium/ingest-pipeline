@@ -193,7 +193,7 @@ def generate_multiome_dag(params: MultiomeSequencingDagParameters) -> DAG:
                 {"parameter_name": "--matrix", "value": str(tmpdir / "cwl_out/mudata_raw.h5mu")},
                 {
                     "parameter_name": "--secondary-analysis-matrix",
-                    "value": "secondary_analysis.h5mu",
+                    "value": str(tmpdir / "cwl_out/secondary_analysis.h5mu"),
                 },
                 {"parameter_name": "--assay", "value": params.assay_azimuth},
             ]
@@ -210,9 +210,9 @@ def generate_multiome_dag(params: MultiomeSequencingDagParameters) -> DAG:
 
             workflows = kwargs["ti"].xcom_pull(key="cwl_workflows", task_ids="build_cmd2")
 
-            cwl_parameters = {
+            cwl_parameters = [
                 {"parameter_name": "--outdir", "value": str(tmpdir / "cwl_out/hubmap_ui")}
-            }
+            ]
             input_parameters = [
                 {"parameter_name": "--input_dir", "value": str(tmpdir / "cwl_out")},
             ]
