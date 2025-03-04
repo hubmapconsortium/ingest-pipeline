@@ -33,7 +33,7 @@ def run_cmd(cmd: List[str]) -> int :
     return command.returncode
 
 
-def process_one_uuid(uuid: str, entity_factory: EntityFactory, **kwargs) -> bool :
+def process_one_uuid(uuid: str, entity_factory: EntityFactory, **kwargs) -> bool:
     LOGGER.info('handling uuid %s', uuid)
     try:
         ds = entity_factory.get(uuid)
