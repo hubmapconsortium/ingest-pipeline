@@ -195,12 +195,12 @@ with HMDAG(
                     continue
 
                 if file_ext == ".xlsx":
-                    df = pd.read_excel(file_path, engine="openpyxl")
+                    df = pd.read_excel(file_path, engine="openpyxl", headers=None)
                 else:
                     continue
 
                 output_file = os.path.join(data_dir, "extras/transformations", f"{file_name}.tsv")
-                df.to_csv(output_file, sep="\t", index=False)
+                df.to_csv(output_file, sep="\t", index=False, headers=None)
 
     t_convert_obj_by_feature_to_tsv = PythonOperator(
         task_id="convert_obj_by_feature_to_tsv",
