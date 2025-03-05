@@ -3,6 +3,7 @@ from pathlib import Path
 
 from airflow.operators.bash import BashOperator
 from airflow.operators.dummy import DummyOperator
+from airflow.decorators import task
 from airflow.operators.python import BranchPythonOperator, PythonOperator
 
 import utils
@@ -24,6 +25,9 @@ from utils import (
     get_threads_resource,
     get_cwl_cmd_from_workflows,
 )
+
+from extra_utils import build_tag_containers
+
 from hubmap_operators.common_operators import (
     CleanupTmpDirOperator,
     CreateTmpDirOperator,
@@ -104,7 +108,18 @@ with HMDAG(
     def build_dataset_name(**kwargs):
         return inner_build_dataset_name(dag.dag_id, pipeline_name, **kwargs)
 
-    prepare_cwl_segmentation = DummyOperator(task_id="prepare_cwl_segmentation")
+
+    @task(task_id="prepare_cwl_segmentation")
+    def prepare_cwl_segmentation(**kwargs):
+        if kwargs["dag_run"].conf.get("dryrun"):
+            cwl_path = Path(cwl_workflows[0]["workflow_path"]).parent
+            return build_tag_containers(cwl_path)
+        else:
+            return "No Container build required"
+
+
+    prepare_cwl_segmentation = prepare_cwl_segmentation()
+
 
     def build_cwltool_cwl_segmentation(**kwargs):
         run_id = kwargs["run_id"]
@@ -156,7 +171,17 @@ with HMDAG(
         },
     )
 
-    prepare_cwl_sprm = DummyOperator(task_id="prepare_cwl_sprm")
+
+    @task(task_id="prepare_cwl_sprm")
+    def prepare_cwl_sprm(**kwargs):
+        if kwargs["dag_run"].conf.get("dryrun"):
+            cwl_path = Path(cwl_workflows[1]["workflow_path"]).parent
+            return build_tag_containers(cwl_path)
+        else:
+            return "No Container build required"
+
+
+    prepare_cwl_sprm = prepare_cwl_sprm()
 
     def build_cwltool_cmd_sprm(**kwargs):
         run_id = kwargs["run_id"]

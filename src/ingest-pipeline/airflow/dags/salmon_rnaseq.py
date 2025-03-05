@@ -15,8 +15,7 @@ from hubmap_operators.common_operators import (
     MoveDataOperator,
     SetDatasetProcessingOperator,
 )
-from multi_docker_build.build_docker_images import build as docker_builder
-from hubmap_pipeline_release_mgmt.tag_release_pipeline import adjust_cwl_docker_tags
+
 
 import utils
 from utils import (
@@ -38,6 +37,7 @@ from utils import (
     get_preserve_scratch_resource,
     get_cwl_cmd_from_workflows,
 )
+from extra_utils import build_tag_containers
 
 
 def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
@@ -100,18 +100,7 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
         def prepare_cwl1_cmd(**kwargs):
             if kwargs["dag_run"].conf.get("dryrun"):
                 cwl_path = Path(cwl_workflows[0]["workflow_path"]).parent
-                # multi-docker-build call here
-                try:
-                    docker_builder(tag_timestamp=False, tag_git_describe=False, tag="airflow-devel",
-                                   push=False, ignore_missing_submodules=True, pretend=False,
-                                   base_dir=cwl_path)
-                except Exception as e:
-                    return f"Error in docker builder: {e}"
-                try:
-                    adjust_cwl_docker_tags(tag_without_v="airflow-devel", base_dir=cwl_path)
-                except Exception as e:
-                    return f"Error adjusting docker tags: {e}"
-                return f"Container built for {cwl_path}"
+                return build_tag_containers(cwl_path)
             else:
                 return "No Container build required"
 
