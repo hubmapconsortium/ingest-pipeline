@@ -114,7 +114,13 @@ with HMDAG(
             {"parameter_name": "--data_directory", "value": str(data_dir)},
             {"parameter_name": "--tissue_type", "value": organ_code},
         ]
-        command = get_cwl_cmd_from_workflows(cwl_workflows, 0, input_parameters, tmpdir, kwargs["ti"])
+        command = get_cwl_cmd_from_workflows(
+            cwl_workflows,
+            0,
+            input_parameters,
+            tmpdir,
+            kwargs["ti"],
+        )
 
         return join_quote_command_str(command)
 
