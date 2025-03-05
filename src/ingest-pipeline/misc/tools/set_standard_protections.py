@@ -9,7 +9,10 @@ from pathlib import Path
 from io import StringIO
 from typing import List
 
-from survey import Dataset, EntityFactory, is_uuid
+try:
+    from survey import Dataset, EntityFactory, is_uuid
+except ImportError:
+    from .survey import Dataset, EntityFactory, is_uuid
 
 
 logging.basicConfig()
@@ -64,7 +67,7 @@ def process_one_uuid(uuid: str, entity_factory: EntityFactory, **kwargs) -> bool
     acl_path = Path(__file__).absolute().parent.parent.parent / 'submodules'
     acl_path = acl_path / 'manual-data-ingest' / 'acl-settings' / acl_fname
     LOGGER.info('will apply %s', acl_path)
-    cmd1 = ['setfacl', '-b', str(ds.full_path)]
+    cmd1 = ['setfacl', '-bR', str(ds.full_path)]
     cmd2 = ['setfacl', '-R', '-M', str(acl_path), str(ds.full_path)]
     if kwargs.get('dry_run', False):
         cmd1.insert(1, '--test')
