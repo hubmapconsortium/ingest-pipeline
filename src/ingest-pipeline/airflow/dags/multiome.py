@@ -152,12 +152,12 @@ def generate_multiome_dag(params: MultiomeSequencingDagParameters) -> DAG:
                 {"parameter_name": "--assay_rna", "value": params.assay_rna},
                 {
                     "parameter_name": "--fastq_dir_rna",
-                    "value": [str(data_dir / Path(f"raw/fastq/rna")) for data_dir in data_dirs],
+                    "value": [str(data_dir / Path(f"raw/fastq/RNA")) for data_dir in data_dirs],
                 },
                 {"parameter_name": "--assay_atac", "value": params.assay_atac},
                 {
                     "parameter_name": "--fastq_dir_atac",
-                    "value": [str(data_dir / Path(f"raw/fastq/atac")) for data_dir in data_dirs],
+                    "value": [str(data_dir / Path(f"raw/fastq/ATAC")) for data_dir in data_dirs],
                 },
             ]
 
@@ -166,7 +166,7 @@ def generate_multiome_dag(params: MultiomeSequencingDagParameters) -> DAG:
                 if (count := len(atac_metadata_files)) != 1:
                     raise ValueError(f"Need 1 ATAC-seq metadata file, found {count}")
                 input_parameters.append(
-                    {"parameter_name": "--atac_metadata_file", "value": atac_metadata_files[0]}
+                    {"parameter_name": "--atac_metadata_file", "value": str(atac_metadata_files[0])}
                 )
 
             command = get_cwl_cmd_from_workflows(
@@ -195,7 +195,7 @@ def generate_multiome_dag(params: MultiomeSequencingDagParameters) -> DAG:
                 {"parameter_name": "--matrix", "value": str(tmpdir / "cwl_out/mudata_raw.h5mu")},
                 {
                     "parameter_name": "--secondary-analysis-matrix",
-                    "value": "secondary_analysis.h5mu",
+                    "value": str(tmpdir / "cwl_out/secondary_analysis.h5mu"),
                 },
                 {"parameter_name": "--assay", "value": params.assay_azimuth},
             ]
@@ -212,9 +212,9 @@ def generate_multiome_dag(params: MultiomeSequencingDagParameters) -> DAG:
 
             workflows = kwargs["ti"].xcom_pull(key="cwl_workflows", task_ids="build_cmd2")
 
-            cwl_parameters = {
+            cwl_parameters = [
                 {"parameter_name": "--outdir", "value": str(tmpdir / "cwl_out/hubmap_ui")}
-            }
+            ]
             input_parameters = [
                 {"parameter_name": "--input_dir", "value": str(tmpdir / "cwl_out")},
             ]

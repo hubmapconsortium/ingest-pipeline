@@ -205,7 +205,7 @@ with HMDAG(
             },
             {
                 "parameter_name": "--output_filename",
-                "value": str(tmpdir / "cwl_out/visium_histology_hires_pyramid.ome.tif"),
+                "value": "visium_histology_hires_pyramid.ome.tif",
             },
         ]
         command = get_cwl_cmd_from_workflows(workflows, 3, input_parameters, tmpdir, kwargs["ti"])
