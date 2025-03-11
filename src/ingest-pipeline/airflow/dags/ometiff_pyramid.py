@@ -5,7 +5,6 @@ from airflow.operators.bash import BashOperator
 from airflow.operators.python import PythonOperator, BranchPythonOperator
 from airflow.operators.dummy import DummyOperator
 
-# these are the hubmap common operators that are used in all DAGS
 from hubmap_operators.common_operators import (
     LogInfoOperator,
     JoinOperator,

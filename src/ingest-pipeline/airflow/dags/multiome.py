@@ -7,6 +7,8 @@ from airflow import DAG
 from airflow.operators.bash import BashOperator
 from airflow.operators.dummy import DummyOperator
 from airflow.operators.python import BranchPythonOperator, PythonOperator
+from airflow.decorators import task
+
 from hubmap_operators.common_operators import (
     CleanupTmpDirOperator,
     CreateTmpDirOperator,
@@ -36,6 +38,8 @@ from utils import (
     get_cwl_cmd_from_workflows,
 )
 
+from extra_utils import build_tag_containers
+
 MultiomeSequencingDagParameters = namedtuple(
     "MultiomeSequencingDagParameters",
     [
@@ -48,14 +52,12 @@ MultiomeSequencingDagParameters = namedtuple(
     ],
 )
 
-
 def find_atac_metadata_file(data_dir: Path) -> Path:
     for path in data_dir.glob("*.tsv"):
         name_lower = path.name.lower()
         if path.is_file() and "atac" in name_lower and "metadata" in name_lower:
             return path
     raise ValueError("Couldn't find ATAC-seq metadata file")
-
 
 def generate_multiome_dag(params: MultiomeSequencingDagParameters) -> DAG:
     default_args = {
@@ -109,7 +111,15 @@ def generate_multiome_dag(params: MultiomeSequencingDagParameters) -> DAG:
         def build_dataset_name(**kwargs):
             return inner_build_dataset_name(dag.dag_id, params.pipeline_name, **kwargs)
 
-        prepare_cwl1 = DummyOperator(task_id="prepare_cwl1")
+        @task(task_id="prepare_cwl1")
+        def prepare_cwl_cmd1(**kwargs):
+            if kwargs["dag_run"].conf.get("dryrun"):
+                cwl_path = Path(cwl_workflows[0]["workflow_path"]).parent
+                return build_tag_containers(cwl_path)
+            else:
+                return "No Container build required"
+
+        prepare_cwl1 = prepare_cwl_cmd1()
 
         prepare_cwl2 = DummyOperator(task_id="prepare_cwl2")
 

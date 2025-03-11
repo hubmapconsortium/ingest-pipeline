@@ -4,6 +4,8 @@ from datetime import datetime, timedelta
 from airflow.operators.bash import BashOperator
 from airflow.operators.python import PythonOperator, BranchPythonOperator
 from airflow.operators.dummy import DummyOperator
+from airflow.decorators import task
+
 from hubmap_operators.common_operators import (
     LogInfoOperator,
     JoinOperator,
@@ -32,6 +34,7 @@ from utils import (
     get_cwl_cmd_from_workflows,
 )
 
+from extra_utils import build_tag_containers
 
 default_args = {
     "owner": "hubmap",
@@ -128,9 +131,15 @@ with HMDAG(
     def build_dataset_name(**kwargs):
         return inner_build_dataset_name(dag.dag_id, pipeline_name, **kwargs)
 
-    prepare_cwl_illumination_first_stitching = DummyOperator(
-        task_id="prepare_cwl_illumination_first_stitching",
-    )
+    @task(task_id="prepare_cwl_illumination_first_stitching")
+    def prepare_cwl_cmd1(**kwargs):
+        if kwargs["dag_run"].conf.get("dryrun"):
+            cwl_path = Path(cwl_workflows[0]["workflow_path"]).parent
+            return build_tag_containers(cwl_path)
+        else:
+            return "No Container build required"
+
+    prepare_cwl_illumination_first_stitching = prepare_cwl_cmd1()
 
     def build_cwltool_cwl_illumination_first_stitching(**kwargs):
         run_id = kwargs["run_id"]
@@ -177,7 +186,15 @@ with HMDAG(
         },
     )
 
-    prepare_cwl_cytokit = DummyOperator(task_id="prepare_cwl_cytokit")
+    @task(task_id="prepare_cwl_cytokit")
+    def prepare_cwl_cmd2(**kwargs):
+        if kwargs["dag_run"].conf.get("dryrun"):
+            cwl_path = Path(cwl_workflows[1]["workflow_path"]).parent
+            return build_tag_containers(cwl_path)
+        else:
+            return "No Container build required"
+
+    prepare_cwl_cytokit = prepare_cwl_cmd2()
 
     def build_cwltool_cwl_cytokit(**kwargs):
         run_id = kwargs["run_id"]
@@ -225,9 +242,15 @@ with HMDAG(
         },
     )
 
-    prepare_cwl_ometiff_second_stitching = DummyOperator(
-        task_id="prepare_cwl_ometiff_second_stitching",
-    )
+    @task(task_id="prepare_cwl_ometiff_second_stitching")
+    def prepare_cwl_cmd3(**kwargs):
+        if kwargs["dag_run"].conf.get("dryrun"):
+            cwl_path = Path(cwl_workflows[2]["workflow_path"]).parent
+            return build_tag_containers(cwl_path)
+        else:
+            return "No Container build required"
+
+    prepare_cwl_ometiff_second_stitching = prepare_cwl_cmd3()
 
     def build_cwltool_cwl_ometiff_second_stitching(**kwargs):
         run_id = kwargs["run_id"]
@@ -276,8 +299,15 @@ with HMDAG(
         },
     )
 
-    prepare_cwl_ribca = DummyOperator(task_id="prepare_cwl_ribca")
+    @task(task_id="prepare_cwl_ribca")
+    def prepare_cwl_cmd4(**kwargs):
+        if kwargs["dag_run"].conf.get("dryrun"):
+            cwl_path = Path(cwl_workflows[3]["workflow_path"]).parent
+            return build_tag_containers(cwl_path)
+        else:
+            return "No Container build required"
 
+    prepare_cwl_ribca = prepare_cwl_cmd4()
 
     def build_cwltool_cwl_ribca(**kwargs):
         run_id = kwargs["run_id"]
@@ -298,7 +328,6 @@ with HMDAG(
         command = get_cwl_cmd_from_workflows(workflows, 3, input_parameters, tmpdir, kwargs["ti"])
 
         return join_quote_command_str(command)
-
 
     t_build_cmd_ribca = PythonOperator(
         task_id="build_cwl_ribca",
@@ -336,7 +365,15 @@ with HMDAG(
         """,
     )
 
-    prepare_cwl_deepcelltypes = DummyOperator(task_id="prepare_cwl_deepcelltypes")
+    @task(task_id="prepare_cwl_deepcelltypes")
+    def prepare_cwl_cmd5(**kwargs):
+        if kwargs["dag_run"].conf.get("dryrun"):
+            cwl_path = Path(cwl_workflows[4]["workflow_path"]).parent
+            return build_tag_containers(cwl_path)
+        else:
+            return "No Container build required"
+
+    prepare_cwl_deepcelltypes = prepare_cwl_cmd5()
 
     def build_cwltool_cmd_deepcelltypes(**kwargs):
         run_id = kwargs["run_id"]
@@ -733,6 +770,8 @@ with HMDAG(
             "pipeline_exec_cwl_illumination_first_stitching",
             "pipeline_exec_cwl_cytokit",
             "pipeline_exec_cwl_ometiff_second_stitching",
+            "pipeline_exec_cwl_ribca",
+            "pipeline_exec_cwl_deepcelltypes",
             "pipeline_exec_cwl_sprm",
             "pipeline_exec_cwl_create_vis_symlink_archive",
             "pipeline_exec_cwl_ome_tiff_offsets",

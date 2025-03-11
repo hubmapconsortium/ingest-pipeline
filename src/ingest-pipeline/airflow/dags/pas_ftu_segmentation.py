@@ -4,6 +4,7 @@ from pathlib import Path
 from airflow.operators.bash import BashOperator
 from airflow.operators.python import PythonOperator, BranchPythonOperator
 from airflow.operators.dummy import DummyOperator
+from airflow.decorators import task
 
 import utils
 from utils import (
@@ -25,6 +26,7 @@ from utils import (
     get_threads_resource,
     get_cwl_cmd_from_workflows,
 )
+
 from hubmap_operators.common_operators import (
     CleanupTmpDirOperator,
     CreateTmpDirOperator,
@@ -34,6 +36,7 @@ from hubmap_operators.common_operators import (
     SetDatasetProcessingOperator,
 )
 
+from extra_utils import build_tag_containers
 
 default_args = {
     "owner": "hubmap",
@@ -48,7 +51,6 @@ default_args = {
     "queue": get_queue_resource("pas_ftu_segmentation"),
     "on_failure_callback": utils.create_dataset_state_error_callback(get_uuid_for_error),
 }
-
 
 with HMDAG(
     "pas_ftu_segmentation",
@@ -96,7 +98,15 @@ with HMDAG(
     def build_dataset_name(**kwargs):
         return inner_build_dataset_name(dag.dag_id, pipeline_name, **kwargs)
 
-    prepare_cwl_segmentation = DummyOperator(task_id="prepare_cwl_segmentation")
+    @task(task_id="prepare_cwl_segmentation")
+    def prepare_cwl_cmd1(**kwargs):
+        if kwargs["dag_run"].conf.get("dryrun"):
+            cwl_path = Path(cwl_workflows[0]["workflow_path"]).parent
+            return build_tag_containers(cwl_path)
+        else:
+            return "No Container build required"
+
+    prepare_cwl_segmentation = prepare_cwl_cmd1()
 
     def build_cwltool_cwl_segmentation(**kwargs):
         run_id = kwargs["run_id"]
