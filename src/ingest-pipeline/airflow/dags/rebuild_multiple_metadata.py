@@ -53,7 +53,7 @@ with DAG(
 
             # If we got nothing back from soft_data, then let's try to determine using entity_api
             if soft_data:
-                if soft_data.get("primary"):
+                if soft_data.get("primary") or soft_data.get("assaytype") == "publication":
                     if ds_rslt["creation_action"] == "Multi-Assay Split":
                         kwargs["dag_run"].conf["component_datasets"].append(uuid)
                     else:
