@@ -7,6 +7,7 @@ from airflow.operators.bash import BashOperator
 from airflow.operators.dummy import DummyOperator
 from airflow.operators.python import BranchPythonOperator, PythonOperator
 from airflow.decorators import task
+
 from hubmap_operators.common_operators import (
     CleanupTmpDirOperator,
     CreateTmpDirOperator,
@@ -15,7 +16,6 @@ from hubmap_operators.common_operators import (
     MoveDataOperator,
     SetDatasetProcessingOperator,
 )
-
 
 import utils
 from utils import (
@@ -37,6 +37,7 @@ from utils import (
     get_preserve_scratch_resource,
     get_cwl_cmd_from_workflows,
 )
+
 from extra_utils import build_tag_containers
 
 
