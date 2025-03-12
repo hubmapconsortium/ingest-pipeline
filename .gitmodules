@@ -79,3 +79,6 @@
 [submodule "src/ingest-pipeline/airflow/dags/cwl/geomx-pipeline"]
 	path = src/ingest-pipeline/airflow/dags/cwl/geomx-pipeline
 	url = https://github.com/hubmapconsortium/geomx-pipeline
+[submodule "src/ingest-pipeline/airflow/dags/cwl/xenium-pipeline"]
+	path = src/ingest-pipeline/airflow/dags/cwl/xenium-pipeline
+	url = https://github.com/hubmapconsortium/xenium-pipeline
