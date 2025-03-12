@@ -82,3 +82,6 @@
 [submodule "src/ingest-pipeline/airflow/dags/cwl/ribca"]
 	path = src/ingest-pipeline/airflow/dags/cwl/ribca
 	url = https://github.com/hubmapconsortium/ribca
+[submodule "src/ingest-pipeline/airflow/dags/cwl/xenium-pipeline"]
+	path = src/ingest-pipeline/airflow/dags/cwl/xenium-pipeline
+	url = https://github.com/hubmapconsortium/xenium-pipeline
