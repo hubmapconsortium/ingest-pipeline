@@ -27,5 +27,8 @@
           'type': 'boolean'
           'description': Disable automatic previous version uuid finding, usable when trying new pipelines on already
             published datasets that you don't want to link yet
+        'dryrun':
+          'type': 'boolean'
+          'description': Disable the creation actions for successful runs.
      'required': ['uuid_list', 'collection_type']
     
