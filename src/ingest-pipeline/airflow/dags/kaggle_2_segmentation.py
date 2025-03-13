@@ -434,7 +434,6 @@ with HMDAG(
         >> t_build_cmd_ome_tiff_pyramid_processed
         >> t_pipeline_exec_cwl_ome_tiff_pyramid_processed
         >> t_maybe_keep_cwl_ome_tiff_pyramid_processed
-
         >> t_build_cmd_ome_tiff_pyramid_raw
         >> t_pipeline_exec_cwl_ome_tiff_pyramid_raw
         >> t_maybe_keep_cwl_ome_tiff_pyramid_raw
