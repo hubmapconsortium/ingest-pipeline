@@ -4,6 +4,7 @@ from pathlib import Path
 from airflow.operators.bash import BashOperator
 from airflow.operators.python import PythonOperator, BranchPythonOperator
 from airflow.operators.dummy import DummyOperator
+from airflow.decorators import task
 
 import utils
 from utils import (
@@ -34,6 +35,7 @@ from hubmap_operators.common_operators import (
     SetDatasetProcessingOperator,
 )
 
+from extra_utils import build_tag_containers
 
 default_args = {
     "owner": "hubmap",
@@ -93,7 +95,15 @@ with HMDAG(
     def build_dataset_name(**kwargs):
         return inner_build_dataset_name(dag.dag_id, pipeline_name, **kwargs)
 
-    prepare_cwl_segmentation = DummyOperator(task_id="prepare_cwl_segmentation")
+    @task(task_id="prepare_cwl_segmentation")
+    def prepare_cwl_cmd1(**kwargs):
+        if kwargs["dag_run"].conf.get("dryrun"):
+            cwl_path = Path(cwl_workflows[0]["workflow_path"]).parent
+            return build_tag_containers(cwl_path)
+        else:
+            return "No Container build required"
+
+    prepare_cwl_segmentation = prepare_cwl_cmd1()
 
     def build_cwltool_cwl_segmentation(**kwargs):
         run_id = kwargs["run_id"]
@@ -103,7 +113,9 @@ with HMDAG(
         print("data_dir: ", data_dir)
 
         # get organ type
-        ds_rslt = pythonop_get_dataset_state(dataset_uuid_callable=get_dataset_uuid, **kwargs)
+        ds_rslt = pythonop_get_dataset_state(
+            dataset_uuid_callable=lambda **kwargs:
+            get_parent_dataset_uuids_list(**kwargs)[0], **kwargs)
 
         organ_list = list(set(ds_rslt["organs"]))
         organ_code = organ_list[0] if len(organ_list) == 1 else "multi"
@@ -333,9 +345,19 @@ with HMDAG(
         python_callable=utils.pythonop_maybe_keep,
         provide_context=True,
         op_kwargs={
-            "next_op": "move_data",
+            "next_op": "maybe_create_dataset",
             "bail_op": "set_dataset_error",
             "test_op": "pipeline_exec_cwl_ome_tiff_metadata",
+        },
+    )
+
+    t_maybe_create_dataset = BranchPythonOperator(
+        task_id="maybe_create_dataset",
+        python_callable=utils.pythonop_dataset_dryrun,
+        provide_context=True,
+        op_kwargs={
+            "next_op": "send_create_dataset",
+            "bail_op": "join",
         },
     )
 
@@ -402,12 +424,12 @@ with HMDAG(
     (
         t_log_info
         >> t_create_tmpdir
-        >> t_send_create_dataset
-        >> t_set_dataset_processing
+
         >> prepare_cwl_segmentation
         >> t_build_cwl_segmentation
         >> t_pipeline_exec_cwl_segmentation
         >> t_maybe_keep_cwl_segmentation
+
         >> prepare_cwl_ome_tiff_pyramid
         >> t_build_cmd_ome_tiff_pyramid_processed
         >> t_pipeline_exec_cwl_ome_tiff_pyramid_processed
@@ -415,14 +437,19 @@ with HMDAG(
         >> t_build_cmd_ome_tiff_pyramid_raw
         >> t_pipeline_exec_cwl_ome_tiff_pyramid_raw
         >> t_maybe_keep_cwl_ome_tiff_pyramid_raw
+
         >> prepare_cwl_ome_tiff_offsets
         >> t_build_cmd_ome_tiff_offsets
         >> t_pipeline_exec_cwl_ome_tiff_offsets
         >> t_maybe_keep_cwl_ome_tiff_offsets
+
         >> prepare_cwl_ome_tiff_metadata
         >> t_build_cmd_ome_tiff_metadata
         >> t_pipeline_exec_cwl_ome_tiff_metadata
         >> t_maybe_keep_cwl_ome_tiff_metadata
+        >> t_maybe_create_dataset
+
+        >> t_send_create_dataset
         >> t_move_data
         >> t_expand_symlinks
         >> t_send_status

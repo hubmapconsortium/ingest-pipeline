@@ -6,6 +6,8 @@ from csv import DictReader
 from airflow.providers.http.hooks.http import HttpHook
 from pprint import pprint
 from typing import Tuple
+from multi_docker_build.build_docker_images import build as docker_builder
+from hubmap_pipeline_release_mgmt.tag_release_pipeline import adjust_cwl_docker_tags
 
 
 def check_link_published_drvs(uuid: str, auth_tok: str) -> Tuple[bool, str]:
@@ -133,3 +135,17 @@ class SoftAssayClient:
         except UnicodeDecodeError as e:
             message = {"Decode Error": self.__get_context_of_decode_error(e)}
         raise message
+
+
+def build_tag_containers(cwl_path: Path) -> str:
+    try:
+        docker_builder(tag_timestamp=False, tag_git_describe=False, tag="airflow-devel",
+                       push=False, ignore_missing_submodules=True, pretend=False,
+                       base_dir=cwl_path)
+    except Exception as e:
+        return f"Error in docker builder: {e}"
+    try:
+        adjust_cwl_docker_tags(tag_without_v="airflow-devel", base_dir=cwl_path)
+    except Exception as e:
+        return f"Error adjusting docker tags: {e}"
+    return f"Container built for {cwl_path}"
