@@ -189,14 +189,15 @@ class StatusChanger:
         self.delimiter = delimiter
         self.extra_options = extra_options if extra_options else {}
         self.verbose = verbose
-        if not status:
-            raise EntityUpdateException("Must pass new status to StatusChanger.")
         self.entity_type = entity_type if entity_type else self.get_entity_type()
-        self.status = (
-            self._check_status(status)
-            if isinstance(status, Statuses)
-            else self._get_status(status.lower())
-        )
+        if not status:
+            self.status = None
+        else:
+            self.status = (
+                self._check_status(status)
+                if isinstance(status, Statuses)
+                else self._get_status(status.lower())
+            )
 
     status_map = {}
     """

@@ -1653,6 +1653,8 @@ def make_send_status_msg_function(
             return_status = False
         entity_type = ds_rslt.get("entity_type")
         if status:
+            if kwargs["dag"].dag_id == "multiassay_component_metadata":
+                status = None
             try:
                 StatusChanger(
                     dataset_uuid,
