@@ -5,6 +5,8 @@ from unittest.mock import patch
 from status_manager import EntityUpdateException, EntityUpdater, StatusChanger, Statuses
 from utils import pythonop_set_dataset_state
 
+from airflow.models.dagrun import DagRun
+
 
 class TestEntityUpdater(unittest.TestCase):
     validation_msg = "Test validation message"
@@ -157,15 +159,15 @@ class TestEntityUpdater(unittest.TestCase):
             "status": "processing",
             "entity_type": "Upload",
         }
-        with_extra_option_and_field = StatusChanger(
-            "extra_options_uuid",
-            "extra_options_token",
-            status=Statuses.UPLOAD_VALID,
-            fields_to_overwrite={"test_extra_field": True},
-            verbose=False,
-        )
-        self.assertRaises(Exception, with_extra_option_and_field.update)
-        hhr_mock.assert_not_called()
+        with self.assertRaises(KeyError):
+            StatusChanger(
+                "extra_options_uuid",
+                "extra_options_token",
+                status=Statuses.UPLOAD_VALID,
+                fields_to_append_to={"test_extra_field": True},
+                verbose=False,
+            ).update()
+            hhr_mock.assert_not_called()
 
     @patch("status_manager.HttpHook.run")
     def test_valid_status_in_request(self, hhr_mock):
@@ -209,6 +211,7 @@ class TestEntityUpdater(unittest.TestCase):
             dataset_uuid_callable=self.my_callable,
             uuid=uuid,
             message=message,
+            dag_run=DagRun(conf={}),
         )
         sc_mock.assert_called_with(
             uuid,
