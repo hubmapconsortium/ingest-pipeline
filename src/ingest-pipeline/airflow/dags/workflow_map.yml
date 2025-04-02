@@ -137,3 +137,6 @@ workflow_map:
   - 'collection_type': '.*'
     'assay_type': 'geomx_ngs'
     'workflow': 'geomx'
+  - 'collection_type': '.*'
+    'assay_type': 'xenium'
+    'workflow': 'xenium'
