@@ -107,22 +107,19 @@ def create_new_uuid(row, source_entity, entity_factory, primary_entity, dryrun=F
     global FAKE_UUID_GENERATOR
     canonical_assay_type = row["canonical_assay_type"]
     # orig_assay_type = row["assay_type"] if hasattr(row, "assay_type") else row["dataset_type"]
-    rec_identifier = row["data_path"].strip("/")
-    assert rec_identifier and rec_identifier != ".", "Bad data_path!"
-    info_txt_root = None
+    info_txt = None
     if isinstance(source_entity, Dataset):
         assert "lab_dataset_id" in source_entity.prop_dct, (
             f"Dataset {source_entity.uuid}" " has no lab_dataset_id"
         )
-        info_txt_root = source_entity.prop_dct["lab_dataset_id"]
+        info_txt = ""
     elif isinstance(source_entity, Upload):
         if "title" in source_entity.prop_dct:
-            info_txt_root = source_entity.prop_dct["title"]
+            info_txt = source_entity.prop_dct["title"]
         else:
             print(f"WARNING: Upload {source_entity.uuid} has no title")
-            info_txt_root = f"Upload {source_entity.prop_dct['hubmap_id']}"
-    assert info_txt_root is not None, "Expected a Dataset or an Upload"
-    info_txt = info_txt_root + " : " + rec_identifier
+            info_txt = f"Upload {source_entity.prop_dct['hubmap_id']}"
+    assert info_txt is not None, "Expected a Dataset or an Upload"
     contains_human_genetic_sequences = primary_entity.get("contains-pii")
     is_epic = primary_entity.get("is-epic")
     # Check consistency in case this is a Dataset, which will have this info
@@ -135,11 +132,9 @@ def create_new_uuid(row, source_entity, entity_factory, primary_entity, dryrun=F
     if "description" in row:
         description = str(row["description"])
     elif "description" in source_entity.prop_dct:
-        description = source_entity.prop_dct["description"] + " : " + rec_identifier
-    elif "lab_dataset_id" in source_entity.prop_dct:
-        description = source_entity.prop_dct["lab_dataset_id"] + " : " + rec_identifier
+        description = source_entity.prop_dct["description"]
     else:
-        description = ": " + rec_identifier
+        description = ""
     sample_id_list = (
         (row["tissue_id"] if hasattr(row, "tissue_id") else row["parent_sample_id"])
         if not is_epic
