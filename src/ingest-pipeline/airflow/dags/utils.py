@@ -1040,13 +1040,14 @@ def pythonop_set_dataset_state(**kwargs) -> None:
     http_conn_id = kwargs.get("http_conn_id", "entity_api_connection")
     status = kwargs["ds_state"] if "ds_state" in kwargs else "Processing"
     message = kwargs.get("message", None)
-    StatusChanger(
-        dataset_uuid,
-        get_auth_tok(**kwargs),
-        status=status,
-        fields_to_overwrite={"pipeline_message": message} if message else {},
-        http_conn_id=http_conn_id,
-    ).update()
+    if dataset_uuid is not None:
+        StatusChanger(
+            dataset_uuid,
+            get_auth_tok(**kwargs),
+            status=status,
+            fields_to_overwrite={"pipeline_message": message} if message else {},
+            http_conn_id=http_conn_id,
+        ).update()
 
 
 def restructure_entity_metadata(raw_metadata: JSONType) -> JSONType:
@@ -1408,7 +1409,7 @@ def build_provenance_function(cwl_workflows: Callable[..., List[Dict]]) -> Calla
             else []
         )
 
-        new_dag_provenance.extend(get_git_provenance_list([*cwl_workflows]))
+        new_dag_provenance.extend(get_git_provenance_list([*cwl_workflows(**kwargs)]))
 
         # Look through the previous revision for the pipeline invocations
         for data in ds_rslt["ingest_metadata"]["dag_provenance_list"]:

@@ -137,6 +137,7 @@ with HMDAG(
             print(f"filtered paths: {lz_path}")
             print(f"filtered uuids: {uuid}")
             print(f"filtered previous_version_uuid: {prev_version_uuid}")
+            prev_version_uuid = None
         kwargs["ti"].xcom_push(key="collectiontype", value=collection_type)
         kwargs["ti"].xcom_push(key="uuids", value=filtered_uuid_l)
 
