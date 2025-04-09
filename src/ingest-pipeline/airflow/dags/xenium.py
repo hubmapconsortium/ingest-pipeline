@@ -4,6 +4,8 @@ from pathlib import Path
 from airflow.operators.bash import BashOperator
 from airflow.operators.dummy import DummyOperator
 from airflow.operators.python import BranchPythonOperator, PythonOperator
+from airflow.decorators import task
+
 from hubmap_operators.common_operators import (
     CleanupTmpDirOperator,
     CreateTmpDirOperator,
@@ -32,6 +34,8 @@ from utils import (
     get_preserve_scratch_resource,
     get_cwl_cmd_from_workflows,
 )
+
+from extra_utils import build_tag_containers
 
 
 default_args = {
@@ -93,7 +97,17 @@ with HMDAG(
     def build_dataset_name(**kwargs):
         return inner_build_dataset_name(dag.dag_id, "salmon-rnaseq", **kwargs)
 
-    prepare_cwl1 = DummyOperator(task_id="prepare_cwl1")
+
+    @task(task_id="prepare_cwl1")
+    def prepare_cwl_cmd1(**kwargs):
+        if kwargs["dag_run"].conf.get("dryrun"):
+            cwl_path = Path(cwl_workflows[0]["workflow_path"]).parent
+            return build_tag_containers(cwl_path)
+        else:
+            return "No Container build required"
+
+
+    prepare_cwl1 = prepare_cwl_cmd1()
 
     prepare_cwl2 = DummyOperator(task_id="prepare_cwl2")
 
