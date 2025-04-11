@@ -825,6 +825,13 @@ def pythonop_maybe_keep(**kwargs) -> str:
         return bail_op
 
 
+def pythonop_dataset_dryrun(**kwargs) -> str:
+    if kwargs["dag_run"].conf.get("dryrun"):
+        return kwargs["bail_op"]
+    else:
+        return kwargs["next_op"]
+
+
 def pythonop_maybe_multiassay(**kwargs) -> str:
     """
     accepts the following via the caller's op_kwargs:
@@ -1025,19 +1032,22 @@ def pythonop_set_dataset_state(**kwargs) -> None:
     'message' : update message, saved as dataset metadata element "pipeline_messsage".
                 The default is not to save any message.
     """
+    if kwargs["dag_run"].conf.get("dryrun"):
+        return
     for arg in ["dataset_uuid_callable"]:
         assert arg in kwargs, "missing required argument {}".format(arg)
     dataset_uuid = kwargs["dataset_uuid_callable"](**kwargs)
     http_conn_id = kwargs.get("http_conn_id", "entity_api_connection")
     status = kwargs["ds_state"] if "ds_state" in kwargs else "Processing"
     message = kwargs.get("message", None)
-    StatusChanger(
-        dataset_uuid,
-        get_auth_tok(**kwargs),
-        status=status,
-        fields_to_overwrite={"pipeline_message": message} if message else {},
-        http_conn_id=http_conn_id,
-    ).update()
+    if dataset_uuid is not None:
+        StatusChanger(
+            dataset_uuid,
+            get_auth_tok(**kwargs),
+            status=status,
+            fields_to_overwrite={"pipeline_message": message} if message else {},
+            http_conn_id=http_conn_id,
+        ).update()
 
 
 def restructure_entity_metadata(raw_metadata: JSONType) -> JSONType:
@@ -1399,7 +1409,7 @@ def build_provenance_function(cwl_workflows: Callable[..., List[Dict]]) -> Calla
             else []
         )
 
-        new_dag_provenance.extend(get_git_provenance_list([*cwl_workflows]))
+        new_dag_provenance.extend(get_git_provenance_list([*cwl_workflows(**kwargs)]))
 
         # Look through the previous revision for the pipeline invocations
         for data in ds_rslt["ingest_metadata"]["dag_provenance_list"]:
@@ -1644,6 +1654,8 @@ def make_send_status_msg_function(
             return_status = False
         entity_type = ds_rslt.get("entity_type")
         if status:
+            if kwargs["dag"].dag_id == "multiassay_component_metadata":
+                status = None
             try:
                 StatusChanger(
                     dataset_uuid,
@@ -1682,6 +1694,8 @@ def create_dataset_state_error_callback(
         """
         This routine is meant to be
         """
+        if kwargs["dag_run"].conf.get("dryrun"):
+            return None
         msg = "An internal error occurred in the {} workflow step {}".format(
             context_dict["dag"].dag_id, context_dict["task"].task_id
         )

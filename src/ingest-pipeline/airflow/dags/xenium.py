@@ -4,6 +4,8 @@ from pathlib import Path
 from airflow.operators.bash import BashOperator
 from airflow.operators.dummy import DummyOperator
 from airflow.operators.python import BranchPythonOperator, PythonOperator
+from airflow.decorators import task
+
 from hubmap_operators.common_operators import (
     CleanupTmpDirOperator,
     CreateTmpDirOperator,
@@ -32,6 +34,8 @@ from utils import (
     get_preserve_scratch_resource,
     get_cwl_cmd_from_workflows,
 )
+
+from extra_utils import build_tag_containers
 
 
 default_args = {
@@ -93,7 +97,17 @@ with HMDAG(
     def build_dataset_name(**kwargs):
         return inner_build_dataset_name(dag.dag_id, "salmon-rnaseq", **kwargs)
 
-    prepare_cwl1 = DummyOperator(task_id="prepare_cwl1")
+
+    @task(task_id="prepare_cwl1")
+    def prepare_cwl_cmd1(**kwargs):
+        if kwargs["dag_run"].conf.get("dryrun"):
+            cwl_path = Path(cwl_workflows[0]["workflow_path"]).parent
+            return build_tag_containers(cwl_path)
+        else:
+            return "No Container build required"
+
+
+    prepare_cwl1 = prepare_cwl_cmd1()
 
     prepare_cwl2 = DummyOperator(task_id="prepare_cwl2")
 
@@ -350,9 +364,19 @@ with HMDAG(
         python_callable=utils.pythonop_maybe_keep,
         provide_context=True,
         op_kwargs={
-            "next_op": "move_data",
+            "next_op": "move_create_dataset",
             "bail_op": "set_dataset_error",
             "test_op": "pipeline_exec_cwl_ome_tiff_offsets",
+        },
+    )
+
+    t_maybe_create_dataset = BranchPythonOperator(
+        task_id="maybe_create_dataset",
+        python_callable=utils.pythonop_dataset_dryrun,
+        provide_context=True,
+        op_kwargs={
+            "next_op": "send_create_dataset",
+            "bail_op": "join",
         },
     )
 
@@ -383,7 +407,12 @@ with HMDAG(
 
     send_status_msg = make_send_status_msg_function(
         dag_file=__file__,
-        retcode_ops=["pipeline_exec", "move_data", "convert_for_ui", "convert_for_ui_2"],
+        retcode_ops=["pipeline_exec",
+                     "move_data",
+                     "convert_for_ui",
+                     "convert_for_ui_2",
+                     "pipeline_exec_cwl_ome_tiff_pyramid",
+                     "pipeline_exec_cwl_ome_tiff_offsets"],
         cwl_workflows=lambda **kwargs: kwargs["ti"].xcom_pull(
             key="cwl_workflows", task_ids="build_cmd5"
         ),
@@ -401,34 +430,39 @@ with HMDAG(
     t_join = JoinOperator(task_id="join")
     t_create_tmpdir = CreateTmpDirOperator(task_id="create_tmpdir")
     t_cleanup_tmpdir = CleanupTmpDirOperator(task_id="cleanup_tmpdir")
-    t_set_dataset_processing = SetDatasetProcessingOperator(task_id="set_dataset_processing")
     t_move_data = MoveDataOperator(task_id="move_data")
 
     (
         t_log_info
         >> t_create_tmpdir
-        >> t_send_create_dataset
-        >> t_set_dataset_processing
+
         >> prepare_cwl1
         >> t_build_cmd1
         >> t_pipeline_exec
         >> t_maybe_keep_cwl1
+
         >> prepare_cwl2
         >> t_build_cmd2
         >> t_convert_for_ui
         >> t_maybe_keep_cwl2
+
         >> prepare_cwl3
         >> t_build_cmd3
         >> t_convert_for_ui_2
         >> t_maybe_keep_cwl3
+
         >> prepare_cwl4
         >> t_build_cmd4
         >> t_pipeline_exec_cwl_ome_tiff_pyramid
         >> t_maybe_keep_cwl4
+
         >> prepare_cwl5
         >> t_build_cmd5
         >> t_pipeline_exec_cwl_ome_tiff_offsets
         >> t_maybe_keep_cwl5
+        >> t_maybe_create_dataset
+
+        >> t_send_create_dataset
         >> t_move_data
         >> t_send_status
         >> t_join
@@ -439,4 +473,5 @@ with HMDAG(
     t_maybe_keep_cwl4 >> t_set_dataset_error
     t_maybe_keep_cwl5 >> t_set_dataset_error
     t_set_dataset_error >> t_join
+    t_maybe_create_dataset >> t_join
     t_join >> t_cleanup_tmpdir

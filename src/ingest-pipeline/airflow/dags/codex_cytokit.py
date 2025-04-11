@@ -4,6 +4,8 @@ from datetime import datetime, timedelta
 from airflow.operators.bash import BashOperator
 from airflow.operators.python import PythonOperator, BranchPythonOperator
 from airflow.operators.dummy import DummyOperator
+from airflow.decorators import task
+
 from hubmap_operators.common_operators import (
     LogInfoOperator,
     JoinOperator,
@@ -32,6 +34,7 @@ from utils import (
     get_cwl_cmd_from_workflows,
 )
 
+from extra_utils import build_tag_containers
 
 default_args = {
     "owner": "hubmap",
@@ -81,6 +84,12 @@ with HMDAG(
         },
         {
             "workflow_path": str(
+                get_absolute_workflow(Path("ribca", "pipeline.cwl"))
+            ),
+            "documentation_url": "",
+        },
+        {
+            "workflow_path": str(
                 get_absolute_workflow(Path("deepcelltypes", "run_deepcelltypes.cwl"))
             ),
             "documentation_url": "",
@@ -122,9 +131,15 @@ with HMDAG(
     def build_dataset_name(**kwargs):
         return inner_build_dataset_name(dag.dag_id, pipeline_name, **kwargs)
 
-    prepare_cwl_illumination_first_stitching = DummyOperator(
-        task_id="prepare_cwl_illumination_first_stitching",
-    )
+    @task(task_id="prepare_cwl_illumination_first_stitching")
+    def prepare_cwl_cmd1(**kwargs):
+        if kwargs["dag_run"].conf.get("dryrun"):
+            cwl_path = Path(cwl_workflows[0]["workflow_path"]).parent
+            return build_tag_containers(cwl_path)
+        else:
+            return "No Container build required"
+
+    prepare_cwl_illumination_first_stitching = prepare_cwl_cmd1()
 
     def build_cwltool_cwl_illumination_first_stitching(**kwargs):
         run_id = kwargs["run_id"]
@@ -171,7 +186,15 @@ with HMDAG(
         },
     )
 
-    prepare_cwl_cytokit = DummyOperator(task_id="prepare_cwl_cytokit")
+    @task(task_id="prepare_cwl_cytokit")
+    def prepare_cwl_cmd2(**kwargs):
+        if kwargs["dag_run"].conf.get("dryrun"):
+            cwl_path = Path(cwl_workflows[1]["workflow_path"]).parent
+            return build_tag_containers(cwl_path)
+        else:
+            return "No Container build required"
+
+    prepare_cwl_cytokit = prepare_cwl_cmd2()
 
     def build_cwltool_cwl_cytokit(**kwargs):
         run_id = kwargs["run_id"]
@@ -219,9 +242,15 @@ with HMDAG(
         },
     )
 
-    prepare_cwl_ometiff_second_stitching = DummyOperator(
-        task_id="prepare_cwl_ometiff_second_stitching",
-    )
+    @task(task_id="prepare_cwl_ometiff_second_stitching")
+    def prepare_cwl_cmd3(**kwargs):
+        if kwargs["dag_run"].conf.get("dryrun"):
+            cwl_path = Path(cwl_workflows[2]["workflow_path"]).parent
+            return build_tag_containers(cwl_path)
+        else:
+            return "No Container build required"
+
+    prepare_cwl_ometiff_second_stitching = prepare_cwl_cmd3()
 
     def build_cwltool_cwl_ometiff_second_stitching(**kwargs):
         run_id = kwargs["run_id"]
@@ -264,24 +293,23 @@ with HMDAG(
         python_callable=utils.pythonop_maybe_keep,
         provide_context=True,
         op_kwargs={
-            "next_op": "prepare_cwl_deepcelltypes",
+            "next_op": "prepare_cwl_ribca",
             "bail_op": "set_dataset_error",
             "test_op": "pipeline_exec_cwl_ometiff_second_stitching",
         },
     )
 
-    t_delete_internal_pipeline_files = BashOperator(
-        task_id="delete_internal_pipeline_files",
-        bash_command="""\
-        tmp_dir={{tmp_dir_path(run_id)}} ; \
-        cd "${tmp_dir}"/cwl_out ; \
-        rm -rf cytokit new_tiles
-        """,
-    )
+    @task(task_id="prepare_cwl_ribca")
+    def prepare_cwl_cmd4(**kwargs):
+        if kwargs["dag_run"].conf.get("dryrun"):
+            cwl_path = Path(cwl_workflows[3]["workflow_path"]).parent
+            return build_tag_containers(cwl_path)
+        else:
+            return "No Container build required"
 
-    prepare_cwl_deepcelltypes = DummyOperator(task_id="prepare_cwl_deepcelltypes")
+    prepare_cwl_ribca = prepare_cwl_cmd4()
 
-    def build_cwltool_cmd_deepcelltypes(**kwargs):
+    def build_cwltool_cwl_ribca(**kwargs):
         run_id = kwargs["run_id"]
         tmpdir = get_tmp_dir_path(run_id)
         print("tmpdir: ", tmpdir)
@@ -295,10 +323,75 @@ with HMDAG(
         )
 
         input_parameters = [
-            {"parameter_name": "--data_dir", "value": str(data_dir / "pipeline_output")},
+            {"parameter_name": "--data_dir", "value": str(data_dir)}
+        ]
+        command = get_cwl_cmd_from_workflows(workflows, 3, input_parameters, tmpdir, kwargs["ti"])
+
+        return join_quote_command_str(command)
+
+    t_build_cmd_ribca = PythonOperator(
+        task_id="build_cwl_ribca",
+        python_callable=build_cwltool_cwl_ribca,
+        provide_context=True,
+    )
+
+    t_pipeline_exec_cwl_ribca = BashOperator(
+        task_id="pipeline_exec_cwl_ribca",
+        bash_command=""" \
+        tmp_dir={{tmp_dir_path(run_id)}} ; \
+        {{ti.xcom_pull(task_ids='build_cwl_ribca')}} >> ${tmp_dir}/session.log 2>&1 ; \
+        echo $?
+        """,
+    )
+
+    t_maybe_keep_cwl_ribca = BranchPythonOperator(
+        task_id="maybe_keep_cwl_ribca",
+        python_callable=utils.pythonop_maybe_keep,
+        provide_context=True,
+        op_kwargs={
+            "next_op": "prepare_cwl_deepcelltypes",
+            "bail_op": "set_dataset_error",
+            "test_op": "pipeline_exec_cwl_ribca",
+        },
+    )
+
+    t_delete_internal_pipeline_files = BashOperator(
+        task_id="delete_internal_pipeline_files",
+        bash_command="""\
+        tmp_dir={{tmp_dir_path(run_id)}} ; \
+        cd "${tmp_dir}"/cwl_out ; \
+        rm -rf cytokit new_tiles
+        """,
+    )
+
+    @task(task_id="prepare_cwl_deepcelltypes")
+    def prepare_cwl_cmd5(**kwargs):
+        if kwargs["dag_run"].conf.get("dryrun"):
+            cwl_path = Path(cwl_workflows[4]["workflow_path"]).parent
+            return build_tag_containers(cwl_path)
+        else:
+            return "No Container build required"
+
+    prepare_cwl_deepcelltypes = prepare_cwl_cmd5()
+
+    def build_cwltool_cmd_deepcelltypes(**kwargs):
+        run_id = kwargs["run_id"]
+        tmpdir = get_tmp_dir_path(run_id)
+        print("tmpdir: ", tmpdir)
+        parent_data_dir = get_parent_data_dir(**kwargs)
+        print("parent_data_dir: ", parent_data_dir)
+        data_dir = tmpdir / "cwl_out"
+        print("data_dir: ", data_dir)
+
+        workflows = kwargs["ti"].xcom_pull(
+            key="cwl_workflows", task_ids="build_cwl_ribca"
+        )
+
+        input_parameters = [
+            {"parameter_name": "--data_dir", "value": str(data_dir)},
         ]
 
-        command = get_cwl_cmd_from_workflows(workflows, 3, input_parameters, tmpdir, kwargs["ti"])
+        command = get_cwl_cmd_from_workflows(workflows, 4, input_parameters, tmpdir, kwargs["ti"])
 
         return join_quote_command_str(command)
 
@@ -312,7 +405,6 @@ with HMDAG(
         task_id="pipeline_exec_cwl_deepcelltypes",
         bash_command=""" \
         tmp_dir={{tmp_dir_path(run_id)}} ; \
-        cd "${tmp_dir}"/cwl_out ; \
         {{ti.xcom_pull(task_ids='build_cmd_deepcelltypes')}} >> ${tmp_dir}/session.log 2>&1 ; \
         echo $?
         """,
@@ -347,13 +439,11 @@ with HMDAG(
             {"parameter_name": "--processes", "value": get_threads_resource(dag.dag_id)},
             {"parameter_name": "--image_dir", "value": str(data_dir / "pipeline_output/expr")},
             {"parameter_name": "--mask_dir", "value": str(data_dir / "pipeline_output/mask")},
-            {
-                "parameter_name": "--cell_types_file",
-                "value": str(data_dir / "deepcelltypes_predictions.csv"),
-            },
+            {"parameter_name": "--cell_types_directory", "value": str(data_dir / "ribca_for_sprm")},
+            {"parameter_name": "--cell_types_directory", "value": str(data_dir / "deepcelltypes")},
         ]
 
-        command = get_cwl_cmd_from_workflows(workflows, 4, input_parameters, tmpdir, kwargs["ti"])
+        command = get_cwl_cmd_from_workflows(workflows, 5, input_parameters, tmpdir, kwargs["ti"])
 
         return join_quote_command_str(command)
 
@@ -402,7 +492,7 @@ with HMDAG(
             {"parameter_name": "--ometiff_dir", "value": str(data_dir / "pipeline_output")},
             {"parameter_name": "--sprm_output", "value": str(data_dir / "sprm_outputs")},
         ]
-        command = get_cwl_cmd_from_workflows(workflows, 5, input_parameters, tmpdir, kwargs["ti"])
+        command = get_cwl_cmd_from_workflows(workflows, 6, input_parameters, tmpdir, kwargs["ti"])
 
         return join_quote_command_str(command)
 
@@ -453,7 +543,7 @@ with HMDAG(
             {"parameter_name": "--processes", "value": get_threads_resource(dag.dag_id)},
             {"parameter_name": "--ometiff_directory", "value": str(tmpdir / "cwl_out")},
         ]
-        command = get_cwl_cmd_from_workflows(workflows, 6, input_parameters, tmpdir, kwargs["ti"])
+        command = get_cwl_cmd_from_workflows(workflows, 7, input_parameters, tmpdir, kwargs["ti"])
 
         return join_quote_command_str(command)
 
@@ -501,7 +591,7 @@ with HMDAG(
         input_parameters = [
             {"parameter_name": "--input_dir", "value": str(data_dir / "ometiff-pyramids")},
         ]
-        command = get_cwl_cmd_from_workflows(workflows, 7, input_parameters, tmpdir, kwargs["ti"])
+        command = get_cwl_cmd_from_workflows(workflows, 8, input_parameters, tmpdir, kwargs["ti"])
 
         return join_quote_command_str(command)
 
@@ -549,7 +639,7 @@ with HMDAG(
         input_parameters = [
             {"parameter_name": "--input_dir", "value": str(data_dir / "sprm_outputs")},
         ]
-        command = get_cwl_cmd_from_workflows(workflows, 8, input_parameters, tmpdir, kwargs["ti"])
+        command = get_cwl_cmd_from_workflows(workflows, 9, input_parameters, tmpdir, kwargs["ti"])
 
         return join_quote_command_str(command)
 
@@ -596,7 +686,7 @@ with HMDAG(
             {"parameter_name": "--input_dir", "value": str(data_dir / "sprm_outputs")},
         ]
 
-        command = get_cwl_cmd_from_workflows(workflows, 9, input_parameters, tmpdir, kwargs["ti"])
+        command = get_cwl_cmd_from_workflows(workflows, 10, input_parameters, tmpdir, kwargs["ti"])
 
         return join_quote_command_str(command)
 
@@ -620,9 +710,19 @@ with HMDAG(
         python_callable=utils.pythonop_maybe_keep,
         provide_context=True,
         op_kwargs={
-            "next_op": "move_data",
+            "next_op": "maybe_create_dataset",
             "bail_op": "set_dataset_error",
             "test_op": "pipeline_exec_cwl_sprm_to_anndata",
+        },
+    )
+
+    t_maybe_create_dataset = BranchPythonOperator(
+        task_id="maybe_create_dataset",
+        python_callable=utils.pythonop_dataset_dryrun,
+        provide_context=True,
+        op_kwargs={
+            "next_op": "send_create_dataset",
+            "bail_op": "join",
         },
     )
 
@@ -669,6 +769,8 @@ with HMDAG(
             "pipeline_exec_cwl_illumination_first_stitching",
             "pipeline_exec_cwl_cytokit",
             "pipeline_exec_cwl_ometiff_second_stitching",
+            "pipeline_exec_cwl_ribca",
+            "pipeline_exec_cwl_deepcelltypes",
             "pipeline_exec_cwl_sprm",
             "pipeline_exec_cwl_create_vis_symlink_archive",
             "pipeline_exec_cwl_ome_tiff_offsets",
@@ -691,63 +793,79 @@ with HMDAG(
     t_join = JoinOperator(task_id="join")
     t_create_tmpdir = CreateTmpDirOperator(task_id="create_tmpdir")
     t_cleanup_tmpdir = CleanupTmpDirOperator(task_id="cleanup_tmpdir")
-    t_set_dataset_processing = SetDatasetProcessingOperator(task_id="set_dataset_processing")
     t_move_data = MoveDataOperator(task_id="move_data")
 
     (
         t_log_info
         >> t_create_tmpdir
-        >> t_send_create_dataset
-        >> t_set_dataset_processing
+
         >> prepare_cwl_illumination_first_stitching
         >> t_build_cwl_illumination_first_stitching
         >> t_pipeline_exec_cwl_illumination_first_stitching
         >> t_maybe_keep_cwl_illumination_first_stitching
+
         >> prepare_cwl_cytokit
         >> t_build_cwl_cytokit
         >> t_pipeline_exec_cwl_cytokit
         >> t_maybe_keep_cwl_cytokit
+
         >> prepare_cwl_ometiff_second_stitching
         >> t_build_cwl_ometiff_second_stitching
         >> t_pipeline_exec_cwl_ometiff_second_stitching
+        >> t_delete_internal_pipeline_files
         >> t_maybe_keep_cwl_ometiff_second_stitching
+
+        >> prepare_cwl_ribca
+        >> t_build_cmd_ribca
+        >> t_pipeline_exec_cwl_ribca
+        >> t_maybe_keep_cwl_ribca
+
         >> prepare_cwl_deepcelltypes
         >> t_build_cmd_deepcelltypes
         >> t_pipeline_exec_cwl_deepcelltypes
         >> t_maybe_keep_cwl_deepcelltypes
+
         >> prepare_cwl_sprm
         >> t_build_cmd_sprm
         >> t_pipeline_exec_cwl_sprm
         >> t_maybe_keep_cwl_sprm
+
         >> prepare_cwl_create_vis_symlink_archive
         >> t_build_cmd_create_vis_symlink_archive
         >> t_pipeline_exec_cwl_create_vis_symlink_archive
         >> t_maybe_keep_cwl_create_vis_symlink_archive
+
         >> prepare_cwl_ome_tiff_pyramid
         >> t_build_cmd_ome_tiff_pyramid
         >> t_pipeline_exec_cwl_ome_tiff_pyramid
         >> t_maybe_keep_cwl_ome_tiff_pyramid
+
         >> prepare_cwl_ome_tiff_offsets
         >> t_build_cmd_ome_tiff_offsets
         >> t_pipeline_exec_cwl_ome_tiff_offsets
         >> t_maybe_keep_cwl_ome_tiff_offsets
+
         >> prepare_cwl_sprm_to_json
         >> t_build_cmd_sprm_to_json
         >> t_pipeline_exec_cwl_sprm_to_json
         >> t_maybe_keep_cwl_sprm_to_json
+
         >> prepare_cwl_sprm_to_anndata
         >> t_build_cmd_sprm_to_anndata
         >> t_pipeline_exec_cwl_sprm_to_anndata
         >> t_maybe_keep_cwl_sprm_to_anndata
+        >> t_maybe_create_dataset
+
+        >> t_send_create_dataset
         >> t_move_data
         >> t_expand_symlinks
         >> t_send_status
         >> t_join
     )
-    t_pipeline_exec_cwl_ometiff_second_stitching >> t_delete_internal_pipeline_files
     t_maybe_keep_cwl_illumination_first_stitching >> t_set_dataset_error
     t_maybe_keep_cwl_cytokit >> t_set_dataset_error
     t_maybe_keep_cwl_ometiff_second_stitching >> t_set_dataset_error
+    t_maybe_keep_cwl_ribca >> t_set_dataset_error
     t_maybe_keep_cwl_deepcelltypes >> t_set_dataset_error
     t_maybe_keep_cwl_sprm >> t_set_dataset_error
     t_maybe_keep_cwl_create_vis_symlink_archive >> t_set_dataset_error
@@ -756,4 +874,5 @@ with HMDAG(
     t_maybe_keep_cwl_sprm_to_json >> t_set_dataset_error
     t_maybe_keep_cwl_sprm_to_anndata >> t_set_dataset_error
     t_set_dataset_error >> t_join
+    t_maybe_create_dataset >> t_join
     t_join >> t_cleanup_tmpdir

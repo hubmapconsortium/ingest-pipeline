@@ -5,6 +5,8 @@ from airflow.operators.bash import BashOperator
 from airflow.operators.python import PythonOperator
 from airflow.operators.python import BranchPythonOperator
 from airflow.operators.dummy import DummyOperator
+from airflow.decorators import task
+
 from hubmap_operators.common_operators import (
     LogInfoOperator,
     JoinOperator,
@@ -33,6 +35,8 @@ from utils import (
     pythonop_get_dataset_state,
     get_cwl_cmd_from_workflows,
 )
+
+from extra_utils import build_tag_containers
 
 default_args = {
     "owner": "hubmap",
@@ -79,7 +83,15 @@ with HMDAG(
     def build_dataset_name(**kwargs):
         return inner_build_dataset_name(dag.dag_id, pipeline_name, **kwargs)
 
-    prepare_cwl1 = DummyOperator(task_id="prepare_cwl1")
+    @task(task_id="prepare_cwl1")
+    def prepare_cwl_cmd1(**kwargs):
+        if kwargs["dag_run"].conf.get("dryrun"):
+            cwl_path = Path(cwl_workflows[0]["workflow_path"]).parent
+            return build_tag_containers(cwl_path)
+        else:
+            return "No Container build required"
+
+    prepare_cwl1 = prepare_cwl_cmd1()
 
     def build_cwltool_cmd1(**kwargs):
         run_id = kwargs["run_id"]
@@ -139,9 +151,19 @@ with HMDAG(
         python_callable=utils.pythonop_maybe_keep,
         provide_context=True,
         op_kwargs={
-            "next_op": "move_data",
+            "next_op": "maybe_create_dataset",
             "bail_op": "set_dataset_error",
             "test_op": "pipeline_exec",
+        },
+    )
+
+    t_maybe_create_dataset = BranchPythonOperator(
+        task_id="maybe_create_dataset",
+        python_callable=utils.pythonop_dataset_dryrun,
+        provide_context=True,
+        op_kwargs={
+            "next_op": "send_create_dataset",
+            "bail_op": "join",
         },
     )
 
@@ -190,22 +212,24 @@ with HMDAG(
     t_join = JoinOperator(task_id="join")
     t_create_tmpdir = CreateTmpDirOperator(task_id="create_tmpdir")
     t_cleanup_tmpdir = CleanupTmpDirOperator(task_id="cleanup_tmpdir")
-    t_set_dataset_processing = SetDatasetProcessingOperator(task_id="set_dataset_processing")
     t_move_data = MoveDataOperator(task_id="move_data")
 
     (
         t_log_info
         >> t_create_tmpdir
-        >> t_send_create_dataset
-        >> t_set_dataset_processing
+
         >> prepare_cwl1
         >> t_build_cmd1
         >> t_pipeline_exec
         >> t_maybe_keep_cwl1
+        >> t_maybe_create_dataset
+
+        >> t_send_create_dataset
         >> t_move_data
         >> t_send_status
         >> t_join
     )
     t_maybe_keep_cwl1 >> t_set_dataset_error
     t_set_dataset_error >> t_join
+    t_maybe_create_dataset >> t_join
     t_join >> t_cleanup_tmpdir
