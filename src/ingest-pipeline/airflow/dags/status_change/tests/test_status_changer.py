@@ -1,3 +1,4 @@
+# Run from dags dir as `python -m unittest status_change.tests.test_status_changer`
 import unittest
 from functools import cached_property
 from unittest.mock import patch
