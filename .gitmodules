@@ -4,9 +4,6 @@
 [submodule "src/ingest-pipeline/submodules/ingest-validation-tools"]
 	path = src/ingest-pipeline/submodules/ingest-validation-tools
 	url = https://github.com/hubmapconsortium/ingest-validation-tools
-[submodule "src/ingest-pipeline/airflow/dags/cwl/portal-containers"]
-	path = src/ingest-pipeline/airflow/dags/cwl/portal-containers
-	url = https://github.com/hubmapconsortium/portal-containers
 [submodule "src/ingest-pipeline/airflow/dags/cwl/salmon-rnaseq"]
 	path = src/ingest-pipeline/airflow/dags/cwl/salmon-rnaseq
 	url = https://github.com/hubmapconsortium/salmon-rnaseq
@@ -82,3 +79,6 @@
 [submodule "src/ingest-pipeline/airflow/dags/cwl/ribca"]
 	path = src/ingest-pipeline/airflow/dags/cwl/ribca
 	url = https://github.com/hubmapconsortium/ribca
+[submodule "src/ingest-pipeline/airflow/dags/cwl/portal-containers"]
+	path = src/ingest-pipeline/airflow/dags/cwl/portal-containers
+	url = https://github.com/hubmapconsortium/portal-containers
