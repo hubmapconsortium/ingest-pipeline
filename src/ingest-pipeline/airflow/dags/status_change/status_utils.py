@@ -74,7 +74,7 @@ ENTITY_STATUS_MAP = {
 
 
 # This is simplified from pythonop_get_dataset_state in utils
-def get_submission_context(token: str, uuid: str) -> Dict[str, Any]:
+def get_submission_context(token: str, uuid: str) -> dict[str, Any]:
     """
     uuid can also be a HuBMAP ID.
     """
