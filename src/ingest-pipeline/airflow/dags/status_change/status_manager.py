@@ -5,6 +5,7 @@ import logging
 from functools import cached_property
 from typing import Literal, Optional, Union
 
+from airflow.configuration import conf as airflow_conf
 from airflow.providers.http.hooks.http import HttpHook
 
 from .status_utils import ENTITY_STATUS_MAP, Statuses, get_submission_context
@@ -199,16 +200,9 @@ class StatusChanger:
                 else self._get_status(status.lower())
             )
 
-    status_map = {}
-    """
-    Add any statuses to map that require a specific set of methods.
-    Example:
-    {
-        # "Statuses.UPLOAD_INVALID": [_set_entity_api_status, send_email],
-        # "Statuses.DATASET_INVALID": [_set_entity_api_status, send_email],
-        # "Statuses.DATASET_PROCESSING": [_set_entity_api_status],
-    }
-    """
+    # Add any statuses to map that require a specific set of methods in addition to
+    # default _set_entity_api_data.
+    status_map = {Statuses.UPLOAD_REORGANIZED: ["_check_priority_reorganized"]}
 
     def update(self) -> None:
         """
@@ -217,10 +211,8 @@ class StatusChanger:
         existing status on entity), pass off to EntityUpdater instead so
         other fields get updated.
         - Validates fields to change, adds status that was validated in __init__.
-        - If a status was passed in and the status_map is populated:
-            - Run methods assigned to that status in the status_map.
-        - Otherwise:
-            - Follows default EntityUpdater._set_entity_api_data() process.
+        - Runs EntityUpdater._set_entity_api_data() process.
+        - Also run methods assigned to that status in the status_map, if any.
         """
         if self.status is None and self.fields_to_change:
             self.fields_to_overwrite.pop("status", None)
@@ -240,14 +232,14 @@ class StatusChanger:
             ).update()
             return
         elif self.status is None and not self.fields_to_change:
-            logging.info(f"No status to update or fields to change for {self.uuid}, not making any changes in entity-api.")
+            logging.info(
+                f"No status to update or fields to change for {self.uuid}, not making any changes in entity-api."
+            )
             return
         self._validate_fields_to_change()
-        if self.status in self.status_map:
-            for func in self.status_map[self.status]:
-                func()
-        else:
-            self._set_entity_api_data()
+        self._set_entity_api_data()
+        for func in self.status_map.get(self.status, []):
+            getattr(self, func)()
 
     def _validate_fields_to_change(self):
         self.fields_to_change["status"] = self.status
@@ -291,6 +283,26 @@ class StatusChanger:
                 extra_status.lower() == status
             ), f"Entity {self.uuid} passed multiple statuses ({status} and {extra_status})."
         return status
+
+    """
+    # Handle status = None
+    if not status:
+        if self.fields_to_change:
+            self.fields_to_overwrite.pop("status", None)
+            self.fields_to_append_to.pop("status", None)
+            logging.info(
+                f"No status to update, instantiating EntityUpdater instead to update other fields: {', '.join(self.fields_to_change.keys())}"
+            )
+            super().update()
+        else:
+            raise EntityUpdateException(
+                "No status passed to StatusChanger and no additional fields provided to change."
+            )
+    # Should definitely have Statuses type at this point
+    assert isinstance(
+        status, Statuses
+    ), f"Error while checking status '{status}' of type {type(status)}."
+    """
 
     def send_email(self) -> None:
         # This is underdeveloped and also requires a separate PR
@@ -366,3 +378,27 @@ class StatusChanger:
             existing_field_data = self.entity_data[field]
             new_field_data[field] = existing_field_data + f" {self.delimiter} " + value
         return new_field_data
+
+    def send_slack_message(self, msg: str, channel: str) -> dict:
+        if not (msg and channel):
+            raise EntityUpdateException(
+                f"Request to send Slack message missing message text (submitted: '{msg}') or target channel (submitted: '{channel}')."
+            )
+        http_hook = HttpHook("PUT", http_conn_id="ingest_api_connection")
+        payload = json.dumps({"message": msg, "channel": channel})
+        headers = {"Authorization": f"Bearer {self.token}", "Content-Type": "application/json"}
+        response = http_hook.run("/notify", payload, headers)
+        response.raise_for_status()
+        return response.json()
+
+    def _check_priority_reorganized(self) -> None:
+        priority_reorganized_channel = (
+            airflow_conf.as_dict().get("slack_channels", {}).get("PRIORITY_UPLOAD_REORGANIZED", "")
+        )
+        if project_list := self.entity_data.get("priority_project_list"):
+            self.send_slack_message(
+                f"Priority upload {self.entity_data.get('uuid')} reorganized. Priority upload categories: {', '.join(cat for cat in project_list)}.",
+                str(
+                    priority_reorganized_channel
+                ),  # type checker thinks this could also be a tuple
+            )
