@@ -1,8 +1,8 @@
+# Run from dags dir as `python -m unittest status_change.tests.test_status_changer`
 import unittest
 from functools import cached_property
 from unittest.mock import MagicMock, patch
 
-from status_change.slack_formatter import format_priority_reorganized_msg
 from status_change.status_manager import (
     EntityUpdateException,
     EntityUpdater,
@@ -79,7 +79,8 @@ class TestEntityUpdater(unittest.TestCase):
 
     @cached_property
     def upload_valid(self):
-        with patch("status_change.status_manager.get_submission_context"):
+        with patch("status_change.status_manager.get_submission_context") as mock_mthd:
+#            mock_mthd.return_value={"entity_type":"Upload"}
             return StatusChanger(
                 "upload_valid_uuid",
                 "upload_valid_token",
@@ -155,6 +156,23 @@ class TestEntityUpdater(unittest.TestCase):
         with_extra_option_and_field.update()
         self.assertIn({"check_response": False}, hhr_mock.call_args.args)
         self.assertIn('{"test_extra_field": true, "status": "valid"}', hhr_mock.call_args.args)
+
+    @patch("status_change.status_manager.get_submission_context")
+    @patch("status_change.status_manager.HttpHook.run")
+    def test_extra_fields_bad(self, hhr_mock, context_mock):
+        context_mock.return_value = {
+            "status": "processing",
+            "entity_type": "Upload",
+        }
+        with_extra_option_and_field = StatusChanger(
+            "extra_options_uuid",
+            "extra_options_token",
+            status=Statuses.UPLOAD_VALID,
+            fields_to_overwrite={"test_extra_field": True},
+            verbose=False,
+        )
+        self.assertRaises(Exception, with_extra_option_and_field.update)
+        hhr_mock.assert_not_called()
 
     @patch("status_change.status_manager.HttpHook.run")
     def test_valid_status_in_request(self, hhr_mock):
