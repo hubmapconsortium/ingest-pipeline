@@ -128,6 +128,9 @@ def create_new_uuid(row, source_entity, entity_factory, primary_entity, dryrun=F
             contains_human_genetic_sequences
             == source_entity.prop_dct["contains_human_genetic_sequences"]
         )
+
+    priority_project_list = source_entity.prop_dct.get("priority_project_list", [])
+
     group_uuid = source_entity.prop_dct["group_uuid"]
     if "description" in row:
         description = str(row["description"])
@@ -164,6 +167,7 @@ def create_new_uuid(row, source_entity, entity_factory, primary_entity, dryrun=F
             group_uuid=group_uuid,
             description=description,
             is_epic=is_epic,
+            priority_project_list=priority_project_list,
         )
         return rslt["uuid"]
 
@@ -579,6 +583,7 @@ def reorganize_multiassay(source_uuid, verbose=False, **kwargs) -> None:
 
     source_entity = entity_factory.get(source_uuid)
     full_entity = SoftAssayClient(list(source_entity.full_path.glob("*metadata.tsv")), auth_tok)
+    # TODO: Add priority_project_list here
     create_multiassay_component(
         source_uuid, auth_tok, full_entity.assay_components, str(source_entity.full_path)
     )
