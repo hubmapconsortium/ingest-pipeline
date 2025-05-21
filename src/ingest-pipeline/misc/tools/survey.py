@@ -692,7 +692,8 @@ class EntityFactory:
                        direct_ancestor_uuids,
                        group_uuid,
                        description,
-                       is_epic):
+                       is_epic,
+                       priority_project_list=[]):
         """
         Creates an entirely new Dataset entity, including updating the databases.
         The created Dataset is returned.  Only a single data_type/assay_type is
@@ -704,7 +705,8 @@ class EntityFactory:
                 "dataset_type": assay_type,
                 "direct_ancestor_uuids": direct_ancestor_uuids,
                 "group_uuid": group_uuid,
-                "description": description}
+                "description": description,
+                "priority_project_list": priority_project_list}
         if is_epic:
             data.update({"creation_action": "External Process"})
         print(f'Creating dataset with data {data}')
