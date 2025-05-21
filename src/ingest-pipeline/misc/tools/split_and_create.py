@@ -583,7 +583,8 @@ def reorganize_multiassay(source_uuid, verbose=False, **kwargs) -> None:
 
     source_entity = entity_factory.get(source_uuid)
     full_entity = SoftAssayClient(list(source_entity.full_path.glob("*metadata.tsv")), auth_tok)
-    # TODO: Add priority_project_list here
+    # We are NOT passing in the priority project list here. Doesn't seem that it'd be helpful to have that information
+    # tied on the components of a multi-assay dataset. (05/21/2025 - Juan Muerto)
     create_multiassay_component(
         source_uuid, auth_tok, full_entity.assay_components, str(source_entity.full_path)
     )
