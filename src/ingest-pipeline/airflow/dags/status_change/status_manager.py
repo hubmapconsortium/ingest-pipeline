@@ -23,116 +23,6 @@ from schema_utils import (
 ENTITY_JSON_SCHEMA = "entity_metadata_schema.yml"  # from this repo's schemata directory
 
 
-# class StatusChangeAction:
-#     def __init__(self, callback):
-#         self.callback = callback
-
-#     def run(self, **kwargs):
-#         self.callback(**kwargs)
-
-
-# STATUS_CHANGE_TRIGGER_TBL = {
-#     ("*", "error"): [StatusChangeAction(send_email)]
-# }
-
-
-# class EntityUpdater:
-#     def __init__(
-#         self,
-#         uuid: str,
-#         token: str,
-#         http_conn_id: str = "entity_api_connection",
-#         fields_to_overwrite: Optional[dict] = None,
-#         fields_to_append_to: Optional[dict] = None,
-#         delimiter: str = "|",
-#         extra_options: Optional[dict] = None,
-#         verbose: bool = True,
-#     ):
-#         self.uuid = uuid
-#         self.token = token
-#         self.http_conn_id = http_conn_id
-#         self.fields_to_overwrite = fields_to_overwrite if fields_to_overwrite else {}
-#         self.fields_to_append_to = fields_to_append_to if fields_to_append_to else {}
-#         self.delimiter = delimiter
-#         self.extra_options = extra_options if extra_options else {}
-#         self.verbose = verbose
-#         self.entity_type = self.get_entity_type()
-
-#     @cached_property
-#     def entity_data(self):
-#         rslt = get_submission_context(self.token, self.uuid)
-#         from pprint import pprint
-#         print("RSLT follows")
-#         pprint(rslt)
-#         print("RSLT above")
-#         assert_json_matches_schema(rslt, "entity_metadata_schema.yml")
-#         return rslt
-
-#     def get_entity_type(self) -> str:
-#         try:
-#             entity_type = self.entity_data["entity_type"]
-#             assert entity_type is not None
-#             return entity_type
-#         except Exception as excp:
-#             raise EntityUpdateException(
-#                 f"""
-#                 Could not find entity type for {self.uuid}.
-#                 Error {excp}
-#                 """
-#             )
-
-#     @cached_property
-#     def fields_to_chnge(self) -> dict:
-#         return ()
-
-#     def update(self) -> None:
-#         """
-#         This is the main method for using the EntityUpdater.
-#         - Appends values of fields_to_append_to to existing entity-api fields.
-#         - Compiles fields to change: fields_to_overwrite + appended fields,
-#         ensuring there are no duplicates.
-#         - Validates existence of fields_to_change against fields in entity-api data.
-#         - If send_to_status_changer and "status" is found in fields_to_change,
-#         creates a StatusChanger instance and passes validated data.
-#         - Otherwise, makes a PUT request with fields_to_change payload to entity-api.
-#         - Returns response.json() or raises Exception.
-#         """
-#         pass
-
-#     def _validate_fields_to_change(self):
-#         #raise RuntimeError("I want to do away with this method")
-#         pass
-
-    
-# class StatusChanger(EntityUpdater):
-#     def __init__(
-#         self,
-#         uuid: str,
-#         token: str,
-#         http_conn_id: str = "entity_api_connection",
-#         fields_to_overwrite: Optional[dict] = None,
-#         fields_to_append_to: Optional[dict] = None,
-#         delimiter: str = "|",
-#         extra_options: Optional[dict] = None,
-#         verbose: bool = True,
-#         # Additional fields added to support privileged field "status"
-#         status: Optional[Union[Statuses, str]] = None,
-#         entity_type: Optional[Literal["Dataset", "Upload", "Publication"]] = None,
-#     ):
-#         super().__init__(
-#             uuid,
-#             token,
-#             http_conn_id,
-#             fields_to_overwrite,
-#             fields_to_append_to,
-#             delimiter,
-#             extra_options,
-#             verbose
-#         )
-
-#     def send_email(self):
-#         raise RuntimeError("I wanted to move this elsewere")
-######## New Version Above
     
 class EntityUpdater:
     def __init__(
@@ -158,7 +48,9 @@ class EntityUpdater:
 
     @cached_property
     def entity_data(self):
-        return get_submission_context(self.token, self.uuid)
+        rslt = get_submission_context(self.token, self.uuid)
+        assert_json_matches_schema(rslt, "entity_metadata_schema.yml")
+        return rslt
 
     def get_entity_type(self):
         try:
@@ -214,6 +106,7 @@ class EntityUpdater:
             {self.fields_to_change}
             """
         )
+        assert_json_matches_schema(self.fields_to_change, "entity_metadata_schema.yml")
         if self.verbose:
             logging.info(f"Updating {self.uuid} with data {self.fields_to_change}...")
         try:
