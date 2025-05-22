@@ -234,9 +234,7 @@ class StatusChanger:
         - Otherwise:
             - Follows default EntityUpdater._set_entity_api_data() process.
         """
-        logging.info("StatusChanger POINT 1")
         if self.status is None and self.fields_to_change:
-            logging.info("StatusChanger POINT 2")
             self.fields_to_overwrite.pop("status", None)
             self.fields_to_append_to.pop("status", None)
             logging.info(
@@ -254,24 +252,16 @@ class StatusChanger:
             ).update()
             return
         elif self.status is None and not self.fields_to_change:
-            logging.info("StatusChanger POINT 3")
             logging.info(f"No status to update or fields to change for {self.uuid}, not making any changes in entity-api.")
             return
-        logging.info("StatusChanger POINT 4")
         self._validate_fields_to_change()
-        logging.info("StatusChanger POINT 5")
         if self.status in self.status_map:
-            logging.info("StatusChanger POINT 6")
             for func in self.status_map[self.status]:
                 func()
         else:
-            logging.info("StatusChanger POINT 7")
             self._set_entity_api_data()
-        logging.info("StatusChanger POINT 8")
-
 
     def _validate_fields_to_change(self):
-        logging.info(f"StatusChanger 4a: {self.fields_to_change} {self.status}")
         self.fields_to_change["status"] = self.status
 
     def _get_status(self, status: str) -> Optional[Statuses]:
