@@ -10,14 +10,15 @@
   'entity_metadata':
      'type': 'object'
      'properties':
-        'dag_provenance': {'$ref': 'code_provenance_info_schema.yml#/definitions/code_provenance_info'}
-        'dag_provenance_list': {'$ref': 'code_provenance_info_list_schema.yml#/definitions/code_provenance_info_list'}
-        'files': {'$ref': 'file_info_schema.yml#/definitions/file_info'}
-        'files_info_alt_path': {'type': 'string'}
-        'entity_type': {
+#        'dag_provenance': {'$ref': 'code_provenance_info_schema.yml#/definitions/code_provenance_info'}
+#        'dag_provenance_list': {'$ref': 'code_provenance_info_list_schema.yml#/definitions/code_provenance_info_list'}
+#        'files': {'$ref': 'file_info_schema.yml#/definitions/file_info'}
+#        'files_info_alt_path':
+#          'type': 'string'
+        'entity_type':
           'type': 'string'
           'enum': ['Upload', 'Dataset', 'Publication']
-          }
-     'oneOf':
-       - 'required': ['dag_provenance']
-       - 'required': ['dag_provenance_list']
+#     'required': ['entity_type']
+#    'oneOf':
+#       - 'required': ['dag_provenance']
+#       - 'required': ['dag_provenance_list']
