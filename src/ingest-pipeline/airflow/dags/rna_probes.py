@@ -4,6 +4,8 @@ from pathlib import Path
 from airflow.operators.bash import BashOperator
 from airflow.operators.dummy import DummyOperator
 from airflow.operators.python import BranchPythonOperator, PythonOperator
+from airflow.decorators import task
+
 from hubmap_operators.common_operators import (
     CleanupTmpDirOperator,
     CreateTmpDirOperator,
@@ -15,7 +17,7 @@ from hubmap_operators.common_operators import (
 
 import utils
 from utils import (
-    get_absolute_workflows,
+    get_absolute_workflow,
     get_cwltool_base_cmd,
     get_dataset_uuid,
     get_parent_dataset_uuids_list,
@@ -31,7 +33,10 @@ from utils import (
     get_queue_resource,
     get_threads_resource,
     get_preserve_scratch_resource,
+    get_cwl_cmd_from_workflows,
 )
+
+from extra_utils import build_tag_containers
 
 
 default_args = {
@@ -48,12 +53,14 @@ default_args = {
     "on_failure_callback": utils.create_dataset_state_error_callback(get_uuid_for_error),
 }
 
+
 def find_rna_metadata_file(data_dir: Path) -> Path:
     for path in data_dir.glob("*.tsv"):
         name_lower = path.name.lower()
         if path.is_file() and "rna" in name_lower and "metadata" in name_lower:
             return path
     raise ValueError("Couldn't find RNA-seq metadata file")
+
 
 with HMDAG(
     "rna_with_probes",
@@ -65,24 +72,49 @@ with HMDAG(
         "preserve_scratch": get_preserve_scratch_resource("rna_with_probes"),
     },
 ) as dag:
-    cwl_workflows = get_absolute_workflows(
-        Path("rna-probes-pipeline", "pipeline.cwl"),
-        Path("azimuth-annotate", "pipeline.cwl"),
-        Path("portal-containers", "h5ad-to-arrow.cwl"),
-        Path("portal-containers", "anndata-to-ui.cwl"),
-    )
+    cwl_workflows = [
+        {
+            "workflow_path": str(
+                get_absolute_workflow(Path("rna-probes-pipeline", "pipeline.cwl"))
+            ),
+            "documentation_url": "",
+        },
+        {
+            "workflow_path": str(get_absolute_workflow(Path("azimuth-annotate", "pipeline.cwl"))),
+            "documentation_url": "",
+        },
+        {
+            "workflow_path": str(
+                get_absolute_workflow(Path("portal-containers", "h5ad-to-arrow.cwl"))
+            ),
+            "documentation_url": "",
+        },
+        {
+            "workflow_path": str(
+                get_absolute_workflow(Path("portal-containers", "anndata-to-ui.cwl"))
+            ),
+            "documentation_url": "",
+        },
+    ]
 
     def build_dataset_name(**kwargs):
         return inner_build_dataset_name(dag.dag_id, "rna-probes-pipeline", **kwargs)
 
-    prepare_cwl1 = DummyOperator(task_id="prepare_cwl1")
+    @task(task_id="prepare_cwl1")
+    def prepare_cwl1_cmd(**kwargs):
+        if kwargs["dag_run"].conf.get("dryrun"):
+            cwl_path = Path(cwl_workflows[0]["workflow_path"]).parent
+            return build_tag_containers(cwl_path)
+        else:
+            return "No Container build required"
+
+    prepare_cwl1 = prepare_cwl1_cmd()
 
     prepare_cwl2 = DummyOperator(task_id="prepare_cwl2")
 
     prepare_cwl3 = DummyOperator(task_id="prepare_cwl3")
 
     prepare_cwl4 = DummyOperator(task_id="prepare_cwl4")
-
 
     def build_cwltool_cmd1(**kwargs):
         run_id = kwargs["run_id"]
@@ -96,7 +128,8 @@ with HMDAG(
         unique_source_types = set()
         for parent_uuid in get_parent_dataset_uuids_list(**kwargs):
             dataset_state = pythonop_get_dataset_state(
-                dataset_uuid_callable=lambda **kwargs: parent_uuid, **kwargs)
+                dataset_uuid_callable=lambda **kwargs: parent_uuid, **kwargs
+            )
             source_type = dataset_state.get("source_type")
             if source_type == "mixed":
                 print("Force failure. Should only be one unique source_type for a dataset.")
@@ -108,26 +141,22 @@ with HMDAG(
         else:
             source_type = unique_source_types.pop().lower()
 
-        command = [
-            *get_cwltool_base_cmd(tmpdir),
-            "--outdir",
-            tmpdir / "cwl_out",
-            "--parallel",
-            cwl_workflows[0],
-            "--assay",
-            "10x_v3",
-            "--threads",
-            get_threads_resource(dag.dag_id),
-            "--organism",
-            source_type,
-            "--fastq_dir",
-            data_dir,
-            "--metadata_dir",
-            data_dir
+        cwl_params = [
+            {"parameter_name": "--parallel", "value": ""},
         ]
 
-        return join_quote_command_str(command)
+        input_parameters = [
+            {"parameter_name": "--assay", "value": "10x_v3"},
+            {"parameter_name": "--threads", "value": get_threads_resource(dag.dag_id)},
+            {"parameter_name": "--organism", "value": source_type},
+            {"parameter_name": "--fastq_dir", "value": str(data_dir)},
+        ]
 
+        command = get_cwl_cmd_from_workflows(
+            cwl_workflows, 0, input_parameters, tmpdir, kwargs["ti"], cwl_params
+        )
+
+        return join_quote_command_str(command)
 
     def build_cwltool_cmd2(**kwargs):
         run_id = kwargs["run_id"]
@@ -135,26 +164,23 @@ with HMDAG(
         print("tmpdir: ", tmpdir)
 
         # get organ type
-        ds_rslt = pythonop_get_dataset_state(
-            dataset_uuid_callable=get_dataset_uuid,
-            **kwargs
-        )
+        ds_rslt = pythonop_get_dataset_state(dataset_uuid_callable=get_dataset_uuid, **kwargs)
 
-        organ_list = list(set(ds_rslt['organs']))
-        organ_code = organ_list[0] if len(organ_list) == 1 else 'multi'
+        organ_list = list(set(ds_rslt["organs"]))
+        organ_code = organ_list[0] if len(organ_list) == 1 else "multi"
 
-        command = [
-            *get_cwltool_base_cmd(tmpdir),
-            cwl_workflows[1],
-            "--reference",
-            organ_code,
-            "--matrix",
-            "expr.h5ad",
-            "--secondary-analysis-matrix",
-            "secondary_analysis.h5ad",
-            "--assay",
-            "10x_v3",
+        workflows = kwargs["ti"].xcom_pull(key="cwl_workflows", task_ids="build_cmd1")
+
+        input_parameters = [
+            {"parameter_name": "--reference", "value": organ_code},
+            {"parameter_name": "--matrix", "value": "expr.h5ad"},
+            {"parameter_name": "--secondary-analysis-matrix", "value": "secondary_analysis.h5ad"},
+            {"parameter_name": "--assay", "value": "10x_v3"},
         ]
+
+        command = get_cwl_cmd_from_workflows(
+            workflows, 1, input_parameters, tmpdir, kwargs["ti"],
+        )
 
         return join_quote_command_str(command)
 
@@ -163,14 +189,17 @@ with HMDAG(
         tmpdir = get_tmp_dir_path(run_id)
         print("tmpdir: ", tmpdir)
 
-        command = [
-            *get_cwltool_base_cmd(tmpdir),
-            cwl_workflows[1],
-            "--input_dir",
-            # This pipeline invocation runs in a 'hubmap_ui' subdirectory,
-            # so use the parent directory as input
-            "..",
+        workflows = kwargs["ti"].xcom_pull(key="cwl_workflows", task_ids="build_cmd2")
+
+        cwl_parameters = [
+            {"parameter_name": "--outdir", "value": str(tmpdir / "cwl_out/hubmap_ui")},
         ]
+        input_parameters = [
+            {"parameter_name": "--input_dir", "value": str(tmpdir / "cwl_out")},
+        ]
+        command = get_cwl_cmd_from_workflows(
+            workflows, 2, input_parameters, tmpdir, kwargs["ti"], cwl_parameters
+        )
 
         return join_quote_command_str(command)
 
@@ -179,17 +208,19 @@ with HMDAG(
         tmpdir = get_tmp_dir_path(run_id)
         print("tmpdir: ", tmpdir)
 
-        command = [
-            *get_cwltool_base_cmd(tmpdir),
-            cwl_workflows[2],
-            "--input_dir",
-            # This pipeline invocation runs in a 'hubmap_ui' subdirectory,
-            # so use the parent directory as input
-            "..",
+        workflows = kwargs["ti"].xcom_pull(key="cwl_workflows", task_ids="build_cmd2")
+
+        cwl_parameters = [
+            {"parameter_name": "--outdir", "value": str(tmpdir / "cwl_out/hubmap_ui")},
         ]
+        input_parameters = [
+            {"parameter_name": "--input_dir", "value": str(tmpdir / "cwl_out")},
+        ]
+        command = get_cwl_cmd_from_workflows(
+            workflows, 3, input_parameters, tmpdir, kwargs["ti"], cwl_parameters
+        )
 
         return join_quote_command_str(command)
-
 
     t_build_cmd1 = PythonOperator(
         task_id="build_cmd1",
@@ -219,6 +250,7 @@ with HMDAG(
         task_id="pipeline_exec",
         bash_command=""" \
         tmp_dir={{tmp_dir_path(run_id)}} ; \
+        mkdir -p ${tmp_dir}/cwl_out ; \
         {{ti.xcom_pull(task_ids='build_cmd1')}} > $tmp_dir/session.log 2>&1 ; \
         echo $?
         """,
@@ -228,7 +260,6 @@ with HMDAG(
         task_id="pipeline_exec_azimuth_annotate",
         bash_command=""" \
         tmp_dir={{tmp_dir_path(run_id)}} ; \
-        cd "$tmp_dir"/cwl_out ; \
         {{ti.xcom_pull(task_ids='build_cmd2')}} >> $tmp_dir/session.log 2>&1 ; \
         echo $?
         """,
@@ -239,9 +270,7 @@ with HMDAG(
         bash_command=""" \
         tmp_dir={{tmp_dir_path(run_id)}} ; \
         ds_dir="{{ti.xcom_pull(task_ids="send_create_dataset")}}" ; \
-        cd "$tmp_dir"/cwl_out ; \
-        mkdir -p hubmap_ui ; \
-        cd hubmap_ui ; \
+        mkdir -p ${tmp_dir}/cwl_out/hubmap_ui ; \
         {{ti.xcom_pull(task_ids='build_cmd3')}} >> $tmp_dir/session.log 2>&1 ; \
         echo $?
         """,
@@ -252,9 +281,6 @@ with HMDAG(
         bash_command=""" \
         tmp_dir={{tmp_dir_path(run_id)}} ; \
         ds_dir="{{ti.xcom_pull(task_ids="send_create_dataset")}}" ; \
-        cd "$tmp_dir"/cwl_out ; \
-        mkdir -p hubmap_ui ; \
-        cd hubmap_ui ; \
         {{ti.xcom_pull(task_ids='build_cmd4')}} >> $tmp_dir/session.log 2>&1 ; \
         echo $?
         """,
@@ -298,9 +324,19 @@ with HMDAG(
         python_callable=utils.pythonop_maybe_keep,
         provide_context=True,
         op_kwargs={
-            "next_op": "move_data",
+            "next_op": "maybe_create_dataset",
             "bail_op": "set_dataset_error",
             "test_op": "convert_for_ui_2",
+        },
+    )
+
+    t_maybe_create_dataset = BranchPythonOperator(
+        task_id="maybe_create_dataset",
+        python_callable=utils.pythonop_dataset_dryrun,
+        provide_context=True,
+        op_kwargs={
+            "next_op": "send_create_dataset",
+            "bail_op": "join",
         },
     )
 
@@ -332,7 +368,9 @@ with HMDAG(
     send_status_msg = make_send_status_msg_function(
         dag_file=__file__,
         retcode_ops=["pipeline_exec", "move_data", "convert_for_ui", "convert_for_ui_2"],
-        cwl_workflows=cwl_workflows,
+        cwl_workflows=lambda **kwargs: kwargs["ti"].xcom_pull(
+            key="cwl_workflows", task_ids="build_cmd4"
+        ),
     )
 
     t_send_status = PythonOperator(
@@ -351,24 +389,29 @@ with HMDAG(
     (
         t_log_info
         >> t_create_tmpdir
-        >> t_send_create_dataset
-        >> t_set_dataset_processing
+
         >> prepare_cwl1
         >> t_build_cmd1
         >> t_pipeline_exec
         >> t_maybe_keep_cwl1
+
         >> prepare_cwl2
         >> t_build_cmd2
         >> t_pipeline_exec_azimuth_annotate
         >> t_maybe_keep_cwl2
+
         >> prepare_cwl3
         >> t_build_cmd3
         >> t_convert_for_ui
         >> t_maybe_keep_cwl3
+
         >> prepare_cwl4
         >> t_build_cmd4
         >> t_convert_for_ui_2
         >> t_maybe_keep_cwl4
+        >> t_maybe_create_dataset
+
+        >> t_send_create_dataset
         >> t_move_data
         >> t_send_status
         >> t_join
@@ -378,4 +421,5 @@ with HMDAG(
     t_maybe_keep_cwl3 >> t_set_dataset_error
     t_maybe_keep_cwl4 >> t_set_dataset_error
     t_set_dataset_error >> t_join
+    t_maybe_create_dataset >> t_join
     t_join >> t_cleanup_tmpdir
