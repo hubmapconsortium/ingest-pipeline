@@ -7,6 +7,8 @@ from airflow import DAG
 from airflow.operators.bash import BashOperator
 from airflow.operators.dummy import DummyOperator
 from airflow.operators.python import BranchPythonOperator, PythonOperator
+from airflow.decorators import task
+
 from hubmap_operators.common_operators import (
     CleanupTmpDirOperator,
     CreateTmpDirOperator,
@@ -18,8 +20,7 @@ from hubmap_operators.common_operators import (
 
 import utils
 from utils import (
-    get_absolute_workflows,
-    get_cwltool_base_cmd,
+    get_absolute_workflow,
     get_dataset_uuid,
     get_parent_dataset_uuids_list,
     get_parent_data_dirs_list,
@@ -34,7 +35,10 @@ from utils import (
     get_queue_resource,
     get_threads_resource,
     get_preserve_scratch_resource,
+    get_cwl_cmd_from_workflows,
 )
+
+from extra_utils import build_tag_containers
 
 MultiomeSequencingDagParameters = namedtuple(
     "MultiomeSequencingDagParameters",
@@ -48,14 +52,12 @@ MultiomeSequencingDagParameters = namedtuple(
     ],
 )
 
-
 def find_atac_metadata_file(data_dir: Path) -> Path:
     for path in data_dir.glob("*.tsv"):
         name_lower = path.name.lower()
         if path.is_file() and "atac" in name_lower and "metadata" in name_lower:
             return path
     raise ValueError("Couldn't find ATAC-seq metadata file")
-
 
 def generate_multiome_dag(params: MultiomeSequencingDagParameters) -> DAG:
     default_args = {
@@ -82,16 +84,42 @@ def generate_multiome_dag(params: MultiomeSequencingDagParameters) -> DAG:
             "preserve_scratch": get_preserve_scratch_resource(params.dag_id),
         },
     ) as dag:
-        cwl_workflows = get_absolute_workflows(
-            Path("multiome-rna-atac-pipeline", "pipeline.cwl"),
-            Path("azimuth-annotate", "pipeline.cwl"),
-            Path("portal-containers", "mudata-to-ui.cwl"),
-        )
+        workflow_version = "1.0.0"
+        workflow_description = "The pipeline for multiome RNA-ATACseq data uses Salmon for alignment free quasi mapping of reads from RNA sequencing to the HG38 reference genome and HISAT2 for short read alignment of ATACseq reads to the same genome.  Barcodes are then mapped between components of the assay to generate an annotated data matrix with consolidated RNA and ATACseq data.  This annotated data matrix is then passed to the Muon package for dimensionality reduction, clustering, and multiomic factor analysis.  Cell type annotations are provided by Azimuth when available for the type of tissue being analyzed."
+
+        cwl_workflows = [
+            {
+                "workflow_path": str(
+                    get_absolute_workflow(Path("multiome-rna-atac-pipeline", "pipeline.cwl"))
+                ),
+                "documentation_url": "",
+            },
+            {
+                "workflow_path": str(
+                    get_absolute_workflow(Path("azimuth-annotate", "pipeline.cwl"))
+                ),
+                "documentation_url": "",
+            },
+            {
+                "workflow_path": str(
+                    get_absolute_workflow(Path("portal-containers", "mudata-to-ui.cwl"))
+                ),
+                "documentation_url": "",
+            },
+        ]
 
         def build_dataset_name(**kwargs):
             return inner_build_dataset_name(dag.dag_id, params.pipeline_name, **kwargs)
 
-        prepare_cwl1 = DummyOperator(task_id="prepare_cwl1")
+        @task(task_id="prepare_cwl1")
+        def prepare_cwl_cmd1(**kwargs):
+            if kwargs["dag_run"].conf.get("dryrun"):
+                cwl_path = Path(cwl_workflows[0]["workflow_path"]).parent
+                return build_tag_containers(cwl_path)
+            else:
+                return "No Container build required"
+
+        prepare_cwl1 = prepare_cwl_cmd1()
 
         prepare_cwl2 = DummyOperator(task_id="prepare_cwl2")
 
@@ -109,7 +137,8 @@ def generate_multiome_dag(params: MultiomeSequencingDagParameters) -> DAG:
             unique_source_types = set()
             for parent_uuid in get_parent_dataset_uuids_list(**kwargs):
                 dataset_state = pythonop_get_dataset_state(
-                    dataset_uuid_callable=lambda **kwargs: parent_uuid, **kwargs)
+                    dataset_uuid_callable=lambda **kwargs: parent_uuid, **kwargs
+                )
                 source_type = dataset_state.get("source_type")
                 if source_type == "mixed":
                     print("Force failure. Should only be one unique source_type for a dataset.")
@@ -121,33 +150,37 @@ def generate_multiome_dag(params: MultiomeSequencingDagParameters) -> DAG:
             else:
                 source_type = unique_source_types.pop().lower()
 
-            command = [
-                *get_cwltool_base_cmd(tmpdir),
-                "--outdir",
-                tmpdir / "cwl_out",
-                "--parallel",
-                cwl_workflows[0],
-                "--threads_rna",
-                get_threads_resource(dag.dag_id),
-                "--threads_atac",
-                get_threads_resource(dag.dag_id),
-                "--organism",
-                source_type
+            cwl_params = [
+                {"parameter_name": "--parallel", "value": ""},
             ]
 
-            for component in ["RNA", "ATAC"]:
-                command.append(f"--assay_{component.lower()}")
-                command.append(getattr(params, f"assay_{component.lower()}"))
-                for data_dir in data_dirs:
-                    command.append(f"--fastq_dir_{component.lower()}")
-                    command.append(data_dir / Path(f"raw/fastq/{component}"))
+            input_parameters = [
+                {"parameter_name": "--threads_rna", "value": get_threads_resource(dag.dag_id)},
+                {"parameter_name": "--threads_atac", "value": get_threads_resource(dag.dag_id)},
+                {"parameter_name": "--organism", "value": source_type},
+                {"parameter_name": "--assay_rna", "value": params.assay_rna},
+                {
+                    "parameter_name": "--fastq_dir_rna",
+                    "value": [str(data_dir / Path(f"raw/fastq/RNA")) for data_dir in data_dirs],
+                },
+                {"parameter_name": "--assay_atac", "value": params.assay_atac},
+                {
+                    "parameter_name": "--fastq_dir_atac",
+                    "value": [str(data_dir / Path(f"raw/fastq/ATAC")) for data_dir in data_dirs],
+                },
+            ]
 
             atac_metadata_files = [find_atac_metadata_file(data_dir) for data_dir in data_dirs]
             if params.requires_one_atac_metadata_file:
                 if (count := len(atac_metadata_files)) != 1:
                     raise ValueError(f"Need 1 ATAC-seq metadata file, found {count}")
-                command.append("--atac_metadata_file")
-                command.append(atac_metadata_files[0])
+                input_parameters.append(
+                    {"parameter_name": "--atac_metadata_file", "value": str(atac_metadata_files[0])}
+                )
+
+            command = get_cwl_cmd_from_workflows(
+                cwl_workflows, 0, input_parameters, tmpdir, kwargs["ti"], cwl_params
+            )
 
             return join_quote_command_str(command)
 
@@ -157,23 +190,27 @@ def generate_multiome_dag(params: MultiomeSequencingDagParameters) -> DAG:
             print("tmpdir: ", tmpdir)
 
             # get organ type
-            ds_rslt = pythonop_get_dataset_state(dataset_uuid_callable=get_dataset_uuid, **kwargs)
+            ds_rslt = pythonop_get_dataset_state(
+                dataset_uuid_callable=lambda **kwargs:
+                get_parent_dataset_uuids_list(**kwargs)[0], **kwargs)
 
             organ_list = list(set(ds_rslt["organs"]))
             organ_code = organ_list[0] if len(organ_list) == 1 else "multi"
 
-            command = [
-                *get_cwltool_base_cmd(tmpdir),
-                cwl_workflows[1],
-                "--reference",
-                organ_code,
-                "--matrix",
-                "mudata_raw.h5mu",
-                "--secondary-analysis-matrix",
-                "secondary_analysis.h5mu",
-                "--assay",
-                params.assay_azimuth,
+            workflows = kwargs["ti"].xcom_pull(key="cwl_workflows", task_ids="build_cmd1")
+
+            input_parameters = [
+                {"parameter_name": "--reference", "value": organ_code},
+                {"parameter_name": "--matrix", "value": str(tmpdir / "cwl_out/mudata_raw.h5mu")},
+                {
+                    "parameter_name": "--secondary-analysis-matrix",
+                    "value": str(tmpdir / "cwl_out/secondary_analysis.h5mu"),
+                },
+                {"parameter_name": "--assay", "value": params.assay_azimuth},
             ]
+            command = get_cwl_cmd_from_workflows(
+                workflows, 1, input_parameters, tmpdir, kwargs["ti"]
+            )
 
             return join_quote_command_str(command)
 
@@ -182,14 +219,17 @@ def generate_multiome_dag(params: MultiomeSequencingDagParameters) -> DAG:
             tmpdir = get_tmp_dir_path(run_id)
             print("tmpdir: ", tmpdir)
 
-            command = [
-                *get_cwltool_base_cmd(tmpdir),
-                cwl_workflows[2],
-                "--input_dir",
-                # This pipeline invocation runs in a 'hubmap_ui' subdirectory,
-                # so use the parent directory as input
-                "..",
+            workflows = kwargs["ti"].xcom_pull(key="cwl_workflows", task_ids="build_cmd2")
+
+            cwl_parameters = [
+                {"parameter_name": "--outdir", "value": str(tmpdir / "cwl_out/hubmap_ui")}
             ]
+            input_parameters = [
+                {"parameter_name": "--input_dir", "value": str(tmpdir / "cwl_out")},
+            ]
+            command = get_cwl_cmd_from_workflows(
+                workflows, 2, input_parameters, tmpdir, kwargs["ti"], cwl_parameters
+            )
 
             return join_quote_command_str(command)
 
@@ -215,6 +255,7 @@ def generate_multiome_dag(params: MultiomeSequencingDagParameters) -> DAG:
             task_id="pipeline_exec",
             bash_command=""" \
             tmp_dir={{tmp_dir_path(run_id)}} ; \
+            mkdir -p ${tmp_dir}/cwl_out ; \
             {{ti.xcom_pull(task_ids='build_cmd1')}} > $tmp_dir/session.log 2>&1 ; \
             echo $?
             """,
@@ -224,7 +265,6 @@ def generate_multiome_dag(params: MultiomeSequencingDagParameters) -> DAG:
             task_id="pipeline_exec_azimuth_annotate",
             bash_command=""" \
             tmp_dir={{tmp_dir_path(run_id)}} ; \
-            cd "$tmp_dir"/cwl_out ; \
             {{ti.xcom_pull(task_ids='build_cmd2')}} >> $tmp_dir/session.log 2>&1 ; \
             echo $?
             """,
@@ -235,9 +275,7 @@ def generate_multiome_dag(params: MultiomeSequencingDagParameters) -> DAG:
             bash_command=""" \
             tmp_dir={{tmp_dir_path(run_id)}} ; \
             ds_dir="{{ti.xcom_pull(task_ids="send_create_dataset")}}" ; \
-            cd "$tmp_dir"/cwl_out ; \
-            mkdir -p hubmap_ui ; \
-            cd hubmap_ui ; \
+            mkdir -p ${tmp_dir}/cwl_out/hubmap_ui ; \
             {{ti.xcom_pull(task_ids='build_cmd3')}} >> $tmp_dir/session.log 2>&1 ; \
             echo $?
             """,
@@ -270,9 +308,19 @@ def generate_multiome_dag(params: MultiomeSequencingDagParameters) -> DAG:
             python_callable=utils.pythonop_maybe_keep,
             provide_context=True,
             op_kwargs={
-                "next_op": "move_data",
+                "next_op": "maybe_create_dataset",
                 "bail_op": "set_dataset_error",
                 "test_op": "convert_for_ui",
+            },
+        )
+
+        t_maybe_create_dataset = BranchPythonOperator(
+            task_id="maybe_create_dataset",
+            python_callable=utils.pythonop_dataset_dryrun,
+            provide_context=True,
+            op_kwargs={
+                "next_op": "send_create_dataset",
+                "bail_op": "join",
             },
         )
 
@@ -309,7 +357,11 @@ def generate_multiome_dag(params: MultiomeSequencingDagParameters) -> DAG:
                 "move_data",
                 "convert_for_ui",
             ],
-            cwl_workflows=cwl_workflows,
+            cwl_workflows=lambda **kwargs: kwargs["ti"].xcom_pull(
+                key="cwl_workflows", task_ids="build_cmd3"
+            ),
+            workflow_description=workflow_description,
+            workflow_version=workflow_version,
         )
 
         t_send_status = PythonOperator(
@@ -322,26 +374,29 @@ def generate_multiome_dag(params: MultiomeSequencingDagParameters) -> DAG:
         t_join = JoinOperator(task_id="join")
         t_create_tmpdir = CreateTmpDirOperator(task_id="create_tmpdir")
         t_cleanup_tmpdir = CleanupTmpDirOperator(task_id="cleanup_tmpdir")
-        t_set_dataset_processing = SetDatasetProcessingOperator(task_id="set_dataset_processing")
         t_move_data = MoveDataOperator(task_id="move_data")
 
         (
             t_log_info
             >> t_create_tmpdir
-            >> t_send_create_dataset
-            >> t_set_dataset_processing
+
             >> prepare_cwl1
             >> t_build_cmd1
             >> t_pipeline_exec
             >> t_maybe_keep_cwl1
+
             >> prepare_cwl2
             >> t_build_cmd2
             >> t_pipeline_exec_azimuth_annotate
             >> t_maybe_keep_cwl2
+
             >> prepare_cwl3
             >> t_build_cmd3
             >> t_convert_for_ui
             >> t_maybe_keep_cwl3
+            >> t_maybe_create_dataset
+
+            >> t_send_create_dataset
             >> t_move_data
             >> t_send_status
             >> t_join
@@ -350,6 +405,7 @@ def generate_multiome_dag(params: MultiomeSequencingDagParameters) -> DAG:
         t_maybe_keep_cwl2 >> t_set_dataset_error
         t_maybe_keep_cwl3 >> t_set_dataset_error
         t_set_dataset_error >> t_join
+        t_maybe_create_dataset >> t_join
         t_join >> t_cleanup_tmpdir
 
     return dag

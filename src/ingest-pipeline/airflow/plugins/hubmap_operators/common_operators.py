@@ -30,7 +30,11 @@ class LogInfoOperator(PythonOperator):
 class JoinOperator(DummyOperator):
     # @apply_defaults
     def __init__(self, **kwargs):
-        super().__init__(trigger_rule='one_success', **kwargs)
+        if "trigger_rule" in kwargs:
+            trigger_rule = kwargs.pop("trigger_rule")
+        else:
+            trigger_rule = "all_done"
+        super().__init__(trigger_rule=trigger_rule, **kwargs)
 
 
 class CreateTmpDirOperator(BashOperator):

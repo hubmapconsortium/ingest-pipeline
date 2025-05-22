@@ -184,7 +184,8 @@ with HMDAG(
         >> t_create_tmpdir
         >> t_split
         >> t_maybe_keep
-        >> t_get_component_uuids >> t_launch_multiassay_component_metadata
+        >> t_get_component_uuids
+        >> t_launch_multiassay_component_metadata
         >> t_join
         >> t_preserve_info
         >> t_cleanup_tmpdir

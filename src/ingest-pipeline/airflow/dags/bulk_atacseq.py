@@ -3,7 +3,8 @@ from datetime import datetime, timedelta
 
 from airflow.operators.bash import BashOperator
 from airflow.operators.python import PythonOperator, BranchPythonOperator
-from airflow.operators.dummy import DummyOperator
+from airflow.decorators import task
+
 from hubmap_operators.common_operators import (
     LogInfoOperator,
     JoinOperator,
@@ -15,8 +16,7 @@ from hubmap_operators.common_operators import (
 
 import utils
 from utils import (
-    get_absolute_workflows,
-    get_cwltool_base_cmd,
+    get_absolute_workflow,
     get_dataset_uuid,
     get_parent_dataset_uuids_list,
     get_parent_data_dirs_list,
@@ -30,7 +30,10 @@ from utils import (
     HMDAG,
     get_queue_resource,
     get_preserve_scratch_resource,
+    get_cwl_cmd_from_workflows,
 )
+
+from extra_utils import build_tag_containers
 
 default_args = {
     "owner": "hubmap",
@@ -57,14 +60,30 @@ with HMDAG(
     },
 ) as dag:
     pipeline_name = "bulk-atac-seq"
-    cwl_workflows = get_absolute_workflows(
-        Path("sc-atac-seq-pipeline", "bulk-atac-seq-pipeline.cwl"),
-    )
+    workflow_version = "1.0.0"
+    workflow_description = "The bulk ATAC seq pipeline performs short read alignment to the HG38 reference genome using HISAT-2, and then calls peaks on the resulting BAM file using MACS2."
+
+    cwl_workflows = [
+        {
+            "workflow_path": str(
+                get_absolute_workflow(Path("sc-atac-seq-pipeline", "bulk-atac-seq-pipeline.cwl"))
+            ),
+            "documentation_url": "",
+        }
+    ]
 
     def build_dataset_name(**kwargs):
         return inner_build_dataset_name(dag.dag_id, pipeline_name, **kwargs)
 
-    prepare_cwl1 = DummyOperator(task_id="prepare_cwl1")
+    @task(task_id="prepare_cwl1")
+    def prepare_cwl_cmd1(**kwargs):
+        if kwargs["dag_run"].conf.get("dryrun"):
+            cwl_path = Path(cwl_workflows[0]["workflow_path"]).parent
+            return build_tag_containers(cwl_path)
+        else:
+            return "No Container build required"
+
+    prepare_cwl1 = prepare_cwl_cmd1()
 
     def build_cwltool_cmd1(**kwargs):
         run_id = kwargs["run_id"]
@@ -72,18 +91,21 @@ with HMDAG(
 
         data_dirs = get_parent_data_dirs_list(**kwargs)
 
-        command = [
-            *get_cwltool_base_cmd(tmpdir),
-            "--outdir",
-            tmpdir / "cwl_out",
-            "--parallel",
-            cwl_workflows[0],
-            "--threads",
-            get_threads_resource(dag.dag_id),
+        cwl_params = [
+            {"parameter_name": "--parallel", "value": ""},
         ]
-        for data_dir in data_dirs:
-            command.append("--sequence_directory")
-            command.append(data_dir)
+
+        input_parameters = [
+            {"parameter_name": "--threads", "value": get_threads_resource(dag.dag_id)},
+            {
+                "parameter_name": "--sequence_directory",
+                "value": [str(data_dir) for data_dir in data_dirs],
+            },
+        ]
+
+        command = get_cwl_cmd_from_workflows(
+            cwl_workflows, 0, input_parameters, tmpdir, kwargs["ti"], cwl_params
+        )
 
         return join_quote_command_str(command)
 
@@ -97,6 +119,7 @@ with HMDAG(
         task_id="pipeline_exec",
         bash_command=""" \
         tmp_dir={{tmp_dir_path(run_id)}} ; \
+        mkdir -p ${tmp_dir}/cwl_out ; \
         {{ti.xcom_pull(task_ids='build_cmd1')}} > $tmp_dir/session.log 2>&1 ; \
         echo $?
         """,
@@ -107,9 +130,19 @@ with HMDAG(
         python_callable=utils.pythonop_maybe_keep,
         provide_context=True,
         op_kwargs={
-            "next_op": "move_data",
+            "next_op": "maybe_create_dataset",
             "bail_op": "set_dataset_error",
             "test_op": "pipeline_exec",
+        },
+    )
+
+    t_maybe_create_dataset = BranchPythonOperator(
+        task_id="maybe_create_dataset",
+        python_callable=utils.pythonop_dataset_dryrun,
+        provide_context=True,
+        op_kwargs={
+            "next_op": "send_create_dataset",
+            "bail_op": "join",
         },
     )
 
@@ -141,7 +174,11 @@ with HMDAG(
     send_status_msg = make_send_status_msg_function(
         dag_file=__file__,
         retcode_ops=["pipeline_exec", "move_data"],
-        cwl_workflows=cwl_workflows,
+        cwl_workflows=lambda **kwargs: kwargs["ti"].xcom_pull(
+            key="cwl_workflows", task_ids="build_cmd1"
+        ),
+        workflow_description=workflow_description,
+        workflow_version=workflow_version,
     )
     t_send_status = PythonOperator(
         task_id="send_status_msg",
@@ -153,22 +190,24 @@ with HMDAG(
     t_join = JoinOperator(task_id="join")
     t_create_tmpdir = CreateTmpDirOperator(task_id="create_tmpdir")
     t_cleanup_tmpdir = CleanupTmpDirOperator(task_id="cleanup_tmpdir")
-    t_set_dataset_processing = SetDatasetProcessingOperator(task_id="set_dataset_processing")
     t_move_data = MoveDataOperator(task_id="move_data")
 
     (
         t_log_info
         >> t_create_tmpdir
-        >> t_send_create_dataset
-        >> t_set_dataset_processing
+
         >> prepare_cwl1
         >> t_build_cmd1
         >> t_pipeline_exec
         >> t_maybe_keep_cwl1
+        >> t_maybe_create_dataset
+
+        >> t_send_create_dataset
         >> t_move_data
         >> t_send_status
         >> t_join
     )
     t_maybe_keep_cwl1 >> t_set_dataset_error
     t_set_dataset_error >> t_join
+    t_maybe_create_dataset >> t_join
     t_join >> t_cleanup_tmpdir

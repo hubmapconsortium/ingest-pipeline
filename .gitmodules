@@ -76,6 +76,12 @@
 [submodule "src/ingest-pipeline/airflow/dags/cwl/visium-pipeline"]
 	path = src/ingest-pipeline/airflow/dags/cwl/visium-pipeline
 	url = https://github.com/hubmapconsortium/visium-pipeline
+[submodule "src/ingest-pipeline/airflow/dags/cwl/geomx-pipeline"]
+	path = src/ingest-pipeline/airflow/dags/cwl/geomx-pipeline
+	url = https://github.com/hubmapconsortium/geomx-pipeline
+[submodule "src/ingest-pipeline/airflow/dags/cwl/ribca"]
+	path = src/ingest-pipeline/airflow/dags/cwl/ribca
+	url = https://github.com/hubmapconsortium/ribca
 [submodule "src/ingest-pipeline/airflow/dags/cwl/rna-probes-pipeline"]
 	path = src/ingest-pipeline/airflow/dags/cwl/rna-probes-pipeline
 	url = https://github.com/hubmapconsortium/rna-probes-pipeline

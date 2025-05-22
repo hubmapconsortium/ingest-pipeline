@@ -15,6 +15,7 @@ from airflow.operators.python import BranchPythonOperator
 from airflow.operators.bash import BashOperator
 from airflow.exceptions import AirflowException
 from airflow.providers.http.hooks.http import HttpHook
+from airflow.decorators import task
 
 from hubmap_operators.common_operators import (
     LogInfoOperator,
@@ -38,6 +39,8 @@ from utils import (
 )
 
 from misc.tools.split_and_create import reorganize
+from misc.tools.set_standard_protections import process_one_uuid
+from misc.tools.survey import EntityFactory
 
 
 # Following are defaults which can be overridden later on
@@ -299,6 +302,21 @@ with HMDAG(
     def xcom_consistency_puller(**kwargs):
         return kwargs["ti"].xcom_pull(task_ids="split_stage_2", key="child_uuid_list")
 
+
+    @task(task_id="permission_resetting")
+    def permission_resetting(**kwargs):
+        return_error = []
+        entity_host = HttpHook.get_connection("entity_api_connection").host
+        entity_factory = EntityFactory(get_auth_tok(**kwargs),
+                                       instance=find_matching_endpoint(entity_host))
+        for uuid in kwargs["ti"].xcom_pull(task_ids="split_stage_2", key="child_uuid_list"):
+            return_error.append(process_one_uuid(uuid, entity_factory))
+        if False in return_error:
+            return 1
+        return 0
+
+    t_reset_permissions = permission_resetting()
+
     t_md_consistency_tests = PythonOperator(
         task_id="md_consistency_tests",
         python_callable=utils.pythonop_md_consistency_tests,
@@ -408,12 +426,18 @@ with HMDAG(
         t_log_info
         >> t_find_uuid
         >> t_create_tmpdir
+
         >> t_split_stage_1
         >> t_maybe_keep_1
+
         >> t_split_stage_2
         >> t_maybe_keep_2
+
         >> t_run_md_extract
         >> t_md_consistency_tests
+
+        >> t_reset_permissions
+
         >> t_send_status
         >> t_join
         >> t_preserve_info
