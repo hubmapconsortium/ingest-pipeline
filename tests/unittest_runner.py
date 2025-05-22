@@ -1,7 +1,7 @@
 import sys
 import os
 from pathlib import Path
-
+import logging
 import unittest
 
 class add_path:
@@ -40,14 +40,22 @@ def main():
     dags_code_path = (Path(__file__).resolve().parent.parent
                       / "src" / "ingest-pipeline" / "airflow" / "dags")
     with add_path(str(dags_code_path)):
-        args = ["discover", "tests", "-vv"]
+        kwargs = {"verbosity":2}
+        test_names = []
         for arg in sys.argv[1:]:
             if arg.startswith("--test="):
-                args.append(arg.replace("--test=", ""))
+                test_names.append(arg.replace("--test=", ""))
+            elif arg == "-v":
+                kwargs["verbosity"] += 1
             else:
-                args.append(arg)
+                logging.warn(f"Unmapped arg {arg}")
         loader = unittest.TestLoader()
-        sys.exit(unittest.TextTestRunner().run(loader.discover(Path(__file__).parent)))
+        runner = unittest.TextTestRunner(**kwargs)
+        if test_names:
+            tests = loader.loadTestsFromNames(test_names)
+        else:
+            tests = loader.discover(Path(__file__).parent)
+        sys.exit(runner.run(tests))
 
 
 if __name__ == "__main__":
