@@ -276,7 +276,6 @@ class StatusChanger:
             getattr(self, func)(**args)
 
     def _validate_fields_to_change(self):
-        logging.info(f"StatusChanger 4a: {self.fields_to_change} {self.status}")
         self.fields_to_change["status"] = self.status
 
     def _get_status(self, status: str) -> Optional[Statuses]:
