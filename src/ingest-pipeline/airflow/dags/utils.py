@@ -32,9 +32,12 @@ from typing import (
 import cwltool  # used to find its path
 import yaml
 from cryptography.fernet import Fernet
-from hubmap_commons.schema_tools import assert_json_matches_schema, set_schema_base_path
 from requests import codes
 from requests.exceptions import HTTPError
+from schema_utils import (
+    localized_assert_json_matches_schema as assert_json_matches_schema,
+    JSONType
+)
 from status_change.status_manager import EntityUpdateException, StatusChanger
 
 from airflow import DAG
@@ -52,15 +55,10 @@ except Exception:
     ENDPOINTS = {}
 
 
-JSONType = Union[str, int, float, bool, None, Dict[str, Any], List[Any]]
-
 # Some functions accept a `str` or `List[str]` and return that same type
 StrOrListStr = TypeVar("StrOrListStr", str, List[str])
 
 PathStrOrList = Union[str, Path, Iterable[Union[str, Path]]]
-
-SCHEMA_BASE_PATH = join(dirname(dirname(dirname(realpath(__file__)))), "schemata")
-SCHEMA_BASE_URI = "http://schemata.hubmapconsortium.org/"
 
 # Some constants
 PIPELINE_BASE_DIR = Path(__file__).resolve().parent / "cwl"
@@ -161,7 +159,7 @@ class PipelineFileMatcher(FileMatcher):
     ) -> Iterable[Tuple[Pattern, str, str, bool, bool]]:
         with open(pipeline_file_manifest) as f:
             manifest = json.load(f)
-            localized_assert_json_matches_schema(manifest, "pipeline_file_manifest.yml")
+            assert_json_matches_schema(manifest, "pipeline_file_manifest.yml")
 
         for annotation in manifest:
             pattern = re.compile(annotation["pattern"])
@@ -1612,7 +1610,10 @@ def make_send_status_msg_function(
                         contacts = ds_rslt.get("contacts", [])
 
             try:
-                assert_json_matches_schema(md, "dataset_metadata_schema.yml")
+                localized_assert_json_matches_schema(
+                    md,
+                    "dataset_metadata_schema.yml"
+                )
                 metadata = md.pop("metadata", {})
                 files = md.pop("files", [])
                 extra_fields = {
@@ -1712,20 +1713,6 @@ def create_dataset_state_error_callback(
         pythonop_set_dataset_state(**new_kwargs)
 
     return set_dataset_state_error
-
-
-set_schema_base_path(SCHEMA_BASE_PATH, SCHEMA_BASE_URI)
-
-
-def localized_assert_json_matches_schema(jsn: JSONType, schemafile: str) -> None:
-    """
-    This version of assert_json_matches_schema knows where to find schemata used by this module
-    """
-    try:
-        return assert_json_matches_schema(jsn, schemafile)  # localized by set_schema_base_path
-    except AssertionError as e:
-        print("ASSERTION FAILED: {}".format(e))
-        raise
 
 
 def _get_workflow_map() -> List[Tuple[Pattern, Pattern, str]]:
