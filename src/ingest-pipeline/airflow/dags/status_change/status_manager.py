@@ -5,9 +5,9 @@ import logging
 from functools import cached_property
 from typing import Literal, Optional, Union
 
-from airflow.configuration import conf as airflow_conf
 from airflow.providers.http.hooks.http import HttpHook
 
+from .format_message import format_priority_reorganized_msg
 from .status_utils import ENTITY_STATUS_MAP, Statuses, get_submission_context
 
 
@@ -133,7 +133,7 @@ class EntityUpdater:
             ).update()
 
     def _update_existing_values(self):
-        # TODO: appropriate append formatting? only certain fields allowed?
+        # TODO: guard clause, handle writing to empty field
         new_field_data = {}
         for field, value in self.fields_to_append_to.items():
             existing_field_data = self.entity_data[field]
@@ -200,9 +200,29 @@ class StatusChanger:
                 else self._get_status(status.lower())
             )
 
-    # Add any statuses to map that require a specific set of methods in addition to
-    # default _set_entity_api_data.
-    status_map = {Statuses.UPLOAD_REORGANIZED: ["_check_priority_reorganized"]}
+    @property
+    def status_map(self):
+        """
+        Add any statuses to map that require a specific set of methods in addition to
+        default _set_entity_api_data.
+
+        key: Statuses enum member
+        value: list of tuples
+            Each tuple represents a method to call for this status.
+            tuple[0]: str(func_name)
+            tuple[1]: dict containing optional kwargs
+        Format: {<status>: [(<func_name>, {kwargs}), (<func_name>, {kwargs})]}
+        Example: {
+            Statuses.DATASET_QA: [
+                (
+                    "send_slack_message",
+                    {"msg": f"Dataset {self.uuid} reorganized", "channel": "channel_name"},
+                ),
+                ("send_email", {}),
+            ]
+        }
+        """
+        return {Statuses.UPLOAD_REORGANIZED: [("_check_priority_reorganized", {})]}
 
     def update(self) -> None:
         """
@@ -214,32 +234,33 @@ class StatusChanger:
         - Runs EntityUpdater._set_entity_api_data() process.
         - Also run methods assigned to that status in the status_map, if any.
         """
-        if self.status is None and self.fields_to_change:
-            self.fields_to_overwrite.pop("status", None)
-            self.fields_to_append_to.pop("status", None)
-            logging.info(
-                f"No status to update, instantiating EntityUpdater instead to update other fields: {', '.join(self.fields_to_change.keys())}"
-            )
-            EntityUpdater(
-                self.uuid,
-                self.token,
-                self.http_conn_id,
-                self.fields_to_overwrite,
-                self.fields_to_append_to,
-                self.delimiter,
-                self.extra_options,
-                self.verbose,
-            ).update()
-            return
-        elif self.status is None and not self.fields_to_change:
-            logging.info(
-                f"No status to update or fields to change for {self.uuid}, not making any changes in entity-api."
-            )
-            return
+        if self.status is None:
+            if self.fields_to_change:
+                self.fields_to_overwrite.pop("status", None)
+                self.fields_to_append_to.pop("status", None)
+                logging.info(
+                    f"No status to update, instantiating EntityUpdater instead to update other fields: {', '.join(self.fields_to_change.keys())}"
+                )
+                EntityUpdater(
+                    self.uuid,
+                    self.token,
+                    self.http_conn_id,
+                    self.fields_to_overwrite,
+                    self.fields_to_append_to,
+                    self.delimiter,
+                    self.extra_options,
+                    self.verbose,
+                ).update()
+                return
+            else:
+                logging.info(
+                    f"No status to update or fields to change for {self.uuid}, not making any changes in entity-api."
+                )
+                return
         self._validate_fields_to_change()
         self._set_entity_api_data()
-        for func in self.status_map.get(self.status, []):
-            getattr(self, func)()
+        for func, args in self.status_map.get(self.status, []):
+            getattr(self, func)(**args)
 
     def _validate_fields_to_change(self):
         self.fields_to_change["status"] = self.status
@@ -305,7 +326,6 @@ class StatusChanger:
     """
 
     def send_email(self) -> None:
-        # This is underdeveloped and also requires a separate PR
         pass
 
     @cached_property
@@ -384,7 +404,7 @@ class StatusChanger:
             raise EntityUpdateException(
                 f"Request to send Slack message missing message text (submitted: '{msg}') or target channel (submitted: '{channel}')."
             )
-        http_hook = HttpHook("PUT", http_conn_id="ingest_api_connection")
+        http_hook = HttpHook("POST", http_conn_id="ingest_api_connection")
         payload = json.dumps({"message": msg, "channel": channel})
         headers = {"Authorization": f"Bearer {self.token}", "Content-Type": "application/json"}
         response = http_hook.run("/notify", payload, headers)
@@ -392,13 +412,6 @@ class StatusChanger:
         return response.json()
 
     def _check_priority_reorganized(self) -> None:
-        priority_reorganized_channel = (
-            airflow_conf.as_dict().get("slack_channels", {}).get("PRIORITY_UPLOAD_REORGANIZED", "")
-        )
-        if project_list := self.entity_data.get("priority_project_list"):
-            self.send_slack_message(
-                f"Priority upload {self.entity_data.get('uuid')} reorganized. Priority upload categories: {', '.join(cat for cat in project_list)}.",
-                str(
-                    priority_reorganized_channel
-                ),  # type checker thinks this could also be a tuple
-            )
+        if self.entity_data.get("priority_project_list"):
+            msg, channel = format_priority_reorganized_msg(self.token, self.uuid)
+            self.send_slack_message(msg, channel)
