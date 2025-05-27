@@ -2,12 +2,16 @@ from __future__ import annotations
 
 import traceback
 from enum import Enum
-from typing import Any, Dict
+from typing import Any
 
 from requests import codes
 from requests.exceptions import HTTPError
 
 from airflow.hooks.http_hook import HttpHook
+
+
+class EntityUpdateException(Exception):
+    pass
 
 
 class Statuses(str, Enum):

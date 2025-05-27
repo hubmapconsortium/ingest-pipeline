@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 
-# Accepts additional args to pass to pytest
+# Accepts additional args to pass to unittest
 # Accepts flags as individual args as well as
 # custom "--test=" arg which can be used to run a specific
 # test file/class/test just as you would pass it to pytest directly.
 # Example:
-# ./test.sh "--test=tests/test_fastq_validator_logic.py::TestFASTQValidatorLogic::test_fastq_groups_good" --pdb
+# ./test.sh "--test=tests/test_status_changer.py::TestEntityUpdater::test_update"
 
 set -o errexit
 

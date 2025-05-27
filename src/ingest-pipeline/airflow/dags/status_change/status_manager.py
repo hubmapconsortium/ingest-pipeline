@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 import logging
 from functools import cached_property
-from os.path import dirname, join, realpath
 from typing import Literal, Optional, Union
 
 from schema_utils import (
@@ -12,7 +11,7 @@ from schema_utils import (
 
 from airflow.providers.http.hooks.http import HttpHook
 
-from .format_message import format_priority_reorganized_msg
+from .slack_formatter import format_priority_reorganized_msg
 from .status_utils import (
     ENTITY_STATUS_MAP,
     EntityUpdateException,
