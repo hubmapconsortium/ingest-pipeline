@@ -5,10 +5,6 @@ import logging
 from functools import cached_property
 from typing import Literal, Optional, Union
 
-from schema_utils import (
-    localized_assert_json_matches_schema as assert_json_matches_schema,
-)
-
 from airflow.providers.http.hooks.http import HttpHook
 
 from .slack_formatter import format_priority_reorganized_msg
@@ -18,8 +14,6 @@ from .status_utils import (
     Statuses,
     get_submission_context,
 )
-
-ENTITY_JSON_SCHEMA = "entity_metadata_schema.yml"  # from this repo's schemata directory
 
 
 class EntityUpdater:
@@ -46,9 +40,7 @@ class EntityUpdater:
 
     @cached_property
     def entity_data(self):
-        rslt = get_submission_context(self.token, self.uuid)
-        assert_json_matches_schema(rslt, "entity_metadata_schema.yml")
-        return rslt
+        return get_submission_context(self.token, self.uuid)
 
     def get_entity_type(self):
         try:
@@ -104,7 +96,6 @@ class EntityUpdater:
             {self.fields_to_change}
             """
         )
-        assert_json_matches_schema(self.fields_to_change, "entity_metadata_schema.yml")
         if self.verbose:
             logging.info(f"Updating {self.uuid} with data {self.fields_to_change}...")
         try:
@@ -200,6 +191,7 @@ class StatusChanger:
         self.delimiter = delimiter
         self.extra_options = extra_options if extra_options else {}
         self.verbose = verbose
+        # TODO: can remove and just use get_entity_type
         self.entity_type = entity_type if entity_type else self.get_entity_type()
         if not status:
             self.status = None
@@ -316,6 +308,7 @@ class StatusChanger:
         return status
 
     """
+    # TODO: can do cleaner status checking if/when StatusChanger is a subclass of EntityUpdater
     # Handle status = None
     if not status:
         if self.fields_to_change:
