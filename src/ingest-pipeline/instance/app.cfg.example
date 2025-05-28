@@ -41,4 +41,5 @@ OUTPUT_GROUP_NAME = 'dataaccessgroup'
 auth_backend = globus_auth.globus_auth
 
 [slack_channels]
+# swat-ingest
 PRIORITY_UPLOAD_REORGANIZED = ''
