@@ -307,27 +307,6 @@ class StatusChanger:
             ), f"Entity {self.uuid} passed multiple statuses ({status} and {extra_status})."
         return status
 
-    """
-    # TODO: can do cleaner status checking if/when StatusChanger is a subclass of EntityUpdater
-    # Handle status = None
-    if not status:
-        if self.fields_to_change:
-            self.fields_to_overwrite.pop("status", None)
-            self.fields_to_append_to.pop("status", None)
-            logging.info(
-                f"No status to update, instantiating EntityUpdater instead to update other fields: {', '.join(self.fields_to_change.keys())}"
-            )
-            super().update()
-        else:
-            raise EntityUpdateException(
-                "No status passed to StatusChanger and no additional fields provided to change."
-            )
-    # Should definitely have Statuses type at this point
-    assert isinstance(
-        status, Statuses
-    ), f"Error while checking status '{status}' of type {type(status)}."
-    """
-
     def send_email(self) -> None:
         pass
 
