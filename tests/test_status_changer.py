@@ -55,7 +55,7 @@ class TestEntityUpdater(unittest.TestCase):
 
     @patch("status_change.status_manager.StatusChanger")
     @patch("status_change.status_manager.get_submission_context")
-    def test_pass_to_statuschanger(self, context_mock, statuschanger_mock):
+    def test_should_be_statuschanger(self, context_mock, statuschanger_mock):
         context_mock.return_value = self.good_context
         with_status = EntityUpdater(
             "upload_valid_uuid",
@@ -63,24 +63,15 @@ class TestEntityUpdater(unittest.TestCase):
             fields_to_overwrite={"status": "valid", "validation_message": self.validation_msg},
             fields_to_append_to={"ingest_task": self.ingest_task},
         )
-        with patch("status_change.status_manager.HttpHook.run"):
-            with_status._validate_fields_to_change()
-        assert statuschanger_mock.called_once_with(
-            "upload_valid_uuid",
-            "upload_valid_token",
-            with_status.http_conn_id,
-            {"validation_message": self.validation_msg},
-            with_status.fields_to_append_to,
-            with_status.delimiter,
-            with_status.extra_options,
-            with_status.verbose,
-            "valid",
-            with_status.entity_type,
-        )
+        with patch("status_change.status_manager.HttpHook.run") as hhr_mock:
+            hhr_mock.return_value.json.return_value = self.good_context
+            with self.assertRaises(EntityUpdateException):
+                with_status._validate_fields_to_change()
 
     @cached_property
     def upload_valid(self):
         with patch("status_change.status_manager.get_submission_context") as mock_mthd:
+            mock_mthd.return_value = self.good_context
             return StatusChanger(
                 "upload_valid_uuid",
                 "upload_valid_token",
@@ -105,7 +96,8 @@ class TestEntityUpdater(unittest.TestCase):
         self.assertEqual(self.upload_valid.fields_to_change["status"], self.upload_valid.status)
 
     def test_extra_fields(self):
-        with patch("status_change.status_manager.get_submission_context"):
+        with patch("status_change.status_manager.get_submission_context") as gsc_mock:
+            gsc_mock.return_value = self.good_context
             with_extra_field = StatusChanger(
                 "extra_field_uuid",
                 "extra_field_token",
@@ -118,7 +110,9 @@ class TestEntityUpdater(unittest.TestCase):
 
     @patch("status_change.status_manager.HttpHook.run")
     def test_extra_options(self, hhr_mock):
-        with patch("status_change.status_manager.get_submission_context"):
+        hhr_mock.return_value.json.return_value = self.good_context
+        with patch("status_change.status_manager.get_submission_context") as gsc_mock:
+            gsc_mock.return_value = self.good_context
             with_extra_option = StatusChanger(
                 "extra_options_uuid",
                 "extra_options_token",
@@ -164,7 +158,8 @@ class TestEntityUpdater(unittest.TestCase):
         self.assertIn('{"status": "valid"}', hhr_mock.call_args.args)
 
     def test_http_conn_id(self):
-        with patch("status_change.status_manager.HttpHook.run"):
+        with patch("status_change.status_manager.HttpHook.run") as httpr_mock:
+            httpr_mock.return_value.json.return_value = self.good_context
             with_http_conn_id = StatusChanger(
                 "http_conn_uuid",
                 "http_conn_token",
