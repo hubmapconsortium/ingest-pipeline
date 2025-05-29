@@ -2,8 +2,8 @@
 
 import argparse
 import json
-import re
 import math
+import re
 import time
 from pathlib import Path
 from pprint import pprint
@@ -396,7 +396,6 @@ def update_upload_entity(child_uuid_list, source_entity, dryrun=False, verbose=F
             ).update()
             print(f"{source_entity.uuid} status is Reorganized")
 
-            # TODO: click in with UpdateAsana
             for uuid in child_uuid_list:
                 print(f"Setting status of dataset {uuid} to Submitted")
                 StatusChanger(
