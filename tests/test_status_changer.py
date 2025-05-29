@@ -10,6 +10,7 @@ from status_change.status_manager import (
     StatusChanger,
     Statuses,
 )
+from status_change.slack_formatter import format_priority_reorganized_msg
 from utils import pythonop_set_dataset_state
 
 
@@ -264,7 +265,8 @@ class TestEntityUpdater(unittest.TestCase):
     @patch("status_change.slack_formatter.get_organ")
     @patch("status_change.slack_formatter.get_submission_context")
     def test_upload_reorganized_priority_slack(self, context_mock, organ_mock, slack_mock):
-        with patch("status_change.status_manager.get_submission_context"):
+        with patch("status_change.status_manager.get_submission_context") as mock_gsc:
+            mock_gsc.return_value = self.context_mock_value
             with patch("status_change.status_manager.StatusChanger._set_entity_api_data"):
                 context_mock.return_value = self.context_mock_value
                 organ_mock.return_value = "TO"
