@@ -39,3 +39,6 @@ OUTPUT_GROUP_NAME = 'dataaccessgroup'
 
 [webserver]
 auth_backend = globus_auth.globus_auth
+
+[slack_channels]
+# PRIORITY_UPLOAD_REORGANIZED =
