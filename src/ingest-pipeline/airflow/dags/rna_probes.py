@@ -18,7 +18,6 @@ from hubmap_operators.common_operators import (
 import utils
 from utils import (
     get_absolute_workflow,
-    get_cwltool_base_cmd,
     get_dataset_uuid,
     get_parent_dataset_uuids_list,
     get_parent_data_dir,
@@ -150,6 +149,7 @@ with HMDAG(
             {"parameter_name": "--threads", "value": get_threads_resource(dag.dag_id)},
             {"parameter_name": "--organism", "value": source_type},
             {"parameter_name": "--fastq_dir", "value": str(data_dir)},
+            {"parameter_name": "--metadata_dir", "value": str(data_dir)},
         ]
 
         command = get_cwl_cmd_from_workflows(
@@ -179,7 +179,11 @@ with HMDAG(
         ]
 
         command = get_cwl_cmd_from_workflows(
-            workflows, 1, input_parameters, tmpdir, kwargs["ti"],
+            workflows,
+            1,
+            input_parameters,
+            tmpdir,
+            kwargs["ti"],
         )
 
         return join_quote_command_str(command)
@@ -389,28 +393,23 @@ with HMDAG(
     (
         t_log_info
         >> t_create_tmpdir
-
         >> prepare_cwl1
         >> t_build_cmd1
         >> t_pipeline_exec
         >> t_maybe_keep_cwl1
-
         >> prepare_cwl2
         >> t_build_cmd2
         >> t_pipeline_exec_azimuth_annotate
         >> t_maybe_keep_cwl2
-
         >> prepare_cwl3
         >> t_build_cmd3
         >> t_convert_for_ui
         >> t_maybe_keep_cwl3
-
         >> prepare_cwl4
         >> t_build_cmd4
         >> t_convert_for_ui_2
         >> t_maybe_keep_cwl4
         >> t_maybe_create_dataset
-
         >> t_send_create_dataset
         >> t_move_data
         >> t_send_status
