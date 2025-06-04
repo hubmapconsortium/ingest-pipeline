@@ -4,7 +4,6 @@ import os
 import re
 import shlex
 import sys
-import urllib.parse
 import uuid
 from abc import ABC, abstractmethod
 from collections import namedtuple
@@ -39,7 +38,7 @@ from status_change.status_manager import EntityUpdateException, StatusChanger
 
 from airflow import DAG
 from airflow.configuration import conf as airflow_conf
-from airflow.hooks.http_hook import HttpHook
+from airflow.providers.http.hooks.http import HttpHook
 from airflow.models.baseoperator import BaseOperator
 
 airflow_conf.read(join(environ["AIRFLOW_HOME"], "instance", "app.cfg"))
@@ -193,9 +192,7 @@ class PipelineFileMatcher(FileMatcher):
             is_qa_qc,
             is_data_product,
         ) in self.matchers:
-            # TODO: walrus operator
-            m = pattern.search(path_str)
-            if m:
+            if (m := pattern.search(path_str)):
                 formatted_description = description_template.format_map(m.groupdict())
                 return True, formatted_description, ontology_term, is_qa_qc, is_data_product
         return False, None, None, None, None
@@ -896,7 +893,7 @@ def pythonop_send_create_dataset(**kwargs) -> str:
     for arg in ["parent_dataset_uuid_callable", "http_conn_id"]:
         assert arg in kwargs, "missing required argument {}".format(arg)
     for arg_options in [["pipeline_shorthand", "dataset_type_callable"]]:
-        assert any([arg in kwargs for arg in arg_options])
+        assert any(arg in kwargs for arg in arg_options)
 
     http_conn_id = kwargs["http_conn_id"]
     # ctx = kwargs['dag_run'].conf
@@ -1009,8 +1006,7 @@ def pythonop_send_create_dataset(**kwargs) -> str:
         print(f"ERROR: {e}")
         if e.response.status_code == codes.unauthorized:
             raise RuntimeError(f"authorization for {endpoint} was rejected?")
-        else:
-            raise RuntimeError(f"misc error {e} on {endpoint}")
+        raise RuntimeError(f"misc error {e} on {endpoint}")
 
     kwargs["ti"].xcom_push(key="group_uuid", value=group_uuid)
     kwargs["ti"].xcom_push(key="derived_dataset_uuid", value=uuid)
@@ -1110,9 +1106,8 @@ def pythonop_get_dataset_state(**kwargs) -> Dict:
         print(f"ERROR: {e}")
         if e.response.status_code == codes.unauthorized:
             raise RuntimeError("entity database authorization was rejected?")
-        else:
-            print("benign error")
-            return {}
+        print("benign error")
+        return {}
 
     for key in ["status", "uuid", "entity_type"]:
         assert key in ds_rslt, f"Dataset status for {uuid} has no {key}"
@@ -1148,9 +1143,8 @@ def pythonop_get_dataset_state(**kwargs) -> Dict:
         print(f"ERROR: {e}")
         if e.response.status_code == codes.unauthorized:
             raise RuntimeError("entity database authorization was rejected?")
-        else:
-            print("benign error")
-            return {}
+        print("benign error")
+        return {}
     assert "path" in path_query_rslt, f"Dataset path for {uuid} produced" " no path"
     full_path = path_query_rslt["path"]
 
@@ -1197,9 +1191,8 @@ def pythonop_get_dataset_state(**kwargs) -> Dict:
             print(f"ERROR: {e}")
             if e.response.status_code == codes.unauthorized:
                 raise RuntimeError("entity database authorization was rejected?")
-            else:
-                print("benign error")
-                return {}
+            print("benign error")
+            return {}
 
     return rslt
 
@@ -1221,8 +1214,8 @@ def _uuid_lookup(uuid, **kwargs):
     return response.json()
 
 
-def _generate_slices(id: str) -> Iterable[str]:
-    mo = RE_ID_WITH_SLICES.fullmatch(id)
+def _generate_slices(id_to_slice: str) -> Iterable[str]:
+    mo = RE_ID_WITH_SLICES.fullmatch(id_to_slice)
     if mo:
         base, lidx, hidx = mo.groups()
         lidx = int(lidx)
@@ -1230,10 +1223,10 @@ def _generate_slices(id: str) -> Iterable[str]:
         for idx in range(lidx, hidx + 1):
             yield f"{base}-{idx}"
     else:
-        yield id
+        yield id_to_slice
 
 
-def assert_id_known(id: str, **kwargs) -> None:
+def assert_id_known(id_to_check: str, **kwargs) -> None:
     """
     Is the given id string known to the uuid database?  Id strings with suffixes like
     myidstr-n1_n2 where n1 and n2 are integers are interpreted as representing multiple
@@ -1241,7 +1234,7 @@ def assert_id_known(id: str, **kwargs) -> None:
 
     Raises AssertionError if the ID is not known.
     """
-    for slice in _generate_slices(id):
+    for slice in _generate_slices(id_to_check):
         tissue_info = _uuid_lookup(slice, **kwargs)
         assert tissue_info and len(tissue_info) >= 1, f"tissue_id {slice} not found on lookup"
 
@@ -1475,18 +1468,13 @@ def make_send_status_msg_function(
 
     # Does the string represent a "true" value, or an int that is 1
     def __is_true(val):
-        if val is None:
-            return False
         if isinstance(val, str):
             uval = val.upper().strip()
             if uval in ["TRUE", "T", "1", "Y", "YES"]:
                 return True
-            else:
-                return False
         elif isinstance(val, int) and val == 1:
             return True
-        else:
-            return False
+        return False
 
     def send_status_msg(**kwargs) -> bool:
         retcodes = [kwargs["ti"].xcom_pull(task_ids=op) for op in retcode_ops]
@@ -1736,10 +1724,10 @@ def _get_workflow_map() -> List[Tuple[Pattern, Pattern, str]]:
     if COMPILED_WORKFLOW_MAP is None:
         map_path = join(dirname(__file__), WORKFLOW_MAP_FILENAME)
         with open(map_path, "r") as f:
-            map = yaml.safe_load(f)
-        localized_assert_json_matches_schema(map, WORKFLOW_MAP_SCHEMA)
+            map_content = yaml.safe_load(f)
+        localized_assert_json_matches_schema(map_content, WORKFLOW_MAP_SCHEMA)
         cmp_map = []
-        for dct in map["workflow_map"]:
+        for dct in map_content["workflow_map"]:
             ct_re = re.compile(dct["collection_type"])
             at_re = re.compile(dct["assay_type"])
             cmp_map.append((ct_re, at_re, dct["workflow"]))
@@ -1793,10 +1781,9 @@ def _lookup_resource_record(dag_id: str, task_id: Optional[str] = None) -> Tuple
                         f" has no match for task_id <{task_id}>"
                     )
             return rslt
-    else:
-        raise ValueError(
-            "No resource map entry found for" f" dag_id <{dag_id}> task_id <{task_id}>"
-        )
+    raise ValueError(
+        "No resource map entry found for" f" dag_id <{dag_id}> task_id <{task_id}>"
+    )
 
 
 def get_queue_resource(dag_id: str, task_id: Optional[str] = None) -> str:

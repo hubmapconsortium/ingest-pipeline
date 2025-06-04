@@ -7,7 +7,7 @@ from typing import Any
 from requests import codes
 from requests.exceptions import HTTPError
 
-from airflow.hooks.http_hook import HttpHook
+from airflow.providers.http.hooks.http import HttpHook
 
 
 class EntityUpdateException(Exception):

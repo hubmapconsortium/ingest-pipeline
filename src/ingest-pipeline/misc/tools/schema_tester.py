@@ -7,8 +7,7 @@
 import sys
 from os import walk
 from os.path import (
-    basename, dirname, relpath, split, join, getsize,
-    realpath, exists, isdir
+    dirname, join, realpath, isdir
 )
 import optparse
 import yaml
@@ -68,7 +67,7 @@ def main(myargv=None):
         schema_fname = args[0]
 
         if opts.R and isdir(args[1]):
-            for root, dirs, files in walk(args[1]):  # @UnusedVariable
+            for root, _, files in walk(args[1]):
                 for fName in files:
                     if fName.lower().endswith(('.yaml', '.yml', '.json', '.jsn')):
                         path = join(root, fName)
