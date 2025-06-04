@@ -1921,9 +1921,8 @@ def get_soft_data(dataset_uuid, **kwargs) -> Optional[dict]:
         print(f"ERROR: {e} fetching full path for {dataset_uuid}")
         if e.response.status_code == codes.unauthorized:
             raise RuntimeError("ingest_api_connection authorization was rejected?")
-        else:
-            print("benign error")
-            return None
+        print("benign error")
+        return None
     return response
 
 
