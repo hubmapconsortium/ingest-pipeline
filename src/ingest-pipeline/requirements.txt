@@ -1,5 +1,6 @@
-# We need the dependencies of ingest-validation tools, but relative paths don't work
+# Install dependencies of submodules
 # -r ${CWD}/submodules/ingest-validation-tools/requirements.txt
+# -r ${CWD}/submodules/ingest-validation-tests/requirements.txt
 apache-airflow[celery,crypto,postgres,redis,ssh,amazon]==2.10.5
 git+https://github.com/hubmapconsortium/cwltool.git@docker-gpu#egg=cwltool
 git+https://github.com/hubmapconsortium/fastq-utils@v0.2.5#egg=hubmap-fastq-utils
