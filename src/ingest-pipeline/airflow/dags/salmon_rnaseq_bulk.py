@@ -4,7 +4,6 @@ from datetime import datetime, timedelta
 from airflow.operators.bash import BashOperator
 from airflow.operators.python import PythonOperator
 from airflow.operators.python import BranchPythonOperator
-from airflow.operators.dummy import DummyOperator
 from airflow.decorators import task
 
 from hubmap_operators.common_operators import (
@@ -12,7 +11,6 @@ from hubmap_operators.common_operators import (
     JoinOperator,
     CreateTmpDirOperator,
     CleanupTmpDirOperator,
-    SetDatasetProcessingOperator,
     MoveDataOperator,
 )
 
