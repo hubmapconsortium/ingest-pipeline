@@ -85,3 +85,6 @@
 [submodule "src/ingest-pipeline/airflow/dags/cwl/rna-probes-pipeline"]
 	path = src/ingest-pipeline/airflow/dags/cwl/rna-probes-pipeline
 	url = https://github.com/hubmapconsortium/rna-probes-pipeline
+[submodule "src/ingest-pipeline/airflow/dags/cwl/pan-organ-azimuth-annotate"]
+	path = src/ingest-pipeline/airflow/dags/cwl/pan-organ-azimuth-annotate
+	url = https://github.com/hubmapconsortium/pan-organ-azimuth-annotate
