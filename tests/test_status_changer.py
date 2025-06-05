@@ -84,7 +84,8 @@ class TestEntityUpdater(unittest.TestCase):
             )
 
     def test_unrecognized_status(self):
-        with patch("status_change.status_manager.get_submission_context"):
+        with patch("status_change.status_manager.get_submission_context") as gsc_mock:
+            gsc_mock.return_value = self.good_context
             with self.assertRaises(EntityUpdateException):
                 StatusChanger(
                     "invalid_status_uuid",
