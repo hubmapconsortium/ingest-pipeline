@@ -3,6 +3,7 @@ import unittest
 import logging
 from functools import cached_property
 from unittest.mock import MagicMock, patch
+from datetime import date
 
 from status_change.status_manager import (
     EntityUpdateException,
@@ -11,6 +12,7 @@ from status_change.status_manager import (
     Statuses,
 )
 from status_change.slack_formatter import format_priority_reorganized_msg
+from status_change.failure_callback import FailureCallback
 from utils import pythonop_set_dataset_state
 
 
@@ -327,6 +329,47 @@ class TestEntityUpdater(unittest.TestCase):
             == "Priority upload (test_project, test_project_2) reorganized:\n   uuid: test_uuid\n   hubmap_id: test_hm_id\n   created_by_user_displayname: Test User\n   created_by_user_email: test@user.com\n   priority_project_list: test_project, test_project_2\n   dataset_type: test_dataset_type\n   organ: TO\n\nDatasets:\nhubmap_id, created_by_user_displayname, created_by_user_email, priority_project_list, dataset_type, organ\ntest_dataset_hm_id, Test User, test@user.com, test_project;test_project_2, test_dataset_type, TO"
         )
 
+    @patch("status_change.status_manager.get_submission_context")
+    @patch("traceback.TracebackException")
+    @patch("status_change.failure_callback.get_auth_tok")
+    def test_failure_callback(self, gat_mock, tbfa_mock, gsc_mock):
+        def _xcom_getter(key):
+            return {"uuid": "abc123"}[key]
+        class _exception_formatter:
+            def __init__(self, excp_str):
+                self.excp_str = excp_str
+            def format(self):
+                return f"This is the formatted version of {self.excp_str}"
+        gsc_mock.return_value = self.context_mock_value
+        gat_mock.return_value = "auth_token"
+        tbfa_mock.from_exception = _exception_formatter
+        dag_run_mock = MagicMock(
+            conf={"dryrun": False},
+            dag_id="test_dag_id",
+            execution_date=date.fromisoformat("2025-06-05")
+        )
+        task_mock = MagicMock(task_id="mytaskid")
+        task_instance_mock = MagicMock()
+        task_instance_mock.xcom_pull.side_effect=_xcom_getter
+        fcb = FailureCallback(__name__)
+        tweaked_ctx = self.context_mock_value.copy()
+        tweaked_ctx["task_instance"] = task_instance_mock
+        tweaked_ctx["task"] = task_mock
+        tweaked_ctx["crypt_auth_tok"] = "test_crypt_auth_tok"
+        tweaked_ctx["dag_run"] = dag_run_mock
+        tweaked_ctx["exception"] = "FakeTestException"
+        with patch("status_change.status_manager.HttpHook.run") as hhr_mock:
+            hhr_mock.return_value.json.return_value = self.good_context
+            fcb(tweaked_ctx)
+            args, kwargs = hhr_mock.call_args
+            assert args[0] == "/entities/abc123"
+            assert "mytaskid" in args[1]
+            assert "test_dag_id" in args[1]
+            assert "2025-06-05" in args[1]
+            assert "mytaskid" in args[1]
+            assert __name__ in args[1]
+            assert "This is the formatted version of FakeTestException" in args[1]
+            assert args[2]["authorization"] == "Bearer auth_token"
 
 # if __name__ == "__main__":
 #     suite = unittest.TestLoader().loadTestsFromTestCase(TestEntityUpdater)
