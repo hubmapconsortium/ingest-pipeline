@@ -242,7 +242,7 @@ with HMDAG(
         workflows = kwargs["ti"].xcom_pull(key="cwl_workflows", task_ids="build_cmd_sprm")
 
         input_parameters = [
-            {"parameter_name": "--ometiff_dir", "value": str(data_dir / "pipeline_outputs")},
+            {"parameter_name": "--ometiff_dir", "value": str(data_dir / "pipeline_output")},
             {"parameter_name": "--sprm_output", "value": str(data_dir / "sprm_outputs")},
         ]
 
