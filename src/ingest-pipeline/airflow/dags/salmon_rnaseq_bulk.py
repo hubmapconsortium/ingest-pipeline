@@ -69,7 +69,7 @@ with HMDAG(
 ) as dag:
     pipeline_name = "salmon-rnaseq-bulk"
     workflow_version = "1.0.0"
-    workflow_description = "The bulk RNA pipeline uses alignment free quasimapping to the HG38 reference genome via Salmon quant to produce a sample by gene matrix in hdf format."
+    workflow_description = "The bulk RNA pipeline uses alignment free quasimapping to the hg38 reference genome via Salmon quant to produce a sample by gene matrix in hdf format."
 
     cwl_workflows = [
         {
@@ -217,13 +217,11 @@ with HMDAG(
     (
         t_log_info
         >> t_create_tmpdir
-
         >> prepare_cwl1
         >> t_build_cmd1
         >> t_pipeline_exec
         >> t_maybe_keep_cwl1
         >> t_maybe_create_dataset
-
         >> t_send_create_dataset
         >> t_move_data
         >> t_send_status
