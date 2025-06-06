@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import logging
 from functools import cached_property
-from typing import Literal, Optional, Union
+from typing import Literal, Optional, Union, Any
 from os.path import join, dirname, realpath
 
 from airflow.providers.http.hooks.http import HttpHook
@@ -23,25 +23,47 @@ from schema_utils import (
 ENTITY_JSON_SCHEMA = "entity_metadata_schema.yml"  # from this repo's schemata directory
 
 
-# def send_email(self, **kwargs) -> None:
-#     # This is underdeveloped and also requires a separate PR
-#     logging.info(f"Simulating sending mail about {kwargs['uuid']}")
+class StatusChangeAction:
+    def __init__(self, uuid: str, token: str, **kwargs):
+        self.uuid = uuid
+        self.token = token
+        self.kwargs = kwargs
+
+    def test(self, context: dict[str, Any]) -> bool:
+        """
+        The action will be run if this test returns True
+        """
+        return True
+
+    def run(self, context: dict[str, Any]) -> None:
+        """
+        The action to be executed
+        """
+        pass
 
 
-# class StatusChangeAction:
-#     def __init__(self, callback):
-#         self.callback = callback
+class CheckPriorityReorgSCA(StatusChangeAction):
 
-#     def run(self, **kwargs):
-#         self.callback(**kwargs)
+    def test(self, context):
+        return context.get("priority_project_list")
+
+    def run(self, context):
+        msg, channel = format_priority_reorganized_msg(self.token, self.uuid)
+        if not (msg and channel):
+            raise EntityUpdateException(
+                f"Request to send Slack message missing message text (submitted: '{msg}')"
+                f" or target channel (submitted: '{channel}')."
+            )
+        http_hook = HttpHook("POST", http_conn_id="ingest_api_connection")
+        payload = json.dumps({"message": msg, "channel": channel})
+        headers = {
+            "Authorization": f"Bearer {self.token}",
+            "Content-Type": "application/json"
+        }
+        response = http_hook.run("/notify", payload, headers)
+        response.raise_for_status()
 
 
-# STATUS_CHANGE_TRIGGER_TBL = {
-#     ("*", "error"): [StatusChangeAction(send_email)]
-# }
-
-    
-    
 class EntityUpdater:
     def __init__(
         self,
@@ -243,7 +265,7 @@ class StatusChanger(EntityUpdater):
             ]
         }
         """
-        return {Statuses.UPLOAD_REORGANIZED: [("_check_priority_reorganized", {})]}
+        return {Statuses.UPLOAD_REORGANIZED: [(CheckPriorityReorgSCA, {})]}
 
     def update(self) -> None:
         """
@@ -265,8 +287,10 @@ class StatusChanger(EntityUpdater):
             return
         self._validate_fields_to_change()
         self._set_entity_api_data()
-        for func, args in self.status_map.get(self.status, []):
-            getattr(self, func)(**args)
+        for action_class, args in self.status_map.get(self.status, []):
+            action = action_class(self.uuid, self.token, **args)
+            if action.test(self.entity_data):
+                action.run(self.entity_data)
 
     def _validate_fields_to_change(self):
         self.fields_to_change["status"] = self.status
@@ -310,24 +334,4 @@ class StatusChanger(EntityUpdater):
                 extra_status.lower() == status
             ), f"Entity {self.uuid} passed multiple statuses ({status} and {extra_status})."
         return status
-
-    def send_email(self) -> None:
-        pass
-
-    def send_slack_message(self, msg: str, channel: str) -> dict:
-        if not (msg and channel):
-            raise EntityUpdateException(
-                f"Request to send Slack message missing message text (submitted: '{msg}') or target channel (submitted: '{channel}')."
-            )
-        http_hook = HttpHook("POST", http_conn_id="ingest_api_connection")
-        payload = json.dumps({"message": msg, "channel": channel})
-        headers = {"Authorization": f"Bearer {self.token}", "Content-Type": "application/json"}
-        response = http_hook.run("/notify", payload, headers)
-        response.raise_for_status()
-        return response.json()
-
-    def _check_priority_reorganized(self) -> None:
-        if self.entity_data.get("priority_project_list"):
-            msg, channel = format_priority_reorganized_msg(self.token, self.uuid)
-            self.send_slack_message(msg, channel)
 

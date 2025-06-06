@@ -10,10 +10,19 @@ from status_change.status_manager import (
     EntityUpdater,
     StatusChanger,
     Statuses,
+    StatusChangeAction
 )
 from status_change.slack_formatter import format_priority_reorganized_msg
 from status_change.failure_callback import FailureCallback
 from utils import pythonop_set_dataset_state
+
+
+def send_email():  # for patching later
+    pass
+
+class SendEmailSCA(StatusChangeAction):
+    def run(self, context):
+         send_email()
 
 
 class TestEntityUpdater(unittest.TestCase):
@@ -172,10 +181,11 @@ class TestEntityUpdater(unittest.TestCase):
             )
             assert with_http_conn_id.http_conn_id == "test_conn_id"
 
-    @patch("status_change.status_manager.StatusChanger.send_email")
+    @patch("test_status_changer.send_email")
     @patch("status_change.status_manager.StatusChanger.status_map")
     def test_update_from_status_map(self, status_map_mock, send_email_mock):
-        status_map_mock.get.side_effect = {Statuses.UPLOAD_VALID: [("send_email", {})]}.get
+        #status_map_mock.get.side_effect = {Statuses.UPLOAD_VALID: [("send_email", {})]}.get
+        status_map_mock.get.side_effect = {Statuses.UPLOAD_VALID: [(SendEmailSCA, {})]}.get
         self.assertFalse(send_email_mock.called)
         self.assertEqual(self.upload_valid.status, Statuses.UPLOAD_VALID)
         with patch("status_change.status_manager.HttpHook.run"):
@@ -264,10 +274,15 @@ class TestEntityUpdater(unittest.TestCase):
         "status": "New",
     }
 
-    @patch("status_change.status_manager.StatusChanger.send_slack_message")
     @patch("status_change.slack_formatter.get_organ")
     @patch("status_change.slack_formatter.get_submission_context")
-    def test_upload_reorganized_priority_slack(self, context_mock, organ_mock, slack_mock):
+    @patch("status_change.status_manager.HttpHook.run")
+    @patch("status_change.slack_formatter.airflow_conf.as_dict")
+    def test_upload_reorganized_priority_slack(self, af_conf_mock, hhr_mock,
+                                               context_mock, organ_mock):
+        af_conf_mock.return_value = {
+            "slack_channels" : {"PRIORITY_UPLOAD_REORGANIZED": "test_channel"}
+        }
         with patch("status_change.status_manager.get_submission_context") as mock_gsc:
             mock_gsc.return_value = self.context_mock_value
             with patch("status_change.status_manager.StatusChanger._set_entity_api_data"):
@@ -280,12 +295,16 @@ class TestEntityUpdater(unittest.TestCase):
                     extra_options={},
                     entity_type="Upload",
                 ).update()
-                slack_mock.assert_called_once()
+                hhr_mock.assert_called_once()
                 organ_mock.assert_called_with("test_dataset_uuid", "upload_valid_token")
 
-    @patch("status_change.status_manager.StatusChanger.send_slack_message")
     @patch("status_change.status_manager.get_submission_context")
-    def test_upload_reorganized_not_priority(self, context_mock, slack_mock):
+    @patch("status_change.status_manager.HttpHook.run")
+    @patch("status_change.slack_formatter.airflow_conf.as_dict")
+    def test_upload_reorganized_not_priority(self, af_conf_mock, hhr_mock, context_mock):
+        af_conf_mock.return_value = {
+            "slack_channels" : {"PRIORITY_UPLOAD_REORGANIZED": "test_channel"}
+        }
         with patch("status_change.status_manager.StatusChanger._set_entity_api_data"):
             new_context = self.context_mock_value.copy()
             new_context.pop("priority_project_list")
@@ -297,11 +316,15 @@ class TestEntityUpdater(unittest.TestCase):
                 extra_options={},
                 entity_type="Upload",
             ).update()
-            slack_mock.assert_not_called()
+            hhr_mock.assert_not_called()
 
-    @patch("status_change.status_manager.StatusChanger.send_slack_message")
     @patch("status_change.status_manager.get_submission_context")
-    def test_slack_not_triggered(self, context_mock, slack_mock):
+    @patch("status_change.status_manager.HttpHook.run")
+    @patch("status_change.slack_formatter.airflow_conf.as_dict")
+    def test_slack_not_triggered(self, af_conf_mock, hhr_mock, context_mock):
+        af_conf_mock.return_value = {
+            "slack_channels" : {"PRIORITY_UPLOAD_REORGANIZED": "test_channel"}
+        }
         with patch("status_change.status_manager.StatusChanger._set_entity_api_data"):
             context_mock.return_value = self.context_mock_value
             StatusChanger(
@@ -311,7 +334,7 @@ class TestEntityUpdater(unittest.TestCase):
                 extra_options={},
                 entity_type="Upload",
             ).update()
-            slack_mock.assert_not_called()
+            hhr_mock.assert_not_called()
 
     @patch("status_change.slack_formatter.airflow_conf.as_dict")
     @patch("status_change.slack_formatter.get_organ")
