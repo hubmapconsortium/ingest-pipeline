@@ -89,7 +89,6 @@ class EntityUpdater:
     @cached_property
     def entity_data(self):
         rslt = get_submission_context(self.token, self.uuid)
-        assert_json_matches_schema(rslt, "entity_metadata_schema.yml")
         return rslt
 
     def get_entity_type(self):
@@ -146,7 +145,9 @@ class EntityUpdater:
             {self.fields_to_change}
             """
         )
-        assert_json_matches_schema(self.fields_to_change, "entity_metadata_schema.yml")
+        updated_entity_data = self.entity_data.copy()
+        updated_entity_data.update(self.fields_to_change)
+        assert_json_matches_schema(updated_entity_data, "entity_metadata_schema.yml")
         if self.verbose:
             logging.info(f"Updating {self.uuid} with data {self.fields_to_change}...")
         try:
