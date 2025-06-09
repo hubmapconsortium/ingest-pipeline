@@ -99,7 +99,7 @@ class TestEntityUpdater(unittest.TestCase):
                 StatusChanger(
                     "invalid_status_uuid",
                     "invalid_status_token",
-                    status="invalid_status_string",
+                    status="Published",
                     extra_options={},
                     entity_type="Upload",
                 )
@@ -129,7 +129,7 @@ class TestEntityUpdater(unittest.TestCase):
             with_extra_option = StatusChanger(
                 "extra_options_uuid",
                 "extra_options_token",
-                status=Statuses.UPLOAD_VALID,
+                status=Statuses.UPLOAD_VALID.value,
                 extra_options={"check_response": False},
                 verbose=False,
             )
@@ -138,7 +138,7 @@ class TestEntityUpdater(unittest.TestCase):
             without_extra_option = StatusChanger(
                 "extra_options_uuid",
                 "extra_options_token",
-                status=Statuses.UPLOAD_VALID,
+                status=Statuses.UPLOAD_VALID.value,
                 verbose=False,
             )
             without_extra_option._set_entity_api_data()
@@ -155,7 +155,7 @@ class TestEntityUpdater(unittest.TestCase):
         with_extra_option_and_field = StatusChanger(
             "extra_options_uuid",
             "extra_options_token",
-            status=Statuses.UPLOAD_VALID,
+            status=Statuses.UPLOAD_VALID.value,
             fields_to_overwrite={"test_extra_field": True},
             extra_options={"check_response": False},
             verbose=False,
@@ -169,6 +169,34 @@ class TestEntityUpdater(unittest.TestCase):
         self.upload_valid._validate_fields_to_change()
         self.upload_valid._set_entity_api_data()
         self.assertIn('{"status": "valid"}', hhr_mock.call_args.args)
+
+    @patch("status_change.status_manager.get_submission_context")
+    @patch("status_change.status_manager.HttpHook.run")
+    def test_invalid_status_in_request(self, hhr_mock, ctx_mock):
+        ctx_mock.return_value = {
+            "status": "processing",
+            "entity_type": "Upload",
+            "test_extra_field": True,
+        }
+        sc = StatusChanger(
+            "my_test_uuid",
+            "my_test_token",
+            status="Valid",
+            extra_options={},
+            entity_type="Upload",
+            fields_to_overwrite={"test_extra_field": False},
+                # fields_to_overwrite={
+                #     #"status": "Published",
+                #     "unrelated_field": False,
+                # }
+            )
+        sc._validate_fields_to_change()
+        sc.update()
+        # patch the StatusChanger to avoid the tests in its constructor which
+        # would normally detect an invalid update
+        sc.fields_to_change["status"] = "published"
+        with self.assertRaises((AssertionError, EntityUpdateException)):
+            sc._set_entity_api_data()
 
     def test_http_conn_id(self):
         with patch("status_change.status_manager.HttpHook.run") as httpr_mock:
@@ -184,10 +212,9 @@ class TestEntityUpdater(unittest.TestCase):
     @patch("test_status_changer.send_email")
     @patch("status_change.status_manager.StatusChanger.status_map")
     def test_update_from_status_map(self, status_map_mock, send_email_mock):
-        #status_map_mock.get.side_effect = {Statuses.UPLOAD_VALID: [("send_email", {})]}.get
-        status_map_mock.get.side_effect = {Statuses.UPLOAD_VALID: [(SendEmailSCA, {})]}.get
+        status_map_mock.get.side_effect = {Statuses.UPLOAD_VALID.value: [(SendEmailSCA, {})]}.get
         self.assertFalse(send_email_mock.called)
-        self.assertEqual(self.upload_valid.status, Statuses.UPLOAD_VALID)
+        self.assertEqual(self.upload_valid.status, Statuses.UPLOAD_VALID.value)
         with patch("status_change.status_manager.HttpHook.run"):
             self.upload_valid.update()
         self.assertTrue(send_email_mock.called)
