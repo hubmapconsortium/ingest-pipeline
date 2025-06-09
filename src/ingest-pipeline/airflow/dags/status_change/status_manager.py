@@ -145,9 +145,19 @@ class EntityUpdater:
             {self.fields_to_change}
             """
         )
+        original_entity_type = self.entity_data.get("entity_type")
         updated_entity_data = self.entity_data.copy()
         updated_entity_data.update(self.fields_to_change)
-        assert_json_matches_schema(updated_entity_data, "entity_metadata_schema.yml")
+        updated_entity_type = updated_entity_data.get("entity_type")
+        if original_entity_type != updated_entity_type:
+            raise EntityUpdateException(
+                "An EntityUpdater or StatusChanger cannot change the entity_type"
+                f" (attempted change from {original_entity_type} to {updated_entity_type})"
+            )
+        try:
+            assert_json_matches_schema(updated_entity_data, "entity_metadata_schema.yml")
+        except AssertionError as excp:
+            raise EntityUpdateException(excp) from excp
         if self.verbose:
             logging.info(f"Updating {self.uuid} with data {self.fields_to_change}...")
         try:
