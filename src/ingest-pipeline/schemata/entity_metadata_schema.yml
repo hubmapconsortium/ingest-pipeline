@@ -33,39 +33,18 @@
       - 'properties':
            'entity_type': { 'const': 'Upload' }
            'status':
-             'anyOf':
-               - {'const': 'error'}
-               - {'const': 'invalid'}
-               - {'const': 'new'}
-               - {'const': 'processing'}
-               - {'const': 'reorganized'}
-               - {'const': 'submitted'}
-               - {'const': 'valid'}
+             'enum': ['error', 'invalid', 'new', 'processing', 'reorganized',
+                      'submitted', 'valid']
         'required': ['entity_type', 'status']
       - 'properties':
            'entity_type': { 'const': 'Dataset' }
            'status':
-             'anyOf':
-               - {'const': 'deprecated'}
-               - {'const': 'error'}
-               - {'const': 'hold'}
-               - {'const': 'invalid'}
-               - {'const': 'new'}
-               - {'const': 'processing'}
-               - {'const': 'published'}
-               - {'const': 'qa'}
-               - {'const': 'submitted'}
+             'enum': ['deprecated', 'error', 'hold', 'invalid', 'new',
+                      'processing', 'published', 'qa', 'submitted']
         'required': ['entity_type', 'status']
       - 'properties':
            'entity_type': { 'const': 'Publication' }
            'status':
-             'anyOf':
-               - {'const': 'error'}
-               - {'const': 'hold'}
-               - {'const': 'invalid'}
-               - {'const': 'new'}
-               - {'const': 'processing'}
-               - {'const': 'published'}
-               - {'const': 'qa'}
-               - {'const': 'submitted'}
+             'enum': ['error', 'hold', 'invalid', 'new',
+                      'processing', 'published', 'qa', 'submitted']
         'required': ['entity_type', 'status']
