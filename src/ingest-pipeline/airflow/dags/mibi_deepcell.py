@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 from airflow.operators.bash import BashOperator
-from airflow.operators.dummy import DummyOperator
+from airflow.operators.empty import EmptyOperator
 from airflow.operators.python import BranchPythonOperator, PythonOperator
 from airflow.decorators import task
 
@@ -165,7 +165,7 @@ with HMDAG(
         },
     )
 
-    prepare_cwl_sprm = DummyOperator(task_id="prepare_cwl_sprm")
+    prepare_cwl_sprm = EmptyOperator(task_id="prepare_cwl_sprm")
 
     def build_cwltool_cmd_sprm(**kwargs):
         run_id = kwargs["run_id"]
@@ -214,7 +214,7 @@ with HMDAG(
         },
     )
 
-    prepare_cwl_create_vis_symlink_archive = DummyOperator(
+    prepare_cwl_create_vis_symlink_archive = EmptyOperator(
         task_id="prepare_cwl_create_vis_symlink_archive",
     )
 
@@ -263,7 +263,7 @@ with HMDAG(
         },
     )
 
-    prepare_cwl_ome_tiff_pyramid = DummyOperator(task_id="prepare_cwl_ome_tiff_pyramid")
+    prepare_cwl_ome_tiff_pyramid = EmptyOperator(task_id="prepare_cwl_ome_tiff_pyramid")
 
     def build_cwltool_cwl_ome_tiff_pyramid(**kwargs):
         run_id = kwargs["run_id"]
@@ -314,7 +314,7 @@ with HMDAG(
         },
     )
 
-    prepare_cwl_ome_tiff_offsets = DummyOperator(task_id="prepare_cwl_ome_tiff_offsets")
+    prepare_cwl_ome_tiff_offsets = EmptyOperator(task_id="prepare_cwl_ome_tiff_offsets")
 
     def build_cwltool_cmd_ome_tiff_offsets(**kwargs):
         run_id = kwargs["run_id"]
@@ -362,7 +362,7 @@ with HMDAG(
         },
     )
 
-    prepare_cwl_sprm_to_json = DummyOperator(task_id="prepare_cwl_sprm_to_json")
+    prepare_cwl_sprm_to_json = EmptyOperator(task_id="prepare_cwl_sprm_to_json")
 
     def build_cwltool_cmd_sprm_to_json(**kwargs):
         run_id = kwargs["run_id"]
@@ -410,7 +410,7 @@ with HMDAG(
         },
     )
 
-    prepare_cwl_sprm_to_anndata = DummyOperator(task_id="prepare_cwl_sprm_to_anndata")
+    prepare_cwl_sprm_to_anndata = EmptyOperator(task_id="prepare_cwl_sprm_to_anndata")
 
     def build_cwltool_cmd_sprm_to_anndata(**kwargs):
         run_id = kwargs["run_id"]

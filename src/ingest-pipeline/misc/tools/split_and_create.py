@@ -2,7 +2,6 @@
 
 import argparse
 import json
-import math
 import re
 import time
 from pathlib import Path
@@ -14,7 +13,7 @@ import pandas as pd
 from extra_utils import SoftAssayClient
 from status_change.status_manager import StatusChanger, Statuses
 
-from airflow.hooks.http_hook import HttpHook
+from airflow.providers.http.hooks.http import HttpHook
 
 # There has got to be a better solution for this, but I can't find it
 try:
