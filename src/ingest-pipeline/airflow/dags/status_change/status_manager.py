@@ -4,7 +4,6 @@ import json
 import logging
 from functools import cached_property
 from typing import Literal, Optional, Union, Any
-from os.path import join, dirname, realpath
 
 from airflow.providers.http.hooks.http import HttpHook
 
@@ -45,7 +44,7 @@ class StatusChangeAction:
 class CheckPriorityReorgSCA(StatusChangeAction):
 
     def test(self, context):
-        return context.get("priority_project_list")
+        return bool(context.get("priority_project_list"))
 
     def run(self, context):
         msg, channel = format_priority_reorganized_msg(self.token, self.uuid)

@@ -9,7 +9,7 @@ SCHEMA_BASE_URI = "http://schemata.hubmapconsortium.org/"
 
 set_schema_base_path(SCHEMA_BASE_PATH, SCHEMA_BASE_URI)
 
-def localized_assert_json_matches_schema(jsn: JSONType, schemafile: str) -> None:
+def localized_assert_json_matches_schema(jsn: JSONType, schemafile: str) -> True:
     """
     This version of assert_json_matches_schema knows where to find schemata used by this module
     """

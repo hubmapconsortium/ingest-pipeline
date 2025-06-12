@@ -781,7 +781,7 @@ def get_file_metadata_dict(
         matcher = PipelineFileMatcher.create_from_files(pipeline_file_manifests)
     file_info = get_file_metadata(root_dir, matcher)
     if len(file_info) > max_in_line_files:
-        localized_assert_json_matches_schema(file_info, "file_info_schema.yml")
+        assert_json_matches_schema(file_info, "file_info_schema.yml")
         fpath = join(alt_file_dir, "{}.json".format(uuid.uuid4()))
         with open(fpath, "w") as f:
             json.dump({"files": file_info}, f)
@@ -1610,7 +1610,7 @@ def make_send_status_msg_function(
                         contacts = ds_rslt.get("contacts", [])
 
             try:
-                localized_assert_json_matches_schema(
+                assert_json_matches_schema(
                     md,
                     "dataset_metadata_schema.yml"
                 )
@@ -1724,7 +1724,7 @@ def _get_workflow_map() -> List[Tuple[Pattern, Pattern, str]]:
         map_path = join(dirname(__file__), WORKFLOW_MAP_FILENAME)
         with open(map_path, "r") as f:
             map = yaml.safe_load(f)
-        localized_assert_json_matches_schema(map, WORKFLOW_MAP_SCHEMA)
+        assert_json_matches_schema(map, WORKFLOW_MAP_SCHEMA)
         cmp_map = []
         for dct in map["workflow_map"]:
             ct_re = re.compile(dct["collection_type"])
@@ -1743,7 +1743,7 @@ def _get_resource_map() -> List[Tuple[Pattern, Pattern, Dict[str, str]]]:
         map_path = join(dirname(__file__), RESOURCE_MAP_FILENAME)
         with open(map_path, "r") as f:
             map = yaml.safe_load(f)
-        localized_assert_json_matches_schema(map, RESOURCE_MAP_SCHEMA)
+        assert_json_matches_schema(map, RESOURCE_MAP_SCHEMA)
         cmp_map = []
         for dct in map["resource_map"]:
             dag_re = re.compile(dct["dag_re"])
@@ -1958,7 +1958,7 @@ def main():
         "dag_provenance_list": get_git_provenance_list(__file__),
     }
     try:
-        localized_assert_json_matches_schema(md, "dataset_metadata_schema.yml")
+        assert_json_matches_schema(md, "dataset_metadata_schema.yml")
         print("ASSERT passed")
     except AssertionError as e:
         print(f"ASSERT failed {e}")
