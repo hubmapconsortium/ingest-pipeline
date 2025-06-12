@@ -5,7 +5,7 @@ louvain==0.6.1
 matplotlib==3.0.3
 networkx==2.4
 numba==0.46.0
-numexpr==2.7.0
+numexpr==2.8.5
 numpy==1.17.4
 pandas==0.25.3
 scanpy==1.4.4
