@@ -2,6 +2,7 @@
 # -r ${CWD}/submodules/ingest-validation-tools/requirements.txt
 # -r ${CWD}/submodules/ingest-validation-tests/requirements.txt
 apache-airflow[celery,crypto,postgres,redis,ssh,amazon]==2.11.0 --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-2.11.0/constraints-3.11.txt"
+airflow-multi-dagrun==2.3.1
 git+https://github.com/hubmapconsortium/cwltool.git@docker-gpu#egg=cwltool
 git+https://github.com/hubmapconsortium/fastq-utils@v0.2.5#egg=hubmap-fastq-utils
 globus-sdk==3.56.1
