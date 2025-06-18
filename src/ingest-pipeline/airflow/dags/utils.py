@@ -36,7 +36,7 @@ from requests import codes
 from requests.exceptions import HTTPError
 from schema_utils import (
     localized_assert_json_matches_schema as assert_json_matches_schema,
-    JSONType
+    JSONType,
 )
 from status_change.status_manager import EntityUpdateException, StatusChanger
 
@@ -1610,10 +1610,7 @@ def make_send_status_msg_function(
                         contacts = ds_rslt.get("contacts", [])
 
             try:
-                assert_json_matches_schema(
-                    md,
-                    "dataset_metadata_schema.yml"
-                )
+                assert_json_matches_schema(md, "dataset_metadata_schema.yml")
                 metadata = md.pop("metadata", {})
                 files = md.pop("files", [])
                 extra_fields = {
@@ -1931,6 +1928,14 @@ def get_soft_data_assaytype(dataset_uuid, **kwargs) -> str:
     soft_data = get_soft_data(dataset_uuid, **kwargs)
     assert "assaytype" in soft_data, f"Could not find matching assaytype for {dataset_uuid}"
     return soft_data["assaytype"]
+
+
+def gather_calculated_metadata(**kwargs):
+    # Then we gather the metadata from the mudata transformation output
+    # Always have to gather the metadata from the transformation
+    data_dir = kwargs["ti"].xcom_pull(task_ids="send_create_dataset")
+    output_metadata = json.load(open(f"{data_dir}/calculated_metadata.json"))
+    return {"calculated_metadata": output_metadata}
 
 
 def main():
