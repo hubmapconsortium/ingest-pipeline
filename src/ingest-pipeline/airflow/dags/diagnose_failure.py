@@ -10,7 +10,7 @@ from airflow.exceptions import AirflowException
 
 import utils
 from utils import (
-    localized_assert_json_matches_schema as assert_json_matches_schema,
+    assert_json_matches_schema,
     HMDAG,
     get_queue_resource,
     )

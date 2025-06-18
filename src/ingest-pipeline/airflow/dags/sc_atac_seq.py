@@ -20,7 +20,6 @@ import utils
 from utils import (
     SequencingDagParameters,
     get_absolute_workflow,
-    get_cwltool_base_cmd,
     get_dataset_uuid,
     get_parent_dataset_uuids_list,
     get_parent_data_dirs_list,

@@ -21,7 +21,7 @@ from hubmap_operators.common_operators import (
 )
 
 from utils import (
-    localized_assert_json_matches_schema as assert_json_matches_schema,
+    assert_json_matches_schema,
     get_tmp_dir_path,
     get_auth_tok,
     get_dataset_uuid,
