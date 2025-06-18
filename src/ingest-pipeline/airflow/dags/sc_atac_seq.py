@@ -255,18 +255,15 @@ def generate_atac_seq_dag(params: SequencingDagParameters) -> DAG:
         (
             t_log_info
             >> t_create_tmpdir
-
             >> prepare_cwl1
             >> t_build_cmd1
             >> t_pipeline_exec
             >> t_maybe_keep_cwl1
-
             >> prepare_cwl2
             >> t_build_cmd2
             >> t_make_arrow1
             >> t_maybe_keep_cwl2
             >> t_maybe_create_dataset
-
             >> t_send_create_dataset
             >> t_move_data
             >> t_send_status
@@ -286,25 +283,25 @@ atacseq_dag_data: List[SequencingDagParameters] = [
         dag_id="sc_atac_seq_sci",
         pipeline_name="sci-atac-seq-pipeline",
         assay="sciseq",
-        workflow_description="The pipeline for multiome sciATACseq data uses HISAT2 for short read alignment of ATACseq reads HG38 reference genome and ArchR to convert the resulting BAM file to a cell by bin matrix, which is used to calculate TSS enrichment, differential enrichment of transcription factors, perform clustering of nuclei and additional analysis.",
+        workflow_description="The pipeline for multiome sciATACseq data uses HISAT2 for short read alignment of ATACseq reads hg38 reference genome and ArchR to convert the resulting BAM file to a cell by bin matrix, which is used to calculate TSS enrichment, differential enrichment of transcription factors, perform clustering of nuclei and additional analysis.",
     ),
     SequencingDagParameters(
         dag_id="sc_atac_seq_snare",
         pipeline_name="sc-atac-seq-pipeline",
         assay="snareseq",
-        workflow_description="The pipeline for multiome RNA-ATACseq data uses Salmon for alignment free quasi mapping of reads from RNA sequencing to the HG38 reference genome and HISAT2 for short read alignment of ATACseq reads to the same genome.  Barcodes are then mapped between components of the assay to generate an annotated data matrix with consolidated RNA and ATACseq data.  This annotated data matrix is then passed to the Muon package for dimensionality reduction, clustering, and multiomic factor analysis.  Cell type annotations are provided by Azimuth when available for the type of tissue being analyzed.",
+        workflow_description="The pipeline for multiome RNA-ATACseq data uses Salmon for alignment free quasi mapping of reads from RNA sequencing to the hg38 reference genome and HISAT2 for short read alignment of ATACseq reads to the same genome.  Barcodes are then mapped between components of the assay to generate an annotated data matrix with consolidated RNA and ATACseq data. This annotated data matrix is then passed to the Muon package for dimensionality reduction, clustering, and multiomic factor analysis.  Cell type annotations are provided by Azimuth when available for the type of tissue being analyzed.",
     ),
     SequencingDagParameters(
         dag_id="sc_atac_seq_sn",
         pipeline_name="sn-atac-seq-pipeline",
         assay="snseq",
-        workflow_description="Thee pipeline for snATACseq data uses HISAT2 for short read alignment of ATACseq reads HG38 reference genome and ArchR to convert the resulting BAM file to a cell by bin matrix, which is used to calculate TSS enrichment, differential enrichment of transcription factors, perform clustering of nuclei and additional analysis.",
+        workflow_description="The pipeline for snATACseq data uses HISAT2 for short read alignment of ATACseq reads hg38 reference genome and ArchR to convert the resulting BAM file to a cell by bin matrix, which is used to calculate TSS enrichment, differential enrichment of transcription factors, perform clustering of nuclei and additional analysis.",
     ),
     SequencingDagParameters(
         dag_id="sc_atac_seq_multiome_10x",
         pipeline_name="sn-atac-seq-pipeline",
         assay="multiome_10x",
-        workflow_description="The pipeline for multiome RNA-ATACseq data uses Salmon for alignment free quasi mapping of reads from RNA sequencing to the HG38 reference genome and HISAT2 for short read alignment of ATACseq reads to the same genome.  Barcodes are then mapped between components of the assay to generate an annotated data matrix with consolidated RNA and ATACseq data.  This annotated data matrix is then passed to the Muon package for dimensionality reduction, clustering, and multiomic factor analysis.  Cell type annotations are provided by Azimuth when available for the type of tissue being analyzed.",
+        workflow_description="The pipeline for multiome RNA-ATACseq data uses Salmon for alignment free quasi mapping of reads from RNA sequencing to the hg38 reference genome and HISAT2 for short read alignment of ATACseq reads to the same genome.  Barcodes are then mapped between components of the assay to generate an annotated data matrix with consolidated RNA and ATACseq data. This annotated data matrix is then passed to the Muon package for dimensionality reduction, clustering, and multiomic factor analysis.  Cell type annotations are provided by Azimuth when available for the type of tissue being analyzed.",
     ),
 ]
 
