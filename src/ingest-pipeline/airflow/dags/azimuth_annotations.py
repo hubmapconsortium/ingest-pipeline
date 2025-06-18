@@ -32,6 +32,7 @@ from utils import (
     build_provenance_function,
     get_assay_previous_version,
     get_cwl_cmd_from_workflows,
+    gather_calculated_metadata,
 )
 
 
@@ -343,6 +344,7 @@ with HMDAG(
         ],
         cwl_workflows=cwl_workflows_files_salmon,
         no_provenance=True,
+        metadata_fun=gather_calculated_metadata,
     )
 
     send_status_msg_multiome = make_send_status_msg_function(
@@ -356,6 +358,7 @@ with HMDAG(
         ],
         cwl_workflows=cwl_workflows_files_multiome,
         no_provenance=True,
+        metadata_fun=gather_calculated_metadata,
     )
 
     build_provenance_salmon = build_provenance_function(
@@ -408,23 +411,19 @@ with HMDAG(
         >> t_send_create_dataset
         >> t_set_dataset_processing
         >> t_populate_tmpdir
-
         >> prepare_cwl1
         >> t_build_cmd1
         >> t_pipeline_exec_azimuth_annotate
         >> t_maybe_keep_cwl1
-
         >> prepare_cwl2
         >> t_build_cmd2
         >> t_convert_for_ui
         >> t_maybe_keep_cwl2
         >> t_maybe_skip_cwl3
-
         >> prepare_cwl3
         >> t_build_cmd3
         >> t_convert_for_ui_2
         >> t_maybe_keep_cwl3
-
         >> t_move_data_salmon
         >> t_build_provenance_salmon
         >> t_send_status_salmon

@@ -36,6 +36,7 @@ from utils import (
     get_threads_resource,
     get_preserve_scratch_resource,
     get_cwl_cmd_from_workflows,
+    gather_calculated_metadata,
 )
 
 from extra_utils import build_tag_containers
@@ -384,6 +385,7 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
             ),
             workflow_description=workflow_description,
             workflow_version=workflow_version,
+            metadata_fun=gather_calculated_metadata
         )
 
         t_send_status = PythonOperator(
