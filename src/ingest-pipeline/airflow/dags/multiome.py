@@ -369,7 +369,7 @@ def generate_multiome_dag(params: MultiomeSequencingDagParameters) -> DAG:
             ),
             workflow_description=workflow_description,
             workflow_version=workflow_version,
-            metadata_fun=gather_calculated_metadata
+            metadata_fun=gather_calculated_metadata,
         )
 
         t_send_status = PythonOperator(
