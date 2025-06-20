@@ -131,7 +131,7 @@ with HMDAG(
             {"parameter_name": "--gpus", "value": "all"},
             {"parameter_name": "--meta_path", "value": meta_yml_path},
             {"parameter_name": "--segmentation_method", "value": "deepcell"},
-            {"parameter_name": "--data_dir", "value": str(data_dir / "HuBMAP_OME")},
+            {"parameter_name": "--data_dir", "value": str(data_dir)},
         ]
 
         command = get_cwl_cmd_from_workflows(
@@ -242,7 +242,7 @@ with HMDAG(
         workflows = kwargs["ti"].xcom_pull(key="cwl_workflows", task_ids="build_cmd_sprm")
 
         input_parameters = [
-            {"parameter_name": "--ometiff_dir", "value": str(data_dir / "pipeline_outputs")},
+            {"parameter_name": "--ometiff_dir", "value": str(data_dir / "pipeline_output")},
             {"parameter_name": "--sprm_output", "value": str(data_dir / "sprm_outputs")},
         ]
 
