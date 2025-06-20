@@ -17,7 +17,7 @@ from utils import (
     pythonop_md_consistency_tests,
     make_send_status_msg_function,
     get_tmp_dir_path,
-    localized_assert_json_matches_schema as assert_json_matches_schema,
+    assert_json_matches_schema,
     pythonop_get_dataset_state,
     encrypt_tok,
 )

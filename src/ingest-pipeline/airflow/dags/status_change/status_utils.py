@@ -7,7 +7,7 @@ from typing import Any
 from requests import codes
 from requests.exceptions import HTTPError
 
-from airflow.hooks.http_hook import HttpHook
+from airflow.providers.http.hooks.http import HttpHook
 
 
 class EntityUpdateException(Exception):
@@ -102,9 +102,8 @@ def get_submission_context(token: str, uuid: str) -> dict[str, Any]:
         print(f"ERROR: {e}")
         if e.response.status_code == codes.unauthorized:
             raise RuntimeError("entity database authorization was rejected?")
-        else:
-            print("benign error")
-            return {}
+        print("benign error")
+        return {}
 
 
 def get_hubmap_id_from_uuid(token: str, uuid: str) -> str | None:
@@ -128,9 +127,8 @@ def get_hubmap_id_from_uuid(token: str, uuid: str) -> str | None:
         print(f"ERROR: {e}")
         if e.response.status_code == codes.unauthorized:
             raise RuntimeError("entity database authorization was rejected?")
-        else:
-            print("benign error")
-            return None
+        print("benign error")
+        return None
 
 
 def formatted_exception(exception):

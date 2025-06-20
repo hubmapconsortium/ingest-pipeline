@@ -6,7 +6,7 @@ import json
 
 from airflow.operators.bash import BashOperator
 from airflow.operators.python import PythonOperator, BranchPythonOperator
-from airflow.operators.dummy import DummyOperator
+from airflow.operators.empty import EmptyOperator
 
 import utils
 from utils import (
@@ -22,7 +22,6 @@ from utils import (
     get_queue_resource,
     get_preserve_scratch_resource,
     pythonop_get_dataset_state,
-    get_dataset_uuid,
     get_parent_dataset_path,
     pythonop_send_create_dataset,
     get_threads_resource,
@@ -33,8 +32,6 @@ from hubmap_operators.common_operators import (
     CreateTmpDirOperator,
     JoinOperator,
     LogInfoOperator,
-    MoveDataOperator,
-    SetDatasetProcessingOperator,
 )
 
 
@@ -185,7 +182,7 @@ with HMDAG(
     def convert_obj_by_feature_to_tsv(**kwargs):
         data_dir = kwargs["ti"].xcom_pull(task_ids="create_or_use_dataset")
         os.mkdir(os.path.join(data_dir, "extras/transformations"))
-        for root, dirs, files in os.walk(f"{data_dir}"):
+        for root, _, files in os.walk(f"{data_dir}"):
             for file in files:
                 file_path = os.path.join(root, file)
                 file_name, file_ext = os.path.splitext(file)
@@ -195,12 +192,12 @@ with HMDAG(
                     continue
 
                 if file_ext == ".xlsx":
-                    df = pd.read_excel(file_path, engine="openpyxl", headers=None)
+                    df = pd.read_excel(file_path, engine="openpyxl", header=None)
                 else:
                     continue
 
                 output_file = os.path.join(data_dir, "extras/transformations", f"{file_name}.tsv")
-                df.to_csv(output_file, sep="\t", index=False, headers=None)
+                df.to_csv(output_file, sep="\t", index=False, header=False)
 
     t_convert_obj_by_feature_to_tsv = PythonOperator(
         task_id="convert_obj_by_feature_to_tsv",
@@ -209,7 +206,7 @@ with HMDAG(
     )
 
     # BEGIN - TSV -> MuData Region
-    prepare_cwl_tsv_to_mudata = DummyOperator(task_id="prepare_cwl_tsv_to_mudata")
+    prepare_cwl_tsv_to_mudata = EmptyOperator(task_id="prepare_cwl_tsv_to_mudata")
 
     def build_cwl_cmd_tsv_to_mudata(**kwargs):
         run_id = kwargs["run_id"]

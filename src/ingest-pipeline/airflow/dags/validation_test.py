@@ -10,7 +10,7 @@ from airflow.exceptions import AirflowException
 
 import utils
 from utils import (
-    localized_assert_json_matches_schema as assert_json_matches_schema,
+    assert_json_matches_schema,
     HMDAG,
     get_queue_resource,
     )
@@ -103,7 +103,7 @@ with HMDAG('validation_test',
     def run_validation(**kwargs):
         lz_path = kwargs['ti'].xcom_pull(key='lz_path')
         uuid = kwargs['ti'].xcom_pull(key='uuid')
-        plugin_path = [path for path in ingest_validation_tests.__path__][0]
+        plugin_path = list(ingest_validation_tests.__path__)[0]
 
         ignore_globs = [uuid, 'extras', '*metadata.tsv',
                         'validation_report.txt']
