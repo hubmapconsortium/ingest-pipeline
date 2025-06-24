@@ -514,6 +514,10 @@ with HMDAG(
                 "parameter_name": "--cell_types_directory",
                 "value": fspath(data_dir / "deepcelltypes"),
             },
+            {
+                "parameter_name": "--cell_types_directory",
+                "value": fspath(data_dir / "stellar"),
+            },
         ]
 
         command = get_cwl_cmd_from_workflows(
