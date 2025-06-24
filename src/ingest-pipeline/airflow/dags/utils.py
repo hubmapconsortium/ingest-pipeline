@@ -263,16 +263,16 @@ def find_pipeline_manifests(cwl_files: Union[List[Path], List[Dict], str]) -> Li
 
 
 def get_cwl_cmd_from_workflows(
-    workflows: List[Dict],
-    workflow_index: int,
+    workflows: Union[List[Dict], Dict[Dict]],
+    workflow_index: Union[int, str],
     input_param_vals: List,
     tmp_dir: Path,
     ti,
     cwl_param_vals: Optional[List[Dict]] = None,
 ) -> List:
     """
-    :param workflows: Iterable of workflow dictionaries
-    :param workflow_index: index of workflow to build
+    :param workflows: Iterable or dict of workflow dictionaries
+    :param workflow_index: index or name of workflow to build
     :param input_param_vals: list of input parameter values
     :param tmp_dir: temporary directory
     :param ti: task instance
