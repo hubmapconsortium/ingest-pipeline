@@ -1714,7 +1714,7 @@ def _get_workflow_map() -> List[Tuple[Pattern, Pattern, str]]:
             map = yaml.safe_load(f)
         assert_json_matches_schema(map, WORKFLOW_MAP_SCHEMA)
         cmp_map = []
-        for dct in map_content["workflow_map"]:
+        for dct in map["workflow_map"]:
             ct_re = re.compile(dct["collection_type"])
             at_re = re.compile(dct["assay_type"])
             cmp_map.append((ct_re, at_re, dct["workflow"]))
