@@ -1,39 +1,46 @@
-from pathlib import Path
 from datetime import datetime, timedelta
+from os import fspath
+from pathlib import Path
 
+import utils
+from extra_utils import build_tag_containers
 from airflow.operators.bash import BashOperator
 from airflow.operators.python import PythonOperator, BranchPythonOperator
 from airflow.operators.empty import EmptyOperator
 from airflow.decorators import task
 
 from hubmap_operators.common_operators import (
-    LogInfoOperator,
-    JoinOperator,
+    CleanupTmpDirOperator,
     CreateTmpDirOperator,
+    JoinOperator,
+    LogInfoOperator,
+    MoveDataOperator,
+    SetDatasetProcessingOperator,
     CleanupTmpDirOperator,
     MoveDataOperator,
 )
-
-import utils
+from utils import HMDAG
+from utils import build_dataset_name as inner_build_dataset_name
 from utils import (
-    get_dataset_uuid,
     get_absolute_workflow,
-    get_parent_dataset_uuids_list,
+    get_cwl_cmd_from_workflows,
+    get_dataset_uuid,
     get_parent_data_dir,
-    build_dataset_name as inner_build_dataset_name,
+    get_parent_dataset_uuids_list,
+    get_preserve_scratch_resource,
     get_previous_revision_uuid,
+    get_queue_resource,
+    get_threads_resource,
+    get_tmp_dir_path,
     get_uuid_for_error,
     join_quote_command_str,
     make_send_status_msg_function,
-    get_tmp_dir_path,
-    HMDAG,
-    get_queue_resource,
-    get_preserve_scratch_resource,
-    get_threads_resource,
-    get_cwl_cmd_from_workflows,
 )
 
-from extra_utils import build_tag_containers
+from airflow.decorators import task
+from airflow.operators.bash import BashOperator
+from airflow.operators.dummy import DummyOperator
+from airflow.operators.python import BranchPythonOperator, PythonOperator
 
 default_args = {
     "owner": "hubmap",
@@ -64,66 +71,72 @@ with HMDAG(
     workflow_description = "The CODEX pipeline performs illumination correction and other pre-processing steps, segments nuclei and cells using Cytokit, and performs spatial analysis of expression data using SPRM, which computes various measures of analyte intensity per cell, performs clustering based on expression and other data, and computes markers for each cluster."
     steps_dir = Path(pipeline_name) / "steps"
 
-    cwl_workflows = [
-        {
-            "workflow_path": str(
+    cwl_workflows = {
+        "first_stitching": {
+            "workflow_path": fspath(
                 get_absolute_workflow(steps_dir / "illumination_first_stitching.cwl")
             ),
             "documentation_url": "",
         },
-        {
-            "workflow_path": str(get_absolute_workflow(steps_dir / "run_cytokit.cwl")),
+        "cytokit": {
+            "workflow_path": fspath(get_absolute_workflow(steps_dir / "run_cytokit.cwl")),
             "documentation_url": "",
         },
-        {
-            "workflow_path": str(
+        "second_stitching": {
+            "workflow_path": fspath(
                 get_absolute_workflow(steps_dir / "ometiff_second_stitching.cwl")
             ),
             "documentation_url": "",
         },
-        {
-            "workflow_path": str(get_absolute_workflow(Path("ribca", "pipeline.cwl"))),
+        "ribca": {
+            "workflow_path": fspath(get_absolute_workflow(Path("ribca", "pipeline.cwl"))),
             "documentation_url": "",
         },
-        {
-            "workflow_path": str(
+        "deepcelltypes": {
+            "workflow_path": fspath(
                 get_absolute_workflow(Path("deepcelltypes", "run_deepcelltypes.cwl"))
             ),
             "documentation_url": "",
         },
-        {
-            "workflow_path": str(get_absolute_workflow(Path("sprm", "pipeline.cwl"))),
+        "stellar": {
+            "workflow_path": fspath(get_absolute_workflow(Path("stellar", "pipeline.cwl"))),
             "documentation_url": "",
         },
-        {
-            "workflow_path": str(
+        "sprm": {
+            "workflow_path": fspath(get_absolute_workflow(Path("sprm", "pipeline.cwl"))),
+            "documentation_url": "",
+        },
+        "create-vis-symlink-archive": {
+            "workflow_path": fspath(
                 get_absolute_workflow(Path("create-vis-symlink-archive", "pipeline.cwl"))
             ),
             "documentation_url": "",
         },
-        {
-            "workflow_path": str(get_absolute_workflow(Path("ome-tiff-pyramid", "pipeline.cwl"))),
+        "ome-tiff-pyramid": {
+            "workflow_path": fspath(
+                get_absolute_workflow(Path("ome-tiff-pyramid", "pipeline.cwl"))
+            ),
             "documentation_url": "",
         },
-        {
-            "workflow_path": str(
+        "ome-tiff-offsets": {
+            "workflow_path": fspath(
                 get_absolute_workflow(Path("portal-containers", "ome-tiff-offsets.cwl"))
             ),
             "documentation_url": "",
         },
-        {
-            "workflow_path": str(
+        "sprm-to-json": {
+            "workflow_path": fspath(
                 get_absolute_workflow(Path("portal-containers", "sprm-to-json.cwl"))
             ),
             "documentation_url": "",
         },
-        {
-            "workflow_path": str(
+        "sprm-to-anndata": {
+            "workflow_path": fspath(
                 get_absolute_workflow(Path("portal-containers", "sprm-to-anndata.cwl"))
             ),
             "documentation_url": "",
         },
-    ]
+    }
 
     def build_dataset_name(**kwargs):
         return inner_build_dataset_name(dag.dag_id, pipeline_name, **kwargs)
@@ -147,11 +160,11 @@ with HMDAG(
 
         input_parameters = [
             {"parameter_name": "--gpus", "value": "0,1"},
-            {"parameter_name": "--data_dir", "value": str(data_dir)},
+            {"parameter_name": "--data_dir", "value": fspath(data_dir)},
         ]
 
         command = get_cwl_cmd_from_workflows(
-            cwl_workflows, 0, input_parameters, tmpdir, kwargs["ti"]
+            cwl_workflows, "first_stitching", input_parameters, tmpdir, kwargs["ti"]
         )
 
         return join_quote_command_str(command)
@@ -186,7 +199,7 @@ with HMDAG(
     @task(task_id="prepare_cwl_cytokit")
     def prepare_cwl_cmd2(**kwargs):
         if kwargs["dag_run"].conf.get("dryrun"):
-            cwl_path = Path(cwl_workflows[1]["workflow_path"]).parent
+            cwl_path = Path(cwl_workflows["cytokit"]["workflow_path"]).parent
             return build_tag_containers(cwl_path)
         else:
             return "No Container build required"
@@ -205,11 +218,13 @@ with HMDAG(
         )
 
         input_parameters = [
-            {"parameter_name": "--data_dir", "value": str(data_dir / "new_tiles")},
-            {"parameter_name": "--yaml_config", "value": str(data_dir / "experiment.yaml")},
+            {"parameter_name": "--data_dir", "value": fspath(data_dir / "new_tiles")},
+            {"parameter_name": "--yaml_config", "value": fspath(data_dir / "experiment.yaml")},
         ]
 
-        command = get_cwl_cmd_from_workflows(workflows, 1, input_parameters, tmpdir, kwargs["ti"])
+        command = get_cwl_cmd_from_workflows(
+            workflows, "cytokit", input_parameters, tmpdir, kwargs["ti"]
+        )
 
         return join_quote_command_str(command)
 
@@ -242,7 +257,7 @@ with HMDAG(
     @task(task_id="prepare_cwl_ometiff_second_stitching")
     def prepare_cwl_cmd3(**kwargs):
         if kwargs["dag_run"].conf.get("dryrun"):
-            cwl_path = Path(cwl_workflows[2]["workflow_path"]).parent
+            cwl_path = Path(cwl_workflows["second_stitching"]["workflow_path"]).parent
             return build_tag_containers(cwl_path)
         else:
             return "No Container build required"
@@ -259,19 +274,21 @@ with HMDAG(
         workflows = kwargs["ti"].xcom_pull(key="cwl_workflows", task_ids="build_cwl_cytokit")
 
         input_parameters = [
-            {"parameter_name": "--cytokit_config", "value": str(data_dir / "experiment.yaml")},
-            {"parameter_name": "--cytokit_output", "value": str(data_dir / "cytokit")},
+            {"parameter_name": "--cytokit_config", "value": fspath(data_dir / "experiment.yaml")},
+            {"parameter_name": "--cytokit_output", "value": fspath(data_dir / "cytokit")},
             {
                 "parameter_name": "--slicing_pipeline_config",
-                "value": str(data_dir / "pipelineConfig.json"),
+                "value": fspath(data_dir / "pipelineConfig.json"),
             },
             {
                 "parameter_name": "--num_concurrent_tasks",
                 "value": get_threads_resource(dag.dag_id),
             },
-            {"parameter_name": "--data_dir", "value": str(get_parent_data_dir(**kwargs))},
+            {"parameter_name": "--data_dir", "value": fspath(get_parent_data_dir(**kwargs))},
         ]
-        command = get_cwl_cmd_from_workflows(workflows, 2, input_parameters, tmpdir, kwargs["ti"])
+        command = get_cwl_cmd_from_workflows(
+            workflows, "second_stitching", input_parameters, tmpdir, kwargs["ti"]
+        )
 
         return join_quote_command_str(command)
 
@@ -304,7 +321,7 @@ with HMDAG(
     @task(task_id="prepare_cwl_ribca")
     def prepare_cwl_cmd4(**kwargs):
         if kwargs["dag_run"].conf.get("dryrun"):
-            cwl_path = Path(cwl_workflows[3]["workflow_path"]).parent
+            cwl_path = Path(cwl_workflows["ribca"]["workflow_path"]).parent
             return build_tag_containers(cwl_path)
         else:
             return "No Container build required"
@@ -324,8 +341,10 @@ with HMDAG(
             key="cwl_workflows", task_ids="build_cwl_ometiff_second_stitching"
         )
 
-        input_parameters = [{"parameter_name": "--data_dir", "value": str(data_dir)}]
-        command = get_cwl_cmd_from_workflows(workflows, 3, input_parameters, tmpdir, kwargs["ti"])
+        input_parameters = [{"parameter_name": "--data_dir", "value": fspath(data_dir)}]
+        command = get_cwl_cmd_from_workflows(
+            workflows, "ribca", input_parameters, tmpdir, kwargs["ti"]
+        )
 
         return join_quote_command_str(command)
 
@@ -367,7 +386,7 @@ with HMDAG(
     @task(task_id="prepare_cwl_deepcelltypes")
     def prepare_cwl_cmd5(**kwargs):
         if kwargs["dag_run"].conf.get("dryrun"):
-            cwl_path = Path(cwl_workflows[4]["workflow_path"]).parent
+            cwl_path = Path(cwl_workflows["deepcelltypes"]["workflow_path"]).parent
             return build_tag_containers(cwl_path)
         else:
             return "No Container build required"
@@ -386,10 +405,12 @@ with HMDAG(
         workflows = kwargs["ti"].xcom_pull(key="cwl_workflows", task_ids="build_cwl_ribca")
 
         input_parameters = [
-            {"parameter_name": "--data_dir", "value": str(data_dir)},
+            {"parameter_name": "--data_dir", "value": fspath(data_dir)},
         ]
 
-        command = get_cwl_cmd_from_workflows(workflows, 4, input_parameters, tmpdir, kwargs["ti"])
+        command = get_cwl_cmd_from_workflows(
+            workflows, "deepcelltypes", input_parameters, tmpdir, kwargs["ti"]
+        )
 
         return join_quote_command_str(command)
 
@@ -413,9 +434,64 @@ with HMDAG(
         python_callable=utils.pythonop_maybe_keep,
         provide_context=True,
         op_kwargs={
-            "next_op": "prepare_cwl_sprm",
+            "next_op": "prepare_cwl_stellar",
             "bail_op": "set_dataset_error",
             "test_op": "pipeline_exec_cwl_deepcelltypes",
+        },
+    )
+
+    @task(task_id="prepare_cwl_stellar")
+    def prepare_cwl_cmd6(**kwargs):
+        if kwargs["dag_run"].conf.get("dryrun"):
+            cwl_path = Path(cwl_workflows["stellar"]["workflow_path"]).parent
+            return build_tag_containers(cwl_path)
+        else:
+            return "No Container build required"
+
+    prepare_cwl_stellar = prepare_cwl_cmd6()
+
+    def build_cwltool_cmd_stellar(**kwargs):
+        run_id = kwargs["run_id"]
+        tmpdir = get_tmp_dir_path(run_id)
+        print("tmpdir: ", tmpdir)
+        parent_data_dir = get_parent_data_dir(**kwargs)
+        print("parent_data_dir: ", parent_data_dir)
+        data_dir = tmpdir / "cwl_out"
+        print("data_dir: ", data_dir)
+
+        workflows = kwargs["ti"].xcom_pull(key="cwl_workflows", task_ids="build_cwl_stellar")
+
+        input_parameters = [
+            {"parameter_name": "--data_dir", "value": fspath(data_dir)},
+        ]
+
+        command = get_cwl_cmd_from_workflows(workflows, 5, input_parameters, tmpdir, kwargs["ti"])
+
+        return join_quote_command_str(command)
+
+    t_build_cmd_stellar = PythonOperator(
+        task_id="build_cmd_stellar",
+        python_callable=build_cwltool_cmd_stellar,
+        provide_context=True,
+    )
+
+    t_pipeline_exec_cwl_stellar = BashOperator(
+        task_id="pipeline_exec_cwl_stellar",
+        bash_command=""" \
+        tmp_dir={{tmp_dir_path(run_id)}} ; \
+        {{ti.xcom_pull(task_ids='build_cmd_stellar')}} >> ${tmp_dir}/session.log 2>&1 ; \
+        echo $?
+        """,
+    )
+
+    t_maybe_keep_cwl_stellar = BranchPythonOperator(
+        task_id="maybe_keep_cwl_stellar",
+        python_callable=utils.pythonop_maybe_keep,
+        provide_context=True,
+        op_kwargs={
+            "next_op": "prepare_cwl_sprm",
+            "bail_op": "set_dataset_error",
+            "test_op": "pipeline_exec_cwl_stellar",
         },
     )
 
@@ -435,16 +511,21 @@ with HMDAG(
         input_parameters = [
             {"parameter_name": "--enable_manhole", "value": ""},
             {"parameter_name": "--processes", "value": get_threads_resource(dag.dag_id)},
-            {"parameter_name": "--image_dir", "value": str(data_dir / "pipeline_output/expr")},
-            {"parameter_name": "--mask_dir", "value": str(data_dir / "pipeline_output/mask")},
+            {"parameter_name": "--image_dir", "value": fspath(data_dir / "pipeline_output/expr")},
+            {"parameter_name": "--mask_dir", "value": fspath(data_dir / "pipeline_output/mask")},
             {
                 "parameter_name": "--cell_types_directory",
-                "value": str(data_dir / "ribca_for_sprm"),
+                "value": fspath(data_dir / "ribca_for_sprm"),
             },
-            {"parameter_name": "--cell_types_directory", "value": str(data_dir / "deepcelltypes")},
+            {
+                "parameter_name": "--cell_types_directory",
+                "value": fspath(data_dir / "deepcelltypes"),
+            },
         ]
 
-        command = get_cwl_cmd_from_workflows(workflows, 5, input_parameters, tmpdir, kwargs["ti"])
+        command = get_cwl_cmd_from_workflows(
+            workflows, "sprm", input_parameters, tmpdir, kwargs["ti"]
+        )
 
         return join_quote_command_str(command)
 
@@ -490,10 +571,12 @@ with HMDAG(
         workflows = kwargs["ti"].xcom_pull(key="cwl_workflows", task_ids="build_cmd_sprm")
 
         input_parameters = [
-            {"parameter_name": "--ometiff_dir", "value": str(data_dir / "pipeline_output")},
-            {"parameter_name": "--sprm_output", "value": str(data_dir / "sprm_outputs")},
+            {"parameter_name": "--ometiff_dir", "value": fspath(data_dir / "pipeline_output")},
+            {"parameter_name": "--sprm_output", "value": fspath(data_dir / "sprm_outputs")},
         ]
-        command = get_cwl_cmd_from_workflows(workflows, 6, input_parameters, tmpdir, kwargs["ti"])
+        command = get_cwl_cmd_from_workflows(
+            workflows, "create-vis-symlink-archive", input_parameters, tmpdir, kwargs["ti"]
+        )
 
         return join_quote_command_str(command)
 
@@ -542,9 +625,11 @@ with HMDAG(
 
         input_parameters = [
             {"parameter_name": "--processes", "value": get_threads_resource(dag.dag_id)},
-            {"parameter_name": "--ometiff_directory", "value": str(tmpdir / "cwl_out")},
+            {"parameter_name": "--ometiff_directory", "value": fspath(tmpdir / "cwl_out")},
         ]
-        command = get_cwl_cmd_from_workflows(workflows, 7, input_parameters, tmpdir, kwargs["ti"])
+        command = get_cwl_cmd_from_workflows(
+            workflows, "ome-tiff-pyramid", input_parameters, tmpdir, kwargs["ti"]
+        )
 
         return join_quote_command_str(command)
 
@@ -590,9 +675,11 @@ with HMDAG(
         )
 
         input_parameters = [
-            {"parameter_name": "--input_dir", "value": str(data_dir / "ometiff-pyramids")},
+            {"parameter_name": "--input_dir", "value": fspath(data_dir / "ometiff-pyramids")},
         ]
-        command = get_cwl_cmd_from_workflows(workflows, 8, input_parameters, tmpdir, kwargs["ti"])
+        command = get_cwl_cmd_from_workflows(
+            workflows, "ome-tiff-offsets", input_parameters, tmpdir, kwargs["ti"]
+        )
 
         return join_quote_command_str(command)
 
@@ -638,9 +725,11 @@ with HMDAG(
         )
 
         input_parameters = [
-            {"parameter_name": "--input_dir", "value": str(data_dir / "sprm_outputs")},
+            {"parameter_name": "--input_dir", "value": fspath(data_dir / "sprm_outputs")},
         ]
-        command = get_cwl_cmd_from_workflows(workflows, 9, input_parameters, tmpdir, kwargs["ti"])
+        command = get_cwl_cmd_from_workflows(
+            workflows, "sprm-to-json", input_parameters, tmpdir, kwargs["ti"]
+        )
 
         return join_quote_command_str(command)
 
@@ -684,10 +773,12 @@ with HMDAG(
         workflows = kwargs["ti"].xcom_pull(key="cwl_workflows", task_ids="build_cmd_sprm_to_json")
 
         input_parameters = [
-            {"parameter_name": "--input_dir", "value": str(data_dir / "sprm_outputs")},
+            {"parameter_name": "--input_dir", "value": fspath(data_dir / "sprm_outputs")},
         ]
 
-        command = get_cwl_cmd_from_workflows(workflows, 10, input_parameters, tmpdir, kwargs["ti"])
+        command = get_cwl_cmd_from_workflows(
+            workflows, "sprm-to-anndata", input_parameters, tmpdir, kwargs["ti"]
+        )
 
         return join_quote_command_str(command)
 
@@ -772,6 +863,7 @@ with HMDAG(
             "pipeline_exec_cwl_ometiff_second_stitching",
             "pipeline_exec_cwl_ribca",
             "pipeline_exec_cwl_deepcelltypes",
+            "pipeline_exec_cwl_stellar",
             "pipeline_exec_cwl_sprm",
             "pipeline_exec_cwl_create_vis_symlink_archive",
             "pipeline_exec_cwl_ome_tiff_offsets",
@@ -820,6 +912,10 @@ with HMDAG(
         >> t_build_cmd_deepcelltypes
         >> t_pipeline_exec_cwl_deepcelltypes
         >> t_maybe_keep_cwl_deepcelltypes
+        >> prepare_cwl_stellar
+        >> t_build_cmd_stellar
+        >> t_pipeline_exec_cwl_stellar
+        >> t_maybe_keep_cwl_stellar
         >> prepare_cwl_sprm
         >> t_build_cmd_sprm
         >> t_pipeline_exec_cwl_sprm
