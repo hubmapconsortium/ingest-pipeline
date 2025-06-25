@@ -502,6 +502,7 @@ with HMDAG(
             {"parameter_name": "--mask_dir", "value": str(data_dir / "pipeline_output/mask")},
             {"parameter_name": "--cell_types_directory", "value": str(data_dir / "ribca_for_sprm")},
             {"parameter_name": "--cell_types_directory", "value": str(data_dir / "deepcelltypes")},
+            {"parameter_name": "--cell_types_directory", "value": str(data_dir / "stellar")},
         ]
 
         command = get_cwl_cmd_from_workflows(workflows, 6, input_parameters, tmpdir, kwargs["ti"])
