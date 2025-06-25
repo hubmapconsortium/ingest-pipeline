@@ -1,5 +1,5 @@
 import logging
-from pprint import pformat
+from pprint import pprint
 
 from status_change.status_manager import StatusChanger
 from status_change.status_utils import formatted_exception
@@ -15,8 +15,17 @@ class FailureCallback:
     List should be overridden by each subclass with appropriate values.
     """
 
-    def __init__(self, module_name):
-        self.called_from = module_name
+    def __init__(self, context):
+        self.context = context
+        self.uuid = self.context.get("task_instance").xcom_pull(key="uuid")
+        self.context["uuid"] = self.uuid
+        self.auth_tok = get_auth_tok(**context)
+        self.dag_run = self.context.get("dag_run")
+        self.task = self.context.get("task")
+        exception = self.context.get("exception")
+        self.formatted_exception = formatted_exception(exception)
+
+        self.pre_set_status()
 
     def get_extra_fields(self):
         """
@@ -27,10 +36,16 @@ class FailureCallback:
         return {
             "validation_message": f"""
                 Process {self.dag_run.dag_id} started {self.dag_run.execution_date}
-                failed at task {self.task.task_id} in {self.called_from}.
+                failed at task {self.task.task_id}.
                 {f'Error: {self.formatted_exception}' if self.formatted_exception else ""}
             """,
         }
+
+    def pre_set_status(self):
+        # Allows for alterations to props, before calling StatusChanger
+        # This was added to support some email functions and is perhaps
+        # at the moment over-engineered.
+        self.set_status()
 
     def set_status(self):
         """
@@ -38,25 +53,11 @@ class FailureCallback:
         otherwise it will remain in the "Processing" state
         """
         data = self.get_extra_fields()
-        logging.info("data:\n" + pformat(data))
+        logging.info("data: ")
+        logging.info(pprint(data))
         StatusChanger(
             self.uuid,
             self.auth_tok,
             status="error",
             fields_to_overwrite=data,
         ).update()
-
-    def __call__(self, context):
-        """
-        This happens when the DAG to which the instance is attached actually
-        encounters an error.
-        """
-        self.uuid = context.get("task_instance").xcom_pull(key="uuid")
-        context["uuid"] = self.uuid
-        self.auth_tok = get_auth_tok(**context)
-        self.dag_run = context.get("dag_run")
-        self.task = context.get("task")
-        exception = context.get("exception")
-        self.formatted_exception = formatted_exception(exception)
-
-        self.set_status()
