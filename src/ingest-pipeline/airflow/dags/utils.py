@@ -32,12 +32,9 @@ from typing import (
 import cwltool  # used to find its path
 import yaml
 from cryptography.fernet import Fernet
+from hubmap_commons.schema_tools import assert_json_matches_schema, set_schema_base_path
 from requests import codes
 from requests.exceptions import HTTPError
-from schema_utils import (
-    localized_assert_json_matches_schema as assert_json_matches_schema,
-    JSONType
-)
 from status_change.status_manager import EntityUpdateException, StatusChanger
 
 from airflow import DAG
@@ -55,10 +52,15 @@ except Exception:
     ENDPOINTS = {}
 
 
+JSONType = Union[str, int, float, bool, None, Dict[str, Any], List[Any]]
+
 # Some functions accept a `str` or `List[str]` and return that same type
 StrOrListStr = TypeVar("StrOrListStr", str, List[str])
 
 PathStrOrList = Union[str, Path, Iterable[Union[str, Path]]]
+
+SCHEMA_BASE_PATH = join(dirname(dirname(dirname(realpath(__file__)))), "schemata")
+SCHEMA_BASE_URI = "http://schemata.hubmapconsortium.org/"
 
 # Some constants
 PIPELINE_BASE_DIR = Path(__file__).resolve().parent / "cwl"
@@ -159,7 +161,7 @@ class PipelineFileMatcher(FileMatcher):
     ) -> Iterable[Tuple[Pattern, str, str, bool, bool]]:
         with open(pipeline_file_manifest) as f:
             manifest = json.load(f)
-            assert_json_matches_schema(manifest, "pipeline_file_manifest.yml")
+            localized_assert_json_matches_schema(manifest, "pipeline_file_manifest.yml")
 
         for annotation in manifest:
             pattern = re.compile(annotation["pattern"])
@@ -266,16 +268,16 @@ def find_pipeline_manifests(cwl_files: Union[List[Path], List[Dict], str]) -> Li
 
 
 def get_cwl_cmd_from_workflows(
-    workflows: Union[List[Dict], Dict[Dict]],
-    workflow_index: Union[int, str],
+    workflows: List[Dict],
+    workflow_index: int,
     input_param_vals: List,
     tmp_dir: Path,
     ti,
     cwl_param_vals: Optional[List[Dict]] = None,
 ) -> List:
     """
-    :param workflows: Iterable or dict of workflow dictionaries
-    :param workflow_index: index or name of workflow to build
+    :param workflows: Iterable of workflow dictionaries
+    :param workflow_index: index of workflow to build
     :param input_param_vals: list of input parameter values
     :param tmp_dir: temporary directory
     :param ti: task instance
@@ -781,7 +783,7 @@ def get_file_metadata_dict(
         matcher = PipelineFileMatcher.create_from_files(pipeline_file_manifests)
     file_info = get_file_metadata(root_dir, matcher)
     if len(file_info) > max_in_line_files:
-        assert_json_matches_schema(file_info, "file_info_schema.yml")
+        localized_assert_json_matches_schema(file_info, "file_info_schema.yml")
         fpath = join(alt_file_dir, "{}.json".format(uuid.uuid4()))
         with open(fpath, "w") as f:
             json.dump({"files": file_info}, f)
@@ -1610,10 +1612,7 @@ def make_send_status_msg_function(
                         contacts = ds_rslt.get("contacts", [])
 
             try:
-                assert_json_matches_schema(
-                    md,
-                    "dataset_metadata_schema.yml"
-                )
+                assert_json_matches_schema(md, "dataset_metadata_schema.yml")
                 metadata = md.pop("metadata", {})
                 files = md.pop("files", [])
                 extra_fields = {
@@ -1715,6 +1714,20 @@ def create_dataset_state_error_callback(
     return set_dataset_state_error
 
 
+set_schema_base_path(SCHEMA_BASE_PATH, SCHEMA_BASE_URI)
+
+
+def localized_assert_json_matches_schema(jsn: JSONType, schemafile: str) -> None:
+    """
+    This version of assert_json_matches_schema knows where to find schemata used by this module
+    """
+    try:
+        return assert_json_matches_schema(jsn, schemafile)  # localized by set_schema_base_path
+    except AssertionError as e:
+        print("ASSERTION FAILED: {}".format(e))
+        raise
+
+
 def _get_workflow_map() -> List[Tuple[Pattern, Pattern, str]]:
     """
     Lazy compilation of workflow map
@@ -1724,7 +1737,7 @@ def _get_workflow_map() -> List[Tuple[Pattern, Pattern, str]]:
         map_path = join(dirname(__file__), WORKFLOW_MAP_FILENAME)
         with open(map_path, "r") as f:
             map = yaml.safe_load(f)
-        assert_json_matches_schema(map, WORKFLOW_MAP_SCHEMA)
+        localized_assert_json_matches_schema(map, WORKFLOW_MAP_SCHEMA)
         cmp_map = []
         for dct in map["workflow_map"]:
             ct_re = re.compile(dct["collection_type"])
@@ -1743,7 +1756,7 @@ def _get_resource_map() -> List[Tuple[Pattern, Pattern, Dict[str, str]]]:
         map_path = join(dirname(__file__), RESOURCE_MAP_FILENAME)
         with open(map_path, "r") as f:
             map = yaml.safe_load(f)
-        assert_json_matches_schema(map, RESOURCE_MAP_SCHEMA)
+        localized_assert_json_matches_schema(map, RESOURCE_MAP_SCHEMA)
         cmp_map = []
         for dct in map["resource_map"]:
             dag_re = re.compile(dct["dag_re"])
@@ -1958,7 +1971,7 @@ def main():
         "dag_provenance_list": get_git_provenance_list(__file__),
     }
     try:
-        assert_json_matches_schema(md, "dataset_metadata_schema.yml")
+        localized_assert_json_matches_schema(md, "dataset_metadata_schema.yml")
         print("ASSERT passed")
     except AssertionError as e:
         print(f"ASSERT failed {e}")

@@ -55,8 +55,7 @@ def main():
             tests = loader.loadTestsFromNames(test_names)
         else:
             tests = loader.discover(Path(__file__).parent)
-        rslt = runner.run(tests)
-        sys.exit(len(rslt.errors) + len(rslt.failures))
+        sys.exit(runner.run(tests))
 
 
 if __name__ == "__main__":
