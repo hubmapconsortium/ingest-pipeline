@@ -142,7 +142,7 @@ with HMDAG(
         # get organ type
         ds_rslt = pythonop_get_dataset_state(dataset_uuid_callable=get_dataset_uuid, **kwargs)
 
-        source_type = ds_rslt.get("source_type")
+        source_type = ds_rslt.get("source_type", "human")
         if source_type == "mixed":
             print("Force failure. Should only be one unique source_type for a dataset.")
 
