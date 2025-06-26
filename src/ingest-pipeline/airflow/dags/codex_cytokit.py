@@ -446,7 +446,9 @@ with HMDAG(
         data_dir = tmpdir / "cwl_out"
         print("data_dir: ", data_dir)
 
-        workflows = kwargs["ti"].xcom_pull(key="cwl_workflows", task_ids="build_cwl_stellar")
+        workflows = kwargs["ti"].xcom_pull(
+            key="cwl_workflows", task_ids="build_cwl_deepcelltypes"
+        )
 
         input_parameters = [
             {"parameter_name": "--data_dir", "value": str(data_dir)},
