@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from airflow.operators.bash import BashOperator
 from airflow.operators.python import PythonOperator
 from airflow.operators.python import BranchPythonOperator
-from airflow.operators.dummy import DummyOperator
+from airflow.operators.empty import EmptyOperator
 from airflow.decorators import task
 
 from hubmap_operators.common_operators import (
@@ -12,7 +12,6 @@ from hubmap_operators.common_operators import (
     JoinOperator,
     CreateTmpDirOperator,
     CleanupTmpDirOperator,
-    SetDatasetProcessingOperator,
     MoveDataOperator,
 )
 
@@ -149,7 +148,7 @@ with HMDAG(
         },
     )
 
-    prepare_cwl2 = DummyOperator(task_id="prepare_cwl2")
+    prepare_cwl2 = EmptyOperator(task_id="prepare_cwl2")
 
     def build_cwltool_cmd2(**kwargs):
         run_id = kwargs["run_id"]
@@ -200,7 +199,7 @@ with HMDAG(
         },
     )
 
-    prepare_cwl3 = DummyOperator(task_id="prepare_cwl3")
+    prepare_cwl3 = EmptyOperator(task_id="prepare_cwl3")
 
     def build_cwltool_cmd3(**kwargs):
         run_id = kwargs["run_id"]
@@ -247,7 +246,7 @@ with HMDAG(
         },
     )
 
-    prepare_cwl4 = DummyOperator(task_id="prepare_cwl4")
+    prepare_cwl4 = EmptyOperator(task_id="prepare_cwl4")
 
     def build_cwltool_cmd4(**kwargs):
         run_id = kwargs["run_id"]
@@ -295,7 +294,7 @@ with HMDAG(
         },
     )
 
-    prepare_cwl5 = DummyOperator(task_id="prepare_cwl5")
+    prepare_cwl5 = EmptyOperator(task_id="prepare_cwl5")
 
     def build_cwltool_cmd5(**kwargs):
         run_id = kwargs["run_id"]
@@ -344,7 +343,7 @@ with HMDAG(
         },
     )
 
-    prepare_cwl6 = DummyOperator(task_id="prepare_cwl6")
+    prepare_cwl6 = EmptyOperator(task_id="prepare_cwl6")
 
     def build_cwltool_cmd6(**kwargs):
         run_id = kwargs["run_id"]
