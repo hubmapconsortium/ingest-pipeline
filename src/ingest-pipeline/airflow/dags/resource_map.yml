@@ -82,6 +82,9 @@ resource_map:
       - 'task_re': '.*ribca'
         'queue': 'gpu000_q1'
         'threads': 6
+      - 'task_re': '.*stellar'
+        'queue': 'gpu000_q1'
+        'threads': 6
       - 'task_re': '.*'
         'queue': 'general'
         'threads': 6
