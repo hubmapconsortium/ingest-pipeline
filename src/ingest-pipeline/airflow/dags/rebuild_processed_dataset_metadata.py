@@ -12,6 +12,15 @@ from utils import (
     create_dataset_state_error_callback,
     make_send_status_msg_function,
     get_tmp_dir_path,
+    pythonop_get_dataset_state,
+    encrypt_tok,
+)
+
+from schema_utils import localized_assert_json_matches_schema as assert_json_matches_schema
+
+from hubmap_operators.common_operators import (
+    CreateTmpDirOperator,
+    CleanupTmpDirOperator,
 )
 
 
@@ -53,11 +62,6 @@ with HMDAG('rebuild_processed_dataset_metadata',
                'tmp_dir_path': get_tmp_dir_path,
                'preserve_scratch': get_preserve_scratch_resource('rebuild_metadata')
            }) as dag:
-
-    # For now we just want to use the empty operator to test and make sure the rebuild multiple is working as expected.
-    t_empty_operator = EmptyOperator(
-        task_id='empty_operator'
-    )
 
     t_create_tmpdir = CreateTmpDirOperator(task_id="create_temp_dir")
 
@@ -137,11 +141,16 @@ with HMDAG('rebuild_processed_dataset_metadata',
     )
 
     def wrapped_send_status_msg(**kwargs):
-        if send_status_msg(**kwargs):
-            # These xcom values are used to chain to potential downstream workflows-
-            # very unlikely in this application but we might as well make sure they exist.
-            kwargs["ti"].xcom_push(key="collectiontype", value=None)
-            kwargs["ti"].xcom_push(key="assay_type", value=None)
+        try:
+            if send_status_msg(**kwargs):
+                # These xcom values are used to chain to potential downstream workflows-
+                # very unlikely in this application but we might as well make sure they exist.
+                kwargs["ti"].xcom_push(key="collectiontype", value=None)
+                kwargs["ti"].xcom_push(key="assay_type", value=None)
+            else:
+                raise AirflowException("send_status_msg returned False")
+        except Exception as excp:
+            raise AirflowException(f"Exception clause 2: {excp}") from excp
 
     t_send_status = PythonOperator(
         task_id="send_status_msg",
