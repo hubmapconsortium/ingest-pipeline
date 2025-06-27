@@ -146,7 +146,10 @@ class EntityUpdater:
         )
         original_entity_type = self.entity_data.get("entity_type")
         updated_entity_data = self.entity_data.copy()
-        updated_entity_data.update(self.fields_to_change)
+        update_fields = self.fields_to_change.copy()
+        if "status" in update_fields and update_fields["status"] is None:
+            update_fields.pop("status")  # avoid setting status to None for test
+        updated_entity_data.update(update_fields)
         updated_entity_type = updated_entity_data.get("entity_type")
         if original_entity_type != updated_entity_type:
             raise EntityUpdateException(
