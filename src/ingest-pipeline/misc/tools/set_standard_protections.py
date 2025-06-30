@@ -77,7 +77,7 @@ def process_one_uuid(uuid: str, entity_factory: EntityFactory, **kwargs) -> bool
     prefix = Path(f"/hive/hubmap{env}/data")
     ds_rel_path = ds_full_path.relative_to(prefix)
 
-    cmd1 = ["./usr/local/bin/directory_script.sh", env, str(ds_rel_path)]
+    cmd1 = ["/usr/local/bin/directory_script.sh", env, str(ds_rel_path)]
     cmd2 = ["setfacl", "-R", "-M", str(acl_path), str(ds_full_path)]
     if kwargs.get("dry_run", False):
         cmd1.insert(1, "--test")
