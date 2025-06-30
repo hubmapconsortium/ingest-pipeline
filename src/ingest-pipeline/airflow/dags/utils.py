@@ -190,7 +190,7 @@ class PipelineFileMatcher(FileMatcher):
             is_qa_qc,
             is_data_product,
         ) in self.matchers:
-            if (m := pattern.search(path_str)):
+            if m := pattern.search(path_str):
                 formatted_description = description_template.format_map(m.groupdict())
                 return True, formatted_description, ontology_term, is_qa_qc, is_data_product
         return False, None, None, None, None
@@ -1575,7 +1575,7 @@ def make_send_status_msg_function(
                 antibodies = md["metadata"].pop("antibodies", [])
                 contributors = md["metadata"].pop("contributors", [])
                 calculated_metadata = md["metadata"].pop("calculated_metadata", {})
-                md["metadata"] = md["metadata"].pop("metadata", [])
+                md["metadata"] = md["metadata"].pop("metadata", {})
                 for contrib in contributors:
                     if "is_contact" in contrib:
                         v = contrib["is_contact"]
@@ -1765,9 +1765,7 @@ def _lookup_resource_record(dag_id: str, task_id: Optional[str] = None) -> Tuple
                         f" has no match for task_id <{task_id}>"
                     )
             return rslt
-    raise ValueError(
-        "No resource map entry found for" f" dag_id <{dag_id}> task_id <{task_id}>"
-    )
+    raise ValueError("No resource map entry found for" f" dag_id <{dag_id}> task_id <{task_id}>")
 
 
 def get_queue_resource(dag_id: str, task_id: Optional[str] = None) -> str:
