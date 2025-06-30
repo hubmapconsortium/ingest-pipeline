@@ -6,6 +6,7 @@ MOCK.MICROSCOPY.IMS.ALL = mock_ingest_vanderbilt
 MOCK.RNASEQ.10X = mock_ingest_rnaseq_10x
 SCAN.AND.BEGIN.PROCESSING = scan_and_begin_processing
 VALIDATE.UPLOAD = validate_upload
+VALIDATE.DATASET = validate_dataset
 REORGANIZE.UPLOAD = reorganize_upload
 LAUNCH.MULTI = launch_multi_analysis
 
