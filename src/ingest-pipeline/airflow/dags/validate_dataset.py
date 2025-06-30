@@ -180,7 +180,6 @@ with HMDAG(
             uuid,
             get_auth_tok(**kwargs),
             status=status,
-            fields_to_overwrite=extra_fields,
         ).update()
 
     t_send_status = PythonOperator(
