@@ -7,10 +7,10 @@ from datetime import timedelta
 from airflow.operators.python import PythonOperator
 from airflow.configuration import conf as airflow_conf
 from datetime import datetime
-from airflow.hooks.http_hook import HttpHook
+from airflow.providers.http.hooks.http import HttpHook
 
 from utils import (
-    localized_assert_json_matches_schema as assert_json_matches_schema,
+    assert_json_matches_schema,
     get_preserve_scratch_resource,
     get_tmp_dir_path,
     HMDAG,
