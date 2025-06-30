@@ -14,7 +14,6 @@ from utils import (
     HMDAG,
     get_tmp_dir_path,
     get_auth_tok,
-    find_matching_endpoint,
     get_queue_resource,
     get_preserve_scratch_resource,
     )
