@@ -96,4 +96,5 @@ printenv
 
 cd $AIRFLOW_HOME ; \
 env AIRFLOW__HUBMAP_API_PLUGIN__BUILD_NUMBER="$(cat ${top_level_dir}/build_number)" \
+    AIRFLOW__WEBSERVER__SHOW_TRIGGER_FORM_IF_NO_PARAMS="True" \
     airflow $*

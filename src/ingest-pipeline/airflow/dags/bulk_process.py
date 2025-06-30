@@ -10,7 +10,7 @@ from hubmap_operators.flex_multi_dag_run import FlexMultiDagRunOperator
 import utils
 
 from utils import (
-    localized_assert_json_matches_schema as assert_json_matches_schema,
+    assert_json_matches_schema,
     HMDAG,
     get_queue_resource,
     get_preserve_scratch_resource,

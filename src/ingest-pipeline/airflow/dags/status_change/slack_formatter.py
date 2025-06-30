@@ -77,7 +77,7 @@ def _format_upload_reorganized_datasets(datasets: list[dict], token: str) -> lis
         cleaned_data = []
         for val in data:
             if isinstance(val, list):
-                cleaned_data.append(";".join([x for x in val]))
+                cleaned_data.append(";".join(val))
             elif isinstance(val, str):
                 cleaned_data.append(val.replace(",", ";"))
             else:
