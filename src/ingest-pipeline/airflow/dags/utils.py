@@ -4,7 +4,6 @@ import os
 import re
 import shlex
 import sys
-import urllib.parse
 import uuid
 from abc import ABC, abstractmethod
 from collections import namedtuple
@@ -32,14 +31,17 @@ from typing import (
 import cwltool  # used to find its path
 import yaml
 from cryptography.fernet import Fernet
-from hubmap_commons.schema_tools import assert_json_matches_schema, set_schema_base_path
 from requests import codes
 from requests.exceptions import HTTPError
+from schema_utils import (
+    localized_assert_json_matches_schema as assert_json_matches_schema,
+    JSONType
+)
 from status_change.status_manager import EntityUpdateException, StatusChanger
 
 from airflow import DAG
 from airflow.configuration import conf as airflow_conf
-from airflow.hooks.http_hook import HttpHook
+from airflow.providers.http.hooks.http import HttpHook
 from airflow.models.baseoperator import BaseOperator
 
 airflow_conf.read(join(environ["AIRFLOW_HOME"], "instance", "app.cfg"))
@@ -52,15 +54,10 @@ except Exception:
     ENDPOINTS = {}
 
 
-JSONType = Union[str, int, float, bool, None, Dict[str, Any], List[Any]]
-
 # Some functions accept a `str` or `List[str]` and return that same type
 StrOrListStr = TypeVar("StrOrListStr", str, List[str])
 
 PathStrOrList = Union[str, Path, Iterable[Union[str, Path]]]
-
-SCHEMA_BASE_PATH = join(dirname(dirname(dirname(realpath(__file__)))), "schemata")
-SCHEMA_BASE_URI = "http://schemata.hubmapconsortium.org/"
 
 # Some constants
 PIPELINE_BASE_DIR = Path(__file__).resolve().parent / "cwl"
@@ -161,7 +158,7 @@ class PipelineFileMatcher(FileMatcher):
     ) -> Iterable[Tuple[Pattern, str, str, bool, bool]]:
         with open(pipeline_file_manifest) as f:
             manifest = json.load(f)
-            localized_assert_json_matches_schema(manifest, "pipeline_file_manifest.yml")
+            assert_json_matches_schema(manifest, "pipeline_file_manifest.yml")
 
         for annotation in manifest:
             pattern = re.compile(annotation["pattern"])
@@ -193,9 +190,7 @@ class PipelineFileMatcher(FileMatcher):
             is_qa_qc,
             is_data_product,
         ) in self.matchers:
-            # TODO: walrus operator
-            m = pattern.search(path_str)
-            if m:
+            if (m := pattern.search(path_str)):
                 formatted_description = description_template.format_map(m.groupdict())
                 return True, formatted_description, ontology_term, is_qa_qc, is_data_product
         return False, None, None, None, None
@@ -783,7 +778,7 @@ def get_file_metadata_dict(
         matcher = PipelineFileMatcher.create_from_files(pipeline_file_manifests)
     file_info = get_file_metadata(root_dir, matcher)
     if len(file_info) > max_in_line_files:
-        localized_assert_json_matches_schema(file_info, "file_info_schema.yml")
+        assert_json_matches_schema(file_info, "file_info_schema.yml")
         fpath = join(alt_file_dir, "{}.json".format(uuid.uuid4()))
         with open(fpath, "w") as f:
             json.dump({"files": file_info}, f)
@@ -896,7 +891,7 @@ def pythonop_send_create_dataset(**kwargs) -> str:
     for arg in ["parent_dataset_uuid_callable", "http_conn_id"]:
         assert arg in kwargs, "missing required argument {}".format(arg)
     for arg_options in [["pipeline_shorthand", "dataset_type_callable"]]:
-        assert any([arg in kwargs for arg in arg_options])
+        assert any(arg in kwargs for arg in arg_options)
 
     http_conn_id = kwargs["http_conn_id"]
     # ctx = kwargs['dag_run'].conf
@@ -1009,8 +1004,7 @@ def pythonop_send_create_dataset(**kwargs) -> str:
         print(f"ERROR: {e}")
         if e.response.status_code == codes.unauthorized:
             raise RuntimeError(f"authorization for {endpoint} was rejected?")
-        else:
-            raise RuntimeError(f"misc error {e} on {endpoint}")
+        raise RuntimeError(f"misc error {e} on {endpoint}")
 
     kwargs["ti"].xcom_push(key="group_uuid", value=group_uuid)
     kwargs["ti"].xcom_push(key="derived_dataset_uuid", value=uuid)
@@ -1110,9 +1104,8 @@ def pythonop_get_dataset_state(**kwargs) -> Dict:
         print(f"ERROR: {e}")
         if e.response.status_code == codes.unauthorized:
             raise RuntimeError("entity database authorization was rejected?")
-        else:
-            print("benign error")
-            return {}
+        print("benign error")
+        return {}
 
     for key in ["status", "uuid", "entity_type"]:
         assert key in ds_rslt, f"Dataset status for {uuid} has no {key}"
@@ -1148,9 +1141,8 @@ def pythonop_get_dataset_state(**kwargs) -> Dict:
         print(f"ERROR: {e}")
         if e.response.status_code == codes.unauthorized:
             raise RuntimeError("entity database authorization was rejected?")
-        else:
-            print("benign error")
-            return {}
+        print("benign error")
+        return {}
     assert "path" in path_query_rslt, f"Dataset path for {uuid} produced" " no path"
     full_path = path_query_rslt["path"]
 
@@ -1197,9 +1189,8 @@ def pythonop_get_dataset_state(**kwargs) -> Dict:
             print(f"ERROR: {e}")
             if e.response.status_code == codes.unauthorized:
                 raise RuntimeError("entity database authorization was rejected?")
-            else:
-                print("benign error")
-                return {}
+            print("benign error")
+            return {}
 
     return rslt
 
@@ -1221,8 +1212,8 @@ def _uuid_lookup(uuid, **kwargs):
     return response.json()
 
 
-def _generate_slices(id: str) -> Iterable[str]:
-    mo = RE_ID_WITH_SLICES.fullmatch(id)
+def _generate_slices(id_to_slice: str) -> Iterable[str]:
+    mo = RE_ID_WITH_SLICES.fullmatch(id_to_slice)
     if mo:
         base, lidx, hidx = mo.groups()
         lidx = int(lidx)
@@ -1230,10 +1221,10 @@ def _generate_slices(id: str) -> Iterable[str]:
         for idx in range(lidx, hidx + 1):
             yield f"{base}-{idx}"
     else:
-        yield id
+        yield id_to_slice
 
 
-def assert_id_known(id: str, **kwargs) -> None:
+def assert_id_known(id_to_check: str, **kwargs) -> None:
     """
     Is the given id string known to the uuid database?  Id strings with suffixes like
     myidstr-n1_n2 where n1 and n2 are integers are interpreted as representing multiple
@@ -1241,7 +1232,7 @@ def assert_id_known(id: str, **kwargs) -> None:
 
     Raises AssertionError if the ID is not known.
     """
-    for slice in _generate_slices(id):
+    for slice in _generate_slices(id_to_check):
         tissue_info = _uuid_lookup(slice, **kwargs)
         assert tissue_info and len(tissue_info) >= 1, f"tissue_id {slice} not found on lookup"
 
@@ -1475,18 +1466,13 @@ def make_send_status_msg_function(
 
     # Does the string represent a "true" value, or an int that is 1
     def __is_true(val):
-        if val is None:
-            return False
         if isinstance(val, str):
             uval = val.upper().strip()
             if uval in ["TRUE", "T", "1", "Y", "YES"]:
                 return True
-            else:
-                return False
         elif isinstance(val, int) and val == 1:
             return True
-        else:
-            return False
+        return False
 
     def send_status_msg(**kwargs) -> bool:
         retcodes = [kwargs["ti"].xcom_pull(task_ids=op) for op in retcode_ops]
@@ -1612,7 +1598,10 @@ def make_send_status_msg_function(
                         contacts = ds_rslt.get("contacts", [])
 
             try:
-                assert_json_matches_schema(md, "dataset_metadata_schema.yml")
+                assert_json_matches_schema(
+                    md,
+                    "dataset_metadata_schema.yml"
+                )
                 metadata = md.pop("metadata", {})
                 files = md.pop("files", [])
                 extra_fields = {
@@ -1714,20 +1703,6 @@ def create_dataset_state_error_callback(
     return set_dataset_state_error
 
 
-set_schema_base_path(SCHEMA_BASE_PATH, SCHEMA_BASE_URI)
-
-
-def localized_assert_json_matches_schema(jsn: JSONType, schemafile: str) -> None:
-    """
-    This version of assert_json_matches_schema knows where to find schemata used by this module
-    """
-    try:
-        return assert_json_matches_schema(jsn, schemafile)  # localized by set_schema_base_path
-    except AssertionError as e:
-        print("ASSERTION FAILED: {}".format(e))
-        raise
-
-
 def _get_workflow_map() -> List[Tuple[Pattern, Pattern, str]]:
     """
     Lazy compilation of workflow map
@@ -1737,7 +1712,7 @@ def _get_workflow_map() -> List[Tuple[Pattern, Pattern, str]]:
         map_path = join(dirname(__file__), WORKFLOW_MAP_FILENAME)
         with open(map_path, "r") as f:
             map = yaml.safe_load(f)
-        localized_assert_json_matches_schema(map, WORKFLOW_MAP_SCHEMA)
+        assert_json_matches_schema(map, WORKFLOW_MAP_SCHEMA)
         cmp_map = []
         for dct in map["workflow_map"]:
             ct_re = re.compile(dct["collection_type"])
@@ -1756,7 +1731,7 @@ def _get_resource_map() -> List[Tuple[Pattern, Pattern, Dict[str, str]]]:
         map_path = join(dirname(__file__), RESOURCE_MAP_FILENAME)
         with open(map_path, "r") as f:
             map = yaml.safe_load(f)
-        localized_assert_json_matches_schema(map, RESOURCE_MAP_SCHEMA)
+        assert_json_matches_schema(map, RESOURCE_MAP_SCHEMA)
         cmp_map = []
         for dct in map["resource_map"]:
             dag_re = re.compile(dct["dag_re"])
@@ -1793,10 +1768,9 @@ def _lookup_resource_record(dag_id: str, task_id: Optional[str] = None) -> Tuple
                         f" has no match for task_id <{task_id}>"
                     )
             return rslt
-    else:
-        raise ValueError(
-            "No resource map entry found for" f" dag_id <{dag_id}> task_id <{task_id}>"
-        )
+    raise ValueError(
+        "No resource map entry found for" f" dag_id <{dag_id}> task_id <{task_id}>"
+    )
 
 
 def get_queue_resource(dag_id: str, task_id: Optional[str] = None) -> str:
@@ -1934,9 +1908,8 @@ def get_soft_data(dataset_uuid, **kwargs) -> Optional[dict]:
         print(f"ERROR: {e} fetching full path for {dataset_uuid}")
         if e.response.status_code == codes.unauthorized:
             raise RuntimeError("ingest_api_connection authorization was rejected?")
-        else:
-            print("benign error")
-            return None
+        print("benign error")
+        return None
     return response
 
 
@@ -1971,7 +1944,7 @@ def main():
         "dag_provenance_list": get_git_provenance_list(__file__),
     }
     try:
-        localized_assert_json_matches_schema(md, "dataset_metadata_schema.yml")
+        assert_json_matches_schema(md, "dataset_metadata_schema.yml")
         print("ASSERT passed")
     except AssertionError as e:
         print(f"ASSERT failed {e}")

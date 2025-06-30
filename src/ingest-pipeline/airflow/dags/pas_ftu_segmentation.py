@@ -3,7 +3,7 @@ from pathlib import Path
 
 from airflow.operators.bash import BashOperator
 from airflow.operators.python import PythonOperator, BranchPythonOperator
-from airflow.operators.dummy import DummyOperator
+from airflow.operators.empty import EmptyOperator
 from airflow.decorators import task
 
 import utils
@@ -160,7 +160,7 @@ with HMDAG(
         },
     )
 
-    prepare_cwl_ome_tiff_pyramid = DummyOperator(task_id="prepare_cwl_ome_tiff_pyramid")
+    prepare_cwl_ome_tiff_pyramid = EmptyOperator(task_id="prepare_cwl_ome_tiff_pyramid")
 
     def build_cwltool_cwl_ome_tiff_pyramid_processed(**kwargs):
         run_id = kwargs["run_id"]
@@ -254,7 +254,7 @@ with HMDAG(
         },
     )
 
-    prepare_cwl_ome_tiff_offsets = DummyOperator(task_id="prepare_cwl_ome_tiff_offsets")
+    prepare_cwl_ome_tiff_offsets = EmptyOperator(task_id="prepare_cwl_ome_tiff_offsets")
 
     def build_cwltool_cmd_ome_tiff_offsets(**kwargs):
         run_id = kwargs["run_id"]
@@ -302,7 +302,7 @@ with HMDAG(
         },
     )
 
-    prepare_cwl_ome_tiff_metadata = DummyOperator(task_id="prepare_cwl_ome_tiff_metadata")
+    prepare_cwl_ome_tiff_metadata = EmptyOperator(task_id="prepare_cwl_ome_tiff_metadata")
 
     def build_cwltool_cmd_ome_tiff_metadata(**kwargs):
         run_id = kwargs["run_id"]
