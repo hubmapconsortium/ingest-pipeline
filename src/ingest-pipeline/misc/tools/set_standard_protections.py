@@ -70,7 +70,7 @@ def process_one_uuid(uuid: str, entity_factory: EntityFactory, **kwargs) -> bool
 
     # Set the env param based on the dataset full path
     env = ""
-    if "-dev" in ds_full_path.parts:
+    if "-dev" in ds_full_path:
         env = "-dev"
 
     # Get the dataset relative path for the script
