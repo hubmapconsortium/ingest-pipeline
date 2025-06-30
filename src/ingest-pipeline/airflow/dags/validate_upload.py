@@ -101,7 +101,7 @@ with HMDAG(
     def run_validation(**kwargs):
         lz_path = kwargs["ti"].xcom_pull(key="lz_path")
         uuid = kwargs["ti"].xcom_pull(key="uuid")
-        plugin_path = [path for path in ingest_validation_tests.__path__][0]
+        plugin_path = list(ingest_validation_tests.__path__)[0]
 
         ignore_globs = [uuid, "extras", "*metadata.tsv", "validation_report.txt"]
         app_context = {
