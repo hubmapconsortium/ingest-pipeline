@@ -39,11 +39,6 @@ def get_dataset_uuid(**kwargs):
     return uuid
 
 
-def get_dataset_lz_path(**kwargs):
-    ctx = kwargs["dag_run"].conf
-    return ctx["lz_path"]
-
-
 # Following are defaults which can be overridden later on
 default_args = {
     "owner": "hubmap",
@@ -149,6 +144,7 @@ with HMDAG(
     )
 
     def send_status_msg(**kwargs):
+        uuid = get_dataset_uuid(**kwargs)
         validation_file_path = Path(kwargs["ti"].xcom_pull(key="validation_file_path"))
         error_counts = Path(kwargs["ti"].xcom_pull(key="error_counts"))
         with open(validation_file_path) as f:
@@ -181,7 +177,7 @@ with HMDAG(
                 """
             )
         StatusChanger(
-            kwargs["ti"].xcom_pull(key="uuid"),
+            uuid,
             get_auth_tok(**kwargs),
             status=status,
             fields_to_overwrite=extra_fields,
