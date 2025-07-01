@@ -362,6 +362,7 @@ def request_ingest():
             "crypt_auth_tok": crypt_auth_tok,
             "src_path": config("connections", "src_path"),
             "lz_path": full_path,
+            "uuid": submission_id,
         }
 
         if find_dag_runs(session, dag_id, run_id, execution_date):
@@ -457,6 +458,7 @@ def request_bulk_ingest():
                 "crypt_auth_tok": crypt_auth_tok,
                 "src_path": config("connections", "src_path"),
                 "lz_path": full_path,
+                "uuid": submission_id,
             }
 
             if find_dag_runs(session, dag_id, run_id, execution_date):
