@@ -18,11 +18,10 @@ from hubmap_operators.common_operators import (
     LogInfoOperator,
     JoinOperator,
     MoveDataOperator,
-    SetDatasetProcessingOperator,
 )
 
 from utils import (
-    localized_assert_json_matches_schema as assert_json_matches_schema,
+    assert_json_matches_schema,
     get_tmp_dir_path,
     get_auth_tok,
     get_dataset_uuid,
@@ -133,9 +132,8 @@ with HMDAG(
             print(f"ERROR: {excp}")
             if excp.response.status_code == codes.unauthorized:
                 raise RuntimeError("entity database authorization was rejected?")
-            else:
-                print("benign error")
-                return ""
+            print("benign error")
+            return ""
 
     def build_ancillary_data(**kwargs):
         try:
@@ -162,8 +160,7 @@ with HMDAG(
                     # print(f'md in this vignette: {md_path}')
                     if md_found:
                         raise AssertionError("A vignette has more than one markdown file")
-                    else:
-                        md_found = True
+                    md_found = True
                     vig_fm = frontmatter.loads(md_path.read_text())
                     # print('vig_fm metadata follows')
                     # pprint(vig_fm.metadata)

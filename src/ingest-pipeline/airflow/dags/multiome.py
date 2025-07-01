@@ -5,7 +5,7 @@ from typing import List
 
 from airflow import DAG
 from airflow.operators.bash import BashOperator
-from airflow.operators.dummy import DummyOperator
+from airflow.operators.empty import EmptyOperator
 from airflow.operators.python import BranchPythonOperator, PythonOperator
 from airflow.decorators import task
 
@@ -36,6 +36,7 @@ from utils import (
     get_threads_resource,
     get_preserve_scratch_resource,
     get_cwl_cmd_from_workflows,
+    gather_calculated_metadata,
 )
 
 from extra_utils import build_tag_containers
@@ -87,7 +88,7 @@ def generate_multiome_dag(params: MultiomeSequencingDagParameters) -> DAG:
         },
     ) as dag:
         workflow_version = "1.0.0"
-        workflow_description = "The pipeline for multiome RNA-ATACseq data uses Salmon for alignment free quasi mapping of reads from RNA sequencing to the HG38 reference genome and HISAT2 for short read alignment of ATACseq reads to the same genome.  Barcodes are then mapped between components of the assay to generate an annotated data matrix with consolidated RNA and ATACseq data.  This annotated data matrix is then passed to the Muon package for dimensionality reduction, clustering, and multiomic factor analysis.  Cell type annotations are provided by Azimuth when available for the type of tissue being analyzed."
+        workflow_description = "The pipeline for multiome RNA-ATACseq data uses Salmon for alignment free quasi mapping of reads from RNA sequencing to the hg38 reference genome and HISAT2 for short read alignment of ATACseq reads to the same genome.  Barcodes are then mapped between components of the assay to generate an annotated data matrix with consolidated RNA and ATACseq data.  This annotated data matrix is then passed to the Muon package for dimensionality reduction, clustering, and multiomic factor analysis.  Cell type annotations are provided by Azimuth when available for the type of tissue being analyzed."
 
         cwl_workflows = [
             {
@@ -123,9 +124,9 @@ def generate_multiome_dag(params: MultiomeSequencingDagParameters) -> DAG:
 
         prepare_cwl1 = prepare_cwl_cmd1()
 
-        prepare_cwl2 = DummyOperator(task_id="prepare_cwl2")
+        prepare_cwl2 = EmptyOperator(task_id="prepare_cwl2")
 
-        prepare_cwl3 = DummyOperator(task_id="prepare_cwl3")
+        prepare_cwl3 = EmptyOperator(task_id="prepare_cwl3")
 
         def build_cwltool_cmd1(**kwargs):
             run_id = kwargs["run_id"]
@@ -370,6 +371,7 @@ def generate_multiome_dag(params: MultiomeSequencingDagParameters) -> DAG:
             ),
             workflow_description=workflow_description,
             workflow_version=workflow_version,
+            metadata_fun=gather_calculated_metadata,
         )
 
         t_send_status = PythonOperator(

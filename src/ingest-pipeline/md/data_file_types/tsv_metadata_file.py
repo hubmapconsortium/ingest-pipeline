@@ -9,16 +9,16 @@ class TSVMetadataFile(MetadataFile):
     """
     A metadata file type specialized for tsv files, since the csv sniffer often fails
     """
-    category_name = 'TSV';
+    category_name = 'TSV'
 
     def collect_metadata(self):
         print('parsing tsv from %s' % self.path)
         md = []
         try:
-            with open(self.path, 'rU', newline='', encoding='ascii') as f:
+            with open(self.path, 'r', newline='', encoding='ascii') as f:
                 reader = csv.DictReader(f, delimiter='\t')
                 for row in reader:
-                    md.append({k : v for k, v in row.items()})
+                    md.append({k: v for k, v in row.items()})
         except UnicodeDecodeError as e:
             raise MetadataError(str(e) + f'in {self.path}')
 

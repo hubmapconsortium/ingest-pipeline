@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 from airflow.operators.bash import BashOperator
-from airflow.operators.dummy import DummyOperator
+from airflow.operators.empty import EmptyOperator
 from airflow.operators.python import BranchPythonOperator, PythonOperator
 from hubmap_operators.common_operators import (
     CleanupTmpDirOperator,
@@ -32,6 +32,7 @@ from utils import (
     build_provenance_function,
     get_assay_previous_version,
     get_cwl_cmd_from_workflows,
+    gather_calculated_metadata,
 )
 
 
@@ -128,11 +129,11 @@ with HMDAG(
         *cwl_workflows_annotations_multiome,
     ]
 
-    prepare_cwl1 = DummyOperator(task_id="prepare_cwl1")
+    prepare_cwl1 = EmptyOperator(task_id="prepare_cwl1")
 
-    prepare_cwl2 = DummyOperator(task_id="prepare_cwl2")
+    prepare_cwl2 = EmptyOperator(task_id="prepare_cwl2")
 
-    prepare_cwl3 = DummyOperator(task_id="prepare_cwl3")
+    prepare_cwl3 = EmptyOperator(task_id="prepare_cwl3")
 
     def build_cwltool_cmd1(**kwargs):
         run_id = kwargs["run_id"]
@@ -337,6 +338,7 @@ with HMDAG(
         ],
         cwl_workflows=cwl_workflows_files_salmon,
         no_provenance=True,
+        metadata_fun=gather_calculated_metadata,
     )
 
     send_status_msg_multiome = make_send_status_msg_function(
@@ -350,6 +352,7 @@ with HMDAG(
         ],
         cwl_workflows=cwl_workflows_files_multiome,
         no_provenance=True,
+        metadata_fun=gather_calculated_metadata,
     )
 
     build_provenance_salmon = build_provenance_function(

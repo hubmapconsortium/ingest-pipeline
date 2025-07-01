@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 from airflow.operators.bash import BashOperator
-from airflow.operators.dummy import DummyOperator
+from airflow.operators.empty import EmptyOperator
 from airflow.operators.python import BranchPythonOperator, PythonOperator
 from airflow.decorators import task
 
@@ -63,7 +63,7 @@ with HMDAG(
     },
 ) as dag:
     workflow_version = "1.0.0"
-    workflow_description = "The pipeline for Visium data with whole transcriptome sequencing results uses Salmon alevin for alignment free quasimapping to the HG38 reference genome and converts the resulting capture bead by gene matrix to the h5ad format, which is used by ScanPy for downstream analysis including dimensionality reduction, unsupervised clustering, and differential expression analysis. Additionally, spatial registration of barcodes to positions in histology data is done using the vendor’s alignment.json file where present, or performed automatically if the file is absent. These coordinates in conjunction with the sequencing data are used by SquidPy to perform some spatial analysis on the data."
+    workflow_description = "The pipeline for Visium data with whole transcriptome sequencing results uses Salmon alevin for alignment free quasimapping to the hg38 reference genome and converts the resulting capture bead by gene matrix to the h5ad format, which is used by ScanPy for downstream analysis including dimensionality reduction, unsupervised clustering, and differential expression analysis. Additionally, spatial registration of barcodes to positions in histology data is done using the vendor’s alignment.json file where present, or performed automatically if the file is absent. These coordinates in conjunction with the sequencing data are used by SquidPy to perform some spatial analysis on the data."
 
     cwl_workflows = [
         {
@@ -105,16 +105,15 @@ with HMDAG(
         else:
             return "No Container build required"
 
-
     prepare_cwl1 = prepare_cwl_cmd1()
 
-    prepare_cwl2 = DummyOperator(task_id="prepare_cwl2")
+    prepare_cwl2 = EmptyOperator(task_id="prepare_cwl2")
 
-    prepare_cwl3 = DummyOperator(task_id="prepare_cwl3")
+    prepare_cwl3 = EmptyOperator(task_id="prepare_cwl3")
 
-    prepare_cwl4 = DummyOperator(task_id="prepare_cwl4")
+    prepare_cwl4 = EmptyOperator(task_id="prepare_cwl4")
 
-    prepare_cwl5 = DummyOperator(task_id="prepare_cwl5")
+    prepare_cwl5 = EmptyOperator(task_id="prepare_cwl5")
 
     def build_cwltool_cmd1(**kwargs):
         run_id = kwargs["run_id"]
@@ -437,33 +436,27 @@ with HMDAG(
     (
         t_log_info
         >> t_create_tmpdir
-
         >> prepare_cwl1
         >> t_build_cmd1
         >> t_pipeline_exec
         >> t_maybe_keep_cwl1
-
         >> prepare_cwl2
         >> t_build_cmd2
         >> t_convert_for_ui
         >> t_maybe_keep_cwl2
-
         >> prepare_cwl3
         >> t_build_cmd3
         >> t_convert_for_ui_2
         >> t_maybe_keep_cwl3
-
         >> prepare_cwl4
         >> t_build_cmd4
         >> t_pipeline_exec_cwl_ome_tiff_pyramid
         >> t_maybe_keep_cwl4
-
         >> prepare_cwl5
         >> t_build_cmd5
         >> t_pipeline_exec_cwl_ome_tiff_offsets
         >> t_maybe_keep_cwl5
         >> t_maybe_create_dataset
-
         >> t_send_create_dataset
         >> t_move_data
         >> t_send_status
