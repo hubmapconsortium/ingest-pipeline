@@ -63,7 +63,7 @@ with HMDAG(
     },
 ) as dag:
     workflow_version = "1.0.0"
-    workflow_description = "The pipeline for Visium data with whole transcriptome sequencing results uses Salmon alevin for alignment free quasimapping to the HG38 reference genome and converts the resulting capture bead by gene matrix to the h5ad format, which is used by ScanPy for downstream analysis including dimensionality reduction, unsupervised clustering, and differential expression analysis. Additionally, spatial registration of barcodes to positions in histology data is done using the vendor’s alignment.json file where present, or performed automatically if the file is absent. These coordinates in conjunction with the sequencing data are used by SquidPy to perform some spatial analysis on the data."
+    workflow_description = "The pipeline for Visium data with whole transcriptome sequencing results uses Salmon alevin for alignment free quasimapping to the hg38 reference genome and converts the resulting capture bead by gene matrix to the h5ad format, which is used by ScanPy for downstream analysis including dimensionality reduction, unsupervised clustering, and differential expression analysis. Additionally, spatial registration of barcodes to positions in histology data is done using the vendor’s alignment.json file where present, or performed automatically if the file is absent. These coordinates in conjunction with the sequencing data are used by SquidPy to perform some spatial analysis on the data."
 
     cwl_workflows = [
         {
@@ -104,7 +104,6 @@ with HMDAG(
             return build_tag_containers(cwl_path)
         else:
             return "No Container build required"
-
 
     prepare_cwl1 = prepare_cwl_cmd1()
 

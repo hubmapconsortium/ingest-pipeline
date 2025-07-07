@@ -67,7 +67,7 @@ with HMDAG(
 ) as dag:
     pipeline_name = "codex-pipeline"
     workflow_version = "1.0.0"
-    workflow_description = "The CODEX pipeline performs illumination correction and other pre-processing steps, segments nuclei and cells using Cytokit, and performs spatial analysis of expression data using SPRM, which computes various measures of analyte intensity per cell, performs clustering based on expression and other data, and computes markers for each cluster"
+    workflow_description = "The CODEX pipeline performs illumination correction and other pre-processing steps, segments nuclei and cells using Cytokit, and performs spatial analysis of expression data using SPRM, which computes various measures of analyte intensity per cell, performs clustering based on expression and other data, and computes markers for each cluster."
     steps_dir = Path(pipeline_name) / "steps"
 
     cwl_workflows = [
@@ -275,9 +275,14 @@ with HMDAG(
         input_parameters = [
             {"parameter_name": "--cytokit_config", "value": str(data_dir / "experiment.yaml")},
             {"parameter_name": "--cytokit_output", "value": str(data_dir / "cytokit")},
-            {"parameter_name": "--slicing_pipeline_config",
-             "value": str(data_dir / "pipelineConfig.json"), },
-            {"parameter_name": "--num_concurrent_tasks", "value": get_threads_resource(dag.dag_id)},
+            {
+                "parameter_name": "--slicing_pipeline_config",
+                "value": str(data_dir / "pipelineConfig.json"),
+            },
+            {
+                "parameter_name": "--num_concurrent_tasks",
+                "value": get_threads_resource(dag.dag_id),
+            },
             {"parameter_name": "--data_dir", "value": str(get_parent_data_dir(**kwargs))},
         ]
         command = get_cwl_cmd_from_workflows(workflows, 2, input_parameters, tmpdir, kwargs["ti"])
@@ -333,9 +338,7 @@ with HMDAG(
             key="cwl_workflows", task_ids="build_cwl_ometiff_second_stitching"
         )
 
-        input_parameters = [
-            {"parameter_name": "--data_dir", "value": str(data_dir)}
-        ]
+        input_parameters = [{"parameter_name": "--data_dir", "value": str(data_dir)}]
         command = get_cwl_cmd_from_workflows(workflows, 3, input_parameters, tmpdir, kwargs["ti"])
 
         return join_quote_command_str(command)
@@ -394,9 +397,7 @@ with HMDAG(
         data_dir = tmpdir / "cwl_out"
         print("data_dir: ", data_dir)
 
-        workflows = kwargs["ti"].xcom_pull(
-            key="cwl_workflows", task_ids="build_cwl_ribca"
-        )
+        workflows = kwargs["ti"].xcom_pull(key="cwl_workflows", task_ids="build_cwl_ribca")
 
         input_parameters = [
             {"parameter_name": "--data_dir", "value": str(data_dir)},

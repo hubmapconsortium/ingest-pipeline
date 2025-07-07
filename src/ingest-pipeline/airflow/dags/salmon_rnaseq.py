@@ -68,7 +68,7 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
         },
     ) as dag:
         workflow_version = "1.0.0"
-        workflow_description = "The pipeline for scRNA/snRNA data with whole transcriptome sequencing results uses Salmon alevin for alignment free quasimapping to the HG38 reference genome and converts the resulting capture bead by gene matrix to the h5ad format, which is used by ScanPy for downstream analysis including dimensionality reduction, unsupervised clustering, and differential expression analysis. Cell type annotations are provided by Azimuth when available for the type of tissue being analyzed."
+        workflow_description = params.workflow_description
 
         cwl_workflows = [
             {
@@ -166,8 +166,9 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
 
             # get organ type
             ds_rslt = pythonop_get_dataset_state(
-                    dataset_uuid_callable=lambda **kwargs:
-                    get_parent_dataset_uuids_list(**kwargs)[0], **kwargs)
+                dataset_uuid_callable=lambda **kwargs: get_parent_dataset_uuids_list(**kwargs)[0],
+                **kwargs,
+            )
 
             organ_list = list(set(ds_rslt["organs"]))
             organ_code = organ_list[0] if len(organ_list) == 1 else "multi"
@@ -443,11 +444,18 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
 def get_salmon_dag_params(assay: str) -> SequencingDagParameters:
     # TODO: restructure assay names, pipeline names, etc.; this repetition
     #   is for backward compatibility
+    if assay == "slideseq":
+        workflow_description = "The pipeline for slideseq data uses Salmon alevin for alignment free quasimapping to the hg38 reference genome and converts the resulting capture bead by gene matrix to the h5ad format, which is used by ScanPy for downstream analysis including dimensionality reduction, unsupervised clustering, and differential expression analysis. SquidPy is used to provide spatial analysis, using spatial coordinates provided by data providers.  Cell type annotations are provided by Azimuth when available for the type of tissue being analyzed."
+    elif assay == "snareseq":
+        workflow_description = "The pipeline for multiome RNA-ATACseq data uses Salmon for alignment free quasi mapping of reads from RNA sequencing to the hg38 reference genome and HISAT2 for short read alignment of ATACseq reads to the same genome.  Barcodes are then mapped between components of the assay to generate an annotated data matrix with consolidated RNA and ATACseq data.  This annotated data matrix is then passed to the Muon package for dimensionality reduction, clustering, and multiomic factor analysis.  Cell type annotations are provided by Azimuth when available for the type of tissue being analyzed."
+    else:
+        workflow_description = "The pipeline for scRNA/snRNA data with whole transcriptome sequencing results uses Salmon alevin for alignment free quasimapping to the hg38 reference genome and converts the resulting capture bead by gene matrix to the h5ad format, which is used by ScanPy for downstream analysis including dimensionality reduction, unsupervised clustering, and differential expression analysis. Cell type annotations are provided by Azimuth when available for the type of tissue being analyzed."
+
     return SequencingDagParameters(
         dag_id=f"salmon_rnaseq_{assay}",
         pipeline_name=f"salmon-rnaseq-{assay}",
         assay=assay,
-        workflow_description="The pipeline for scRNA/snRNA data with whole transcriptome sequencing results uses Salmon alevin for alignment free quasimapping to the HG38 reference genome and converts the resulting capture bead by gene matrix to the h5ad format, which is used by ScanPy for downstream analysis including dimensionality reduction, unsupervised clustering, and differential expression analysis. Cell type annotations are provided by Azimuth when available for the type of tissue being analyzed.",
+        workflow_description=workflow_description,
     )
 
 
@@ -457,25 +465,25 @@ salmon_dag_params: List[SequencingDagParameters] = [
         dag_id="salmon_rnaseq_10x",
         pipeline_name="salmon-rnaseq",
         assay="10x_v3",
-        workflow_description="The pipeline for scRNA/snRNA data with whole transcriptome sequencing results uses Salmon alevin for alignment free quasimapping to the HG38 reference genome and converts the resulting capture bead by gene matrix to the h5ad format, which is used by ScanPy for downstream analysis including dimensionality reduction, unsupervised clustering, and differential expression analysis. Cell type annotations are provided by Azimuth when available for the type of tissue being analyzed.",
+        workflow_description="The pipeline for scRNA/snRNA data with whole transcriptome sequencing results uses Salmon alevin for alignment free quasimapping to the hg38 reference genome and converts the resulting capture bead by gene matrix to the h5ad format, which is used by ScanPy for downstream analysis including dimensionality reduction, unsupervised clustering, and differential expression analysis. Cell type annotations are provided by Azimuth when available for the type of tissue being analyzed.",
     ),
     SequencingDagParameters(
         dag_id="salmon_rnaseq_10x_sn",
         pipeline_name="salmon-rnaseq",
         assay="10x_v3_sn",
-        workflow_description="The pipeline for scRNA/snRNA data with whole transcriptome sequencing results uses Salmon alevin for alignment free quasimapping to the HG38 reference genome and converts the resulting capture bead by gene matrix to the h5ad format, which is used by ScanPy for downstream analysis including dimensionality reduction, unsupervised clustering, and differential expression analysis. Cell type annotations are provided by Azimuth when available for the type of tissue being analyzed.",
+        workflow_description="The pipeline for scRNA/snRNA data with whole transcriptome sequencing results uses Salmon alevin for alignment free quasimapping to the hg38 reference genome and converts the resulting capture bead by gene matrix to the h5ad format, which is used by ScanPy for downstream analysis including dimensionality reduction, unsupervised clustering, and differential expression analysis. Cell type annotations are provided by Azimuth when available for the type of tissue being analyzed.",
     ),
     SequencingDagParameters(
         dag_id="salmon_rnaseq_10x_v2",
         pipeline_name="salmon-rnaseq",
         assay="10x_v2",
-        workflow_description="The pipeline for scRNA/snRNA data with whole transcriptome sequencing results uses Salmon alevin for alignment free quasimapping to the HG38 reference genome and converts the resulting capture bead by gene matrix to the h5ad format, which is used by ScanPy for downstream analysis including dimensionality reduction, unsupervised clustering, and differential expression analysis. Cell type annotations are provided by Azimuth when available for the type of tissue being analyzed.",
+        workflow_description="The pipeline for scRNA/snRNA data with whole transcriptome sequencing results uses Salmon alevin for alignment free quasimapping to the hg38 reference genome and converts the resulting capture bead by gene matrix to the h5ad format, which is used by ScanPy for downstream analysis including dimensionality reduction, unsupervised clustering, and differential expression analysis. Cell type annotations are provided by Azimuth when available for the type of tissue being analyzed.",
     ),
     SequencingDagParameters(
         dag_id="salmon_rnaseq_10x_v2_sn",
         pipeline_name="salmon-rnaseq",
         assay="10x_v2_sn",
-        workflow_description="The pipeline for scRNA/snRNA data with whole transcriptome sequencing results uses Salmon alevin for alignment free quasimapping to the HG38 reference genome and converts the resulting capture bead by gene matrix to the h5ad format, which is used by ScanPy for downstream analysis including dimensionality reduction, unsupervised clustering, and differential expression analysis. Cell type annotations are provided by Azimuth when available for the type of tissue being analyzed.",
+        workflow_description="The pipeline for scRNA/snRNA data with whole transcriptome sequencing results uses Salmon alevin for alignment free quasimapping to the hg38 reference genome and converts the resulting capture bead by gene matrix to the h5ad format, which is used by ScanPy for downstream analysis including dimensionality reduction, unsupervised clustering, and differential expression analysis. Cell type annotations are provided by Azimuth when available for the type of tissue being analyzed.",
     ),
     get_salmon_dag_params("sciseq"),
     get_salmon_dag_params("slideseq"),
