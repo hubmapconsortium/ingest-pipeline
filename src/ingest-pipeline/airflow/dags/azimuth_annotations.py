@@ -64,7 +64,9 @@ with HMDAG(
 
     cwl_workflows_annotations_salmon = [
         {
-            "workflow_path": str(get_absolute_workflow(Path("azimuth-annotate", "pipeline.cwl"))),
+            "workflow_path": str(
+                get_absolute_workflow(Path("pan-organ-azimuth-annotate", "pipeline.cwl"))
+            ),
             "documentation_url": "",
         },
         {
@@ -82,7 +84,9 @@ with HMDAG(
     ]
     cwl_workflows_annotations_multiome = [
         {
-            "workflow_path": str(get_absolute_workflow(Path("azimuth-annotate", "pipeline.cwl"))),
+            "workflow_path": str(
+                get_absolute_workflow(Path("pan-organ-azimuth-annotate", "pipeline.cwl"))
+            ),
             "documentation_url": "",
         },
         {
@@ -139,35 +143,25 @@ with HMDAG(
         # get organ type
         ds_rslt = pythonop_get_dataset_state(dataset_uuid_callable=get_dataset_uuid, **kwargs)
 
-        organ_list = list(set(ds_rslt["organs"]))
-        organ_code = organ_list[0] if len(organ_list) == 1 else "multi"
-        assay, matrix, secondary_analysis, _ = get_assay_previous_version(**kwargs)
+        source_type = ds_rslt.get("source_type", "human")
+        if source_type == "mixed":
+            print("Force failure. Should only be one unique source_type for a dataset.")
 
-        if "mudata" in secondary_analysis:
-            workflows = cwl_workflows_annotations_multiome
-            input_parameters = [
-                {"parameter_name": "--reference", "value": organ_code},
-                {
-                    "parameter_name": "--matrix",
-                    "value": str(tmpdir / "cwl_out/mudata_raw.h5mu"),
-                },
-                {
-                    "parameter_name": "--secondary-analysis-matrix",
-                    "value": str(tmpdir / "cwl_outsecondary_analysis.h5mu"),
-                },
-                {"parameter_name": "--assay", "value": assay},
-            ]
-        else:
-            workflows = cwl_workflows_annotations_salmon
-            input_parameters = [
-                {"parameter_name": "--reference", "value": organ_code},
-                {"parameter_name": "--matrix", "value": str(tmpdir / "cwl_out/expr.h5ad")},
-                {
-                    "parameter_name": "--secondary-analysis-matrix",
-                    "value": str(tmpdir / "cwl_out/secondary_analysis.h5ad"),
-                },
-                {"parameter_name": "--assay", "value": assay},
-            ]
+        _, _, secondary_analysis, _ = get_assay_previous_version(**kwargs)
+
+        input_parameters = [
+            {
+                "parameter_name": "--secondary_analysis-matrix",
+                "value": str(tmpdir / "cwl_out/secondary_analysis.h5mu"),
+            },
+            {"parameter_name": "--organism", "value": source_type},
+        ]
+
+        workflows = (
+            cwl_workflows_annotations_multiome
+            if "mudata" in secondary_analysis
+            else cwl_workflows_annotations_salmon
+        )
 
         command = get_cwl_cmd_from_workflows(workflows, 0, input_parameters, tmpdir, kwargs["ti"])
 
