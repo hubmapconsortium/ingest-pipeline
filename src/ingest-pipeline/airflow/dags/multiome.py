@@ -387,19 +387,23 @@ def generate_multiome_dag(params: MultiomeSequencingDagParameters) -> DAG:
         (
             t_log_info
             >> t_create_tmpdir
+
             >> prepare_cwl1
             >> t_build_cmd1
             >> t_pipeline_exec
             >> t_maybe_keep_cwl1
+
             >> prepare_cwl2
             >> t_build_cmd2
             >> t_pipeline_exec_azimuth_annotate
             >> t_maybe_keep_cwl2
+
             >> prepare_cwl3
             >> t_build_cmd3
             >> t_convert_for_ui
             >> t_maybe_keep_cwl3
             >> t_maybe_create_dataset
+
             >> t_send_create_dataset
             >> t_move_data
             >> t_send_status
