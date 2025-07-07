@@ -31,6 +31,7 @@ from typing import (
 import cwltool  # used to find its path
 import yaml
 from cryptography.fernet import Fernet
+from hubmap_commons.schema_tools import assert_json_matches_schema, set_schema_base_path
 from requests import codes
 from requests.exceptions import HTTPError
 from schema_utils import (
