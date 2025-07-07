@@ -140,3 +140,6 @@ workflow_map:
   - 'collection_type': '.*'
     'assay_type': 'AB-PAS'
     'workflow': 'ometiff_pyramid'
+  - 'collection_type': '.*'
+    'assay_type': 'scRNAseq-with-probes'
+    'workflow': 'rna_with_probes'
