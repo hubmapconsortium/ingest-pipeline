@@ -35,7 +35,7 @@ from requests import codes
 from requests.exceptions import HTTPError
 from schema_utils import (
     localized_assert_json_matches_schema as assert_json_matches_schema,
-    JSONType
+    JSONType,
 )
 from status_change.status_manager import EntityUpdateException, StatusChanger
 
@@ -190,7 +190,7 @@ class PipelineFileMatcher(FileMatcher):
             is_qa_qc,
             is_data_product,
         ) in self.matchers:
-            if (m := pattern.search(path_str)):
+            if m := pattern.search(path_str):
                 formatted_description = description_template.format_map(m.groupdict())
                 return True, formatted_description, ontology_term, is_qa_qc, is_data_product
         return False, None, None, None, None
@@ -1575,7 +1575,7 @@ def make_send_status_msg_function(
                 antibodies = md["metadata"].pop("antibodies", [])
                 contributors = md["metadata"].pop("contributors", [])
                 calculated_metadata = md["metadata"].pop("calculated_metadata", {})
-                md["metadata"] = md["metadata"].pop("metadata", [])
+                md["metadata"] = md["metadata"].pop("metadata", {})
                 for contrib in contributors:
                     if "is_contact" in contrib:
                         v = contrib["is_contact"]
@@ -1598,10 +1598,7 @@ def make_send_status_msg_function(
                         contacts = ds_rslt.get("contacts", [])
 
             try:
-                assert_json_matches_schema(
-                    md,
-                    "dataset_metadata_schema.yml"
-                )
+                assert_json_matches_schema(md, "dataset_metadata_schema.yml")
                 metadata = md.pop("metadata", {})
                 files = md.pop("files", [])
                 extra_fields = {
@@ -1768,9 +1765,7 @@ def _lookup_resource_record(dag_id: str, task_id: Optional[str] = None) -> Tuple
                         f" has no match for task_id <{task_id}>"
                     )
             return rslt
-    raise ValueError(
-        "No resource map entry found for" f" dag_id <{dag_id}> task_id <{task_id}>"
-    )
+    raise ValueError("No resource map entry found for" f" dag_id <{dag_id}> task_id <{task_id}>")
 
 
 def get_queue_resource(dag_id: str, task_id: Optional[str] = None) -> str:
@@ -1917,6 +1912,14 @@ def get_soft_data_assaytype(dataset_uuid, **kwargs) -> str:
     soft_data = get_soft_data(dataset_uuid, **kwargs)
     assert "assaytype" in soft_data, f"Could not find matching assaytype for {dataset_uuid}"
     return soft_data["assaytype"]
+
+
+def gather_calculated_metadata(**kwargs):
+    # Then we gather the metadata from the mudata transformation output
+    # Always have to gather the metadata from the transformation
+    data_dir = kwargs["ti"].xcom_pull(task_ids="send_create_dataset")
+    output_metadata = json.load(open(f"{data_dir}/calculated_metadata.json"))
+    return {"calculated_metadata": output_metadata}
 
 
 def main():

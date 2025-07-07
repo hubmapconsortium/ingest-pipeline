@@ -36,6 +36,7 @@ from utils import (
     get_threads_resource,
     get_preserve_scratch_resource,
     get_cwl_cmd_from_workflows,
+    gather_calculated_metadata,
 )
 
 from extra_utils import build_tag_containers
@@ -76,7 +77,7 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
             },
             {
                 "workflow_path": str(
-                    get_absolute_workflow(Path("azimuth-annotate", "pipeline.cwl"))
+                    get_absolute_workflow(Path("pan-organ-azimuth-annotate", "pipeline.cwl"))
                 ),
                 "documentation_url": "",
             },
@@ -169,20 +170,23 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
                 **kwargs,
             )
 
-            organ_list = list(set(ds_rslt["organs"]))
-            organ_code = organ_list[0] if len(organ_list) == 1 else "multi"
+            source_type = ds_rslt.get("source_type", "human")
+            if source_type == "mixed":
+                print("Force failure. Should only be one unique source_type for a dataset.")
 
             workflows = kwargs["ti"].xcom_pull(key="cwl_workflows", task_ids="build_cmd1")
 
             input_parameters = [
-                {"parameter_name": "--reference", "value": organ_code},
-                {"parameter_name": "--matrix", "value": str(tmpdir / "cwl_out/expr.h5ad")},
                 {
                     "parameter_name": "--secondary-analysis-matrix",
                     "value": str(tmpdir / "cwl_out/secondary_analysis.h5ad"),
                 },
-                {"parameter_name": "--assay", "value": params.assay},
+                {
+                    "parameter_name": "--source",
+                    "value": source_type,
+                },
             ]
+
             command = get_cwl_cmd_from_workflows(
                 workflows, 1, input_parameters, tmpdir, kwargs["ti"]
             )
@@ -384,6 +388,7 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
             ),
             workflow_description=workflow_description,
             workflow_version=workflow_version,
+            metadata_fun=gather_calculated_metadata,
         )
 
         t_send_status = PythonOperator(
@@ -401,23 +406,28 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
         (
             t_log_info
             >> t_create_tmpdir
+
             >> prepare_cwl1
             >> t_build_cmd1
             >> t_pipeline_exec
             >> t_maybe_keep_cwl1
+
             >> prepare_cwl2
             >> t_build_cmd2
             >> t_pipeline_exec_azimuth_annotate
             >> t_maybe_keep_cwl2
+
             >> prepare_cwl3
             >> t_build_cmd3
             >> t_convert_for_ui
             >> t_maybe_keep_cwl3
+
             >> prepare_cwl4
             >> t_build_cmd4
             >> t_convert_for_ui_2
             >> t_maybe_keep_cwl4
             >> t_maybe_create_dataset
+
             >> t_send_create_dataset
             >> t_move_data
             >> t_send_status
