@@ -364,7 +364,7 @@ with HMDAG(
         python_callable=utils.pythonop_maybe_keep,
         provide_context=True,
         op_kwargs={
-            "next_op": "move_create_dataset",
+            "next_op": "maybe_create_dataset",
             "bail_op": "set_dataset_error",
             "test_op": "pipeline_exec_cwl_ome_tiff_offsets",
         },
