@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from airflow.operators.bash import BashOperator
 from airflow.operators.python import PythonOperator
 from airflow.operators.python import BranchPythonOperator
-from airflow.operators.dummy import DummyOperator
+from airflow.operators.empty import EmptyOperator
 
 # these are the hubmap common operators that are used in all DAGS
 from hubmap_operators.common_operators import (
@@ -12,7 +12,6 @@ from hubmap_operators.common_operators import (
     JoinOperator,
     CreateTmpDirOperator,
     CleanupTmpDirOperator,
-    SetDatasetProcessingOperator,
     MoveDataOperator,
 )
 
@@ -89,7 +88,7 @@ with HMDAG(
         return inner_build_dataset_name(dag.dag_id, pipeline_name, **kwargs)
 
     # CWL1 - pipeline.cwl
-    prepare_cwl1 = DummyOperator(task_id="prepare_cwl1")
+    prepare_cwl1 = EmptyOperator(task_id="prepare_cwl1")
 
     # print useful info and build command line
     def build_cwltool_cmd1(**kwargs):
@@ -131,7 +130,7 @@ with HMDAG(
     )
 
     # CWL2
-    prepare_cwl2 = DummyOperator(task_id="prepare_cwl2")
+    prepare_cwl2 = EmptyOperator(task_id="prepare_cwl2")
 
     # print useful info and build command line
     def build_cwltool_cmd2(**kwargs):
