@@ -161,10 +161,10 @@ class EntityUpdater:
         except AssertionError as excp:
             raise EntityUpdateException(excp) from excp
         if self.verbose:
-            logging.info(f"Updating {self.uuid} with data {self.fields_to_change}...")
+            logging.info(f"Updating {self.uuid} with data {update_fields}...")
         try:
             response = http_hook.run(
-                endpoint, json.dumps(self.fields_to_change), headers, self.extra_options
+                endpoint, json.dumps(update_fields), headers, self.extra_options
             )
         except Exception as e:
             raise EntityUpdateException(
