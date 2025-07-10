@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import traceback
+import urllib.parse
 from enum import Enum
 from typing import Any
 
@@ -143,3 +144,50 @@ def formatted_exception(exception):
     ):
         return None
     return formatted_exception
+
+
+def get_abs_path(uuid: str, token: str) -> str:
+    http_hook = HttpHook("GET", http_conn_id="ingest_api_connection")
+    headers = {
+        "authorization": f"Bearer {token}",
+        "content-type": "application/json",
+        "X-Hubmap-Application": "ingest-pipeline",
+    }
+    response = http_hook.run(
+        endpoint=f"datasets/{uuid}/file-system-abs-path",
+        headers=headers,
+    )
+    return response.json().get("path")
+
+
+def get_organ(uuid: str, token: str) -> str:
+    """
+    Get ancestor organ for sample, dataset, or publication.
+    """
+    http_hook = HttpHook("GET", http_conn_id="entity_api_connection")
+    response = http_hook.run(
+        f"/entities/{uuid}/ancestor-organs", headers={"Authorization": "Bearer " + token}
+    )
+    try:
+        response.raise_for_status()
+        return response.json()[0].get("organ")
+    except Exception as e:
+        print(e)
+        return ""
+
+
+def get_globus_url(uuid: str, token: str) -> str:
+    """
+    Return the Globus URL (default) for a dataset.
+    URL format is https://app.globus.org/file-manager?origin_id=<id>&origin_path=<uuid | consortium|private/<group>/<uuid>>
+    """
+    path = get_abs_path(uuid, token)
+    prefix = "https://app.globus.org/file-manager?"
+    params = {}
+    if "public" in path:
+        params["origin_id"] = "af603d86-eab9-4eec-bb1d-9d26556741bb"
+        params["origin_path"] = uuid
+    else:
+        params["origin_id"] = "24c2ee95-146d-4513-a1b3-ac0bfdb7856f"
+        params["origin_path"] = path.replace("/hive/hubmap/data", "") + "/"
+    return prefix + urllib.parse.urlencode(params)

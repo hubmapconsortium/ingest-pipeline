@@ -1638,7 +1638,6 @@ def make_send_status_msg_function(
                 "pipeline_message": err_txt[-20000:],
             }
             return_status = False
-        entity_type = ds_rslt.get("entity_type")
         if status:
             if kwargs["dag"].dag_id == "multiassay_component_metadata":
                 status = None
@@ -1648,7 +1647,6 @@ def make_send_status_msg_function(
                     get_auth_tok(**kwargs),
                     status=status,
                     fields_to_overwrite=extra_fields,
-                    entity_type=entity_type if entity_type else None,
                 ).update()
             except EntityUpdateException:
                 return_status = False
