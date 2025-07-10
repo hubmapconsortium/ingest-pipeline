@@ -150,7 +150,7 @@ with HMDAG('rebuild_processed_dataset_metadata',
             else:
                 raise AirflowException("send_status_msg returned False")
         except Exception as excp:
-            raise AirflowException(f"Exception clause 2: {excp}") from excp
+            raise AirflowException(f"setting dataset attributes failed: {excp}") from excp
 
     t_send_status = PythonOperator(
         task_id="send_status_msg",
