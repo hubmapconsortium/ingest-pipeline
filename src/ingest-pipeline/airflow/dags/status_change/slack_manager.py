@@ -46,6 +46,7 @@ class SlackManager:
                 "main_class": SlackQA,
                 "subclasses": [],
             },
+            # TODO: dataset errors--processing vs. reorg?
         }
 
     def get_message_class(self, msg_type: Statuses):
@@ -69,6 +70,8 @@ class SlackManager:
                 f"Request to send Slack message missing message text (submitted: '{message}')"
                 f" or target channel (submitted: '{channel}')."
             )
+
+    def post_to_notify(self):
         http_hook = HttpHook("POST", http_conn_id="ingest_api_connection")
         payload = json.dumps({"message": message, "channel": channel})
         headers = {"Authorization": f"Bearer {self.token}", "Content-Type": "application/json"}
