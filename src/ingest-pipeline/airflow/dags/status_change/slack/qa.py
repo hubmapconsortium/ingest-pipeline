@@ -1,5 +1,6 @@
-from base import SlackMessage
 from status_change.status_utils import get_globus_url
+
+from .base import SlackMessage
 
 
 class SlackQA(SlackMessage):

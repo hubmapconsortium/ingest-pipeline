@@ -53,9 +53,8 @@ class SlackReorganized(SlackMessage):
                 cleaned_data.append(str(val))
         return cleaned_data
 
-    # TODO
-    # def format(self, **kwargs) -> str:
-    #     return ""
+    def format(self) -> str:
+        return f"Upload {self.uuid} reorganized successfully!"
 
 
 class SlackPriorityReorganized(SlackReorganized):
