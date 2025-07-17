@@ -138,5 +138,7 @@ workflow_map:
     'assay_type': 'geomx_ngs'
     'workflow': 'geomx'
   - 'collection_type': '.*'
+    'assay_type': 'xenium'
+    'workflow': 'xenium'
     'assay_type': 'AB-PAS'
     'workflow': 'ometiff_pyramid'
