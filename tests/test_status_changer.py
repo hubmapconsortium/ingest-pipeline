@@ -4,9 +4,12 @@ from datetime import date
 from functools import cached_property
 from unittest.mock import MagicMock, patch
 
-from status_change.failure_callback import FailureCallback
+from status_change.callbacks.failure_callback import FailureCallback
 from status_change.slack.base import SlackMessage
-from status_change.slack.reorganized import SlackPriorityReorganized, SlackReorganized
+from status_change.slack.reorganized import (
+    SlackUploadReorganized,
+    SlackUploadReorganizedPriority,
+)
 from status_change.slack_manager import SlackManager
 from status_change.status_manager import (
     EntityUpdateException,
@@ -175,7 +178,7 @@ class TestEntityUpdater(unittest.TestCase):
         status_map_mock.get.side_effect = {Statuses.UPLOAD_VALID: [SlackManager]}.get
         self.assertFalse(slack_mock.called)
         self.assertEqual(self.upload_valid.status, Statuses.UPLOAD_VALID.value)
-        with patch("status_change.slack_manager.SlackManager.post_to_notify"):
+        with patch("status_change.slack_manager.post_to_slack_notify"):
             with patch("status_change.status_manager.HttpHook.run"):
                 self.upload_valid.update()
         self.assertTrue(slack_mock.called)
@@ -263,20 +266,22 @@ class TestEntityUpdater(unittest.TestCase):
     }
 
     @patch("status_change.slack.base.get_submission_context")
-    def slack_manager(self, status, context, context_mock):
+    @patch("status_change.slack_manager.get_submission_context")
+    def slack_manager(self, status, context, context_mock, slack_mock):
         context_mock.return_value = context
+        slack_mock.return_value = context
         with patch("status_change.slack_manager.SlackManager.send"):
             return SlackManager(status, "test_uuid", "test_token")
 
     def test_slack_manager_main_class(self):
         mgr = self.slack_manager(Statuses.UPLOAD_REORGANIZED, self.good_upload_context)
-        assert type(mgr.message_class) is SlackReorganized
+        assert type(mgr.message_class) is SlackUploadReorganized
 
     def test_slack_manager_subclass(self):
         context_copy = self.good_upload_context.copy()
         context_copy.update({"priority_project_list": ["PRIORITY"]})
         mgr = self.slack_manager(Statuses.UPLOAD_REORGANIZED, context_copy)
-        assert type(mgr.message_class) is SlackPriorityReorganized
+        assert type(mgr.message_class) is SlackUploadReorganizedPriority
 
     @patch("status_change.slack_manager.SlackManager.send")
     def test_slack_manager_no_rule(self, send_mock):
@@ -284,13 +289,17 @@ class TestEntityUpdater(unittest.TestCase):
         assert not mgr.message_class
         send_mock.assert_not_called()
 
+    @patch("status_change.slack_manager.get_submission_context")
     @patch("status_change.slack.base.get_submission_context")
     @patch("status_change.status_manager.get_submission_context")
     @patch("status_change.status_manager.HttpHook.run")
-    def test_slack_triggered_by_statuschanger(self, hhr_mock, sc_context_mock, slack_context_mock):
+    def test_slack_triggered_by_statuschanger(
+        self, hhr_mock, sc_context_mock, slack_context_mock, slack_base_context_mock
+    ):
         new_context = self.context_mock_value
         sc_context_mock.return_value = new_context
         slack_context_mock.return_value = new_context
+        slack_base_context_mock.return_value = new_context
         with patch("status_change.status_manager.StatusChanger._set_entity_api_data"):
             with patch("status_change.slack_manager.SlackManager.send") as send_mock:
                 StatusChanger(
@@ -347,7 +356,7 @@ class TestEntityUpdater(unittest.TestCase):
 
     @patch("status_change.status_utils.get_submission_context")
     @patch("traceback.TracebackException")
-    @patch("status_change.failure_callback.get_auth_tok")
+    @patch("status_change.callbacks.base.get_auth_tok")
     def test_failure_callback(self, gat_mock, tbfa_mock, gsc_mock):
         def _xcom_getter(key):
             return {"uuid": "abc123"}[key]
