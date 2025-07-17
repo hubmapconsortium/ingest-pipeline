@@ -12,7 +12,7 @@
      'properties':
         'entity_type':
           'type': 'string'
-          'enum': ['Upload', 'Dataset', 'Publication']
+          'enum': ['upload', 'dataset', 'publication']
         'status':
           'type': 'string'
           'enum':
@@ -31,19 +31,19 @@
             - 'reorganized'
      'anyOf':
       - 'properties':
-           'entity_type': { 'const': 'Upload' }
+           'entity_type': { 'const': 'upload' }
            'status':
              'enum': ['error', 'invalid', 'new', 'processing', 'reorganized',
                       'submitted', 'valid']
         'required': ['entity_type', 'status']
       - 'properties':
-           'entity_type': { 'const': 'Dataset' }
+           'entity_type': { 'const': 'dataset' }
            'status':
              'enum': ['deprecated', 'error', 'hold', 'invalid', 'new',
                       'processing', 'published', 'qa', 'submitted']
         'required': ['entity_type', 'status']
       - 'properties':
-           'entity_type': { 'const': 'Publication' }
+           'entity_type': { 'const': 'publication' }
            'status':
              'enum': ['error', 'hold', 'invalid', 'new',
                       'processing', 'published', 'qa', 'submitted']
