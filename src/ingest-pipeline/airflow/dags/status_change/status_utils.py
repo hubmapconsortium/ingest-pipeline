@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import json
 import traceback
 import urllib.parse
 from enum import Enum
-from typing import Any
+from typing import Any, Optional
 
 from requests import codes
 from requests.exceptions import HTTPError
@@ -191,3 +192,11 @@ def get_globus_url(uuid: str, token: str) -> str:
         params["origin_id"] = "24c2ee95-146d-4513-a1b3-ac0bfdb7856f"
         params["origin_path"] = path.replace("/hive/hubmap/data", "") + "/"
     return prefix + urllib.parse.urlencode(params)
+
+
+def post_to_slack_notify(token: str, message: str, channel: str):
+    http_hook = HttpHook("POST", http_conn_id="ingest_api_connection")
+    payload = json.dumps({"message": message, "channel": channel})
+    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+    response = http_hook.run("/notify", payload, headers)
+    response.raise_for_status()

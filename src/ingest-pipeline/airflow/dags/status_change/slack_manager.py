@@ -1,13 +1,13 @@
-import json
 import logging
 
-from airflow.providers.http.hooks.http import HttpHook
-
-from .slack.qa import SlackQA
-from .slack.reorganized import SlackPriorityReorganized, SlackReorganized
+from .slack.error import SlackDatasetErrorPipeline
+from .slack.qa import SlackDatasetQA
+from .slack.reorganized import SlackUploadReorganized, SlackUploadReorganizedPriority
 from .status_utils import (
     EntityUpdateException,
     Statuses,
+    get_submission_context,
+    post_to_slack_notify,
 )
 
 
@@ -39,14 +39,17 @@ class SlackManager:
         """
         return {
             Statuses.UPLOAD_REORGANIZED: {
-                "main_class": SlackReorganized,
-                "subclasses": [SlackPriorityReorganized],
+                "main_class": SlackUploadReorganized,
+                "subclasses": [SlackUploadReorganizedPriority],
             },
             Statuses.DATASET_QA: {
-                "main_class": SlackQA,
+                "main_class": SlackDatasetQA,
                 "subclasses": [],
             },
-            # TODO: dataset errors--processing vs. reorg?
+            Statuses.DATASET_ERROR: {
+                "main_class": None,
+                "subclasses": [SlackDatasetErrorPipeline],
+            },
         }
 
     def get_message_class(self, msg_type: Statuses):
@@ -54,10 +57,12 @@ class SlackManager:
         if not relevant_classes:
             self.message_class = None
             return
-        self.message_class = relevant_classes["main_class"](self.uuid, self.token)
+        entity_data = get_submission_context(self.token, self.uuid)
+        if main_class := relevant_classes["main_class"]:
+            self.message_class = main_class(self.uuid, self.token, entity_data)
         for subclass in relevant_classes.get("subclasses", []):
-            if subclass.test(self.message_class.entity_data):
-                self.message_class = subclass(self.uuid, self.token)
+            if subclass.test(entity_data):
+                self.message_class = subclass(self.uuid, self.token, entity_data)
                 break
 
     def send(self):
@@ -70,10 +75,4 @@ class SlackManager:
                 f"Request to send Slack message missing message text (submitted: '{message}')"
                 f" or target channel (submitted: '{channel}')."
             )
-
-    def post_to_notify(self):
-        http_hook = HttpHook("POST", http_conn_id="ingest_api_connection")
-        payload = json.dumps({"message": message, "channel": channel})
-        headers = {"Authorization": f"Bearer {self.token}", "Content-Type": "application/json"}
-        response = http_hook.run("/notify", payload, headers)
-        response.raise_for_status()
+        post_to_slack_notify(self.token, message, channel)

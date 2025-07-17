@@ -3,7 +3,7 @@ from status_change.status_utils import get_globus_url
 from .base import SlackMessage
 
 
-class SlackQA(SlackMessage):
+class SlackDatasetQA(SlackMessage):
     # TODO: figure out what channel
     name = "dataset_qa"
 
