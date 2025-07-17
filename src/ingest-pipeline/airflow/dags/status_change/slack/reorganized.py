@@ -3,11 +3,11 @@ from status_change.status_utils import get_globus_url, get_organ
 from .base import SlackMessage
 
 
-class SlackReorganized(SlackMessage):
+class SlackUploadReorganized(SlackMessage):
     name = "upload_reorganized"
 
-    def __init__(self, uuid: str, token: str):
-        super().__init__(uuid, token)
+    def __init__(self, uuid, token, entity_data=None):
+        super().__init__(uuid, token, entity_data)
         self.datasets = self.entity_data.get("datasets", [])
 
     @property
@@ -57,7 +57,7 @@ class SlackReorganized(SlackMessage):
         return f"Upload {self.uuid} reorganized successfully!"
 
 
-class SlackPriorityReorganized(SlackReorganized):
+class SlackUploadReorganizedPriority(SlackUploadReorganized):
     """
     Reorganized priority project (SWAT, MOSDAP) uploads.
     """
