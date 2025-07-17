@@ -128,6 +128,21 @@ class EntityUpdater:
         self._validate_fields_to_change()
         self._set_entity_api_data()
 
+    @staticmethod
+    def _enums_to_lowercase(data: Any) -> Any:
+        # Lowercase all strings which appear as dictionary values
+        if isinstance(data, dict):
+            for key, val in data.items():
+                if isinstance(val, str):
+                    data[key] = val.lower()
+                else:
+                    data[key] = EntityUpdater._enums_to_lowercase(key)
+            return data
+        elif isinstance(data, list):
+            return [EntityUpdater._enums_to_lowercase(val) for val in data]
+        else:
+            return data
+
     def _set_entity_api_data(self) -> dict:
         endpoint = f"/entities/{self.uuid}"
         headers = {
@@ -157,7 +172,8 @@ class EntityUpdater:
                 f" (attempted change from {original_entity_type} to {updated_entity_type})"
             )
         try:
-            assert_json_matches_schema(updated_entity_data, "entity_metadata_schema.yml")
+            assert_json_matches_schema(EntityUpdater._enums_to_lowercase(updated_entity_data),
+                                       ENTITY_JSON_SCHEMA)
         except AssertionError as excp:
             raise EntityUpdateException(excp) from excp
         if self.verbose:
