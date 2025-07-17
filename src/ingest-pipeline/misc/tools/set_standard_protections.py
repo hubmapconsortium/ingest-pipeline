@@ -50,17 +50,18 @@ def process_one_uuid(uuid: str, entity_factory: EntityFactory, **kwargs) -> bool
     LOGGER.debug("full path: %s", ds.full_path)
     LOGGER.debug("contains_human_genetic_sequences = %s", ds.contains_human_genetic_sequences)
 
-    acl_fname = "protected_dataset.acl"  # the most restrictive
-    if ds.contains_human_genetic_sequences:
-        if ds.status == "Published":
-            acl_fname = "protected_published_dataset.acl"
-        else:
-            acl_fname = "protected_dataset.acl"
-    else:
+    # acl_fname = "protected_dataset.acl"  # the most restrictive
+    if not ds.contains_human_genetic_sequences:
         if ds.status == "Published":
             acl_fname = "public_published.acl"
         else:
             acl_fname = "consortium_dataset.acl"
+    else:
+        if ds.status == "Published":
+            acl_fname = "protected_published_dataset.acl"
+        else:
+            acl_fname = "protected_dataset.acl"
+
     acl_path = Path(__file__).absolute().parent.parent.parent / "submodules"
     acl_path = acl_path / "manual-data-ingest" / "acl-settings" / acl_fname
     LOGGER.info("will apply %s", acl_path)
@@ -77,12 +78,10 @@ def process_one_uuid(uuid: str, entity_factory: EntityFactory, **kwargs) -> bool
     prefix = Path(f"/hive/hubmap{env}/data")
     ds_rel_path = ds_full_path.relative_to(prefix)
 
-    cmd1 = ["/usr/local/bin/directory_script.sh", env, str(ds_rel_path)]
-    cmd2 = ["setfacl", "-R", "-M", str(acl_path), str(ds_full_path)]
+    cmd1 = ["sudo /usr/local/bin/directory_script.sh", env, str(ds_rel_path), str(acl_path)]
     if kwargs.get("dry_run", False):
         cmd1.insert(1, "--test")
-        cmd2.insert(1, "--test")
-    if run_cmd(cmd1) or run_cmd(cmd2):
+    if run_cmd(cmd1):
         LOGGER.error("Unable to set protections for %s", ds.uuid)
         return False
     return True
