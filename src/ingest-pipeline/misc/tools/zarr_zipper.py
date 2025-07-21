@@ -6,6 +6,7 @@ from pathlib import Path
 from pprint import pprint
 from typing import List, Tuple, TypeVar, Union
 import logging
+from subprocess import run
 
 LOGGER = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -30,24 +31,23 @@ def parse_path(path) -> Tuple[Path, str, str]:
 
 
 def run_zip(target_path: Path, zarr_name: str) -> None:
-    full_target_path = target_path / zarr_name
-    zip_name = target_path / f"{zarr_name}.zip"
-    cmd1 = f"pushd '{full_target_path}'"
-    cmd2 = f"echo zip -r '{zip_name}' ."
-    cmd3 = "cd .."
-    cmd4 = "echo mv command goes here?"
-    cmd5 = "popd"
-    full_cmd = f"{cmd1} && {cmd2} && {cmd3} && {cmd4} && {cmd5}"
-    print(full_cmd)
     """
+    Zips the directory appropriately for use as a zipped zarr, and deletes
+    the original.
+
     cd '/hive/hubmap-dev/data/consortium/IEC Testing Group/672111342c0002f90e1cb1bc5686ecf1/anndata-zarr/reg001_expr-anndata.zarr'
     zip -r ../reg001_expr-anndata.zarr.zip .
     cd ..
     mv reg001_expr-anndata.zarr ../../672111342c0002f90e1cb1bc5686ecf1_anndata-zarr_reg001_expr-anndata.zarr
     """
-
-
-    
+    full_target_path = target_path / zarr_name
+    zip_name = target_path / f"{zarr_name}.zip"
+    cmd1 = f"cd '{full_target_path}'"
+    cmd2 = f"zip -r '{zip_name}' ."
+    cmd3 = "cd .."
+    cmd4 = f"echo rm -r -v {zarr_name}"
+    full_cmd = f"{cmd1} && {cmd2} && {cmd3} && {cmd4}"
+    run(full_cmd, shell=True, check=True)
 
 
 def restructure(candidate: Path, dryrun: bool = False) -> str:
@@ -57,7 +57,10 @@ def restructure(candidate: Path, dryrun: bool = False) -> str:
         LOGGER.warn(f"error parsing {candidate}: {excp}")
         return None
     LOGGER.info(f"<{target_path}> <{zarr_name}> <{uuid}>")
-    run_zip(target_path, zarr_name)
+    if dryrun:
+        LOGGER.info(f"dryrun is true; not zipping {zarr_name}")
+    else:
+        run_zip(target_path, zarr_name)
     return uuid
 
 
