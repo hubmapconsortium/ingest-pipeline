@@ -130,13 +130,17 @@ class EntityUpdater:
 
     @staticmethod
     def _enums_to_lowercase(data: Any) -> Any:
-        # Lowercase all strings which appear as dictionary values
+        """
+        Lowercase all strings which appear as dictionary values.
+        This modifies the passed data in place, rather than making
+        a copy!
+        """
         if isinstance(data, dict):
             for key, val in data.items():
                 if isinstance(val, str):
                     data[key] = val.lower()
                 else:
-                    data[key] = EntityUpdater._enums_to_lowercase(key)
+                    data[key] = EntityUpdater._enums_to_lowercase(val)
             return data
         elif isinstance(data, list):
             return [EntityUpdater._enums_to_lowercase(val) for val in data]

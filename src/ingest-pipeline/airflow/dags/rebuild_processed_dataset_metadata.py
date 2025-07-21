@@ -86,9 +86,6 @@ with HMDAG('rebuild_processed_dataset_metadata',
         for key in ["status", "uuid", "local_directory_full_path", "metadata"]:
             assert key in ds_rslt, f"Dataset status for {uuid} has no {key}"
 
-        if not ds_rslt["status"] in ["New", "Error", "QA", "Published", "Submitted"]:
-            raise AirflowException(f"Dataset {uuid} is not QA or better")
-
         return (ds_rslt["uuid"], ds_rslt["local_directory_full_path"], ds_rslt["metadata"])
 
     def check_uuids(**kwargs):
