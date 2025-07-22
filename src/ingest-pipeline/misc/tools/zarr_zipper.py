@@ -2,11 +2,14 @@
 
 import argparse
 import re
+import os
+import json
 from pathlib import Path
 from pprint import pprint
 from typing import List, Tuple, TypeVar, Union
 import logging
 from subprocess import run
+import requests
 
 LOGGER = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -45,7 +48,7 @@ def run_zip(target_path: Path, zarr_name: str) -> None:
     cmd1 = f"cd '{full_target_path}'"
     cmd2 = f"zip -r '{zip_name}' ."
     cmd3 = "cd .."
-    cmd4 = f"echo rm -r -v {zarr_name}"
+    cmd4 = f"rm -r -v {zarr_name}"
     full_cmd = f"{cmd1} && {cmd2} && {cmd3} && {cmd4}"
     run(full_cmd, shell=True, check=True)
 
@@ -62,6 +65,31 @@ def restructure(candidate: Path, dryrun: bool = False) -> str:
     else:
         run_zip(target_path, zarr_name)
     return uuid
+
+
+def verify_uuid(uuid: str) -> bool:
+    """
+    Take ENTITY_API and AUTH_TOK from the environment and look up the given uuid.
+    Returns True if a valid result is found, False otherwise.
+    """
+    auth_tok = os.environ.get("AUTH_TOK")
+    if not auth_tok:
+        raise RuntimeError("AUTH_TOK is not defined in the environment")
+    entity_api = os.environ.get("ENTITY_API")
+    if not entity_api:
+        raise RuntimeError("ENTITY_API is not defined in the environment")
+    resp = requests.get(
+        url=f"{entity_api}/entities/{uuid}",
+        headers={
+            "Authorization": f"Bearer {auth_tok}"
+        }
+    )
+    try:
+        resp.raise_for_status()
+    except Exception as excp:
+        LOGGER.error(f"Validation of {uuid} failed: {type(excp)} {excp}")
+        return False
+    return True
 
 
 def main() -> None:
@@ -90,8 +118,13 @@ def main() -> None:
     if not start_path.is_dir():
         parser.error(f"{start_path} is not an existing directory")
 
+    all_valid_uuids = []
     for candidate in start_path.glob(args.proto):
-        print(restructure(candidate, dryrun=dryrun))
+        uuid = restructure(candidate, dryrun=dryrun)
+        if verify_uuid(uuid):
+            all_valid_uuids.append(uuid)
+
+    print(f"rebuilding json: {json.dumps({'uuids':all_valid_uuids})}")
 
 if __name__ == "__main__":
     main()
