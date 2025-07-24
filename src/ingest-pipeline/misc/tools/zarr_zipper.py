@@ -37,19 +37,15 @@ def run_zip(target_path: Path, zarr_name: str) -> None:
     """
     Zips the directory appropriately for use as a zipped zarr, and deletes
     the original.
-
-    cd '/hive/hubmap-dev/data/consortium/IEC Testing Group/672111342c0002f90e1cb1bc5686ecf1/anndata-zarr/reg001_expr-anndata.zarr'
-    zip -r ../reg001_expr-anndata.zarr.zip .
-    cd ..
-    mv reg001_expr-anndata.zarr ../../672111342c0002f90e1cb1bc5686ecf1_anndata-zarr_reg001_expr-anndata.zarr
     """
     full_target_path = target_path / zarr_name
     zip_name = target_path / f"{zarr_name}.zip"
+    cmd0 = "( [[ $PWD != '/' ]] && [[ $PWD != '/hive' ]] )"
     cmd1 = f"cd '{full_target_path}'"
     cmd2 = f"zip -r '{zip_name}' ."
     cmd3 = "cd .."
     cmd4 = f"rm -r -v {zarr_name}"
-    full_cmd = f"{cmd1} && {cmd2} && {cmd3} && {cmd4}"
+    full_cmd = f"{cmd0} && {cmd1} && {cmd2} && {cmd3} && {cmd4}"
     run(full_cmd, shell=True, check=True)
 
 
