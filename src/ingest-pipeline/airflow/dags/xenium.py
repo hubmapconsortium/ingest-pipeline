@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 from airflow.operators.bash import BashOperator
-from airflow.operators.empty import EmptyOperator
+from airflow.operators.dummy import DummyOperator
 from airflow.operators.python import BranchPythonOperator, PythonOperator
 from airflow.decorators import task
 
@@ -48,26 +48,26 @@ default_args = {
     "retries": 1,
     "retry_delay": timedelta(minutes=1),
     "xcom_push": True,
-    "queue": get_queue_resource("visium_no_probes"),
+    "queue": get_queue_resource("xenium"),
     "on_failure_callback": utils.create_dataset_state_error_callback(get_uuid_for_error),
 }
 
 with HMDAG(
-    "visium_no_probes",
+    "xenium",
     schedule_interval=None,
     is_paused_upon_creation=False,
     default_args=default_args,
     user_defined_macros={
         "tmp_dir_path": get_tmp_dir_path,
-        "preserve_scratch": get_preserve_scratch_resource("visium_no_probes"),
+        "preserve_scratch": get_preserve_scratch_resource("xenium"),
     },
 ) as dag:
     workflow_version = "1.0.0"
-    workflow_description = "The pipeline for Visium data with whole transcriptome sequencing results uses Salmon alevin for alignment free quasimapping to the hg38 reference genome and converts the resulting capture bead by gene matrix to the h5ad format, which is used by ScanPy for downstream analysis including dimensionality reduction, unsupervised clustering, and differential expression analysis. Additionally, spatial registration of barcodes to positions in histology data is done using the vendor’s alignment.json file where present, or performed automatically if the file is absent. These coordinates in conjunction with the sequencing data are used by SquidPy to perform some spatial analysis on the data."
+    workflow_description = "The pipeline for Xenium data converts the vendor's segmentation and quantification results to the AnnData and SpatialData formats, which are used by ScanPy for downstream analysis including dimensionality reduction, unsupervised clustering, and differential expression analysis. These segmentation and quantification results are also used by SquidPy to perform some spatial analysis on the data."
 
     cwl_workflows = [
         {
-            "workflow_path": str(get_absolute_workflow(Path("salmon-rnaseq", "pipeline.cwl"))),
+            "workflow_path": str(get_absolute_workflow(Path("xenium-pipeline", "pipeline.cwl"))),
             "documentation_url": "",
         },
         {
@@ -97,6 +97,7 @@ with HMDAG(
     def build_dataset_name(**kwargs):
         return inner_build_dataset_name(dag.dag_id, "salmon-rnaseq", **kwargs)
 
+
     @task(task_id="prepare_cwl1")
     def prepare_cwl_cmd1(**kwargs):
         if kwargs["dag_run"].conf.get("dryrun"):
@@ -105,15 +106,16 @@ with HMDAG(
         else:
             return "No Container build required"
 
+
     prepare_cwl1 = prepare_cwl_cmd1()
 
-    prepare_cwl2 = EmptyOperator(task_id="prepare_cwl2")
+    prepare_cwl2 = DummyOperator(task_id="prepare_cwl2")
 
-    prepare_cwl3 = EmptyOperator(task_id="prepare_cwl3")
+    prepare_cwl3 = DummyOperator(task_id="prepare_cwl3")
 
-    prepare_cwl4 = EmptyOperator(task_id="prepare_cwl4")
+    prepare_cwl4 = DummyOperator(task_id="prepare_cwl4")
 
-    prepare_cwl5 = EmptyOperator(task_id="prepare_cwl5")
+    prepare_cwl5 = DummyOperator(task_id="prepare_cwl5")
 
     def build_cwltool_cmd1(**kwargs):
         run_id = kwargs["run_id"]
@@ -144,12 +146,8 @@ with HMDAG(
             {"parameter_name": "--parallel", "value": ""},
         ]
         input_parameters = [
-            {"parameter_name": "--assay", "value": "visium-ff"},
-            {"parameter_name": "--threads", "value": get_threads_resource(dag.dag_id)},
-            {"parameter_name": "--organism", "value": source_type},
-            {"parameter_name": "--fastq_dir", "value": str(data_dir / "raw/fastq")},
-            {"parameter_name": "--img_dir", "value": str(data_dir)},
-            {"parameter_name": "--metadata_dir", "value": str(data_dir)},
+            {"parameter_name": "--assay", "value": "xenium"},
+            {"parameter_name": "--data_dir", "value": str(data_dir)},
         ]
 
         command = get_cwl_cmd_from_workflows(
@@ -214,10 +212,6 @@ with HMDAG(
             {
                 "parameter_name": "--ometiff_directory",
                 "value": str(data_dir / "lab_processed/images/"),
-            },
-            {
-                "parameter_name": "--output_filename",
-                "value": "visium_histology_hires_pyramid.ome.tif",
             },
         ]
         command = get_cwl_cmd_from_workflows(workflows, 3, input_parameters, tmpdir, kwargs["ti"])
@@ -395,7 +389,7 @@ with HMDAG(
             "previous_revision_uuid_callable": get_previous_revision_uuid,
             "http_conn_id": "ingest_api_connection",
             "dataset_name_callable": build_dataset_name,
-            "pipeline_shorthand": "Salmon + Scanpy",
+            "pipeline_shorthand": "SpatialData + Scanpy",
         },
     )
 
@@ -407,13 +401,18 @@ with HMDAG(
         op_kwargs={
             "dataset_uuid_callable": get_dataset_uuid,
             "ds_state": "Error",
-            "message": f"An error occurred in salmon-rnaseq",
+            "message": f"An error occurred in xenium-pipeline",
         },
     )
 
     send_status_msg = make_send_status_msg_function(
         dag_file=__file__,
-        retcode_ops=["pipeline_exec", "move_data", "convert_for_ui", "convert_for_ui_2"],
+        retcode_ops=["pipeline_exec",
+                     "move_data",
+                     "convert_for_ui",
+                     "convert_for_ui_2",
+                     "pipeline_exec_cwl_ome_tiff_pyramid",
+                     "pipeline_exec_cwl_ome_tiff_offsets"],
         cwl_workflows=lambda **kwargs: kwargs["ti"].xcom_pull(
             key="cwl_workflows", task_ids="build_cmd5"
         ),

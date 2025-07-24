@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import logging
 from functools import cached_property
-from typing import Literal, Optional, Union
+from typing import Literal, Optional, Union, Any
 
 from airflow.providers.http.hooks.http import HttpHook
 
@@ -14,6 +14,53 @@ from .status_utils import (
     Statuses,
     get_submission_context,
 )
+
+from schema_utils import (
+    localized_assert_json_matches_schema as assert_json_matches_schema
+)
+
+ENTITY_JSON_SCHEMA = "entity_metadata_schema.yml"  # from this repo's schemata directory
+
+
+class StatusChangeAction:
+    def __init__(self, uuid: str, token: str, **kwargs):
+        self.uuid = uuid
+        self.token = token
+        self.kwargs = kwargs
+
+    def test(self, context: dict[str, Any]) -> bool:
+        """
+        The action will be run if this test returns True
+        """
+        return True
+
+    def run(self, context: dict[str, Any]) -> None:
+        """
+        The action to be executed
+        """
+        pass
+
+
+class CheckPriorityReorgSCA(StatusChangeAction):
+
+    def test(self, context):
+        return bool(context.get("priority_project_list"))
+
+    def run(self, context):
+        msg, channel = format_priority_reorganized_msg(self.token, self.uuid)
+        if not (msg and channel):
+            raise EntityUpdateException(
+                f"Request to send Slack message missing message text (submitted: '{msg}')"
+                f" or target channel (submitted: '{channel}')."
+            )
+        http_hook = HttpHook("POST", http_conn_id="ingest_api_connection")
+        payload = json.dumps({"message": msg, "channel": channel})
+        headers = {
+            "Authorization": f"Bearer {self.token}",
+            "Content-Type": "application/json"
+        }
+        response = http_hook.run("/notify", payload, headers)
+        response.raise_for_status()
 
 
 class EntityUpdater:
@@ -40,18 +87,19 @@ class EntityUpdater:
 
     @cached_property
     def entity_data(self):
-        return get_submission_context(self.token, self.uuid)
+        rslt = get_submission_context(self.token, self.uuid)
+        return rslt
 
     def get_entity_type(self):
         try:
             entity_type = self.entity_data["entity_type"]
             assert entity_type is not None
             return entity_type
-        except Exception as e:
+        except Exception as excp:
             raise EntityUpdateException(
                 f"""
                 Could not find entity type for {self.uuid}.
-                Error {e}
+                Error {excp}
                 """
             )
 
@@ -96,6 +144,19 @@ class EntityUpdater:
             {self.fields_to_change}
             """
         )
+        original_entity_type = self.entity_data.get("entity_type")
+        updated_entity_data = self.entity_data.copy()
+        updated_entity_data.update(self.fields_to_change)
+        updated_entity_type = updated_entity_data.get("entity_type")
+        if original_entity_type != updated_entity_type:
+            raise EntityUpdateException(
+                "An EntityUpdater or StatusChanger cannot change the entity_type"
+                f" (attempted change from {original_entity_type} to {updated_entity_type})"
+            )
+        try:
+            assert_json_matches_schema(updated_entity_data, "entity_metadata_schema.yml")
+        except AssertionError as excp:
+            raise EntityUpdateException(excp) from excp
         if self.verbose:
             logging.info(f"Updating {self.uuid} with data {self.fields_to_change}...")
         try:
@@ -119,19 +180,8 @@ class EntityUpdater:
             if field == "status":
                 status_found = True
         if status_found:
-            logging.info("'status' found in update fields, sending to StatusChanger.")
-            StatusChanger(
-                self.uuid,
-                self.token,
-                self.http_conn_id,
-                self.fields_to_overwrite,
-                self.fields_to_append_to,
-                self.delimiter,
-                self.extra_options,
-                self.verbose,
-                self.fields_to_change["status"],
-                self.entity_type,
-            ).update()
+            logging.error("'status' found in update fields, should use a StatusChanger.")
+            raise EntityUpdateException("Status field can only be changed by a StatusChanger")
 
     def _update_existing_values(self):
         # TODO: guard clause, handle writing to empty field
@@ -168,7 +218,7 @@ Example usage with some optional params:
 """
 
 
-class StatusChanger:
+class StatusChanger(EntityUpdater):
     def __init__(
         self,
         uuid: str,
@@ -183,15 +233,16 @@ class StatusChanger:
         status: Optional[Union[Statuses, str]] = None,
         entity_type: Optional[Literal["Dataset", "Upload", "Publication"]] = None,
     ):
-        self.uuid = uuid
-        self.token = token
-        self.http_conn_id = http_conn_id
-        self.fields_to_overwrite = fields_to_overwrite if fields_to_overwrite else {}
-        self.fields_to_append_to = fields_to_append_to if fields_to_append_to else {}
-        self.delimiter = delimiter
-        self.extra_options = extra_options if extra_options else {}
-        self.verbose = verbose
-        # TODO: can remove and just use get_entity_type
+        super().__init__(
+            uuid,
+            token,
+            http_conn_id,
+            fields_to_overwrite,
+            fields_to_append_to,
+            delimiter,
+            extra_options,
+            verbose
+        )
         self.entity_type = entity_type if entity_type else self.get_entity_type()
         if not status:
             self.status = None
@@ -224,7 +275,7 @@ class StatusChanger:
             ]
         }
         """
-        return {Statuses.UPLOAD_REORGANIZED: [("_check_priority_reorganized", {})]}
+        return {Statuses.UPLOAD_REORGANIZED: [(CheckPriorityReorgSCA, {})]}
 
     def update(self) -> None:
         """
@@ -236,33 +287,20 @@ class StatusChanger:
         - Runs EntityUpdater._set_entity_api_data() process.
         - Also run methods assigned to that status in the status_map, if any.
         """
-        if self.status is None:
-            if self.fields_to_change:
-                self.fields_to_overwrite.pop("status", None)
-                self.fields_to_append_to.pop("status", None)
-                logging.info(
-                    f"No status to update, instantiating EntityUpdater instead to update other fields: {', '.join(self.fields_to_change.keys())}"
-                )
-                EntityUpdater(
-                    self.uuid,
-                    self.token,
-                    self.http_conn_id,
-                    self.fields_to_overwrite,
-                    self.fields_to_append_to,
-                    self.delimiter,
-                    self.extra_options,
-                    self.verbose,
-                ).update()
-                return
-            else:
-                logging.info(
-                    f"No status to update or fields to change for {self.uuid}, not making any changes in entity-api."
-                )
-                return
+        if self.status is None and self.fields_to_change:
+            self.fields_to_overwrite.pop("status", None)
+            self.fields_to_append_to.pop("status", None)
+            super().update()
+            return
+        elif self.status is None and not self.fields_to_change:
+            logging.info(f"No status to update or fields to change for {self.uuid}, not making any changes in entity-api.")
+            return
         self._validate_fields_to_change()
         self._set_entity_api_data()
-        for func, args in self.status_map.get(self.status, []):
-            getattr(self, func)(**args)
+        for action_class, args in self.status_map.get(self.status, []):
+            action = action_class(self.uuid, self.token, **args)
+            if action.test(self.entity_data):
+                action.run(self.entity_data)
 
     def _validate_fields_to_change(self):
         self.fields_to_change["status"] = self.status
@@ -307,93 +345,3 @@ class StatusChanger:
             ), f"Entity {self.uuid} passed multiple statuses ({status} and {extra_status})."
         return status
 
-    def send_email(self) -> None:
-        pass
-
-    @cached_property
-    def entity_data(self):
-        return get_submission_context(self.token, self.uuid)
-
-    def get_entity_type(self):
-        try:
-            entity_type = self.entity_data["entity_type"]
-            assert entity_type is not None
-            return entity_type
-        except Exception as e:
-            raise EntityUpdateException(
-                f"""
-                Could not find entity type for {self.uuid}.
-                Error {e}
-                """
-            )
-
-    @cached_property
-    def fields_to_change(self) -> dict:
-        # TODO: check directionality on this
-        duplicates = set(self.fields_to_overwrite.keys()).intersection(
-            set(self.fields_to_append_to.keys())
-        )
-        assert not duplicates, f"""
-            Field(s) {', '.join(duplicates)} cannot be both appended to and overwritten. Data sent:
-            fields_to_overwrite: {self.fields_to_overwrite}
-            fields_to_append_to: {self.fields_to_append_to}
-            """
-        return self._update_existing_values() | self.fields_to_overwrite
-
-    def _set_entity_api_data(self) -> dict:
-        endpoint = f"/entities/{self.uuid}"
-        headers = {
-            "authorization": "Bearer " + self.token,
-            "X-Hubmap-Application": "ingest-pipeline",
-            "content-type": "application/json",
-        }
-        http_hook = HttpHook("PUT", http_conn_id=self.http_conn_id)
-        if self.extra_options.get("check_response") is None:
-            self.extra_options.update({"check_response": True})
-        logging.info(
-            f"""
-            data:
-            {self.fields_to_change}
-            """
-        )
-        if self.verbose:
-            logging.info(f"Updating {self.uuid} with data {self.fields_to_change}...")
-        try:
-            response = http_hook.run(
-                endpoint, json.dumps(self.fields_to_change), headers, self.extra_options
-            )
-        except Exception as e:
-            raise EntityUpdateException(
-                f"""
-                Encountered error with request to change fields {', '.join([key for key in self.fields_to_change])}
-                for {self.uuid}, fields (likely) not changed.
-                Error: {e}
-                """
-            )
-        logging.info(f"""Response: {response.json()}""")
-        return response.json()
-
-    def _update_existing_values(self):
-        # TODO: appropriate append formatting? only certain fields allowed?
-        new_field_data = {}
-        for field, value in self.fields_to_append_to.items():
-            existing_field_data = self.entity_data[field]
-            new_field_data[field] = existing_field_data + f" {self.delimiter} " + value
-        return new_field_data
-
-    def send_slack_message(self, msg: str, channel: str) -> dict:
-        if not (msg and channel):
-            raise EntityUpdateException(
-                f"Request to send Slack message missing message text (submitted: '{msg}') or target channel (submitted: '{channel}')."
-            )
-        http_hook = HttpHook("POST", http_conn_id="ingest_api_connection")
-        payload = json.dumps({"message": msg, "channel": channel})
-        headers = {"Authorization": f"Bearer {self.token}", "Content-Type": "application/json"}
-        response = http_hook.run("/notify", payload, headers)
-        response.raise_for_status()
-        return response.json()
-
-    def _check_priority_reorganized(self) -> None:
-        if self.entity_data.get("priority_project_list"):
-            msg, channel = format_priority_reorganized_msg(self.token, self.uuid)
-            self.send_slack_message(msg, channel)

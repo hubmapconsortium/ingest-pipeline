@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 from airflow.operators.bash import BashOperator
-from airflow.operators.dummy import DummyOperator
+from airflow.operators.empty import EmptyOperator
 from airflow.decorators import task
 from airflow.operators.python import BranchPythonOperator, PythonOperator
 
@@ -31,7 +31,6 @@ from hubmap_operators.common_operators import (
     JoinOperator,
     LogInfoOperator,
     MoveDataOperator,
-    SetDatasetProcessingOperator,
 )
 
 from extra_utils import build_tag_containers
@@ -131,7 +130,7 @@ with HMDAG(
             {"parameter_name": "--gpus", "value": "all"},
             {"parameter_name": "--meta_path", "value": meta_yml_path},
             {"parameter_name": "--segmentation_method", "value": "deepcell"},
-            {"parameter_name": "--data_dir", "value": str(data_dir / "HuBMAP_OME")},
+            {"parameter_name": "--data_dir", "value": str(data_dir)},
         ]
 
         command = get_cwl_cmd_from_workflows(
@@ -226,7 +225,7 @@ with HMDAG(
         },
     )
 
-    prepare_cwl_create_vis_symlink_archive = DummyOperator(
+    prepare_cwl_create_vis_symlink_archive = EmptyOperator(
         task_id="prepare_cwl_create_vis_symlink_archive",
     )
 
@@ -242,7 +241,7 @@ with HMDAG(
         workflows = kwargs["ti"].xcom_pull(key="cwl_workflows", task_ids="build_cmd_sprm")
 
         input_parameters = [
-            {"parameter_name": "--ometiff_dir", "value": str(data_dir / "pipeline_outputs")},
+            {"parameter_name": "--ometiff_dir", "value": str(data_dir / "pipeline_output")},
             {"parameter_name": "--sprm_output", "value": str(data_dir / "sprm_outputs")},
         ]
 
@@ -276,7 +275,7 @@ with HMDAG(
         },
     )
 
-    prepare_cwl_ome_tiff_pyramid = DummyOperator(task_id="prepare_cwl_ome_tiff_pyramid")
+    prepare_cwl_ome_tiff_pyramid = EmptyOperator(task_id="prepare_cwl_ome_tiff_pyramid")
 
     def build_cwltool_cwl_ome_tiff_pyramid(**kwargs):
         run_id = kwargs["run_id"]
@@ -327,7 +326,7 @@ with HMDAG(
         },
     )
 
-    prepare_cwl_ome_tiff_offsets = DummyOperator(task_id="prepare_cwl_ome_tiff_offsets")
+    prepare_cwl_ome_tiff_offsets = EmptyOperator(task_id="prepare_cwl_ome_tiff_offsets")
 
     def build_cwltool_cmd_ome_tiff_offsets(**kwargs):
         run_id = kwargs["run_id"]
@@ -376,7 +375,7 @@ with HMDAG(
         },
     )
 
-    prepare_cwl_sprm_to_json = DummyOperator(task_id="prepare_cwl_sprm_to_json")
+    prepare_cwl_sprm_to_json = EmptyOperator(task_id="prepare_cwl_sprm_to_json")
 
     def build_cwltool_cmd_sprm_to_json(**kwargs):
         run_id = kwargs["run_id"]
@@ -425,7 +424,7 @@ with HMDAG(
         },
     )
 
-    prepare_cwl_sprm_to_anndata = DummyOperator(task_id="prepare_cwl_sprm_to_anndata")
+    prepare_cwl_sprm_to_anndata = EmptyOperator(task_id="prepare_cwl_sprm_to_anndata")
 
     def build_cwltool_cmd_sprm_to_anndata(**kwargs):
         run_id = kwargs["run_id"]
