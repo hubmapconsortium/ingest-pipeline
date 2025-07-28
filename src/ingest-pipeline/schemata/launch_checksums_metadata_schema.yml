@@ -16,5 +16,5 @@
             'type': 'string'
             'description': 'a dataset uuid'
           'minItems': 1
-     'required': ['uuid']
+     'required': ['uuid_list']
     

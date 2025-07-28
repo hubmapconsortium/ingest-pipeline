@@ -244,6 +244,8 @@ with HMDAG(
     #     },
     # )
 
+    # TODO: Generate a SQL file to insert data into DRS
+
     t_create_tmpdir = CreateTmpDirOperator(task_id="create_tmpdir")
     t_cleanup_tmpdir = CleanupTmpDirOperator(task_id="cleanup_tmpdir")
 
