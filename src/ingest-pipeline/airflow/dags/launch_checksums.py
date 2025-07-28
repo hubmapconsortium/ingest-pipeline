@@ -203,7 +203,8 @@ with HMDAG(
             rec_l.append(
                 {
                     "path": str(this_path.relative_to(parent_path.parent)),
-                    "checksum": row["sha256"],
+                    "sha256_checksum": row["sha256_checksum"],
+                    "md5_checksum": row["md5_checksum"],
                     "size": row["size"],
                     "base_dir": "DATA_UPLOAD",
                 }
