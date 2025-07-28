@@ -196,8 +196,8 @@ with HMDAG(
             "X-Hubmap-Application": "ingest-pipeline",
         }
         rec_l = []
-        parent_uuid = block_df[0]["parent_uuid"]
-        parent_path = Path(block_df[0]["base_path"])
+        parent_uuid = block_df["parent_uuid"][0]
+        parent_path = Path(block_df["base_path"][0])
         for idx, row in block_df.iterrows():  # pylint: disable=unused-variable
             this_path = Path(row["path"])
             rec_l.append(
