@@ -189,16 +189,15 @@ with HMDAG(
         },
     )
 
-    def send_block(block_df, **kwargs):
+    def send_block(parent_uuid, block_df, **kwargs):
         headers = {
             "authorization": "Bearer " + get_auth_tok(**kwargs),
             "content-type": "application/json",
             "X-Hubmap-Application": "ingest-pipeline",
         }
         rec_l = []
-        parent_uuid = block_df["parent_uuid"][0]
-        parent_path = Path(block_df["base_path"][0])
         for idx, row in block_df.iterrows():  # pylint: disable=unused-variable
+            parent_path = Path(row["base_path"])
             this_path = Path(row["path"])
             rec_l.append(
                 {
@@ -233,12 +232,11 @@ with HMDAG(
 
         for uuid in uuids:
             uuid_df = full_df[full_df["parent_uuid"] == uuid]
-            print(uuid_df)
             tot_recs = len(uuid_df)
             low_rec = 0
             while low_rec < tot_recs:
                 block_df = uuid_df.iloc[low_rec : low_rec + RECS_PER_BLOCK]
-                send_block(block_df, **kwargs)
+                send_block(uuid, block_df, **kwargs)
                 low_rec += RECS_PER_BLOCK
 
     t_send_checksums = PythonOperator(
