@@ -196,7 +196,7 @@ with HMDAG(
             "X-Hubmap-Application": "ingest-pipeline",
         }
         rec_l = []
-        parent_uuid = block_df[0]["uuid"]
+        parent_uuid = block_df[0]["parent_uuid"]
         parent_path = Path(block_df[0]["base_path"])
         for idx, row in block_df.iterrows():  # pylint: disable=unused-variable
             this_path = Path(row["path"])
@@ -232,7 +232,7 @@ with HMDAG(
         full_df = pd.read_csv(Path(tmp_dir_path) / "cksums.tsv", sep="\t")
 
         for uuid in uuids:
-            uuid_df = full_df[full_df["uuid"] == uuid]
+            uuid_df = full_df[full_df["parent_uuid"] == uuid]
             tot_recs = len(uuid_df)
             low_rec = 0
             while low_rec < tot_recs:
