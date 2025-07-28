@@ -233,6 +233,7 @@ with HMDAG(
 
         for uuid in uuids:
             uuid_df = full_df[full_df["parent_uuid"] == uuid]
+            print(uuid_df)
             tot_recs = len(uuid_df)
             low_rec = 0
             while low_rec < tot_recs:
