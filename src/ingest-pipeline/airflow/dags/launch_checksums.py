@@ -60,9 +60,7 @@ with HMDAG(
     },
 ) as dag:
 
-    def check_one_uuid(
-        uuid: str, previous_version_uuid: str, avoid_previous_version: bool, **kwargs
-    ):
+    def check_one_uuid(uuid: str, **kwargs):
         """
         Look up information on the given uuid or HuBMAP identifier.
         Returns:
