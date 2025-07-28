@@ -189,60 +189,66 @@ with HMDAG(
         },
     )
 
-    # def send_block(parent_uuid, parent_path, block_df, **kwargs):
-    #     headers = {
-    #         "authorization": "Bearer " + get_auth_tok(**kwargs),
-    #         "content-type": "application/json",
-    #         "X-Hubmap-Application": "ingest-pipeline",
-    #     }
-    #     rec_l = []
-    #     for idx, row in block_df.iterrows():  # pylint: disable=unused-variable
-    #         this_path = Path(row["path"])
-    #         rec_l.append(
-    #             {
-    #                 "path": str(this_path.relative_to(parent_path.parent)),
-    #                 "checksum": row["sha256"],
-    #                 "size": row["size"],
-    #                 "base_dir": "DATA_UPLOAD",
-    #             }
-    #         )
-    #     data = {"entity_type": "FILE", "parent_ids": [parent_uuid], "file_info": rec_l}
-    #     print("sending the following payload:")
-    #     pprint(data)
-    #     response = HttpHook("POST", http_conn_id="uuid_api_connection").run(
-    #         endpoint=f"hmuuid?entity_count={len(rec_l)}",
-    #         data=json.dumps(data),
-    #         headers=headers,
-    #         extra_options=[],
-    #     )
-    #     response.raise_for_status()
-    #     print("response block follows")
-    #     pprint(response.json())
-    #
-    # def send_checksums(**kwargs):
-    #     run_id = kwargs["run_id"]
-    #     tmp_dir_path = get_tmp_dir_path(run_id)
-    #     parent_uuid = kwargs["ti"].xcom_pull(task_ids="check_uuid", key="uuid")
-    #     parent_path = Path(kwargs["ti"].xcom_pull(task_ids="check_uuid", key="lz_path"))
-    #
-    #     full_df = pd.read_csv(Path(tmp_dir_path) / "cksums.tsv", sep="\t")
-    #     tot_recs = len(full_df)
-    #     low_rec = 0
-    #     while low_rec < tot_recs:
-    #         block_df = full_df.iloc[low_rec : low_rec + RECS_PER_BLOCK]
-    #         send_block(parent_uuid, parent_path, block_df, **kwargs)
-    #         low_rec += RECS_PER_BLOCK
-    #
-    # t_send_checksums = PythonOperator(
-    #     task_id="send_checksums",
-    #     python_callable=send_checksums,
-    #     provide_context=True,
-    #     op_kwargs={
-    #         "crypt_auth_tok": utils.encrypt_tok(
-    #             airflow_conf.as_dict()["connections"]["APP_CLIENT_SECRET"]
-    #         ).decode(),
-    #     },
-    # )
+    def send_block(block_df, **kwargs):
+        headers = {
+            "authorization": "Bearer " + get_auth_tok(**kwargs),
+            "content-type": "application/json",
+            "X-Hubmap-Application": "ingest-pipeline",
+        }
+        rec_l = []
+        parent_uuid = block_df[0]["uuid"]
+        parent_path = Path(block_df[0]["base_path"])
+        for idx, row in block_df.iterrows():  # pylint: disable=unused-variable
+            this_path = Path(row["path"])
+            rec_l.append(
+                {
+                    "path": str(this_path.relative_to(parent_path.parent)),
+                    "checksum": row["sha256"],
+                    "size": row["size"],
+                    "base_dir": "DATA_UPLOAD",
+                }
+            )
+        data = {"entity_type": "FILE", "parent_ids": [parent_uuid], "file_info": rec_l}
+        print("sending the following payload:")
+        pprint(data)
+        response = HttpHook("POST", http_conn_id="uuid_api_connection").run(
+            endpoint=f"hmuuid?entity_count={len(rec_l)}",
+            data=json.dumps(data),
+            headers=headers,
+            extra_options=[],
+        )
+        response.raise_for_status()
+        print("response block follows")
+        pprint(response.json())
+        # TODO: We need to save the UUIDs elsewhere
+
+    def send_checksums(**kwargs):
+        run_id = kwargs["run_id"]
+        tmp_dir_path = get_tmp_dir_path(run_id)
+
+        uuids = kwargs["ti"].xcom_pull(task_ids="check_uuids", key="uuids")
+
+        full_df = pd.read_csv(Path(tmp_dir_path) / "cksums.tsv", sep="\t")
+
+        for uuid in uuids:
+            uuid_df = full_df[full_df["uuid"] == uuid]
+            tot_recs = len(uuid_df)
+            low_rec = 0
+            while low_rec < tot_recs:
+                block_df = full_df.iloc[low_rec : low_rec + RECS_PER_BLOCK]
+                send_block(block_df, **kwargs)
+                low_rec += RECS_PER_BLOCK
+
+    t_send_checksums = PythonOperator(
+        task_id="send_checksums",
+        python_callable=send_checksums,
+        provide_context=True,
+        op_kwargs={
+            "crypt_auth_tok": utils.encrypt_tok(
+                airflow_conf.as_dict()["connections"]["APP_CLIENT_SECRET"]
+            ).decode(),
+        },
+    )
 
     # TODO: Generate a SQL file to insert data into DRS
 
@@ -253,6 +259,6 @@ with HMDAG(
         t_create_tmpdir
         >> t_check_uuids
         >> t_build_checksum_tsv
-        # >> t_send_checksums
+        >> t_send_checksums
         >> t_cleanup_tmpdir
     )
