@@ -173,7 +173,9 @@ with HMDAG(
         with Pool(processes=threads) as pool:
             results = pool.starmap(build_rec, zip(uuids, lz_paths))
 
-        output_df = pd.DataFrame(results)
+        flat_results = [result for result_list in results for result in result_list]
+
+        output_df = pd.DataFrame(flat_results)
         output_df.to_csv(out_tsv, sep="\t", index=False)
 
     t_build_checksum_tsv = PythonOperator(
