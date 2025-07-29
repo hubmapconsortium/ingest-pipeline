@@ -248,7 +248,9 @@ with HMDAG(
         # With the responses from the uuid API, we need to add the file uuids to our TSV.
         # Those uuids will be used by the DRS.
         print(uuid_responses)
-        full_df = full_df.merge(uuid_responses[["sha256_checksum", "uuid"]], on="sha256_checksum")
+        full_df = full_df.merge(
+            uuid_responses[["sha256_checksum", "hm_uuid"]], on="sha256_checksum"
+        )
         full_df.to_csv(Path(tmp_dir_path) / "cksums_and_uuids.tsv", sep="\t")
 
     t_send_checksums = PythonOperator(
