@@ -242,7 +242,7 @@ with HMDAG(
 
             while low_rec < tot_recs:
                 block_df = uuid_df.iloc[low_rec : low_rec + RECS_PER_BLOCK]
-                uuid_responses.append(send_block(uuid, block_df, **kwargs))
+                uuid_responses.concat(send_block(uuid, block_df, **kwargs))
                 low_rec += RECS_PER_BLOCK
 
         # With the responses from the uuid API, we need to add the file uuids to our TSV.
