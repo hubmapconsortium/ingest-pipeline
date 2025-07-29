@@ -242,7 +242,7 @@ with HMDAG(
 
             while low_rec < tot_recs:
                 block_df = uuid_df.iloc[low_rec : low_rec + RECS_PER_BLOCK]
-                pd.concat(uuid_responses, send_block(uuid, block_df, **kwargs))
+                pd.concat([uuid_responses, send_block(uuid, block_df, **kwargs)])
                 low_rec += RECS_PER_BLOCK
 
         # With the responses from the uuid API, we need to add the file uuids to our TSV.
@@ -264,6 +264,53 @@ with HMDAG(
     )
 
     # TODO: Generate a SQL file to insert data into DRS
+    def generate_drs_entries(**kwargs):
+        run_id = kwargs["run_id"]
+        tmp_dir_path = get_tmp_dir_path(run_id)
+
+        # Let's generate TSVs that will be inserted into the DRS
+        # manifest.tsv
+        # +-----------------+-----------------------+------+-----+---------+----------------+
+        # | Field           | Type                  | Null | Key | Default | Extra          |
+        # +-----------------+-----------------------+------+-----+---------+----------------+
+        # | manifest_id     | int(10) unsigned      | NO   | PRI | NULL    | auto_increment |
+        # | uuid            | char(32)              | YES  | UNI | NULL    |                |
+        # | hubmap_id       | varchar(15)           | NO   | UNI | NULL    |                |
+        # | creation_date   | datetime              | NO   |     | NULL    |                |
+        # | dataset_type    | varchar(40)           | YES  |     | NULL    |                |
+        # | directory       | varchar(150)          | NO   | UNI | NULL    |                |
+        # | doi_url         | varchar(41)           | YES  |     | NULL    |                |
+        # | group_name      | varchar(100)          | NO   |     | NULL    |                |
+        # | is_protected    | tinyint(4)            | NO   |     | NULL    |                |
+        # | number_of_files | mediumint(8) unsigned | NO   |     | NULL    |                |
+        # | pretty_size     | varchar(7)            | NO   |     | NULL    |                |
+        # +-----------------+-----------------------+------+-----+---------+----------------+
+        uuids = kwargs["ti"].xcom_pull(task_ids="check_uuids", key="uuids")
+        lz_paths = kwargs["ti"].xcom_pull(task_ids="check_uuids", key="lz_paths")
+        # Hit entity API
+        manifest_df = pd.DataFrame()
+        for uuid, lz_path in zip(uuids, lz_paths):
+            my_callable = lambda **kwargs: uuid
+            ds_rslt = utils.pythonop_get_dataset_state(dataset_uuid_callable=my_callable, **kwargs)
+            result_df = []
+            manifest_df = pd.concat([manifest_df, result_df])
+
+        # files.tsv
+        # +----------------+------------------+------+-----+---------+----------------+
+        # | Field          | Type             | Null | Key | Default | Extra          |
+        # +----------------+------------------+------+-----+---------+----------------+
+        # | files_id       | int(10) unsigned | NO   | PRI | NULL    | auto_increment |
+        # | hubmap_id      | varchar(15)      | NO   | MUL | NULL    |                |
+        # | drs_uri        | varchar(80)      | NO   | UNI | NULL    |                |
+        # | name           | varchar(265)     | NO   |     | NULL    |                |
+        # | dbgap_study_id | varchar(15)      | YES  |     | NULL    |                |
+        # | file_uuid      | char(32)         | NO   | UNI | NULL    |                |
+        # | checksum       | char(64)         | NO   |     | NULL    |                |
+        # | size           | decimal(13,0)    | YES  |     | NULL    |                |
+        # +----------------+------------------+------+-----+---------+----------------+
+        full_df = pd.read_csv(Path(tmp_dir_path) / "cksums_and_uuids.tsv", sep="\t")
+        # We need to look up the hubmap id from the manifest_df, everything else should already be in the full_df
+        full_df = pd.merge(full_df, manifest_df[["parent_uuid", "hubmap_id"]], on="parent_uuid")
 
     t_create_tmpdir = CreateTmpDirOperator(task_id="create_tmpdir")
     t_cleanup_tmpdir = CleanupTmpDirOperator(task_id="cleanup_tmpdir")
