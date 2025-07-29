@@ -313,6 +313,17 @@ with HMDAG(
         # We need to look up the hubmap id from the manifest_df, everything else should already be in the full_df
         full_df = pd.merge(full_df, manifest_df[["parent_uuid", "hubmap_id"]], on="parent_uuid")
 
+    t_generate_drs_entries = PythonOperator(
+        task_id="generate_drs_entries",
+        python_callable=generate_drs_entries,
+        provide_context=True,
+        op_kwargs={
+            "crypt_auth_tok": utils.encrypt_tok(
+                airflow_conf.as_dict()["connections"]["APP_CLIENT_SECRET"]
+            ).decode(),
+        },
+    )
+
     t_create_tmpdir = CreateTmpDirOperator(task_id="create_tmpdir")
     t_cleanup_tmpdir = CleanupTmpDirOperator(task_id="cleanup_tmpdir")
 
@@ -321,5 +332,6 @@ with HMDAG(
         >> t_check_uuids
         >> t_build_checksum_tsv
         >> t_send_checksums
+        >> t_generate_drs_entries
         >> t_cleanup_tmpdir
     )
