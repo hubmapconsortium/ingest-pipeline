@@ -208,6 +208,8 @@ with HMDAG(
                     "base_dir": "DATA_UPLOAD",
                 }
             )
+
+        # TODO: Ask Bill/others about this parent_ids piece
         data = {"entity_type": "FILE", "parent_ids": [parent_uuid], "file_info": rec_l}
         print("sending the following payload:")
         pprint(data)
@@ -219,8 +221,10 @@ with HMDAG(
         )
         response.raise_for_status()
         print("response block follows")
-        pprint(response.json())
-        # TODO: We need to save the UUIDs elsewhere
+        rec_df = pd.DataFrame(rec_l)
+        response_df = pd.DataFrame(response.json())
+        print(response_df)
+        return pd.merge(rec_df, response_df, left_on="path", right_on="file_path")
 
     def send_checksums(**kwargs):
         run_id = kwargs["run_id"]
@@ -230,14 +234,21 @@ with HMDAG(
 
         full_df = pd.read_csv(Path(tmp_dir_path) / "cksums.tsv", sep="\t")
 
+        uuid_responses = pd.DataFrame()
         for uuid in uuids:
             uuid_df = full_df[full_df["parent_uuid"] == uuid]
             tot_recs = len(uuid_df)
             low_rec = 0
+
             while low_rec < tot_recs:
                 block_df = uuid_df.iloc[low_rec : low_rec + RECS_PER_BLOCK]
-                send_block(uuid, block_df, **kwargs)
+                uuid_responses.append(send_block(uuid, block_df, **kwargs))
                 low_rec += RECS_PER_BLOCK
+
+        # With the responses from the uuid API, we need to add the file uuids to our TSV.
+        # Those uuids will be used by the DRS.
+        full_df = full_df.merge(uuid_responses[["sha256_checksum", "hm_uuid"]], on="sha256_checksum")
+        full_df.to_csv(Path(tmp_dir_path) / "cksums_and_uuids.tsv", sep="\t")
 
     t_send_checksums = PythonOperator(
         task_id="send_checksums",
