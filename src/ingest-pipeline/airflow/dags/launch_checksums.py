@@ -310,7 +310,9 @@ with HMDAG(
                     {
                         "uuid": uuid,
                         "hubmap_id": ds_rslt["hubmap_id"],
-                        "creation_date": datetime.fromtimestamp(ds_rslt["created_timestamp"]),
+                        "creation_date": datetime.fromtimestamp(
+                            ds_rslt["created_timestamp"] / 1000
+                        ),
                         "dataset_type": ds_rslt["dataset_type"],
                         "directory": lz_path,
                         "doi_url": ds_rslt["doi_url"],
