@@ -15,9 +15,9 @@ from .status_utils import (
     get_submission_context,
 )
 
-from schema_utils import (
-    localized_assert_json_matches_schema as assert_json_matches_schema
-)
+from schema_utils import localized_assert_json_matches_schema as assert_json_matches_schema
+
+from copy import deepcopy
 
 ENTITY_JSON_SCHEMA = "entity_metadata_schema.yml"  # from this repo's schemata directory
 
@@ -55,10 +55,7 @@ class CheckPriorityReorgSCA(StatusChangeAction):
             )
         http_hook = HttpHook("POST", http_conn_id="ingest_api_connection")
         payload = json.dumps({"message": msg, "channel": channel})
-        headers = {
-            "Authorization": f"Bearer {self.token}",
-            "Content-Type": "application/json"
-        }
+        headers = {"Authorization": f"Bearer {self.token}", "Content-Type": "application/json"}
         response = http_hook.run("/notify", payload, headers)
         response.raise_for_status()
 
@@ -165,7 +162,7 @@ class EntityUpdater:
         )
         original_entity_type = self.entity_data.get("entity_type")
         updated_entity_data = self.entity_data.copy()
-        update_fields = self.fields_to_change.copy()
+        update_fields = deepcopy(self.fields_to_change)
         if "status" in update_fields and update_fields["status"] is None:
             update_fields.pop("status")  # avoid setting status to None for test
         updated_entity_data.update(update_fields)
@@ -176,15 +173,16 @@ class EntityUpdater:
                 f" (attempted change from {original_entity_type} to {updated_entity_type})"
             )
         try:
-            assert_json_matches_schema(EntityUpdater._enums_to_lowercase(updated_entity_data),
-                                       ENTITY_JSON_SCHEMA)
+            assert_json_matches_schema(
+                EntityUpdater._enums_to_lowercase(updated_entity_data), ENTITY_JSON_SCHEMA
+            )
         except AssertionError as excp:
             raise EntityUpdateException(excp) from excp
         if self.verbose:
-            logging.info(f"Updating {self.uuid} with data {update_fields}...")
+            logging.info(f"Updating {self.uuid} with data {self.fields_to_change}...")
         try:
             response = http_hook.run(
-                endpoint, json.dumps(update_fields), headers, self.extra_options
+                endpoint, json.dumps(self.fields_to_change), headers, self.extra_options
             )
         except Exception as e:
             raise EntityUpdateException(
@@ -264,7 +262,7 @@ class StatusChanger(EntityUpdater):
             fields_to_append_to,
             delimiter,
             extra_options,
-            verbose
+            verbose,
         )
         self.entity_type = entity_type if entity_type else self.get_entity_type()
         if not status:
@@ -316,7 +314,9 @@ class StatusChanger(EntityUpdater):
             super().update()
             return
         elif self.status is None and not self.fields_to_change:
-            logging.info(f"No status to update or fields to change for {self.uuid}, not making any changes in entity-api.")
+            logging.info(
+                f"No status to update or fields to change for {self.uuid}, not making any changes in entity-api."
+            )
             return
         self._validate_fields_to_change()
         self._set_entity_api_data()
@@ -367,4 +367,3 @@ class StatusChanger(EntityUpdater):
                 extra_status.lower() == status
             ), f"Entity {self.uuid} passed multiple statuses ({status} and {extra_status})."
         return status
-
