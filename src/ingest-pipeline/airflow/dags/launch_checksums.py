@@ -3,6 +3,7 @@ from multiprocessing import Pool
 from pathlib import Path
 from pprint import pprint
 from datetime import datetime, timedelta
+from requests.exceptions import HTTPError
 
 import pandas as pd
 
@@ -247,7 +248,6 @@ with HMDAG(
 
         # With the responses from the uuid API, we need to add the file uuids to our TSV.
         # Those uuids will be used by the DRS.
-        print(uuid_responses)
         full_df = full_df.merge(
             uuid_responses[["sha256_checksum", "hm_uuid"]], on="sha256_checksum"
         )
@@ -264,37 +264,67 @@ with HMDAG(
         },
     )
 
-    # TODO: Generate a SQL file to insert data into DRS
     def generate_drs_entries(**kwargs):
         run_id = kwargs["run_id"]
         tmp_dir_path = get_tmp_dir_path(run_id)
 
         # Let's generate TSVs that will be inserted into the DRS
         # manifest.tsv
-        # +-----------------+-----------------------+------+-----+---------+----------------+
-        # | Field           | Type                  | Null | Key | Default | Extra          |
-        # +-----------------+-----------------------+------+-----+---------+----------------+
-        # | manifest_id     | int(10) unsigned      | NO   | PRI | NULL    | auto_increment |
-        # | uuid            | char(32)              | YES  | UNI | NULL    |                |
-        # | hubmap_id       | varchar(15)           | NO   | UNI | NULL    |                |
-        # | creation_date   | datetime              | NO   |     | NULL    |                |
-        # | dataset_type    | varchar(40)           | YES  |     | NULL    |                |
-        # | directory       | varchar(150)          | NO   | UNI | NULL    |                |
-        # | doi_url         | varchar(41)           | YES  |     | NULL    |                |
-        # | group_name      | varchar(100)          | NO   |     | NULL    |                |
-        # | is_protected    | tinyint(4)            | NO   |     | NULL    |                |
-        # | number_of_files | mediumint(8) unsigned | NO   |     | NULL    |                |
-        # | pretty_size     | varchar(7)            | NO   |     | NULL    |                |
-        # +-----------------+-----------------------+------+-----+---------+----------------+
+        # manifest_id, uuid, hubmap_id, creation_date, dataset_type, directory, doi_url, group_name, is_protected,
+        # number_of_files, pretty_size
+
         uuids = kwargs["ti"].xcom_pull(task_ids="check_uuids", key="uuids")
         lz_paths = kwargs["ti"].xcom_pull(task_ids="check_uuids", key="lz_paths")
+        full_df = pd.read_csv(Path(tmp_dir_path) / "cksums_and_uuids.tsv", sep="\t")
+        manifest_df = []
+
         # Hit entity API
-        manifest_df = pd.DataFrame()
+        headers = {
+            "authorization": f"Bearer {get_auth_tok(**kwargs)}",
+            "content-type": "application/json",
+            "Cache-Control": "no-cache",
+            "X-Hubmap-Application": "ingest-pipeline",
+        }
+        http_hook = HttpHook("GET", http_conn_id="entity_api_connection")
+
         for uuid, lz_path in zip(uuids, lz_paths):
-            my_callable = lambda **kwargs: uuid
-            ds_rslt = utils.pythonop_get_dataset_state(dataset_uuid_callable=my_callable, **kwargs)
-            result_df = []
-            manifest_df = pd.concat([manifest_df, result_df])
+            endpoint = f"entities/{uuid}"
+
+            try:
+                response = http_hook.run(
+                    endpoint, headers=headers, extra_options={"check_response": False}
+                )
+                response.raise_for_status()
+                ds_rslt = response.json()
+                print("ds rslt:")
+                pprint(ds_rslt)
+                files_for_uuid = full_df[full_df["parent_uuid"] == uuid]
+                num_files = len(files_for_uuid)
+                size_files = files_for_uuid["size"].sum()
+                # We need to pull out the hubmap_id, creation_date, dataset_type, doi_url, group_name
+                # We need to calc whether its protected or not (can tell based on filepath)
+                # We need to calc number of files and the pretty size. We should be able to gather this from
+                # The full_df by filtering on the hubmap id. len() of that block will get us the number of files
+                # Summing the size column of those rows and then applying some formatting will give us the pretty_size
+                manifest_df.append(
+                    {
+                        "uuid": uuid,
+                        "hubmap_id": ds_rslt["hubmap_id"],
+                        "creation_date": datetime.fromtimestamp(ds_rslt["created_timestamp"]),
+                        "dataset_type": ds_rslt["dataset_type"],
+                        "directory": lz_path,
+                        "doi_url": ds_rslt["doi_url"],
+                        "group_name": ds_rslt["group_name"],
+                        "is_protected": 0 if "public" in lz_path else 1,
+                        "number_of_files": num_files,
+                        "pretty_size": size_files,
+                    }
+                )
+
+            except HTTPError as e:
+                print(f"UUID {uuid} had error: {e}")
+
+        manifest_df = pd.DataFrame(manifest_df)
 
         # files.tsv
         # +----------------+------------------+------+-----+---------+----------------+
@@ -309,9 +339,25 @@ with HMDAG(
         # | checksum       | char(64)         | NO   |     | NULL    |                |
         # | size           | decimal(13,0)    | YES  |     | NULL    |                |
         # +----------------+------------------+------+-----+---------+----------------+
-        full_df = pd.read_csv(Path(tmp_dir_path) / "cksums_and_uuids.tsv", sep="\t")
         # We need to look up the hubmap id from the manifest_df, everything else should already be in the full_df
-        full_df = pd.merge(full_df, manifest_df[["parent_uuid", "hubmap_id"]], on="parent_uuid")
+        full_df = full_df.merge(manifest_df[["uuid", "hubmap_id"]], on="uuid")
+        full_df.rename(
+            columns={
+                "path": "name",
+                "hm_uuid": "file_uuid",
+                "sha256_checksum": "checksum",
+            },
+            inplace=True,
+        )
+        full_df.drop(
+            [
+                "base_path",
+                "md5_checksum",
+            ]
+        )
+
+        manifest_df.to_csv(Path(tmp_dir_path) / "manifest.tsv", sep="\t")
+        full_df.to_csv(Path(tmp_dir_path) / "files.tsv", sep="\t")
 
     t_generate_drs_entries = PythonOperator(
         task_id="generate_drs_entries",
