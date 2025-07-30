@@ -352,11 +352,7 @@ with HMDAG(
             inplace=True,
         )
         full_df = full_df.drop(
-            columns=[
-                "parent_uuid",
-                "base_path",
-                "md5_checksum",
-            ]
+            columns=["parent_uuid", "base_path", "md5_checksum", "uuid", "Unnamed: 0"]
         )
 
         manifest_df.to_csv(Path(tmp_dir_path) / "manifest.tsv", sep="\t")
