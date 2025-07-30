@@ -345,7 +345,7 @@ with HMDAG(
         full_df = full_df.merge(
             manifest_df[["uuid", "hubmap_id"]], left_on="parent_uuid", right_on="uuid"
         )
-        full_df.rename(
+        full_df = full_df.rename(
             columns={
                 "path": "name",
                 "hm_uuid": "file_uuid",
@@ -353,7 +353,7 @@ with HMDAG(
             },
             inplace=True,
         )
-        full_df.drop(
+        full_df = full_df.drop(
             columns=[
                 "parent_uuid",
                 "base_path",
