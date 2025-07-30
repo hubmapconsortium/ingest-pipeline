@@ -128,6 +128,25 @@ class EntityUpdater:
         self._validate_fields_to_change()
         self._set_entity_api_data()
 
+    @staticmethod
+    def _enums_to_lowercase(data: Any) -> Any:
+        """
+        Lowercase all strings which appear as dictionary values.
+        This modifies the passed data in place, rather than making
+        a copy!
+        """
+        if isinstance(data, dict):
+            for key, val in data.items():
+                if isinstance(val, str):
+                    data[key] = val.lower()
+                else:
+                    data[key] = EntityUpdater._enums_to_lowercase(val)
+            return data
+        elif isinstance(data, list):
+            return [EntityUpdater._enums_to_lowercase(val) for val in data]
+        else:
+            return data
+
     def _set_entity_api_data(self) -> dict:
         endpoint = f"/entities/{self.uuid}"
         headers = {
@@ -146,7 +165,10 @@ class EntityUpdater:
         )
         original_entity_type = self.entity_data.get("entity_type")
         updated_entity_data = self.entity_data.copy()
-        updated_entity_data.update(self.fields_to_change)
+        update_fields = self.fields_to_change.copy()
+        if "status" in update_fields and update_fields["status"] is None:
+            update_fields.pop("status")  # avoid setting status to None for test
+        updated_entity_data.update(update_fields)
         updated_entity_type = updated_entity_data.get("entity_type")
         if original_entity_type != updated_entity_type:
             raise EntityUpdateException(
@@ -154,14 +176,15 @@ class EntityUpdater:
                 f" (attempted change from {original_entity_type} to {updated_entity_type})"
             )
         try:
-            assert_json_matches_schema(updated_entity_data, "entity_metadata_schema.yml")
+            assert_json_matches_schema(EntityUpdater._enums_to_lowercase(updated_entity_data),
+                                       ENTITY_JSON_SCHEMA)
         except AssertionError as excp:
             raise EntityUpdateException(excp) from excp
         if self.verbose:
-            logging.info(f"Updating {self.uuid} with data {self.fields_to_change}...")
+            logging.info(f"Updating {self.uuid} with data {update_fields}...")
         try:
             response = http_hook.run(
-                endpoint, json.dumps(self.fields_to_change), headers, self.extra_options
+                endpoint, json.dumps(update_fields), headers, self.extra_options
             )
         except Exception as e:
             raise EntityUpdateException(
