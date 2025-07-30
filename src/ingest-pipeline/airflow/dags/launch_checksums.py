@@ -327,18 +327,7 @@ with HMDAG(
         manifest_df = pd.DataFrame(manifest_df)
 
         # files.tsv
-        # +----------------+------------------+------+-----+---------+----------------+
-        # | Field          | Type             | Null | Key | Default | Extra          |
-        # +----------------+------------------+------+-----+---------+----------------+
-        # | files_id       | int(10) unsigned | NO   | PRI | NULL    | auto_increment |
-        # | hubmap_id      | varchar(15)      | NO   | MUL | NULL    |                |
-        # | drs_uri        | varchar(80)      | NO   | UNI | NULL    |                |
-        # | name           | varchar(265)     | NO   |     | NULL    |                |
-        # | dbgap_study_id | varchar(15)      | YES  |     | NULL    |                |
-        # | file_uuid      | char(32)         | NO   | UNI | NULL    |                |
-        # | checksum       | char(64)         | NO   |     | NULL    |                |
-        # | size           | decimal(13,0)    | YES  |     | NULL    |                |
-        # +----------------+------------------+------+-----+---------+----------------+
+        # hubmap_id, drs_uri (unused), name, dbgap_study_id, file_uuid, checksum, size
         # We need to look up the hubmap id from the manifest_df, everything else should already be in the full_df
         full_df = full_df.merge(
             manifest_df[["uuid", "hubmap_id"]], left_on="parent_uuid", right_on="uuid"
