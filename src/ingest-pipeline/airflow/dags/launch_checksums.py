@@ -210,7 +210,6 @@ with HMDAG(
                 }
             )
 
-        # TODO: Ask Bill/others about this parent_ids piece
         data = {"entity_type": "FILE", "parent_ids": [parent_uuid], "file_info": rec_l}
         print("sending the following payload:")
         pprint(data)
