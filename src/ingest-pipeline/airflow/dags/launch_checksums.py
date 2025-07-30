@@ -342,7 +342,9 @@ with HMDAG(
         # | size           | decimal(13,0)    | YES  |     | NULL    |                |
         # +----------------+------------------+------+-----+---------+----------------+
         # We need to look up the hubmap id from the manifest_df, everything else should already be in the full_df
-        full_df = full_df.merge(manifest_df[["uuid", "hubmap_id"]], on="uuid")
+        full_df = full_df.merge(
+            manifest_df[["uuid", "hubmap_id"]], left_on="parent_uuid", right_on="uuid"
+        )
         full_df.rename(
             columns={
                 "path": "name",
@@ -353,6 +355,7 @@ with HMDAG(
         )
         full_df.drop(
             [
+                "parent_uuid",
                 "base_path",
                 "md5_checksum",
             ]
