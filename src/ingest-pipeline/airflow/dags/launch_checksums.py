@@ -296,8 +296,6 @@ with HMDAG(
                 )
                 response.raise_for_status()
                 ds_rslt = response.json()
-                print("ds rslt:")
-                pprint(ds_rslt)
                 files_for_uuid = full_df[full_df["parent_uuid"] == uuid]
                 num_files = len(files_for_uuid)
                 size_files = files_for_uuid["size"].sum()
@@ -345,7 +343,7 @@ with HMDAG(
         full_df = full_df.merge(
             manifest_df[["uuid", "hubmap_id"]], left_on="parent_uuid", right_on="uuid"
         )
-        full_df = full_df.rename(
+        full_df.rename(
             columns={
                 "path": "name",
                 "hm_uuid": "file_uuid",
