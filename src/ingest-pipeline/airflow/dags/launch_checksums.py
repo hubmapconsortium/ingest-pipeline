@@ -354,7 +354,7 @@ with HMDAG(
             inplace=True,
         )
         full_df.drop(
-            [
+            columns=[
                 "parent_uuid",
                 "base_path",
                 "md5_checksum",
