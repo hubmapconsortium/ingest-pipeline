@@ -213,7 +213,7 @@ def generate_multiome_dag(params: MultiomeSequencingDagParameters) -> DAG:
                     "value": str(tmpdir / "cwl_out/secondary_analysis.h5mu"),
                 },
                 {
-                    "parameter_name": "--source",
+                    "parameter_name": "--organism",
                     "value": source_type,
                 },
             ]
