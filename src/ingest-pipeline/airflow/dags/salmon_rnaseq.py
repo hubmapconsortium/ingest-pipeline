@@ -182,7 +182,7 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
                     "value": str(tmpdir / "cwl_out/secondary_analysis.h5ad"),
                 },
                 {
-                    "parameter_name": "--source",
+                    "parameter_name": "--organism",
                     "value": source_type,
                 },
             ]
