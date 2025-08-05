@@ -128,7 +128,6 @@ with HMDAG(
 
         input_parameters = [
             {"parameter_name": "--gpus", "value": "all"},
-            {"parameter_name": "--meta_path", "value": meta_yml_path},
             {"parameter_name": "--segmentation_method", "value": "deepcell"},
             {"parameter_name": "--data_dir", "value": str(data_dir)},
         ]
