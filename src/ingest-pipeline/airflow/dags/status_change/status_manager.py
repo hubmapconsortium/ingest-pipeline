@@ -263,6 +263,7 @@ class StatusChanger(EntityUpdater):
                     f"No status to update or fields to change for {self.uuid}, not making any changes in entity-api."
                 )
             return
+        self.validate_fields_to_change()
         self.set_entity_api_data()
         for message_method in self.status_map.get(self.status, []):
             message_method(self.status, self.uuid, self.token).send()
