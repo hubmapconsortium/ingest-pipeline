@@ -51,7 +51,7 @@ class TestEntityUpdater(unittest.TestCase):
             "validation_message": self.validation_msg,
         }
 
-    @patch("status_change.status_manager.EntityUpdater._validate_fields_to_change")
+    @patch("status_change.status_manager.EntityUpdater.validate_fields_to_change")
     @patch("status_change.status_manager.HttpHook.run")
     def test_update(self, hhr_mock, validate_mock):
         hhr_mock.assert_not_called()
@@ -60,20 +60,23 @@ class TestEntityUpdater(unittest.TestCase):
         validate_mock.assert_called_once()
         hhr_mock.assert_called_once()
 
+    @patch("status_change.status_manager.EntityUpdater.set_entity_api_data")
+    @patch("status_change.status_manager.HttpHook.run")
+    @patch("status_change.status_manager.StatusChanger.update")
     @patch("status_change.status_manager.get_submission_context")
-    def test_should_be_statuschanger(self, context_mock):
+    def test_should_be_statuschanger(self, context_mock, sc_mock, hhr_mock, eu_mock):
         context_mock.return_value = self.good_upload_context
-        with patch("status_change.status_manager.StatusChanger"):
-            with_status = EntityUpdater(
-                "upload_valid_uuid",
-                "upload_valid_token",
-                fields_to_overwrite={"status": "valid", "validation_message": self.validation_msg},
-                fields_to_append_to={"ingest_task": self.ingest_task},
-            )
-        with patch("status_change.status_manager.HttpHook.run") as hhr_mock:
-            hhr_mock.return_value.json.return_value = self.good_upload_context
-            with self.assertRaises(EntityUpdateException):
-                with_status._validate_fields_to_change()
+        hhr_mock.return_value.json.return_value = self.good_upload_context
+        with_status = EntityUpdater(
+            "upload_valid_uuid",
+            "upload_valid_token",
+            fields_to_overwrite={"status": "valid", "validation_message": self.validation_msg},
+            fields_to_append_to={"ingest_task": self.ingest_task},
+        )
+        sc_mock.assert_not_called()
+        with_status.update()
+        sc_mock.assert_called_once()
+        eu_mock.assert_not_called()
 
     @cached_property
     def upload_valid(self):
@@ -98,7 +101,7 @@ class TestEntityUpdater(unittest.TestCase):
                 )
 
     def test_recognized_status(self):
-        self.upload_valid._validate_fields_to_change()
+        self.upload_valid.validate_fields_to_change()
         self.assertEqual(self.upload_valid.fields_to_change["status"], self.upload_valid.status)
 
     def test_extra_fields(self):
@@ -134,8 +137,8 @@ class TestEntityUpdater(unittest.TestCase):
 
     @patch("status_change.status_manager.HttpHook.run")
     def test_valid_status_in_request(self, hhr_mock):
-        self.upload_valid._validate_fields_to_change()
-        self.upload_valid._set_entity_api_data()
+        self.upload_valid.validate_fields_to_change()
+        self.upload_valid.set_entity_api_data()
         self.assertIn('{"status": "valid"}', hhr_mock.call_args.args)
 
     @patch("status_change.status_manager.get_submission_context")
@@ -153,13 +156,13 @@ class TestEntityUpdater(unittest.TestCase):
                 extra_options={},
                 fields_to_overwrite={"test_extra_field": False},
             )
-            sc._validate_fields_to_change()
+            sc.validate_fields_to_change()
             sc.update()
             # patch the StatusChanger to avoid the tests in its constructor which
             # would normally detect an invalid update
             sc.fields_to_change["status"] = "published"
             with self.assertRaises((AssertionError, EntityUpdateException)):
-                sc._set_entity_api_data()
+                sc.set_entity_api_data()
 
     def test_http_conn_id(self):
         with patch("status_change.status_manager.HttpHook.run") as httpr_mock:
@@ -300,7 +303,7 @@ class TestEntityUpdater(unittest.TestCase):
         sc_context_mock.return_value = new_context
         slack_context_mock.return_value = new_context
         slack_base_context_mock.return_value = new_context
-        with patch("status_change.status_manager.StatusChanger._set_entity_api_data"):
+        with patch("status_change.status_manager.StatusChanger.set_entity_api_data"):
             with patch("status_change.slack_manager.SlackManager.send") as send_mock:
                 StatusChanger(
                     "upload_valid_uuid",
@@ -316,7 +319,7 @@ class TestEntityUpdater(unittest.TestCase):
     @patch("status_change.status_manager.get_submission_context")
     def test_slack_not_triggered_by_statuschanger(self, context_mock, status_map_mock, slack_mock):
         status_map_mock.get.side_effect = {Statuses.UPLOAD_VALID: []}.get
-        with patch("status_change.status_manager.StatusChanger._set_entity_api_data"):
+        with patch("status_change.status_manager.StatusChanger.set_entity_api_data"):
             context_mock.return_value = self.context_mock_value
             StatusChanger(
                 "upload_valid_uuid",
