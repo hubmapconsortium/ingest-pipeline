@@ -95,10 +95,10 @@ class EntityUpdater:
                 status=status,
             ).update()
             return
-        self._check_fields()
-        self._set_entity_api_data()
+        self.validate_fields_to_change()
+        self.set_entity_api_data()
 
-    def _set_entity_api_data(self) -> dict:
+    def set_entity_api_data(self) -> dict:
         endpoint = f"/entities/{self.uuid}"
         headers = {
             "authorization": "Bearer " + self.token,
@@ -125,10 +125,14 @@ class EntityUpdater:
         logging.info(f"""Response: {response.json()}""")
         return response.json()
 
+    def validate_fields_to_change(self):
+        self._check_fields()
+
     def _check_fields(self):
         original_entity_type = self.entity_data.get("entity_type")
         updated_entity_data = self.entity_data.copy()
-        self.fields_to_change.pop("status", None)  # remove "status": None if present
+        if "status" in self.fields_to_change and self.fields_to_change["status"] is None:
+            self.fields_to_change.pop("status")  # avoid setting status to None
         update_fields = deepcopy(self.fields_to_change)
         updated_entity_data.update(update_fields)
         updated_entity_type = updated_entity_data.get("entity_type")
@@ -259,10 +263,14 @@ class StatusChanger(EntityUpdater):
                     f"No status to update or fields to change for {self.uuid}, not making any changes in entity-api."
                 )
             return
-        self.fields_to_change["status"] = self.status.value
-        self._set_entity_api_data()
+        self.set_entity_api_data()
         for message_method in self.status_map.get(self.status, []):
             message_method(self.status, self.uuid, self.token).send()
+
+    def validate_fields_to_change(self):
+        super().validate_fields_to_change()
+        assert self.status
+        self.fields_to_change["status"] = self.status.value
 
     def _validate_status(self, status: Union[Statuses, str, None]) -> Optional[Statuses]:
         if not status:
