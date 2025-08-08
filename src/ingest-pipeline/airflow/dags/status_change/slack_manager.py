@@ -1,6 +1,6 @@
 import logging
 
-from .slack.error import SlackDatasetErrorPipeline
+# from .slack.error import SlackDatasetErrorPipeline
 from .slack.qa import SlackDatasetQA
 from .slack.reorganized import SlackUploadReorganized, SlackUploadReorganizedPriority
 from .status_utils import (
@@ -46,10 +46,10 @@ class SlackManager:
                 "main_class": SlackDatasetQA,
                 "subclasses": [],
             },
-            Statuses.DATASET_ERROR: {
-                "main_class": None,
-                "subclasses": [SlackDatasetErrorPipeline],
-            },
+            # Statuses.DATASET_ERROR: {
+            #     "main_class": None,
+            #     "subclasses": [SlackDatasetErrorPipeline],
+            # },
         }
 
     def get_message_class(self, msg_type: Statuses):
@@ -60,6 +60,7 @@ class SlackManager:
         entity_data = get_submission_context(self.token, self.uuid)
         if main_class := relevant_classes["main_class"]:
             self.message_class = main_class(self.uuid, self.token, entity_data)
+        # Set to main class by default. Run tests on subclasses; instantiate first to qualify.
         for subclass in relevant_classes.get("subclasses", []):
             if subclass.test(entity_data):
                 self.message_class = subclass(self.uuid, self.token, entity_data)
