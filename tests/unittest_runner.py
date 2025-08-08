@@ -1,8 +1,7 @@
-import logging
 import sys
-import unittest
 from pathlib import Path
-
+import logging
+import unittest
 
 class add_path:
     """
@@ -37,9 +36,8 @@ def main():
     # directory.  We have to avoid trying to locate anything below the
     # module name "airflow" or we will mix up the two.
     #
-    dags_code_path = (
-        Path(__file__).resolve().parent.parent / "src" / "ingest-pipeline" / "airflow" / "dags"
-    )
+    dags_code_path = (Path(__file__).resolve().parent.parent
+                      / "src" / "ingest-pipeline" / "airflow" / "dags")
     with add_path(str(dags_code_path)):
         kwargs = {"verbosity": 2}
         test_names = []
@@ -49,7 +47,7 @@ def main():
             elif arg == "-v":
                 kwargs["verbosity"] += 1
             else:
-                logging.warn(f"Unmapped arg {arg}")
+                logging.warning(f"Unmapped arg {arg}")
         loader = unittest.TestLoader()
         runner = unittest.TextTestRunner(**kwargs)
         if test_names:
