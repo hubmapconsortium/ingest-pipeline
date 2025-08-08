@@ -4,7 +4,7 @@ import json
 import traceback
 import urllib.parse
 from enum import Enum
-from typing import Any, Optional
+from typing import Any
 
 from requests import codes
 from requests.exceptions import HTTPError
