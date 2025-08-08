@@ -133,13 +133,7 @@ with HMDAG(
         validation_file_path = Path(get_tmp_dir_path(kwargs["run_id"])) / "validation_report.txt"
         with open(validation_file_path, "w") as f:
             f.write(report.as_text())
-        kwargs["ti"].xcom_push(
-            key="error_counts",
-            value=json.dumps(report.counts, indent=9)
-            .strip("{}")
-            .replace('"', "")
-            .replace(",", ""),
-        )
+        kwargs["ti"].xcom_push(key="error_counts", value=json.dumps(report.counts, indent=9).strip("{}").replace('"', "").replace(",", ""))
         kwargs["ti"].xcom_push(key="validation_file_path", value=str(validation_file_path))
 
     t_run_validation = PythonOperator(
@@ -178,8 +172,7 @@ with HMDAG(
                 Error counts:
                 {error_counts}
                 ------------
-                """
-            )
+                """)
         StatusChanger(
             kwargs["ti"].xcom_pull(key="uuid"),
             get_auth_tok(**kwargs),
