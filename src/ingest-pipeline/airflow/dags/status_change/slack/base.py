@@ -19,8 +19,9 @@ class SlackMessage:
     def test(cls, entity_data: dict) -> bool:
         """
         If there are special case subclasses for a given status, their
-        test() methods will be called to determine which subclass to use.
-        Only one should return True.
+        test() methods will be called to determine if the subclass applies.
+        Only one should return True because the subclass test loop breaks
+        after first True result.
         """
         return False
 

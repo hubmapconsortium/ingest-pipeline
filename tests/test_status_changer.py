@@ -93,6 +93,7 @@ class TestEntityUpdater(unittest.TestCase):
         with patch("status_change.status_manager.get_submission_context") as gsc_mock:
             gsc_mock.return_value = self.good_upload_context
             with self.assertRaises(EntityUpdateException):
+                # No "Published" status for uploads
                 StatusChanger(
                     "invalid_status_uuid",
                     "invalid_status_token",
@@ -162,7 +163,7 @@ class TestEntityUpdater(unittest.TestCase):
             # would normally detect an invalid update
             sc.fields_to_change["status"] = "published"
             with self.assertRaises((AssertionError, EntityUpdateException)):
-                sc.set_entity_api_data()
+                sc.update()
 
     def test_http_conn_id(self):
         with patch("status_change.status_manager.HttpHook.run") as httpr_mock:
