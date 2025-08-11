@@ -1,14 +1,8 @@
 #! /usr/bin/env python
 
-# from pprint import pprint
-
-# from airflow.operators.bash_operator import BashOperator
 from airflow.operators.bash import BashOperator
-# from airflow.operators.dummy_operator import DummyOperator
-from airflow.operators.dummy import DummyOperator
-# from airflow.operators.python_operator import PythonOperator
+from airflow.operators.empty import EmptyOperator
 from airflow.operators.python import PythonOperator
-# from airflow.utils.decorators import apply_defaults
 
 from utils import (
     get_dataset_uuid,
@@ -25,12 +19,16 @@ class LogInfoOperator(PythonOperator):
         super().__init__(python_callable=pythonop_trigger_target,
                          provide_context=True,
                          **kwargs)
-    
 
-class JoinOperator(DummyOperator):
+
+class JoinOperator(EmptyOperator):
     # @apply_defaults
     def __init__(self, **kwargs):
-        super().__init__(trigger_rule='all_done', **kwargs)
+        if "trigger_rule" in kwargs:
+            trigger_rule = kwargs.pop("trigger_rule")
+        else:
+            trigger_rule = "all_done"
+        super().__init__(trigger_rule=trigger_rule, **kwargs)
 
 
 class CreateTmpDirOperator(BashOperator):
@@ -72,13 +70,13 @@ class CleanupTmpDirOperator(BashOperator):
 class SetDatasetProcessingOperator(PythonOperator):
     # @apply_defaults
     def __init__(self, **kwargs):
-        super().__init__(python_callable=pythonop_set_dataset_state, 
+        super().__init__(python_callable=pythonop_set_dataset_state,
                          provide_context=True,
                          op_kwargs={
                              'dataset_uuid_callable': get_dataset_uuid,
                          },
                          **kwargs)
-    
+
 
 class MoveDataOperator(BashOperator):
     # @apply_defaults

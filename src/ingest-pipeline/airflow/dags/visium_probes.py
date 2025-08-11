@@ -3,7 +3,7 @@ from pathlib import Path
 import pandas as pd
 
 from airflow.operators.bash import BashOperator
-from airflow.operators.dummy import DummyOperator
+from airflow.operators.empty import EmptyOperator
 from airflow.operators.python import BranchPythonOperator, PythonOperator
 from airflow.decorators import task
 
@@ -88,11 +88,11 @@ with HMDAG(
             "documentation_url": "",
         },
         {
-            "workflow_path": str(get_absolute_workflow(Path("omet-tiff-pyramid", "pipeline.cwl"))),
+            "workflow_path": str(get_absolute_workflow(Path("ome-tiff-pyramid", "pipeline.cwl"))),
             "documentation_url": "",
         },
         {
-            "workflow_path": str(get_absolute_workflow(Path("portal-containers", "omet-tiff-offsets.cwl"))),
+            "workflow_path": str(get_absolute_workflow(Path("portal-containers", "ome-tiff-offsets.cwl"))),
             "documentation_url": "",
         }
     ]
@@ -110,13 +110,13 @@ with HMDAG(
 
     prepare_cwl1 = prepare_cwl_cmd1()
 
-    prepare_cwl2 = DummyOperator(task_id="prepare_cwl2")
+    prepare_cwl2 = EmptyOperator(task_id="prepare_cwl2")
 
-    prepare_cwl3 = DummyOperator(task_id="prepare_cwl3")
+    prepare_cwl3 = EmptyOperator(task_id="prepare_cwl3")
 
-    prepare_cwl4 = DummyOperator(task_id="prepare_cwl4")
+    prepare_cwl4 = EmptyOperator(task_id="prepare_cwl4")
 
-    prepare_cwl5 = DummyOperator(task_id="prepare_cwl5")
+    prepare_cwl5 = EmptyOperator(task_id="prepare_cwl5")
 
     def build_cwltool_cmd1(**kwargs):
         run_id = kwargs["run_id"]
@@ -131,9 +131,13 @@ with HMDAG(
         probe_set = metadata_df.oligo_probe_panel.iloc[0]
         probe_set_version = 2 if "v2" in probe_set else 1
 
-        input_parameters = [
+        cwl_parameters = [
             {"parameter_name": "--outdir", "value": str(tmpdir / "cwl_out")},
             {"parameter_name": "--parallel", "value": ""},
+        ]
+
+        input_parameters = [
+
             {"parameter_name": "--assay", "value": "visium-ff"},
             {"parameter_name": "--threads", "value": get_threads_resource(dag.dag_id)},
             {"parameter_name": "--fastq_dir", "value": str(data_dir / "raw/fastq/")},
@@ -143,7 +147,7 @@ with HMDAG(
         ]
 
         command = get_cwl_cmd_from_workflows(
-            cwl_workflows, 0, input_parameters, tmpdir, kwargs["ti"]
+            cwl_workflows, 0, input_parameters, tmpdir, kwargs["ti"], cwl_parameters
         )
 
         return join_quote_command_str(command)

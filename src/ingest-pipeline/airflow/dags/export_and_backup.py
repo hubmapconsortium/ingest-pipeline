@@ -13,7 +13,7 @@ from utils import (
     HMDAG,
     encrypt_tok,
     get_queue_resource,
-    localized_assert_json_matches_schema as assert_json_matches_schema,
+    assert_json_matches_schema,
     pythonop_get_dataset_state,
     encrypt_tok,
 )

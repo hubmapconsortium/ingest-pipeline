@@ -3,7 +3,6 @@
 import argparse
 import json
 import re
-import math
 import time
 from pathlib import Path
 from pprint import pprint
@@ -14,7 +13,7 @@ import pandas as pd
 from extra_utils import SoftAssayClient
 from status_change.status_manager import StatusChanger, Statuses
 
-from airflow.hooks.http_hook import HttpHook
+from airflow.providers.http.hooks.http import HttpHook
 
 # There has got to be a better solution for this, but I can't find it
 try:
@@ -107,22 +106,19 @@ def create_new_uuid(row, source_entity, entity_factory, primary_entity, dryrun=F
     global FAKE_UUID_GENERATOR
     canonical_assay_type = row["canonical_assay_type"]
     # orig_assay_type = row["assay_type"] if hasattr(row, "assay_type") else row["dataset_type"]
-    rec_identifier = row["data_path"].strip("/")
-    assert rec_identifier and rec_identifier != ".", "Bad data_path!"
-    info_txt_root = None
+    info_txt = None
     if isinstance(source_entity, Dataset):
         assert "lab_dataset_id" in source_entity.prop_dct, (
             f"Dataset {source_entity.uuid}" " has no lab_dataset_id"
         )
-        info_txt_root = source_entity.prop_dct["lab_dataset_id"]
+        info_txt = ""
     elif isinstance(source_entity, Upload):
         if "title" in source_entity.prop_dct:
-            info_txt_root = source_entity.prop_dct["title"]
+            info_txt = source_entity.prop_dct["title"]
         else:
             print(f"WARNING: Upload {source_entity.uuid} has no title")
-            info_txt_root = f"Upload {source_entity.prop_dct['hubmap_id']}"
-    assert info_txt_root is not None, "Expected a Dataset or an Upload"
-    info_txt = info_txt_root + " : " + rec_identifier
+            info_txt = f"Upload {source_entity.prop_dct['hubmap_id']}"
+    assert info_txt is not None, "Expected a Dataset or an Upload"
     contains_human_genetic_sequences = primary_entity.get("contains-pii")
     is_epic = primary_entity.get("is-epic")
     # Check consistency in case this is a Dataset, which will have this info
@@ -131,15 +127,16 @@ def create_new_uuid(row, source_entity, entity_factory, primary_entity, dryrun=F
             contains_human_genetic_sequences
             == source_entity.prop_dct["contains_human_genetic_sequences"]
         )
+
+    priority_project_list = source_entity.prop_dct.get("priority_project_list", [])
+
     group_uuid = source_entity.prop_dct["group_uuid"]
     if "description" in row:
         description = str(row["description"])
     elif "description" in source_entity.prop_dct:
-        description = source_entity.prop_dct["description"] + " : " + rec_identifier
-    elif "lab_dataset_id" in source_entity.prop_dct:
-        description = source_entity.prop_dct["lab_dataset_id"] + " : " + rec_identifier
+        description = source_entity.prop_dct["description"]
     else:
-        description = ": " + rec_identifier
+        description = ""
     sample_id_list = (
         (row["tissue_id"] if hasattr(row, "tissue_id") else row["parent_sample_id"])
         if not is_epic
@@ -169,6 +166,7 @@ def create_new_uuid(row, source_entity, entity_factory, primary_entity, dryrun=F
             group_uuid=group_uuid,
             description=description,
             is_epic=is_epic,
+            priority_project_list=priority_project_list,
         )
         return rslt["uuid"]
 
@@ -397,7 +395,6 @@ def update_upload_entity(child_uuid_list, source_entity, dryrun=False, verbose=F
             ).update()
             print(f"{source_entity.uuid} status is Reorganized")
 
-            # TODO: click in with UpdateAsana
             for uuid in child_uuid_list:
                 print(f"Setting status of dataset {uuid} to Submitted")
                 StatusChanger(
@@ -584,6 +581,8 @@ def reorganize_multiassay(source_uuid, verbose=False, **kwargs) -> None:
 
     source_entity = entity_factory.get(source_uuid)
     full_entity = SoftAssayClient(list(source_entity.full_path.glob("*metadata.tsv")), auth_tok)
+    # We are NOT passing in the priority project list here. Doesn't seem that it'd be helpful to have that information
+    # tied on the components of a multi-assay dataset. (05/21/2025 - Juan Muerto)
     create_multiassay_component(
         source_uuid, auth_tok, full_entity.assay_components, str(source_entity.full_path)
     )

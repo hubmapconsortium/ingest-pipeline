@@ -43,15 +43,9 @@
 [submodule "src/ingest-pipeline/airflow/dags/cwl/cfde-bdbag"]
 	path = src/ingest-pipeline/airflow/dags/cwl/cfde-bdbag
 	url = https://github.com/hubmapconsortium/cfde-bdbag.git
-[submodule "src/ingest-pipeline/submodules/py-hubmapbags"]
-	path = src/ingest-pipeline/submodules/py-hubmapbags
-	url = https://github.com/hubmapconsortium/py-hubmapbags.git
 [submodule "src/ingest-pipeline/airflow/dags/cwl/pas-ftu-segmentation-pipeline"]
 	path = src/ingest-pipeline/airflow/dags/cwl/pas-ftu-segmentation-pipeline
 	url = https://github.com/hubmapconsortium/pas-ftu-segmentation-pipeline
-[submodule "src/ingest-pipeline/submodules/hubmap-inventory"]
-	path = src/ingest-pipeline/submodules/hubmap-inventory
-	url = https://github.com/hubmapconsortium/hubmap-inventory.git
 [submodule "src/ingest-pipeline/airflow/dags/cwl/create-vis-symlink-archive"]
 	path = src/ingest-pipeline/airflow/dags/cwl/create-vis-symlink-archive
 	url = https://github.com/hubmapconsortium/create-vis-symlink-archive.git
@@ -82,3 +76,12 @@
 [submodule "src/ingest-pipeline/airflow/dags/cwl/ribca"]
 	path = src/ingest-pipeline/airflow/dags/cwl/ribca
 	url = https://github.com/hubmapconsortium/ribca
+[submodule "src/ingest-pipeline/airflow/dags/cwl/xenium-pipeline"]
+	path = src/ingest-pipeline/airflow/dags/cwl/xenium-pipeline
+	url = https://github.com/hubmapconsortium/xenium-pipeline
+[submodule "src/ingest-pipeline/airflow/dags/cwl/stellar"]
+	path = src/ingest-pipeline/airflow/dags/cwl/stellar
+	url = https://github.com/hubmapconsortium/stellar
+[submodule "src/ingest-pipeline/airflow/dags/cwl/pan-organ-azimuth-annotate"]
+	path = src/ingest-pipeline/airflow/dags/cwl/pan-organ-azimuth-annotate
+	url = https://github.com/hubmapconsortium/pan-organ-azimuth-annotate
