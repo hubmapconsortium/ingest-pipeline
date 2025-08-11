@@ -277,7 +277,7 @@ def _auth_tok_from_request():
     authorization = request.headers.get("authorization")
     LOGGER.info("top of request_ingest.")
     assert authorization[: len("BEARER")].lower() == "bearer", "authorization is not BEARER"
-    substr = authorization[len("BEARER") :].strip()
+    substr = authorization[len("BEARER"):].strip()
     auth_tok = substr
     # LOGGER.info('auth_tok: %s', auth_tok)  # reduce visibility of auth_tok
     return auth_tok
@@ -539,7 +539,7 @@ def request_dev_analysis():
         execution_date = datetime.now(tz)
         LOGGER.info("starting {} with execution_date: {}".format(dag_id, execution_date))
 
-        run_id = "{}_{}_{}".format(uuid_list, "launch.multi", execution_date.isoformat())
+        run_id = "{}_{}_{}".format(uuid_list[0], "launch.multi", execution_date.isoformat())
         ingest_id = run_id
 
         conf = {
