@@ -130,6 +130,7 @@ with HMDAG(
             {"parameter_name": "--gpus", "value": "all"},
             {"parameter_name": "--segmentation_method", "value": "deepcell"},
             {"parameter_name": "--data_dir", "value": str(data_dir)},
+            {"parameter_name": "--invert_geojson_mask", "value": ""},
         ]
 
         command = get_cwl_cmd_from_workflows(
