@@ -66,6 +66,9 @@ class EpicMetadataTSVDataCollection(DataCollection):
                 os.path.join(self.topdir, match.format(offsetdir=self.offsetdir))
             ):
                 print("collect from path %s" % fpath)
+                if md_type == "":
+                    continue
+
                 this_md = md_type_tbl[md_type](fpath).collect_metadata()
                 if this_md is not None:
                     rslt[os.path.relpath(fpath, self.topdir)] = this_md
