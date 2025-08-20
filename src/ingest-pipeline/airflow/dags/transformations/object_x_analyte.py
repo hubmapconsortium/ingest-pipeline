@@ -164,6 +164,7 @@ with HMDAG(
     def build_cwl_cmd_object_by_analyte_to_ui(**kwargs):
         run_id = kwargs["run_id"]
         ti = kwargs["ti"]
+        data_dir = ti.xcom_pull(task_ids="create_or_use_dataset")
         tmpdir = get_tmp_dir_path(run_id)
         print("tmpdir: ", tmpdir)
 
@@ -171,7 +172,7 @@ with HMDAG(
             {"parameter_name": "--outdir", "value": str(tmpdir / "cwl_out/hubmap_ui")},
         ]
         input_parameters = [
-            {"parameter_name": "--input_dir", "value": str(tmpdir / "cwl_out")},
+            {"parameter_name": "--input_dir", "value": str(data_dir / "derived/obj_by_analyte")},
         ]
 
         command = get_cwl_cmd_from_workflows(
@@ -235,7 +236,7 @@ with HMDAG(
         # Always have to gather the metadata from the transformation
         data_dir = kwargs["ti"].xcom_pull(task_ids="create_or_use_dataset")
         output_metadata = json.load(
-            open(f"{data_dir}/extras/transformations/calculated_metadata.json")
+            open(f"{data_dir}/extras/transformations/hubmap_ui/calculated_metadata.json")
         )
         metadata["calculated_metadata"] = output_metadata
         return metadata
