@@ -172,7 +172,10 @@ with HMDAG(
             {"parameter_name": "--outdir", "value": str(tmpdir / "cwl_out/hubmap_ui")},
         ]
         input_parameters = [
-            {"parameter_name": "--input_dir", "value": str(data_dir / "derived/obj_by_analyte")},
+            {
+                "parameter_name": "--input_dir",
+                "value": str(Path(data_dir) / "derived/obj_by_analyte"),
+            },
         ]
 
         command = get_cwl_cmd_from_workflows(
