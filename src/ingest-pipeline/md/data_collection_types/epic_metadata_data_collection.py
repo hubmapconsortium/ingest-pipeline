@@ -19,8 +19,7 @@ class EpicMetadataTSVDataCollection(DataCollection):
     dir_regex = None
 
     # expected_file pairs are (globable name, filetype key)
-    expected_files = [("*metadata.tsv", "METADATATSV"),
-                      ("derived/*/*.ome.tiff", "OME_TIFF")]
+    expected_files = [("*metadata.tsv", "METADATATSV"), ("derived/*/*", "")]
 
     optional_files = []
 
@@ -75,8 +74,9 @@ class EpicMetadataTSVDataCollection(DataCollection):
                         assert isinstance(this_md, list), "metadata.tsv did not produce a list"
                         rec_list = this_md
                         for rec in rec_list:
-                            assert "derived_dataset_type" in rec, ("No derived_dataset_type found "
-                                                                   "in metadata.tsv")
+                            assert "derived_dataset_type" in rec, (
+                                "No derived_dataset_type found " "in metadata.tsv"
+                            )
                             for key in ["data_path", "contributors_path"]:
                                 assert (
                                     key in rec
