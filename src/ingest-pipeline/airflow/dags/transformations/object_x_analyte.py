@@ -160,7 +160,7 @@ with HMDAG(
 
     # BEGIN - Object by Analyte to UI Region
     t_prepare_cwl_object_by_analyte_to_ui = EmptyOperator(
-        task_id="prepare_cwl_object_by_analyte_to_ui"
+        task_id="t_prepare_cwl_object_by_analyte_to_ui"
     )
 
     def build_cwl_cmd_object_by_analyte_to_ui(**kwargs):
@@ -295,7 +295,7 @@ with HMDAG(
         >> t_create_tmpdir
         >> t_copy_data
         >> t_set_dataset_processing
-        >> prepare_cwl_object_by_analyte_to_ui
+        >> t_prepare_cwl_object_by_analyte_to_ui
         >> t_build_cwl_cmd_object_by_analyte_to_ui
         >> t_pipeline_exec_cwl_object_by_analyte_to_ui
         >> t_maybe_keep_cwl_object_by_analyte_to_ui
