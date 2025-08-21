@@ -10,8 +10,11 @@
   'launch_checksums':
      'type': 'object'
      'properties':
-        'uuid':
-           'type': 'string'
-           'description': 'a dataset uuid or DOI'
-     'required': ['uuid']
+        'uuid_list':
+          'type': 'array'
+          'items':
+            'type': 'string'
+            'description': 'a dataset uuid'
+          'minItems': 1
+     'required': ['uuid_list']
     
