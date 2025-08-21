@@ -243,7 +243,9 @@ with HMDAG(
                 open(f"{data_dir}/extras/transformations/hubmap_ui/calculated_metadata.json")
             )
         except FileNotFoundError as e:
-            print(f"{data_dir}/extras/transformations/hubmap_ui/calculated_metadata.json does not exist.")
+            print(
+                f"{data_dir}/extras/transformations/hubmap_ui/calculated_metadata.json does not exist."
+            )
             output_metadata = {}
 
         metadata["calculated_metadata"] = output_metadata
