@@ -238,9 +238,14 @@ with HMDAG(
         # Then we gather the metadata from the mudata transformation output
         # Always have to gather the metadata from the transformation
         data_dir = kwargs["ti"].xcom_pull(task_ids="create_or_use_dataset")
-        output_metadata = json.load(
-            open(f"{data_dir}/extras/transformations/hubmap_ui/calculated_metadata.json")
-        )
+        try:
+            output_metadata = json.load(
+                open(f"{data_dir}/extras/transformations/hubmap_ui/calculated_metadata.json")
+            )
+        except FileNotFoundError as e:
+            print(f"{data_dir}/extras/transformations/hubmap_ui/calculated_metadata.json does not exist.")
+            output_metadata = {}
+
         metadata["calculated_metadata"] = output_metadata
         return metadata
 
