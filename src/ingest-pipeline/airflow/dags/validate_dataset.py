@@ -9,6 +9,7 @@ import logging
 from hubmap_operators.common_operators import (
     CleanupTmpDirOperator,
     CreateTmpDirOperator,
+    SetDatasetProcessingOperator,
 )
 
 from utils import (
@@ -190,5 +191,12 @@ with HMDAG(
 
     t_create_tmpdir = CreateTmpDirOperator(task_id="create_temp_dir")
     t_cleanup_tmpdir = CleanupTmpDirOperator(task_id="cleanup_temp_dir")
+    t_set_dataset_processing = SetDatasetProcessingOperator(task_id="set_dataset_processing")
 
-    t_create_tmpdir >> t_run_validation >> t_send_status >> t_cleanup_tmpdir
+    (
+        t_create_tmpdir
+        >> t_set_dataset_processing
+        >> t_run_validation
+        >> t_send_status
+        >> t_cleanup_tmpdir
+    )

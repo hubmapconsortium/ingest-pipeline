@@ -80,9 +80,9 @@ with HMDAG(
 
         if ds_rslt["entity_type"] != "Upload":
             raise AirflowException(f"{uuid} is not an Upload")
-        if ds_rslt["status"] not in ["New", "Submitted", "Invalid", "Processing"]:
+        if ds_rslt["status"] not in ["New", "Submitted", "Invalid"]:
             raise AirflowException(
-                f"status of Upload {uuid} is not New, Submitted, Invalid, or Processing"
+                f"status of Upload {uuid} is not New, Submitted, or Invalid"
             )
 
         lz_path = ds_rslt["local_directory_full_path"]
@@ -97,6 +97,16 @@ with HMDAG(
         python_callable=find_uuid,
         provide_context=True,
     )
+
+    t_set_upload_processing = PythonOperator(
+        task_id="set_upload_processing",
+        python_callable=pythonop_get_dataset_state,
+        provide_context=True,
+        op_kwargs={
+            'dataset_uuid_callable': lambda **kwargs: kwargs["ti"].xcom_pull(key="uuid")
+        }
+    )
+
 
     def run_validation(**kwargs):
         lz_path = kwargs["ti"].xcom_pull(key="lz_path")
@@ -189,4 +199,4 @@ with HMDAG(
     t_create_tmpdir = CreateTmpDirOperator(task_id="create_temp_dir")
     t_cleanup_tmpdir = CleanupTmpDirOperator(task_id="cleanup_temp_dir")
 
-    t_create_tmpdir >> t_find_uuid >> t_run_validation >> t_send_status >> t_cleanup_tmpdir
+    t_create_tmpdir >> t_find_uuid >> t_set_upload_processing >> t_run_validation >> t_send_status >> t_cleanup_tmpdir
