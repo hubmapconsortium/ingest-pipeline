@@ -10,6 +10,7 @@ from shutil import copy2, copytree
 from typing import List, Tuple, TypeVar, Union
 
 import pandas as pd
+import numpy as np
 from extra_utils import SoftAssayClient
 from status_change.status_manager import StatusChanger, Statuses
 
@@ -168,6 +169,7 @@ def create_new_uuid(row, source_entity, entity_factory, primary_entity, dryrun=F
             is_epic=is_epic,
             priority_project_list=priority_project_list,
         )
+        time.sleep(15)
         return rslt["uuid"]
 
 
@@ -386,14 +388,25 @@ def update_upload_entity(child_uuid_list, source_entity, dryrun=False, verbose=F
             # Set links from Upload to split Datasets
             print(f"Setting status of {source_entity.uuid} to 'Reorganized'. Child UUIDs:")
             pprint(child_uuid_list)
+            # Update status first, then let's iterate over the child list
             StatusChanger(
                 source_entity.uuid,
                 source_entity.entity_factory.auth_tok,
                 status=Statuses.UPLOAD_REORGANIZED,
-                fields_to_overwrite={"dataset_uuids_to_link": child_uuid_list},
                 verbose=verbose,
             ).update()
+            time.sleep(15)
             print(f"{source_entity.uuid} status is Reorganized")
+
+            # Batch update the child uuids
+            for chunk in np.array_split(child_uuid_list, 50):
+                StatusChanger(
+                    source_entity.uuid,
+                    source_entity.entity_factory.auth_tok,
+                    fields_to_overwrite={"dataset_uuids_to_link": list(chunk)},
+                    verbose=verbose,
+                ).update()
+                time.sleep(15)
 
             for uuid in child_uuid_list:
                 print(f"Setting status of dataset {uuid} to Submitted")
@@ -403,6 +416,7 @@ def update_upload_entity(child_uuid_list, source_entity, dryrun=False, verbose=F
                     status=Statuses.DATASET_SUBMITTED,
                     verbose=verbose,
                 ).update()
+                time.sleep(15)
                 print(
                     f"Reorganized new: {uuid} from Upload: {source_entity.uuid} status is Submitted"
                 )
@@ -426,6 +440,7 @@ def submit_uuid(uuid, entity_factory, dryrun=False):
             uuid=uuid,
             contains_human_genetic_sequences=uuid_entity_to_submit.contains_human_genetic_sequences,
         )
+        time.sleep(15)
         return rslt
 
 
