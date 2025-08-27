@@ -1,0 +1,50 @@
+'$schema': 'http://json-schema.org/schema#'
+'$id': 'http://schemata.hubmapconsortium.org/entity_metadata_schema.yml'
+'title': 'entity metadata schema'
+'description': 'entity metadata schema'
+
+'allOf': [{'$ref': '#/definitions/entity_metadata'}]
+
+'definitions':
+
+  'entity_metadata':
+     'type': 'object'
+     'properties':
+        'entity_type':
+          'type': 'string'
+          'enum': ['upload', 'dataset', 'publication']
+        'status':
+          'type': 'string'
+          'enum':
+            - 'deprecated'
+            - 'error'
+            - 'hold'
+            - 'valid'
+            - 'invalid'
+            - 'new'
+            - 'processing'
+            - 'published'
+            - 'qa'
+            - 'submitted'
+            - 'error'
+            - 'hold'
+            - 'reorganized'
+     'anyOf':
+      - 'properties':
+           'entity_type': { 'const': 'upload' }
+           'status':
+             'enum': ['error', 'invalid', 'new', 'processing', 'reorganized',
+                      'submitted', 'valid']
+        'required': ['entity_type', 'status']
+      - 'properties':
+           'entity_type': { 'const': 'dataset' }
+           'status':
+             'enum': ['deprecated', 'error', 'hold', 'invalid', 'new',
+                      'processing', 'published', 'qa', 'submitted']
+        'required': ['entity_type', 'status']
+      - 'properties':
+           'entity_type': { 'const': 'publication' }
+           'status':
+             'enum': ['error', 'hold', 'invalid', 'new',
+                      'processing', 'published', 'qa', 'submitted']
+        'required': ['entity_type', 'status']

@@ -11,7 +11,7 @@ class MtxTformMetadataFile(MetadataFile):
         print('parsing transformation text from %s' % self.path)
         rslt = {}
         row_list = []
-        with open(self.path, 'rU') as f:
+        with open(self.path, 'r') as f:
             for line in f:
                 line = line.strip()
                 words = line.split()

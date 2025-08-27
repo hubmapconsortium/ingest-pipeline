@@ -4,12 +4,12 @@ from metadata_file import MetadataFile
 
 class TxtTformMetadataFile(MetadataFile):
     """A metadata file type for files containing geometrical transforms as text"""
-    category_name = 'TxtTform';
+    category_name = 'TxtTform'
 
     def collect_metadata(self):
         print('parsing transformation text from %s' % self.path)
         rslt = {}
-        with open(self.path, 'rU') as f:
+        with open(self.path, 'r') as f:
             for line in f:
                 line = line.strip()
                 assert line[0] == '(' and line[-1] == ')', "Missing parens line <{}>".format(line)

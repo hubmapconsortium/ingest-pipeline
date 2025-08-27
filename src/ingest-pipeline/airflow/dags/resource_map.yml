@@ -82,6 +82,9 @@ resource_map:
       - 'task_re': '.*ribca'
         'queue': 'gpu000_q1'
         'threads': 6
+      - 'task_re': '.*stellar'
+        'queue': 'gpu000_q1'
+        'threads': 6
       - 'task_re': '.*'
         'queue': 'general'
         'threads': 6
@@ -209,6 +212,13 @@ resource_map:
       - 'task_re': '.*'
         'queue': 'general'
         'threads': 6
+  - 'dag_re': '.xenium'
+    'preserve_scratch': true
+    'lanes': 2
+    'tasks':
+      - 'task_re': '.*'
+        'queue': 'general'
+        'threads': 15
   - 'dag_re': '.*'
     'preserve_scratch': true
     'lanes': 2

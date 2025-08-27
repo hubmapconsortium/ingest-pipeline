@@ -3,7 +3,6 @@
 import argparse
 import json
 import re
-import math
 import time
 from pathlib import Path
 from pprint import pprint
@@ -14,7 +13,7 @@ import pandas as pd
 from extra_utils import SoftAssayClient
 from status_change.status_manager import StatusChanger, Statuses
 
-from airflow.hooks.http_hook import HttpHook
+from airflow.providers.http.hooks.http import HttpHook
 
 # There has got to be a better solution for this, but I can't find it
 try:
@@ -128,6 +127,9 @@ def create_new_uuid(row, source_entity, entity_factory, primary_entity, dryrun=F
             contains_human_genetic_sequences
             == source_entity.prop_dct["contains_human_genetic_sequences"]
         )
+
+    priority_project_list = source_entity.prop_dct.get("priority_project_list", [])
+
     group_uuid = source_entity.prop_dct["group_uuid"]
     if "description" in row:
         description = str(row["description"])
@@ -164,6 +166,7 @@ def create_new_uuid(row, source_entity, entity_factory, primary_entity, dryrun=F
             group_uuid=group_uuid,
             description=description,
             is_epic=is_epic,
+            priority_project_list=priority_project_list,
         )
         return rslt["uuid"]
 
@@ -392,7 +395,6 @@ def update_upload_entity(child_uuid_list, source_entity, dryrun=False, verbose=F
             ).update()
             print(f"{source_entity.uuid} status is Reorganized")
 
-            # TODO: click in with UpdateAsana
             for uuid in child_uuid_list:
                 print(f"Setting status of dataset {uuid} to Submitted")
                 StatusChanger(
@@ -579,6 +581,8 @@ def reorganize_multiassay(source_uuid, verbose=False, **kwargs) -> None:
 
     source_entity = entity_factory.get(source_uuid)
     full_entity = SoftAssayClient(list(source_entity.full_path.glob("*metadata.tsv")), auth_tok)
+    # We are NOT passing in the priority project list here. Doesn't seem that it'd be helpful to have that information
+    # tied on the components of a multi-assay dataset. (05/21/2025 - Juan Muerto)
     create_multiassay_component(
         source_uuid, auth_tok, full_entity.assay_components, str(source_entity.full_path)
     )

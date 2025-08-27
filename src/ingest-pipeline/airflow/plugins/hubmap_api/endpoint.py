@@ -47,6 +47,7 @@ NEEDED_CONFIG_SECTIONS = [
 NEEDED_CONFIGS = [
     ("ingest_map", "scan.and.begin.processing"),
     ("ingest_map", "validate.upload"),
+    ("ingest_map", "validate.dataset"),
     ("hubmap_api_plugin", "build_number"),
     ("connections", "app_client_id"),
     ("connections", "app_client_secret"),
@@ -150,8 +151,9 @@ class HubmapApiResponse:
 
     @staticmethod
     def bad_request_bulk(error, success):
-        return HubmapApiResponse.standard_response(HubmapApiResponse.STATUS_BAD_REQUEST, {"error": error,
-                                                                                          "success": success})
+        return HubmapApiResponse.standard_response(
+            HubmapApiResponse.STATUS_BAD_REQUEST, {"error": error, "success": success}
+        )
 
     @staticmethod
     def not_found(error="Resource not found"):
@@ -275,7 +277,7 @@ def _auth_tok_from_request():
     authorization = request.headers.get("authorization")
     LOGGER.info("top of request_ingest.")
     assert authorization[: len("BEARER")].lower() == "bearer", "authorization is not BEARER"
-    substr = authorization[len("BEARER") :].strip()
+    substr = authorization[len("BEARER"):].strip()
     auth_tok = substr
     # LOGGER.info('auth_tok: %s', auth_tok)  # reduce visibility of auth_tok
     return auth_tok
@@ -360,6 +362,7 @@ def request_ingest():
             "crypt_auth_tok": crypt_auth_tok,
             "src_path": config("connections", "src_path"),
             "lz_path": full_path,
+            "uuid": submission_id,
         }
 
         if find_dag_runs(session, dag_id, run_id, execution_date):
@@ -406,8 +409,12 @@ def request_bulk_ingest():
             process = _get_required_string(item, "process")
             full_path = _get_required_string(item, "full_path")
         except HubmapApiInputException as e:
-            error_msgs.append({"message": "Must specify {} to request data be ingested".format(str(e)),
-                               "submission_id": "not_found"})
+            error_msgs.append(
+                {
+                    "message": "Must specify {} to request data be ingested".format(str(e)),
+                    "submission_id": "not_found",
+                }
+            )
             continue
 
         process = (
@@ -417,8 +424,12 @@ def request_bulk_ingest():
         try:
             dag_id = config("ingest_map", process)
         except AirflowConfigException:
-            error_msgs.append({"message": "{} is not a known ingestion process".format(process),
-                               "submission_id": submission_id})
+            error_msgs.append(
+                {
+                    "message": "{} is not a known ingestion process".format(process),
+                    "submission_id": submission_id,
+                }
+            )
             continue
 
         try:
@@ -447,22 +458,35 @@ def request_bulk_ingest():
                 "crypt_auth_tok": crypt_auth_tok,
                 "src_path": config("connections", "src_path"),
                 "lz_path": full_path,
+                "uuid": submission_id,
             }
 
             if find_dag_runs(session, dag_id, run_id, execution_date):
-                error_msgs.append({"message": "run_id already exists {}".format(run_id),
-                                   "submission_id": submission_id})
+                error_msgs.append(
+                    {
+                        "message": "run_id already exists {}".format(run_id),
+                        "submission_id": submission_id,
+                    }
+                )
                 # The run already happened??
                 continue
 
             try:
-                dr = trigger_dag(dag_id, run_id, conf, execution_date=execution_date, replace_microseconds=False)
+                dr = trigger_dag(
+                    dag_id, run_id, conf, execution_date=execution_date, replace_microseconds=False
+                )
             except AirflowException as err:
                 LOGGER.error(err)
-                error_msgs.append({"message": "Attempt to trigger run produced an error: {}".format(err),
-                                   "submission_id": submission_id})
+                error_msgs.append(
+                    {
+                        "message": "Attempt to trigger run produced an error: {}".format(err),
+                        "submission_id": submission_id,
+                    }
+                )
                 continue
-            success_msgs.append({"ingest_id": ingest_id, "run_id": run_id, "submission_id": submission_id})
+            success_msgs.append(
+                {"ingest_id": ingest_id, "run_id": run_id, "submission_id": submission_id}
+            )
             LOGGER.info("dagrun follows: {}".format(dr))
             session.close()
         except HubmapApiInputException as e:
@@ -503,7 +527,9 @@ def request_dev_analysis():
     try:
         dag_id = config("ingest_map", "launch.multi")
     except AirflowConfigException:
-        return HubmapApiResponse.bad_request("{} is not a known ingestion process".format("launch.multi"))
+        return HubmapApiResponse.bad_request(
+            "{} is not a known ingestion process".format("launch.multi")
+        )
 
     try:
         session = settings.Session()
@@ -513,7 +539,7 @@ def request_dev_analysis():
         execution_date = datetime.now(tz)
         LOGGER.info("starting {} with execution_date: {}".format(dag_id, execution_date))
 
-        run_id = "{}_{}_{}".format(uuid_list, "launch.multi", execution_date.isoformat())
+        run_id = "{}_{}_{}".format(uuid_list[0], "launch.multi", execution_date.isoformat())
         ingest_id = run_id
 
         conf = {
