@@ -1,7 +1,8 @@
-import sys
-from pathlib import Path
 import logging
+import sys
 import unittest
+from pathlib import Path
+
 
 class add_path:
     """
@@ -36,8 +37,9 @@ def main():
     # directory.  We have to avoid trying to locate anything below the
     # module name "airflow" or we will mix up the two.
     #
-    dags_code_path = (Path(__file__).resolve().parent.parent
-                      / "src" / "ingest-pipeline" / "airflow" / "dags")
+    dags_code_path = (
+        Path(__file__).resolve().parent.parent / "src" / "ingest-pipeline" / "airflow" / "dags"
+    )
     with add_path(str(dags_code_path)):
         kwargs = {"verbosity": 2}
         test_names = []

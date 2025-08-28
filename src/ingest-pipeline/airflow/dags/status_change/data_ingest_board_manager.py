@@ -23,13 +23,13 @@ class DataIngestBoardManager:
         status: Statuses,
         uuid: str,
         token: str,
-        http_conn_id: str,
         error_report: Optional["ingest_validation_tools_error_report.ErrorReport"],
+        *args,
+        **kwargs,
     ):
         self.uuid = uuid
         self.token = token
         self.status = status
-        self.http_conn_id = http_conn_id
         self.error_report = error_report
         self.entity_data = get_submission_context(self.token, self.uuid)
         self.update_fields = self.get_fields()

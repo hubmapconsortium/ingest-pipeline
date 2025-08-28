@@ -1,4 +1,3 @@
-# Run from dags dir as `python -m unittest status_change.tests.test_status_changer`
 import unittest
 from datetime import date
 from functools import cached_property
@@ -52,7 +51,7 @@ class TestEntityUpdater(unittest.TestCase):
         }
 
     @patch("status_change.status_manager.EntityUpdater.validate_fields_to_change")
-    @patch("status_change.status_manager.HttpHook.run")
+    @patch("status_change.status_utils.HttpHook.run")
     def test_update(self, hhr_mock, validate_mock):
         hhr_mock.assert_not_called()
         validate_mock.assert_not_called()
@@ -61,7 +60,7 @@ class TestEntityUpdater(unittest.TestCase):
         hhr_mock.assert_called_once()
 
     @patch("status_change.status_manager.EntityUpdater.set_entity_api_data")
-    @patch("status_change.status_manager.HttpHook.run")
+    @patch("status_change.status_utils.HttpHook.run")
     @patch("status_change.status_manager.StatusChanger.update")
     @patch("status_change.status_manager.get_submission_context")
     def test_should_be_statuschanger(self, context_mock, sc_mock, hhr_mock, eu_mock):
@@ -119,7 +118,7 @@ class TestEntityUpdater(unittest.TestCase):
             self.assertEqual(data["test_extra_field"], True)
 
     @patch("status_change.status_manager.get_submission_context")
-    @patch("status_change.status_manager.HttpHook.run")
+    @patch("status_change.status_utils.HttpHook.run")
     def test_extra_field_good(self, hhr_mock, context_mock):
         context_mock.return_value = {
             "status": "processing",
@@ -136,7 +135,7 @@ class TestEntityUpdater(unittest.TestCase):
         with_extra_field.update()
         self.assertIn('{"test_extra_field": true, "status": "valid"}', hhr_mock.call_args.args)
 
-    @patch("status_change.status_manager.HttpHook.run")
+    @patch("status_change.status_utils.HttpHook.run")
     def test_valid_status_in_request(self, hhr_mock):
         self.upload_valid.validate_fields_to_change()
         self.upload_valid.set_entity_api_data()
@@ -149,7 +148,7 @@ class TestEntityUpdater(unittest.TestCase):
             "test_extra_field": True,
             "entity_type": "Upload",
         }
-        with patch("status_change.status_manager.HttpHook.run"):
+        with patch("status_change.status_utils.HttpHook.run"):
             sc = StatusChanger(
                 "my_test_uuid",
                 "my_test_token",
@@ -166,7 +165,7 @@ class TestEntityUpdater(unittest.TestCase):
                 sc.update()
 
     def test_http_conn_id(self):
-        with patch("status_change.status_manager.HttpHook.run") as httpr_mock:
+        with patch("status_change.status_utils.HttpHook.run") as httpr_mock:
             httpr_mock.return_value.json.return_value = self.good_upload_context
             with_http_conn_id = StatusChanger(
                 "http_conn_uuid",
@@ -176,14 +175,14 @@ class TestEntityUpdater(unittest.TestCase):
             )
             assert with_http_conn_id.http_conn_id == "test_conn_id"
 
-    @patch("status_change.slack_manager.SlackManager.send")
+    @patch("status_change.slack_manager.SlackManager.update")
     @patch("status_change.status_manager.StatusChanger.status_map")
     def test_update_from_status_map(self, status_map_mock, slack_mock):
         status_map_mock.get.side_effect = {Statuses.UPLOAD_VALID: [SlackManager]}.get
         self.assertFalse(slack_mock.called)
         self.assertEqual(self.upload_valid.status, Statuses.UPLOAD_VALID.value)
         with patch("status_change.slack_manager.post_to_slack_notify"):
-            with patch("status_change.status_manager.HttpHook.run"):
+            with patch("status_change.status_utils.HttpHook.run"):
                 self.upload_valid.update()
         self.assertTrue(slack_mock.called)
 
@@ -233,7 +232,7 @@ class TestEntityUpdater(unittest.TestCase):
 
     @patch("utils.get_auth_tok")
     def test_pythonop_set_dataset_state_invalid(self, gat_mock):
-        with patch("status_change.status_manager.HttpHook.run"):
+        with patch("status_change.status_utils.HttpHook.run"):
             uuid = "test_uuid"
             token = "test_token"
             gat_mock.return_value = token
@@ -274,7 +273,7 @@ class TestEntityUpdater(unittest.TestCase):
     def slack_manager(self, status, context, context_mock, slack_mock):
         context_mock.return_value = context
         slack_mock.return_value = context
-        with patch("status_change.slack_manager.SlackManager.send"):
+        with patch("status_change.slack_manager.SlackManager.update"):
             return SlackManager(status, "test_uuid", "test_token")
 
     def test_slack_manager_main_class(self):
@@ -287,16 +286,16 @@ class TestEntityUpdater(unittest.TestCase):
         mgr = self.slack_manager(Statuses.UPLOAD_REORGANIZED, context_copy)
         assert type(mgr.message_class) is SlackUploadReorganizedPriority
 
-    @patch("status_change.slack_manager.SlackManager.send")
-    def test_slack_manager_no_rule(self, send_mock):
+    @patch("status_change.slack_manager.SlackManager.update")
+    def test_slack_manager_no_rule(self, update_mock):
         mgr = SlackManager(Statuses.DATASET_DEPRECATED, "test_uuid", "test_token")
         assert not mgr.message_class
-        send_mock.assert_not_called()
+        update_mock.assert_not_called()
 
     @patch("status_change.slack_manager.get_submission_context")
     @patch("status_change.slack.base.get_submission_context")
     @patch("status_change.status_manager.get_submission_context")
-    @patch("status_change.status_manager.HttpHook.run")
+    @patch("status_change.status_utils.HttpHook.run")
     def test_slack_triggered_by_statuschanger(
         self, hhr_mock, sc_context_mock, slack_context_mock, slack_base_context_mock
     ):
@@ -305,17 +304,17 @@ class TestEntityUpdater(unittest.TestCase):
         slack_context_mock.return_value = new_context
         slack_base_context_mock.return_value = new_context
         with patch("status_change.status_manager.StatusChanger.set_entity_api_data"):
-            with patch("status_change.slack_manager.SlackManager.send") as send_mock:
+            with patch("status_change.slack_manager.SlackManager.update") as update_mock:
                 StatusChanger(
                     "upload_valid_uuid",
                     "upload_valid_token",
                     status="Reorganized",
                     extra_options={},
                 ).update()
-                send_mock.assert_called_once()
+                update_mock.assert_called_once()
                 hhr_mock.assert_not_called()
 
-    @patch("status_change.slack_manager.SlackManager.send")
+    @patch("status_change.slack_manager.SlackManager.update")
     @patch("status_change.status_manager.StatusChanger.status_map")
     @patch("status_change.status_manager.get_submission_context")
     def test_slack_not_triggered_by_statuschanger(self, context_mock, status_map_mock, slack_mock):
@@ -359,7 +358,7 @@ class TestEntityUpdater(unittest.TestCase):
         assert mgr.message_class.channel == channel
 
     @patch("status_change.status_utils.get_submission_context")
-    @patch("traceback.TracebackException")
+    @patch("traceback.TracebackException.from_exception")
     @patch("status_change.callbacks.base.get_auth_tok")
     def test_failure_callback(self, gat_mock, tbfa_mock, gsc_mock):
         def _xcom_getter(key):
@@ -374,7 +373,7 @@ class TestEntityUpdater(unittest.TestCase):
 
         gsc_mock.return_value = self.context_mock_value
         gat_mock.return_value = "auth_token"
-        tbfa_mock.from_exception = _exception_formatter
+        tbfa_mock.side_effect = lambda excp: _exception_formatter(excp)
         dag_run_mock = MagicMock(
             conf={"dryrun": False},
             dag_id="test_dag_id",
@@ -390,17 +389,16 @@ class TestEntityUpdater(unittest.TestCase):
         tweaked_ctx["crypt_auth_tok"] = "test_crypt_auth_tok"
         tweaked_ctx["dag_run"] = dag_run_mock
         tweaked_ctx["exception"] = "FakeTestException"
-        with patch("status_change.status_manager.HttpHook.run") as hhr_mock:
+        with patch("status_change.status_utils.HttpHook.run") as hhr_mock:
             hhr_mock.return_value.json.return_value = self.good_upload_context
             fcb(tweaked_ctx)
+            assert "mytaskid" == fcb.task.task_id
+            assert "test_dag_id" == fcb.dag_run.dag_id
+            assert date(2025, 6, 5) == fcb.dag_run.execution_date
+            assert __name__ == fcb.called_from
+            assert "This is the formatted version of FakeTestException" == fcb.formatted_exception
             args, _ = hhr_mock.call_args
             assert args[0] == "/entities/abc123"
-            assert "mytaskid" in args[1]
-            assert "test_dag_id" in args[1]
-            assert "2025-06-05" in args[1]
-            assert "mytaskid" in args[1]
-            assert __name__ in args[1]
-            assert "This is the formatted version of FakeTestException" in args[1]
             assert args[2]["authorization"] == "Bearer auth_token"
 
 

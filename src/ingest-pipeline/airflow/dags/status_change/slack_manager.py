@@ -21,7 +21,7 @@ class SlackManager:
         msg_and_channel_dict = SlackManager(Statuses.<status>, <uuid>, <token>).update()
     """
 
-    def __init__(self, status: Statuses, uuid: str, token: str, **kwargs):
+    def __init__(self, status: Statuses, uuid: str, token: str, *args, **kwargs):
         self.uuid = uuid
         self.token = token
         self.get_message_class(status)
