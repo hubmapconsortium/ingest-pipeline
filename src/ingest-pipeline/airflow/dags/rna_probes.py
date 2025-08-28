@@ -183,9 +183,14 @@ with HMDAG(
             source_type = unique_source_types.pop().lower()
 
         input_parameters = [
-            {"parameter_name": "--secondary-analysis-matrix", "value": "secondary_analysis.h5ad"},
-            {"parameter_name": "--organism", "value": source_type},
-
+            {
+                "parameter_name": "--secondary_analysis_matrix",
+                "value": str(tmpdir / "cwl_out/secondary_analysis.h5ad"),
+             },
+            {
+                "parameter_name": "--organism",
+                "value": source_type,
+            },
         ]
 
         command = get_cwl_cmd_from_workflows(
