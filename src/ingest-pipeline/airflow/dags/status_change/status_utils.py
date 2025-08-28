@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import json
+import logging
 import traceback
-import urllib.parse
 from enum import Enum
-from typing import Any
+from typing import Any, Optional
 
 from requests import codes
 from requests.exceptions import HTTPError
@@ -84,13 +84,12 @@ def get_submission_context(token: str, uuid: str) -> dict[str, Any]:
     """
     uuid can also be a HuBMAP ID.
     """
-    method = "GET"
     headers = {
         "authorization": f"Bearer {token}",
         "content-type": "application/json",
         "X-Hubmap-Application": "ingest-pipeline",
     }
-    http_hook = HttpHook(method, http_conn_id="entity_api_connection")
+    http_hook = HttpHook("GET", http_conn_id="entity_api_connection")
 
     endpoint = f"entities/{uuid}"
 
@@ -109,28 +108,7 @@ def get_submission_context(token: str, uuid: str) -> dict[str, Any]:
 
 
 def get_hubmap_id_from_uuid(token: str, uuid: str) -> str | None:
-    method = "GET"
-    headers = {
-        "authorization": f"Bearer {token}",
-        "content-type": "application/json",
-        "X-Hubmap-Application": "ingest-pipeline",
-    }
-    http_hook = HttpHook(method, http_conn_id="entity_api_connection")
-
-    endpoint = f"entities/{uuid}"
-
-    try:
-        response = http_hook.run(
-            endpoint, headers=headers, extra_options={"check_response": False}
-        )
-        response.raise_for_status()
-        return response.json().get("hubmap_id")
-    except HTTPError as e:
-        print(f"ERROR: {e}")
-        if e.response.status_code == codes.unauthorized:
-            raise RuntimeError("entity database authorization was rejected?")
-        print("benign error")
-        return None
+    return get_submission_context(token, uuid).get("hubmap_id")
 
 
 def formatted_exception(exception):
@@ -177,26 +155,30 @@ def get_organ(uuid: str, token: str) -> str:
         return ""
 
 
-def get_globus_url(uuid: str, token: str) -> str:
-    """
-    Return the Globus URL (default) for a dataset.
-    URL format is https://app.globus.org/file-manager?origin_id=<id>&origin_path=<uuid | consortium|private/<group>/<uuid>>
-    """
-    path = get_abs_path(uuid, token)
-    prefix = "https://app.globus.org/file-manager?"
-    params = {}
-    if "public" in path:
-        params["origin_id"] = "af603d86-eab9-4eec-bb1d-9d26556741bb"
-        params["origin_path"] = uuid
-    else:
-        params["origin_id"] = "24c2ee95-146d-4513-a1b3-ac0bfdb7856f"
-        params["origin_path"] = path.replace("/hive/hubmap/data", "") + "/"
-    return prefix + urllib.parse.urlencode(params)
-
-
 def post_to_slack_notify(token: str, message: str, channel: str):
     http_hook = HttpHook("POST", http_conn_id="ingest_api_connection")
     payload = json.dumps({"message": message, "channel": channel})
     headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
     response = http_hook.run("/notify", payload, headers)
     response.raise_for_status()
+
+
+def get_primary_dataset(entity_data: dict) -> Optional[str]:
+    if entity_data.get("entity_type", "").lower() == "dataset":
+        for ancestor in entity_data.get("direct_ancestors", []):
+            if ancestor.get("entity_type").lower() == "dataset":
+                return ancestor.get("uuid")
+    return
+
+
+def put_request_to_entity_api(uuid: str, token: str, update_fields: dict) -> dict:
+    endpoint = f"/entities/{uuid}"
+    headers = {
+        "authorization": "Bearer " + token,
+        "X-Hubmap-Application": "ingest-pipeline",
+        "content-type": "application/json",
+    }
+    http_hook = HttpHook("PUT", http_conn_id="entity_api_connection")
+    response = http_hook.run(endpoint, json.dumps(update_fields), headers)
+    logging.info(f"""Response: {response.json()}""")
+    return response.json()

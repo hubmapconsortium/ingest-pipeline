@@ -1,24 +1,26 @@
 from __future__ import annotations
 
-import json
 import logging
 from copy import deepcopy
 from functools import cached_property
-from typing import Any, Optional, Union
+from typing import TYPE_CHECKING, Any, Optional, Union
 
 from schema_utils import (
     localized_assert_json_matches_schema as assert_json_matches_schema,
 )
 
-from airflow.providers.http.hooks.http import HttpHook
-
+from .data_ingest_board_manager import DataIngestBoardManager
 from .slack_manager import SlackManager
 from .status_utils import (
     ENTITY_STATUS_MAP,
     EntityUpdateException,
     Statuses,
     get_submission_context,
+    put_request_to_entity_api,
 )
+
+if TYPE_CHECKING:
+    from submodules import ingest_validation_tools_error_report
 
 ENTITY_JSON_SCHEMA = "entity_metadata_schema.yml"  # from this repo's schemata directory
 
@@ -99,13 +101,6 @@ class EntityUpdater:
         self.set_entity_api_data()
 
     def set_entity_api_data(self) -> dict:
-        endpoint = f"/entities/{self.uuid}"
-        headers = {
-            "authorization": "Bearer " + self.token,
-            "X-Hubmap-Application": "ingest-pipeline",
-            "content-type": "application/json",
-        }
-        http_hook = HttpHook("PUT", http_conn_id=self.http_conn_id)
         logging.info(
             f"""
             data:
@@ -113,7 +108,7 @@ class EntityUpdater:
             """
         )
         try:
-            response = http_hook.run(endpoint, json.dumps(self.fields_to_change), headers)
+            response = put_request_to_entity_api(self.uuid, self.token, self.fields_to_change)
         except Exception as e:
             raise EntityUpdateException(
                 f"""
@@ -122,8 +117,8 @@ class EntityUpdater:
                 Error: {e}
                 """
             )
-        logging.info(f"""Response: {response.json()}""")
-        return response.json()
+        logging.info(f"""Response: {response}""")
+        return response
 
     def validate_fields_to_change(self):
         self._check_fields()
@@ -212,6 +207,7 @@ class StatusChanger(EntityUpdater):
         delimiter: str = "|",
         # Additional field to support privileged field "status"
         status: Optional[Union[Statuses, str]] = None,
+        error_report: Optional["ingest_validation_tools_error_report.ErrorReport"] = None,
         **kwargs,  # Avoid blowing up if passed deprecated params
     ):
         del kwargs
@@ -224,6 +220,7 @@ class StatusChanger(EntityUpdater):
             delimiter,
         )
         self.status = self._validate_status(status)
+        self.error_report = error_report
 
     @property
     def status_map(self):
@@ -239,7 +236,11 @@ class StatusChanger(EntityUpdater):
         }
         """
         return {
+            Statuses.UPLOAD_ERROR: [SlackManager, DataIngestBoardManager],
+            Statuses.UPLOAD_INVALID: [SlackManager, DataIngestBoardManager],
             Statuses.UPLOAD_REORGANIZED: [SlackManager],
+            Statuses.DATASET_ERROR: [SlackManager, DataIngestBoardManager],
+            Statuses.DATASET_INVALID: [SlackManager, DataIngestBoardManager],
             Statuses.DATASET_QA: [SlackManager],
         }
 
@@ -251,7 +252,7 @@ class StatusChanger(EntityUpdater):
             EntityUpdater and return; otherwise log and return.
         - Adds status to fields_to_change.
         - Runs EntityUpdater._set_entity_api_data() process.
-        - Also instantiates any messaging managers from status_map and calls their send methods.
+        - Also instantiates any messaging managers from status_map and calls their update methods.
         """
         if self.status is None:
             if self.fields_to_change:
@@ -266,7 +267,7 @@ class StatusChanger(EntityUpdater):
         self.validate_fields_to_change()
         self.set_entity_api_data()
         for message_method in self.status_map.get(self.status, []):
-            message_method(self.status, self.uuid, self.token).send()
+            message_method(self.status, self.uuid, self.token, self.error_report).update()
 
     def validate_fields_to_change(self):
         super().validate_fields_to_change()

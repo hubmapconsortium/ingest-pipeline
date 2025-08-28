@@ -18,10 +18,10 @@ class SlackManager:
     The relevant message class is composed into this manager based on status and result
     of `test` for any subclasses.
     Use:
-        msg_and_channel_dict = SlackManager(Statuses.<status>, <uuid>, <token>).send()
+        msg_and_channel_dict = SlackManager(Statuses.<status>, <uuid>, <token>).update()
     """
 
-    def __init__(self, status: Statuses, uuid: str, token: str):
+    def __init__(self, status: Statuses, uuid: str, token: str, **kwargs):
         self.uuid = uuid
         self.token = token
         self.get_message_class(status)
@@ -66,7 +66,7 @@ class SlackManager:
                 self.message_class = subclass(self.uuid, self.token, entity_data)
                 break
 
-    def send(self):
+    def update(self):
         if not self.message_class:
             return
         message = self.message_class.format()

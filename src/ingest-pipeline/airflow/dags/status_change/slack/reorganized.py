@@ -1,4 +1,4 @@
-from status_change.status_utils import get_globus_url, get_organ
+from status_change.status_utils import get_abs_path, get_organ
 
 from .base import SlackMessage
 
@@ -31,12 +31,14 @@ class SlackUploadReorganized(SlackMessage):
         if not self.datasets:
             return [""]
         # Add keys as index 0.
-        info = [",".join([*self.dataset_vals, "organ", "globus_url"])]
+        info = [",".join([*self.dataset_vals, "organ", "globus_url", "filesystem_path"])]
         for dataset in self.datasets:
             data = [dataset.get(key, "") for key in self.dataset_vals]
+            uuid = dataset.get("uuid", "")
             # Organ and globus_url are derived from additional API calls.
-            data.append(get_organ(dataset.get("uuid", ""), self.token))
-            data.append(get_globus_url(dataset.get("uuid", ""), self.token))
+            data.append(get_organ(uuid, self.token))
+            data.append(self.get_globus_url(uuid))
+            data.append(get_abs_path(uuid, self.token))
             info.append(", ".join(self._clean_dataset_rows(data)))
         return info
 
@@ -63,7 +65,7 @@ class SlackUploadReorganizedPriority(SlackUploadReorganized):
     Reorganized priority project (SWAT, MOSDAP) uploads.
     """
 
-    name = "priority_upload_reorganized"
+    name = "upload_priority_reorganized"
 
     @property
     def dataset_vals(self):

@@ -2,34 +2,34 @@ from ..status_utils import get_primary_dataset
 from .base import SlackMessage
 
 
-class SlackUploadError(SlackMessage):
-    name = "upload_error"
+class SlackUploadInvalid(SlackMessage):
+    name = "upload_invalid"
 
     def format(self):
         return f"""
-            Upload <{self.get_globus_url}|{self.uuid}> is in Error state.
+            Upload <{self.get_globus_url}|{self.uuid}> is in Invalid state.
             {self.dataset_links}
             """
 
 
-class SlackDatasetError(SlackMessage):
+class SlackDatasetInvalid(SlackMessage):
     """
-    Error occurred during pipeline processing.
+    Primary dataset is invalid.
     """
 
-    name = "dataset_error"
+    name = "dataset_invalid"
 
     def format(self):
         if primary_dataset := get_primary_dataset(self.entity_data):
+            # Just in case any derived datasets make it here.
             child_uuid = self.uuid
             self.uuid = primary_dataset
             return f"""
                 Derived dataset <{self.get_globus_url(child_uuid)}|{child_uuid}> is in Error state.
                 Primary dataset: <{self.get_globus_url()}|{self.uuid}>
                 {self.dataset_links}
-                """
-        # Just in case any non-derived datasets make it here.
+            """
         return f"""
-            Dataset <{self.get_globus_url}|{self.uuid}> is in Error state.
+            Dataset <{self.get_globus_url}|{self.uuid}> is in Invalid state.
             {self.dataset_links}
             """
