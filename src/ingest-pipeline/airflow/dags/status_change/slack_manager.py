@@ -1,6 +1,7 @@
 import logging
 
-# from .slack.error import SlackDatasetErrorPipeline
+from .slack.error import SlackDatasetError, SlackDatasetErrorPrimary
+from .slack.invalid import SlackDatasetInvalid, SlackDatasetInvalidDerived
 from .slack.qa import SlackDatasetQA
 from .slack.reorganized import SlackUploadReorganized, SlackUploadReorganizedPriority
 from .status_utils import (
@@ -38,18 +39,22 @@ class SlackManager:
             Statuses.STATUS: {"main_class": <class_name>, "subclasses": [<class_name>]}
         """
         return {
-            Statuses.UPLOAD_REORGANIZED: {
-                "main_class": SlackUploadReorganized,
-                "subclasses": [SlackUploadReorganizedPriority],
+            Statuses.DATASET_ERROR: {
+                "main_class": SlackDatasetError,
+                "subclasses": [SlackDatasetErrorPrimary],
+            },
+            Statuses.DATASET_INVALID: {
+                "main_class": SlackDatasetInvalid,
+                "subclasses": [SlackDatasetInvalidDerived],
             },
             Statuses.DATASET_QA: {
                 "main_class": SlackDatasetQA,
                 "subclasses": [],
             },
-            # Statuses.DATASET_ERROR: {
-            #     "main_class": None,
-            #     "subclasses": [SlackDatasetErrorPipeline],
-            # },
+            Statuses.UPLOAD_REORGANIZED: {
+                "main_class": SlackUploadReorganized,
+                "subclasses": [SlackUploadReorganizedPriority],
+            },
         }
 
     def get_message_class(self, msg_type: Statuses):

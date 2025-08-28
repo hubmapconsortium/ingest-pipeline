@@ -9,5 +9,7 @@
 
 set -o errexit
 
+env AIRFLOW_HOME=${PWD}/src/ingest-pipeline/airflow
+
 PYTHONPATH=src/ingest-pipeline/airflow/dags/
 env PYTHONPATH=$PYTHONPATH python -m unittest tests.test_status_changer

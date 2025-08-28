@@ -207,7 +207,7 @@ class StatusChanger(EntityUpdater):
         delimiter: str = "|",
         # Additional field to support privileged field "status"
         status: Optional[Union[Statuses, str]] = None,
-        error_report: Optional["ingest_validation_tools_error_report.ErrorReport"] = None,
+        error_report: Optional["ingest_validation_tools_error_report.ErrorReport"] = None,  # type: ignore
         **kwargs,  # Avoid blowing up if passed deprecated params
     ):
         del kwargs
@@ -235,13 +235,18 @@ class StatusChanger(EntityUpdater):
             Statuses.DATASET_QA: [SlackManager]
         }
         """
+
+        # TODO: It may be that variation is not necessary to account for, and managers
+        # can just handle any statuses passed to them that are inapplicable; re-address
+        # following email integration.
         return {
             Statuses.UPLOAD_ERROR: [SlackManager, DataIngestBoardManager],
             Statuses.UPLOAD_INVALID: [SlackManager, DataIngestBoardManager],
-            Statuses.UPLOAD_REORGANIZED: [SlackManager],
+            Statuses.UPLOAD_VALID: [SlackManager, DataIngestBoardManager],
+            Statuses.UPLOAD_REORGANIZED: [SlackManager, DataIngestBoardManager],
             Statuses.DATASET_ERROR: [SlackManager, DataIngestBoardManager],
             Statuses.DATASET_INVALID: [SlackManager, DataIngestBoardManager],
-            Statuses.DATASET_QA: [SlackManager],
+            Statuses.DATASET_QA: [SlackManager, DataIngestBoardManager],
         }
 
     def update(self) -> None:
