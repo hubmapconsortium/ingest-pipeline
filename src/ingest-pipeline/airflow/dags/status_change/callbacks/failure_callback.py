@@ -64,3 +64,9 @@ class FailureCallback(AirflowCallback):
         super().get_data(context)
         exception = context.get("exception")
         self.formatted_exception = formatted_exception(exception)
+
+
+class FailureCallbackPipeline(FailureCallback):
+    """ """
+
+    pass

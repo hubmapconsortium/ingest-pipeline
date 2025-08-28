@@ -34,14 +34,14 @@ class SlackDatasetInvalidDerived(SlackDatasetInvalid):
     name = "dataset_invalid_derived"
 
     @classmethod
-    def test(cls, entity_data):
-        if get_primary_dataset(entity_data):
+    def test(cls, entity_data, token):
+        if get_primary_dataset(entity_data, token):
             return True
         return False
 
     def format(self):
         child_uuid = self.uuid
-        self.uuid = get_primary_dataset(self.entity_data)
+        self.uuid = get_primary_dataset(self.entity_data, self.token)
         return f"""
             Derived dataset <{self.get_globus_url(child_uuid)}|{child_uuid}> is in Error state.
             Primary dataset: <{self.get_globus_url()}|{self.uuid}>

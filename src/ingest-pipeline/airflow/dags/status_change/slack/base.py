@@ -23,7 +23,7 @@ class SlackMessage:
         self.data_ingest_board = "https://ingest.board.hubmapconsortium.org/"
 
     @classmethod
-    def test(cls, entity_data: dict) -> bool:
+    def test(cls, entity_data: dict, token: str) -> bool:
         """
         If there are special case subclasses for a given status, their
         test() methods will be called to determine if the subclass applies.

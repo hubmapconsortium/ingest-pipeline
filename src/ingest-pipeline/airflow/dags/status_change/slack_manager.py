@@ -67,7 +67,7 @@ class SlackManager:
             self.message_class = main_class(self.uuid, self.token, entity_data)
         # Set to main class by default. Run tests on subclasses; instantiate first to qualify.
         for subclass in relevant_classes.get("subclasses", []):
-            if subclass.test(entity_data):
+            if subclass.test(entity_data, self.token):
                 self.message_class = subclass(self.uuid, self.token, entity_data)
                 break
 

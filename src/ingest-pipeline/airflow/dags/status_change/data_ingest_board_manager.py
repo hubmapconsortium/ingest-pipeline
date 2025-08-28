@@ -150,7 +150,7 @@ class DataIngestBoardManager:
         Check if dataset is descendant of another dataset.
         If so, set self.uuid to primary and return child uuid.
         """
-        if primary_uuid := get_primary_dataset(self.entity_data):
+        if primary_uuid := get_primary_dataset(self.entity_data, self.token):
             child_uuid = self.uuid
             self.uuid = primary_uuid
             return child_uuid

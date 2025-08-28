@@ -163,12 +163,29 @@ def post_to_slack_notify(token: str, message: str, channel: str):
     response.raise_for_status()
 
 
-def get_primary_dataset(entity_data: dict) -> Optional[str]:
-    if entity_data.get("entity_type", "").lower() == "dataset":
-        for ancestor in entity_data.get("direct_ancestors", []):
-            if ancestor.get("entity_type").lower() == "dataset":
-                return ancestor.get("uuid")
-    return
+def get_ancestors(uuid: str, token: str) -> dict:
+    endpoint = f"/ancestors/{uuid}"
+    headers = {
+        "authorization": "Bearer " + token,
+        "X-Hubmap-Application": "ingest-pipeline",
+        "content-type": "application/json",
+    }
+    http_hook = HttpHook("GET", http_conn_id="entity_api_connection")
+    response = http_hook.run(endpoint, headers)
+    logging.info(f"""Response: {response.json()}""")
+    return response.json()
+
+
+def get_primary_dataset(entity_data: dict, token: str) -> Optional[str]:
+    # Weed out multi-assay
+    dag_provenance_list = entity_data.get("ingest_metadata", {}).get("dag_provenance_list", [])
+    for dag in dag_provenance_list:
+        if ".cwl" in dag.get("name", ""):
+            # If it's been through a pipeline, then find ancestor dataset
+            ancestors = get_ancestors(entity_data.get("uuid", ""), token)
+            for ancestor in ancestors:
+                if ancestor.get("entity_type", "").lower() == "dataset":
+                    return ancestor.get("uuid")
 
 
 def put_request_to_entity_api(uuid: str, token: str, update_fields: dict) -> dict:
