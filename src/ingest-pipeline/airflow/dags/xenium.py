@@ -63,7 +63,7 @@ with HMDAG(
     },
 ) as dag:
     workflow_version = "1.0.0"
-    workflow_description = "The pipeline for Xenium data converts the vendor's segmentation and quantification results to the AnnData and SpatialData formats, which are used by ScanPy for downstream analysis including dimensionality reduction, unsupervised clustering, and differential expression analysis. These segmentation and quantification results are also used by SquidPy to perform some spatial analysis on the data."
+    workflow_description = "The Xenium pipeline converts the vendor's pipeline outputs into h5ad and zarr-backed SpatialData objects.  It then performs our standard analysis pipeline of dimensionality reduction, clustering, and differenital expression analysis with ScanPy and spatial analysis with SquidPy."
 
     cwl_workflows = [
         {
@@ -97,7 +97,6 @@ with HMDAG(
     def build_dataset_name(**kwargs):
         return inner_build_dataset_name(dag.dag_id, "salmon-rnaseq", **kwargs)
 
-
     @task(task_id="prepare_cwl1")
     def prepare_cwl_cmd1(**kwargs):
         if kwargs["dag_run"].conf.get("dryrun"):
@@ -105,7 +104,6 @@ with HMDAG(
             return build_tag_containers(cwl_path)
         else:
             return "No Container build required"
-
 
     prepare_cwl1 = prepare_cwl_cmd1()
 
@@ -407,12 +405,14 @@ with HMDAG(
 
     send_status_msg = make_send_status_msg_function(
         dag_file=__file__,
-        retcode_ops=["pipeline_exec",
-                     "move_data",
-                     "convert_for_ui",
-                     "convert_for_ui_2",
-                     "pipeline_exec_cwl_ome_tiff_pyramid",
-                     "pipeline_exec_cwl_ome_tiff_offsets"],
+        retcode_ops=[
+            "pipeline_exec",
+            "move_data",
+            "convert_for_ui",
+            "convert_for_ui_2",
+            "pipeline_exec_cwl_ome_tiff_pyramid",
+            "pipeline_exec_cwl_ome_tiff_offsets",
+        ],
         cwl_workflows=lambda **kwargs: kwargs["ti"].xcom_pull(
             key="cwl_workflows", task_ids="build_cmd5"
         ),
@@ -435,33 +435,27 @@ with HMDAG(
     (
         t_log_info
         >> t_create_tmpdir
-
         >> prepare_cwl1
         >> t_build_cmd1
         >> t_pipeline_exec
         >> t_maybe_keep_cwl1
-
         >> prepare_cwl2
         >> t_build_cmd2
         >> t_convert_for_ui
         >> t_maybe_keep_cwl2
-
         >> prepare_cwl3
         >> t_build_cmd3
         >> t_convert_for_ui_2
         >> t_maybe_keep_cwl3
-
         >> prepare_cwl4
         >> t_build_cmd4
         >> t_pipeline_exec_cwl_ome_tiff_pyramid
         >> t_maybe_keep_cwl4
-
         >> prepare_cwl5
         >> t_build_cmd5
         >> t_pipeline_exec_cwl_ome_tiff_offsets
         >> t_maybe_keep_cwl5
         >> t_maybe_create_dataset
-
         >> t_send_create_dataset
         >> t_move_data
         >> t_send_status

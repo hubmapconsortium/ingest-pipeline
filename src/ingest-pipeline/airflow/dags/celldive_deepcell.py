@@ -62,11 +62,13 @@ with HMDAG(
 ) as dag:
     pipeline_name = "celldive-pipeline"
     workflow_version = "1.0.0"
-    workflow_description = ""
+    workflow_description = "The CellDive pipeline performs segments nuclei and cells using Cytokit, and performs spatial analysis of expression data using SPRM, which computes various measures of analyte intensity per cell, performs clustering based on expression and other data, and computes markers for each cluster."
 
     cwl_workflows = [
         {
-            "workflow_path": str(get_absolute_workflow(Path("phenocycler-pipeline", "pipeline.cwl"))),
+            "workflow_path": str(
+                get_absolute_workflow(Path("phenocycler-pipeline", "pipeline.cwl"))
+            ),
             "documentation_url": "",
         },
         {
@@ -549,43 +551,35 @@ with HMDAG(
     (
         t_log_info
         >> t_create_tmpdir
-
         >> prepare_cwl_segmentation
         >> t_build_cwl_segmentation
         >> t_pipeline_exec_cwl_segmentation
         >> t_maybe_keep_cwl_segmentation
-
         >> prepare_cwl_sprm
         >> t_build_cmd_sprm
         >> t_pipeline_exec_cwl_sprm
         >> t_maybe_keep_cwl_sprm
-
         >> prepare_cwl_create_vis_symlink_archive
         >> t_build_cmd_create_vis_symlink_archive
         >> t_pipeline_exec_cwl_create_vis_symlink_archive
         >> t_maybe_keep_cwl_create_vis_symlink_archive
-
         >> prepare_cwl_ome_tiff_pyramid
         >> t_build_cmd_ome_tiff_pyramid
         >> t_pipeline_exec_cwl_ome_tiff_pyramid
         >> t_maybe_keep_cwl_ome_tiff_pyramid
-
         >> prepare_cwl_ome_tiff_offsets
         >> t_build_cmd_ome_tiff_offsets
         >> t_pipeline_exec_cwl_ome_tiff_offsets
         >> t_maybe_keep_cwl_ome_tiff_offsets
-
         >> prepare_cwl_sprm_to_json
         >> t_build_cmd_sprm_to_json
         >> t_pipeline_exec_cwl_sprm_to_json
         >> t_maybe_keep_cwl_sprm_to_json
-
         >> prepare_cwl_sprm_to_anndata
         >> t_build_cmd_sprm_to_anndata
         >> t_pipeline_exec_cwl_sprm_to_anndata
         >> t_maybe_keep_cwl_sprm_to_anndata
         >> t_maybe_create_dataset
-
         >> t_send_create_dataset
         >> t_move_data
         >> t_expand_symlinks
