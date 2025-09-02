@@ -169,7 +169,7 @@ def create_new_uuid(row, source_entity, entity_factory, primary_entity, dryrun=F
             is_epic=is_epic,
             priority_project_list=priority_project_list,
         )
-        time.sleep(15)
+        time.sleep(10)
         return rslt["uuid"]
 
 
@@ -395,18 +395,18 @@ def update_upload_entity(child_uuid_list, source_entity, dryrun=False, verbose=F
                 status=Statuses.UPLOAD_REORGANIZED,
                 verbose=verbose,
             ).update()
-            time.sleep(15)
+            time.sleep(10)
             print(f"{source_entity.uuid} status is Reorganized")
 
             # Batch update the child uuids
-            for chunk in np.array_split(child_uuid_list, 50):
+            for chunk in np.array_split(child_uuid_list, 100):
                 StatusChanger(
                     source_entity.uuid,
                     source_entity.entity_factory.auth_tok,
                     fields_to_overwrite={"dataset_uuids_to_link": list(chunk)},
                     verbose=verbose,
                 ).update()
-                time.sleep(15)
+                time.sleep(10)
 
             for uuid in child_uuid_list:
                 print(f"Setting status of dataset {uuid} to Submitted")
@@ -416,7 +416,7 @@ def update_upload_entity(child_uuid_list, source_entity, dryrun=False, verbose=F
                     status=Statuses.DATASET_SUBMITTED,
                     verbose=verbose,
                 ).update()
-                time.sleep(15)
+                time.sleep(10)
                 print(
                     f"Reorganized new: {uuid} from Upload: {source_entity.uuid} status is Submitted"
                 )
@@ -440,7 +440,7 @@ def submit_uuid(uuid, entity_factory, dryrun=False):
             uuid=uuid,
             contains_human_genetic_sequences=uuid_entity_to_submit.contains_human_genetic_sequences,
         )
-        time.sleep(15)
+        time.sleep(10)
         return rslt
 
 
