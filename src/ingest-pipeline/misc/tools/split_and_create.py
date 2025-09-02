@@ -408,18 +408,19 @@ def update_upload_entity(child_uuid_list, source_entity, dryrun=False, verbose=F
                 ).update()
                 time.sleep(10)
 
-            for uuid in child_uuid_list:
-                print(f"Setting status of dataset {uuid} to Submitted")
-                StatusChanger(
-                    uuid,
-                    source_entity.entity_factory.auth_tok,
-                    status=Statuses.DATASET_SUBMITTED,
-                    verbose=verbose,
-                ).update()
+            for child_uuid_chunk in np.array_split(child_uuid_list, 10):
+                for uuid in child_uuid_chunk:
+                    print(f"Setting status of dataset {uuid} to Submitted")
+                    StatusChanger(
+                        uuid,
+                        source_entity.entity_factory.auth_tok,
+                        status=Statuses.DATASET_SUBMITTED,
+                        verbose=verbose,
+                    ).update()
+                    print(
+                        f"Reorganized new: {uuid} from Upload: {source_entity.uuid} status is Submitted"
+                    )
                 time.sleep(10)
-                print(
-                    f"Reorganized new: {uuid} from Upload: {source_entity.uuid} status is Submitted"
-                )
     else:
         print(
             f"source entity <{source_entity.uuid}> is not an upload,"
