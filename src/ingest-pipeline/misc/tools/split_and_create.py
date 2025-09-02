@@ -399,7 +399,9 @@ def update_upload_entity(child_uuid_list, source_entity, dryrun=False, verbose=F
             print(f"{source_entity.uuid} status is Reorganized")
 
             # Batch update the child uuids
-            for chunk in np.array_split(child_uuid_list, 100):
+            for chunk in [
+                child_uuid_list[i : i + 100] for i in range(0, len(child_uuid_list), 100)
+            ]:
                 StatusChanger(
                     source_entity.uuid,
                     source_entity.entity_factory.auth_tok,
@@ -408,7 +410,9 @@ def update_upload_entity(child_uuid_list, source_entity, dryrun=False, verbose=F
                 ).update()
                 time.sleep(10)
 
-            for child_uuid_chunk in np.array_split(child_uuid_list, 10):
+            for child_uuid_chunk in [
+                child_uuid_list[i : i + 10] for i in range(0, len(child_uuid_list), 10)
+            ]:
                 for uuid in child_uuid_chunk:
                     print(f"Setting status of dataset {uuid} to Submitted")
                     StatusChanger(
