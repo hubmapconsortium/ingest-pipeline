@@ -584,6 +584,7 @@ def create_multiassay_component(
         headers=headers,
         data=json.dumps(data),
     )
+    time.sleep(10)
     response.raise_for_status()
 
 
