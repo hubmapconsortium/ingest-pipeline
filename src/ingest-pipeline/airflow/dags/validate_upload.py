@@ -96,9 +96,16 @@ with HMDAG(
         provide_context=True,
     )
 
+    def set_upload_processing(**kwargs):
+        StatusChanger(
+            kwargs["ti"].xcom_pull(key="uuid"),
+            get_auth_tok(**kwargs),
+            status="Processing",
+        ).update()
+
     t_set_upload_processing = PythonOperator(
         task_id="set_upload_processing",
-        python_callable=pythonop_get_dataset_state,
+        python_callable=set_upload_processing,
         provide_context=True,
         op_kwargs={"dataset_uuid_callable": lambda **kwargs: kwargs["ti"].xcom_pull(key="uuid")},
     )
