@@ -496,14 +496,29 @@ def reorganize(source_uuid, **kwargs) -> Union[Tuple, None]:
                 axis=1,
                 dataset_type=full_entity.primary_assay.get("dataset-type"),
             )
-            source_df["new_uuid"] = source_df.apply(
-                create_new_uuid,
-                axis=1,
-                source_entity=source_entity,
-                entity_factory=entity_factory,
-                primary_entity=full_entity.primary_assay,
-                dryrun=dryrun,
-            )
+
+            new_uuids = []
+            for df_chunk in np.array_split(source_df, 10):
+                for df in df_chunk:
+                    new_uuids.append(
+                        create_new_uuid(
+                            df,
+                            source_entity=source_entity,
+                            entity_factory=entity_factory,
+                            primary_entity=full_entity.primary_assay,
+                            dryrun=dryrun,
+                        )
+                    )
+                time.sleep(10)
+
+            # source_df["new_uuid"] = source_df.apply(
+            #     create_new_uuid,
+            #     axis=1,
+            #     source_entity=source_entity,
+            #     entity_factory=entity_factory,
+            #     primary_entity=full_entity.primary_assay,
+            #     dryrun=dryrun,
+            # )
             source_df = apply_special_case_transformations(source_df, source_data_types)
             print(source_df[["data_path", "canonical_assay_type", "new_uuid"]])
             this_frozen_df_fname = frozen_df_fname.format("_" + str(src_idx))
