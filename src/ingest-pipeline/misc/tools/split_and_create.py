@@ -497,9 +497,6 @@ def reorganize(source_uuid, **kwargs) -> Union[Tuple, None]:
                 dataset_type=full_entity.primary_assay.get("dataset-type"),
             )
 
-            source_df["new_uuid"] = [i for i in range(len(source_df))]
-            print(source_df)
-            exit(1)
             new_uuids = []
             for df_chunk in np.array_split(source_df, 10):
                 for df in df_chunk:
