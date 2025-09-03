@@ -169,7 +169,6 @@ def create_new_uuid(row, source_entity, entity_factory, primary_entity, dryrun=F
             is_epic=is_epic,
             priority_project_list=priority_project_list,
         )
-        time.sleep(10)
         return rslt["uuid"]
 
 
