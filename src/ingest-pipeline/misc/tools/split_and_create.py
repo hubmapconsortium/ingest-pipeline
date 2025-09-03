@@ -511,6 +511,8 @@ def reorganize(source_uuid, **kwargs) -> Union[Tuple, None]:
                     )
                 time.sleep(10)
 
+            source_df["new_uuid"] = new_uuids
+
             # source_df["new_uuid"] = source_df.apply(
             #     create_new_uuid,
             #     axis=1,
