@@ -302,13 +302,13 @@ with HMDAG(
     def xcom_consistency_puller(**kwargs):
         return kwargs["ti"].xcom_pull(task_ids="split_stage_2", key="child_uuid_list")
 
-
     @task(task_id="permission_resetting")
     def permission_resetting(**kwargs):
         return_error = []
         entity_host = HttpHook.get_connection("entity_api_connection").host
-        entity_factory = EntityFactory(get_auth_tok(**kwargs),
-                                       instance=find_matching_endpoint(entity_host))
+        entity_factory = EntityFactory(
+            get_auth_tok(**kwargs), instance=find_matching_endpoint(entity_host)
+        )
         for uuid in kwargs["ti"].xcom_pull(task_ids="split_stage_2", key="child_uuid_list"):
             return_error.append(process_one_uuid(uuid, entity_factory))
         if False in return_error:
@@ -338,19 +338,24 @@ with HMDAG(
     )
 
     def wrapped_send_status_msg(**kwargs):
-        for uuid in kwargs["ti"].xcom_pull(task_ids="split_stage_2", key="child_uuid_list"):
-            kwargs["uuid_dataset"] = uuid
-            if send_status_msg(**kwargs):
-                scanned_md = read_metadata_file(**kwargs)  # Yes, it's getting re-read
-                print(
-                    f"""Got CollectionType {scanned_md['collectiontype'] 
-                    if 'collectiontype' in scanned_md else None} """
-                )
-                soft_data_assay_type = get_soft_data_assaytype(uuid, **kwargs)
-                print(f"Got {soft_data_assay_type} as the soft_data_type for UUID {uuid}")
-            else:
-                print(f"Something went wrong!!")
-                return 1
+        child_uuid_list = kwargs["ti"].xcom_pull(task_ids="split_stage_2", key="child_uuid_list")
+        for child_uuid_chunk in [
+            child_uuid_list[i : i + 10] for i in range(0, len(child_uuid_list), 10)
+        ]:
+            for uuid in child_uuid_chunk:
+                kwargs["uuid_dataset"] = uuid
+                if send_status_msg(**kwargs):
+                    scanned_md = read_metadata_file(**kwargs)  # Yes, it's getting re-read
+                    print(
+                        f"""Got CollectionType {scanned_md['collectiontype'] 
+                        if 'collectiontype' in scanned_md else None} """
+                    )
+                    soft_data_assay_type = get_soft_data_assaytype(uuid, **kwargs)
+                    print(f"Got {soft_data_assay_type} as the soft_data_type for UUID {uuid}")
+                else:
+                    print(f"Something went wrong!!")
+                    return 1
+            time.sleep(10)
         return 0
 
     t_send_status = PythonOperator(
@@ -426,18 +431,13 @@ with HMDAG(
         t_log_info
         >> t_find_uuid
         >> t_create_tmpdir
-
         >> t_split_stage_1
         >> t_maybe_keep_1
-
         >> t_split_stage_2
         >> t_maybe_keep_2
-
         >> t_run_md_extract
         >> t_md_consistency_tests
-
         >> t_reset_permissions
-
         >> t_send_status
         >> t_join
         >> t_preserve_info
