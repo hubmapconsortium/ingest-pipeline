@@ -407,7 +407,7 @@ def update_upload_entity(child_uuid_list, source_entity, dryrun=False, verbose=F
                     fields_to_overwrite={"dataset_uuids_to_link": list(chunk)},
                     verbose=verbose,
                 ).update()
-                time.sleep(10)
+                time.sleep(60)
 
             for child_uuid_chunk in [
                 child_uuid_list[i : i + 10] for i in range(0, len(child_uuid_list), 10)
