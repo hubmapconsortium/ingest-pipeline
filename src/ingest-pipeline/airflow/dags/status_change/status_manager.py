@@ -71,6 +71,7 @@ class EntityUpdater:
         delimiter: str = "|",
         extra_options: Optional[dict] = None,
         verbose: bool = True,
+        reindex: bool = True,
     ):
         self.uuid = uuid
         self.token = token
@@ -81,6 +82,7 @@ class EntityUpdater:
         self.extra_options = extra_options if extra_options else {}
         self.verbose = verbose
         self.entity_type = self.get_entity_type()
+        self.reindex = reindex
 
     @cached_property
     def entity_data(self):
@@ -145,7 +147,7 @@ class EntityUpdater:
             return data
 
     def _set_entity_api_data(self) -> dict:
-        endpoint = f"/entities/{self.uuid}"
+        endpoint = f"/entities/{self.uuid}?reindex={self.reindex}"
         headers = {
             "authorization": "Bearer " + self.token,
             "X-Hubmap-Application": "ingest-pipeline",
@@ -253,6 +255,7 @@ class StatusChanger(EntityUpdater):
         # Additional fields added to support privileged field "status"
         status: Optional[Union[Statuses, str]] = None,
         entity_type: Optional[Literal["Dataset", "Upload", "Publication"]] = None,
+        reindex: bool = True,
     ):
         super().__init__(
             uuid,
@@ -263,6 +266,7 @@ class StatusChanger(EntityUpdater):
             delimiter,
             extra_options,
             verbose,
+            reindex,
         )
         self.entity_type = entity_type if entity_type else self.get_entity_type()
         if not status:

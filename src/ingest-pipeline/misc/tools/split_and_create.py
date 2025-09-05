@@ -168,6 +168,7 @@ def create_new_uuid(row, source_entity, entity_factory, primary_entity, dryrun=F
             description=description,
             is_epic=is_epic,
             priority_project_list=priority_project_list,
+            reindex=False,
         )
         return rslt["uuid"]
 
@@ -393,8 +394,9 @@ def update_upload_entity(child_uuid_list, source_entity, dryrun=False, verbose=F
                 source_entity.entity_factory.auth_tok,
                 status=Statuses.UPLOAD_REORGANIZED,
                 verbose=verbose,
+                reindex=False,
             ).update()
-            time.sleep(10)
+            time.sleep(30)
             print(f"{source_entity.uuid} status is Reorganized")
 
             # Batch update the child uuids
@@ -406,6 +408,7 @@ def update_upload_entity(child_uuid_list, source_entity, dryrun=False, verbose=F
                     source_entity.entity_factory.auth_tok,
                     fields_to_overwrite={"dataset_uuids_to_link": list(chunk)},
                     verbose=verbose,
+                    reindex=False,
                 ).update()
                 time.sleep(60)
 
@@ -419,11 +422,12 @@ def update_upload_entity(child_uuid_list, source_entity, dryrun=False, verbose=F
                         source_entity.entity_factory.auth_tok,
                         status=Statuses.DATASET_SUBMITTED,
                         verbose=verbose,
+                        reindex=False,
                     ).update()
                     print(
                         f"Reorganized new: {uuid} from Upload: {source_entity.uuid} status is Submitted"
                     )
-                time.sleep(60)
+                time.sleep(30)
     else:
         print(
             f"source entity <{source_entity.uuid}> is not an upload,"
@@ -443,6 +447,7 @@ def submit_uuid(uuid, entity_factory, dryrun=False):
         rslt = entity_factory.submit_dataset(
             uuid=uuid,
             contains_human_genetic_sequences=uuid_entity_to_submit.contains_human_genetic_sequences,
+            reindex=False,
         )
         time.sleep(10)
         return rslt
@@ -509,7 +514,7 @@ def reorganize(source_uuid, **kwargs) -> Union[Tuple, None]:
                             dryrun=dryrun,
                         )
                     )
-                time.sleep(60)
+                time.sleep(30)
 
             source_df["new_uuid"] = new_uuids
 

@@ -355,7 +355,7 @@ with HMDAG(
                 else:
                     print(f"Something went wrong!!")
                     return 1
-            time.sleep(10)
+            time.sleep(30)
         return 0
 
     t_send_status = PythonOperator(
