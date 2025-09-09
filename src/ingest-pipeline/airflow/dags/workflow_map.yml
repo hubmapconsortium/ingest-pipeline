@@ -140,6 +140,7 @@ workflow_map:
   - 'collection_type': '.*'
     'assay_type': 'xenium'
     'workflow': 'xenium'
+  - 'collection_type': '.*'
     'assay_type': 'AB-PAS'
     'workflow': 'ometiff_pyramid'
   - 'collection_type': '.*'
