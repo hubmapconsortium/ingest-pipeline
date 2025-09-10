@@ -264,6 +264,9 @@ class StatusChanger(EntityUpdater):
             if self.fields_to_change:
                 self.fields_to_overwrite.pop("status", None)
                 self.fields_to_append_to.pop("status", None)
+                logging.info(
+                    f"No status for {self.uuid}, sending to EntityUpdater to update fields: {self.fields_to_append_to | self.fields_to_overwrite}"
+                )
                 super().update()
             else:
                 logging.info(
@@ -271,14 +274,19 @@ class StatusChanger(EntityUpdater):
                 )
             return
         elif self.same_status == True:
-            logging.info(
-                f"Same status passed, no fields to change for {self.uuid}, skipping entity-api update; sending relevant notifications."
-            )
             if self.fields_to_change:
+                logging.info(
+                    f"Status for {self.uuid} unchanged, sending to EntityUpdater to update fields: {self.fields_to_append_to | self.fields_to_overwrite}"
+                )
                 self.fields_to_overwrite.pop("status", None)
                 self.fields_to_append_to.pop("status", None)
                 super().update()
+            else:
+                logging.info(
+                    f"Same status passed, no fields to change for {self.uuid}, skipping entity-api update."
+                )
         else:
+            logging.info("Updating status...")
             self.validate_fields_to_change()
             self.set_entity_api_data()
         for message_method in self.status_map.get(self.status, []):
