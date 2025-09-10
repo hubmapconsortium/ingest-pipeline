@@ -221,6 +221,7 @@ class StatusChanger(EntityUpdater):
         )
         self.status = self._validate_status(status)
         self.error_report = error_report
+        self.same_status = False
 
     @property
     def status_map(self):
@@ -269,8 +270,13 @@ class StatusChanger(EntityUpdater):
                     f"No status to update or fields to change for {self.uuid}, not making any changes in entity-api."
                 )
             return
-        self.validate_fields_to_change()
-        self.set_entity_api_data()
+        elif self.same_status == True:
+            logging.info(
+                f"Same status passed, no fields to change for {self.uuid}, skipping entity-api update."
+            )
+        else:
+            self.validate_fields_to_change()
+            self.set_entity_api_data()
         for message_method in self.status_map.get(self.status, []):
             message_method(self.status, self.uuid, self.token, self.error_report).update()
 
@@ -295,12 +301,12 @@ class StatusChanger(EntityUpdater):
                     """
                 )
         assert type(status) is Statuses
-        # Can't set the same status over the existing status; set status to None.
+        # Can't set the same status over the existing status; keep status but set same_status = True.
         if status == self.entity_data["status"].lower():
             logging.info(
                 f"Status passed to StatusChanger is the same as the current status in Entity API."
             )
-            return
+            self.same_status = True
         # Double-check that you don't have different values for status in other fields.
         elif (extra_status := self.fields_to_change.get("status")) is not None and isinstance(
             extra_status, str

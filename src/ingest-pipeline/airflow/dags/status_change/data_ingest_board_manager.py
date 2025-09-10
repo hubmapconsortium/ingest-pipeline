@@ -14,6 +14,10 @@ if TYPE_CHECKING:
 
 
 class DataIngestBoardManager:
+    # TODO: derived datasets are not created until pipeline steps succeed;
+    # therefore there is no status change to indicate failed pipeline run.
+    # Pipelines hit set_dataset_error but do not set error on primary.
+    # Perhaps add EntityUpdater call *somewhere* in set_dataset_error?
     """
     Handle updating metadata fields tied to Data Ingest Board.
     """
