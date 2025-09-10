@@ -1,0 +1,24 @@
+'$schema': 'http://json-schema.org/schema#'
+'$id': 'http://schemata.hubmapconsortium.org/rebuild_metadata_schema.yml'
+'title': 'rebuild_metadata metadata schema'
+'description': 'rebuild_metadata metadata schema'
+
+'allOf': [{'$ref': '#/definitions/rebuild_metadata'}]
+
+'definitions':
+
+  'launch_checksums':
+     'type': 'object'
+     'properties':
+        'uuid':
+          'type': 'string'
+          'description': 'a dataset uuid'
+        'lz_path':
+          'type': 'string'
+          'description': 'a dataset uuid'
+        'src_path':
+          'type': 'string'
+          'description': 'a dataset uuid'
+        
+     'required': ['uuid', 'lz_path', 'src_path']
+    

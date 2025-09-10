@@ -100,9 +100,7 @@ with HMDAG(
         pprint(kwargs["dag_run"].conf)
 
         try:
-            assert_json_matches_schema(
-                kwargs["dag_run"].conf, "launch_checksums_metadata_schema.yml"
-            )
+            assert_json_matches_schema(kwargs["dag_run"].conf, "rebuild_metadata_schema.yml")
         except AssertionError as e:
             print("invalid metadata follows:")
             pprint(kwargs["dag_run"].conf)
