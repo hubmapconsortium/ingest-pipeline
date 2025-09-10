@@ -1,5 +1,5 @@
 '$schema': 'http://json-schema.org/schema#'
-'$id': 'http://schemata.hubmapconsortium.org/launch_checksums_schema.yml'
+'$id': 'http://schemata.hubmapconsortium.org/rebuild_metadata_schema.yml'
 'title': 'launch_checksums metadata schema'
 'description': 'rebuild_metadata metadata schema'
 
@@ -13,5 +13,12 @@
         'uuid':
           'type': 'string'
           'description': 'a dataset uuid'
-     'required': ['uuid']
+        'lz_path':
+          'type': 'string'
+          'description': 'a dataset uuid'
+        'src_path':
+          'type': 'string'
+          'description': 'a dataset uuid'
+        
+     'required': ['uuid', 'lz_path', 'src_path']
     
