@@ -231,6 +231,7 @@ with HMDAG(
         tmp_dir_path = get_tmp_dir_path(run_id)
 
         uuids = kwargs["ti"].xcom_pull(task_ids="check_uuids", key="uuids")
+        dryrun = kwargs["dag_run"].conf.get("dryrun", False)
 
         full_df = pd.read_csv(Path(tmp_dir_path) / "cksums.tsv", sep="\t")
 
@@ -242,14 +243,21 @@ with HMDAG(
 
             while low_rec < tot_recs:
                 block_df = uuid_df.iloc[low_rec : low_rec + RECS_PER_BLOCK]
-                uuid_responses = pd.concat([uuid_responses, send_block(uuid, block_df, **kwargs)])
+
+                if not dryrun:
+                    uuid_responses = pd.concat(
+                        [uuid_responses, send_block(uuid, block_df, **kwargs)]
+                    )
+
                 low_rec += RECS_PER_BLOCK
 
         # With the responses from the uuid API, we need to add the file uuids to our TSV.
         # Those uuids will be used by the DRS.
-        full_df = full_df.merge(
-            uuid_responses[["sha256_checksum", "hm_uuid"]], on="sha256_checksum"
-        )
+        if not dryrun:
+            full_df = full_df.merge(
+                uuid_responses[["sha256_checksum", "hm_uuid"]], on="sha256_checksum"
+            )
+
         full_df.to_csv(Path(tmp_dir_path) / "cksums_and_uuids.tsv", sep="\t")
 
     t_send_checksums = PythonOperator(
