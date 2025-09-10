@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from copy import deepcopy
-from functools import cache, cached_property
+from functools import cached_property
 from typing import TYPE_CHECKING, Any, Optional, Union
 
 from schema_utils import (
@@ -63,11 +63,13 @@ class EntityUpdater:
 
     @property
     def fields_to_change(self) -> dict:
-        """
-        Passthrough to memoized _fields_to_change, will only re-calculate if
-        fields_to_overwrite/fields_to_append_to change.
-        """
-        return self._fields_to_change(self.fields_to_overwrite.copy, self.fields_to_append_to.copy)
+        duplicates = set(self.fields_to_overwrite.keys()).intersection(
+            set(self.fields_to_append_to.keys())
+        )
+        assert (
+            not duplicates
+        ), f"Field(s) {', '.join(duplicates)} cannot be both appended to and overwritten."
+        return self._update_existing_values() | self.fields_to_overwrite
 
     def update(self):
         """
@@ -121,24 +123,6 @@ class EntityUpdater:
     def validate_fields_to_change(self):
         self._check_fields()
 
-    @cache
-    def _fields_to_change(self, fields_to_overwrite: dict, fields_to_append_to: dict) -> dict:
-        duplicates = set(fields_to_overwrite.keys()).intersection(set(fields_to_append_to.keys()))
-        assert (
-            not duplicates
-        ), f"Field(s) {', '.join(duplicates)} cannot be both appended to and overwritten."
-        return self._update_existing_values(fields_to_append_to) | fields_to_overwrite
-
-    def _update_existing_values(self, fields_to_append_to: dict):
-        new_field_data = {}
-        for field, value in fields_to_append_to.items():
-            existing_field_data = self.entity_data.get(field, "")
-            if existing_field_data:
-                new_field_data[field] = existing_field_data + f" {self.delimiter} " + value
-            else:
-                new_field_data[field] = value
-        return new_field_data
-
     def _check_fields(self):
         original_entity_type = self.entity_data.get("entity_type")
         updated_entity_data = self.entity_data.copy()
@@ -158,6 +142,16 @@ class EntityUpdater:
             )
         except AssertionError as excp:
             raise EntityUpdateException(excp) from excp
+
+    def _update_existing_values(self):
+        new_field_data = {}
+        for field, value in self.fields_to_append_to.items():
+            existing_field_data = self.entity_data.get(field, "")
+            if existing_field_data:
+                new_field_data[field] = existing_field_data + f" {self.delimiter} " + value
+            else:
+                new_field_data[field] = value
+        return new_field_data
 
     @staticmethod
     def _enums_to_lowercase(data: Any) -> Any:
