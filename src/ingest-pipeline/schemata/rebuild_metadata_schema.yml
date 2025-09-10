@@ -1,6 +1,6 @@
 '$schema': 'http://json-schema.org/schema#'
 '$id': 'http://schemata.hubmapconsortium.org/rebuild_metadata_schema.yml'
-'title': 'launch_checksums metadata schema'
+'title': 'rebuild_metadata metadata schema'
 'description': 'rebuild_metadata metadata schema'
 
 'allOf': [{'$ref': '#/definitions/rebuild_metadata'}]
