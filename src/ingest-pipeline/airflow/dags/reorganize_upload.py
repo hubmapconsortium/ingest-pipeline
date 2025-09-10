@@ -335,28 +335,24 @@ with HMDAG(
         dataset_lz_path_fun=get_dataset_lz_path,
         metadata_fun=read_metadata_file,
         include_file_metadata=False,
-        reindex=False,
     )
 
     def wrapped_send_status_msg(**kwargs):
         child_uuid_list = kwargs["ti"].xcom_pull(task_ids="split_stage_2", key="child_uuid_list")
-        for child_uuid_chunk in [
-            child_uuid_list[i : i + 10] for i in range(0, len(child_uuid_list), 10)
-        ]:
-            for uuid in child_uuid_chunk:
-                kwargs["uuid_dataset"] = uuid
-                if send_status_msg(**kwargs):
-                    scanned_md = read_metadata_file(**kwargs)  # Yes, it's getting re-read
-                    print(
-                        f"""Got CollectionType {scanned_md['collectiontype'] 
-                        if 'collectiontype' in scanned_md else None} """
-                    )
-                    soft_data_assay_type = get_soft_data_assaytype(uuid, **kwargs)
-                    print(f"Got {soft_data_assay_type} as the soft_data_type for UUID {uuid}")
-                else:
-                    print(f"Something went wrong!!")
-                    return 1
-            time.sleep(30)
+        for uuid in child_uuid_list:
+            kwargs["uuid_dataset"] = uuid
+            if send_status_msg(**kwargs):
+                scanned_md = read_metadata_file(**kwargs)  # Yes, it's getting re-read
+                print(
+                    f"""Got CollectionType {scanned_md['collectiontype'] 
+                    if 'collectiontype' in scanned_md else None} """
+                )
+                soft_data_assay_type = get_soft_data_assaytype(uuid, **kwargs)
+                print(f"Got {soft_data_assay_type} as the soft_data_type for UUID {uuid}")
+            else:
+                print(f"Something went wrong!!")
+                return 1
+            time.sleep(240)
         return 0
 
     t_send_status = PythonOperator(
