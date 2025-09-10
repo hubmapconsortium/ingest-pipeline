@@ -271,14 +271,13 @@ class StatusChanger(EntityUpdater):
                 )
             return
         elif self.same_status == True:
+            logging.info(
+                f"Same status passed, no fields to change for {self.uuid}, skipping entity-api update; sending relevant notifications."
+            )
             if self.fields_to_change:
                 self.fields_to_overwrite.pop("status", None)
                 self.fields_to_append_to.pop("status", None)
                 super().update()
-                return
-            logging.info(
-                f"Same status passed, no fields to change for {self.uuid}, skipping entity-api update."
-            )
         else:
             self.validate_fields_to_change()
             self.set_entity_api_data()
@@ -307,7 +306,7 @@ class StatusChanger(EntityUpdater):
                 )
         assert type(status) is Statuses
         # Can't set the same status over the existing status; keep status but set same_status = True.
-        if status == self.entity_data["status"].lower():
+        if status.value == self.entity_data["status"].lower():
             logging.info(
                 f"Status passed to StatusChanger is the same as the current status in Entity API."
             )

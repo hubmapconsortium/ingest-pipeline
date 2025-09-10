@@ -22,9 +22,9 @@ class SlackDatasetInvalid(SlackMessage):
 
     def format(self):
         return f"""
-            Dataset {self.uuid} is in Invalid state.
-            {self.dataset_links}
-            """
+        Dataset {self.uuid} is in Invalid state.
+        {self.dataset_links}
+        """
 
 
 class SlackDatasetInvalidDerived(SlackDatasetInvalid):
