@@ -1,0 +1,17 @@
+'$schema': 'http://json-schema.org/schema#'
+'$id': 'http://schemata.hubmapconsortium.org/launch_checksums_schema.yml'
+'title': 'launch_checksums metadata schema'
+'description': 'launch_checksums metadata schema'
+
+'allOf': [{'$ref': '#/definitions/launch_checksums'}]
+
+'definitions':
+
+  'launch_checksums':
+     'type': 'object'
+     'properties':
+        'uuid':
+          'type': 'string'
+          'description': 'a dataset uuid'
+     'required': ['uuid']
+    
