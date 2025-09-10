@@ -48,9 +48,11 @@ class SlackMessage:
         View on Globus.
         Filesystem path: /path/to/data
         """
-        return f"""<{self.data_ingest_board_query_url}|View on Data Ingest Board.>
+        return f"""
+        <{self.data_ingest_board_query_url}|View on Data Ingest Board.>
         <{self.get_globus_url()}|View on Globus.>
-        Filesystem path: {get_abs_path(self.uuid, self.token)}"""
+        Filesystem path: {get_abs_path(self.uuid, self.token)}
+        """
 
     def get_globus_url(self, uuid: Optional[str] = None) -> str:
         """

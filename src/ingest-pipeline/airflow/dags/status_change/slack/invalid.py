@@ -6,8 +6,9 @@ class SlackUploadInvalid(SlackMessage):
     name = "upload_invalid"
 
     def format(self):
+        # TODO: not sure how to link to uploads on data ingest board
         return f"""
-            Upload <{self.get_globus_url}|{self.uuid}> is in Invalid state.
+            Upload {self.uuid} is in Invalid state.
             {self.dataset_links}
             """
 
@@ -21,7 +22,7 @@ class SlackDatasetInvalid(SlackMessage):
 
     def format(self):
         return f"""
-            Dataset <{self.get_globus_url}|{self.uuid}> is in Invalid state.
+            Dataset {self.uuid} is in Invalid state.
             {self.dataset_links}
             """
 

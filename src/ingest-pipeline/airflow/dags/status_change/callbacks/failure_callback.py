@@ -1,10 +1,9 @@
 import logging
 from pprint import pformat
 
+from status_change.callbacks.base import AirflowCallback
 from status_change.status_manager import StatusChanger
 from status_change.status_utils import formatted_exception
-
-from .base import AirflowCallback
 
 
 class FailureCallbackException(Exception):

@@ -271,6 +271,11 @@ class StatusChanger(EntityUpdater):
                 )
             return
         elif self.same_status == True:
+            if self.fields_to_change:
+                self.fields_to_overwrite.pop("status", None)
+                self.fields_to_append_to.pop("status", None)
+                super().update()
+                return
             logging.info(
                 f"Same status passed, no fields to change for {self.uuid}, skipping entity-api update."
             )
