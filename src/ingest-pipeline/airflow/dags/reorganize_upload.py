@@ -335,6 +335,7 @@ with HMDAG(
         dataset_lz_path_fun=get_dataset_lz_path,
         metadata_fun=read_metadata_file,
         include_file_metadata=False,
+        reindex=False,
     )
 
     def wrapped_send_status_msg(**kwargs):
