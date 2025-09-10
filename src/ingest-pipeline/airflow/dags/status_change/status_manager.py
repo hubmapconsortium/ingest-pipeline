@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from copy import deepcopy
-from functools import cached_property
+from functools import cache, cached_property
 from typing import TYPE_CHECKING, Any, Optional, Union
 
 from schema_utils import (
@@ -61,15 +61,13 @@ class EntityUpdater:
                 """
             )
 
-    @cached_property
+    @property
     def fields_to_change(self) -> dict:
-        duplicates = set(self.fields_to_overwrite.keys()).intersection(
-            set(self.fields_to_append_to.keys())
-        )
-        assert (
-            not duplicates
-        ), f"Field(s) {', '.join(duplicates)} cannot be both appended to and overwritten."
-        return self._update_existing_values() | self.fields_to_overwrite
+        """
+        Passthrough to memoized _fields_to_change, will only re-calculate if
+        fields_to_overwrite/fields_to_append_to change.
+        """
+        return self._fields_to_change(self.fields_to_overwrite.copy, self.fields_to_append_to.copy)
 
     def update(self):
         """
@@ -123,6 +121,24 @@ class EntityUpdater:
     def validate_fields_to_change(self):
         self._check_fields()
 
+    @cache
+    def _fields_to_change(self, fields_to_overwrite: dict, fields_to_append_to: dict) -> dict:
+        duplicates = set(fields_to_overwrite.keys()).intersection(set(fields_to_append_to.keys()))
+        assert (
+            not duplicates
+        ), f"Field(s) {', '.join(duplicates)} cannot be both appended to and overwritten."
+        return self._update_existing_values(fields_to_append_to) | fields_to_overwrite
+
+    def _update_existing_values(self, fields_to_append_to: dict):
+        new_field_data = {}
+        for field, value in fields_to_append_to.items():
+            existing_field_data = self.entity_data.get(field, "")
+            if existing_field_data:
+                new_field_data[field] = existing_field_data + f" {self.delimiter} " + value
+            else:
+                new_field_data[field] = value
+        return new_field_data
+
     def _check_fields(self):
         original_entity_type = self.entity_data.get("entity_type")
         updated_entity_data = self.entity_data.copy()
@@ -142,16 +158,6 @@ class EntityUpdater:
             )
         except AssertionError as excp:
             raise EntityUpdateException(excp) from excp
-
-    def _update_existing_values(self):
-        new_field_data = {}
-        for field, value in self.fields_to_append_to.items():
-            existing_field_data = self.entity_data.get(field, "")
-            if existing_field_data:
-                new_field_data[field] = existing_field_data + f" {self.delimiter} " + value
-            else:
-                new_field_data[field] = value
-        return new_field_data
 
     @staticmethod
     def _enums_to_lowercase(data: Any) -> Any:
@@ -197,6 +203,8 @@ Example usage with optional params:
 
 
 class StatusChanger(EntityUpdater):
+    same_status = False
+
     def __init__(
         self,
         uuid: str,
@@ -221,7 +229,6 @@ class StatusChanger(EntityUpdater):
         )
         self.status = self._validate_status(status)
         self.error_report = error_report
-        self.same_status = False
 
     @property
     def status_map(self):
@@ -262,12 +269,9 @@ class StatusChanger(EntityUpdater):
         """
         if self.status is None:
             if self.fields_to_change:
-                self.fields_to_overwrite.pop("status", None)
-                self.fields_to_append_to.pop("status", None)
-                logging.info(
-                    f"No status for {self.uuid}, sending to EntityUpdater to update fields: {self.fields_to_append_to | self.fields_to_overwrite}"
+                self._send_to_entity_updater(
+                    f"Status for {self.uuid} unchanged, sending to EntityUpdater to update fields: {self.fields_to_append_to | self.fields_to_overwrite}"
                 )
-                super().update()
             else:
                 logging.info(
                     f"No status to update or fields to change for {self.uuid}, not making any changes in entity-api."
@@ -275,12 +279,9 @@ class StatusChanger(EntityUpdater):
             return
         elif self.same_status == True:
             if self.fields_to_change:
-                logging.info(
+                self._send_to_entity_updater(
                     f"Status for {self.uuid} unchanged, sending to EntityUpdater to update fields: {self.fields_to_append_to | self.fields_to_overwrite}"
                 )
-                self.fields_to_overwrite.pop("status", None)
-                self.fields_to_append_to.pop("status", None)
-                super().update()
             else:
                 logging.info(
                     f"Same status passed, no fields to change for {self.uuid}, skipping entity-api update."
@@ -307,14 +308,16 @@ class StatusChanger(EntityUpdater):
             except KeyError:
                 raise EntityUpdateException(
                     f"""
-                        Could not retrieve status for {self.uuid}.
-                        Check that status is valid for entity type.
-                        Status not changed.
+                    Could not retrieve status for {self.uuid}.
+                    Check that status is valid for entity type.
+                    Status not changed.
                     """
                 )
         assert type(status) is Statuses
         # Can't set the same status over the existing status; keep status but set same_status = True.
-        if status.value == self.entity_data["status"].lower():
+        logging.info(f"Previous status: {self.entity_data.get('status', '').lower()}")
+        logging.info(f"New status: {status}.")
+        if status.value == self.entity_data.get("status", "").lower():
             logging.info(
                 f"Status passed to StatusChanger is the same as the current status in Entity API."
             )
@@ -328,3 +331,9 @@ class StatusChanger(EntityUpdater):
                 extra_status.lower() == status
             ), f"Entity {self.uuid} passed multiple statuses ({status} and {extra_status})."
         return status
+
+    def _send_to_entity_updater(self, msg: str):
+        logging.info(msg)
+        self.fields_to_overwrite.pop("status", None)
+        self.fields_to_append_to.pop("status", None)
+        super().update()

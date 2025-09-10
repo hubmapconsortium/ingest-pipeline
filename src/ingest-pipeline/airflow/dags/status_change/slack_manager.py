@@ -77,9 +77,12 @@ class SlackManager:
         message = self.message_class.format()
         channel = self.message_class.channel
         logging.info(f"Sending message from {self.message_class.name}...")
-        if not (message and channel):
-            raise EntityUpdateException(
-                f"Request to send Slack message missing message text (submitted: '{message}')"
-                f" or target channel (submitted: '{channel}')."
-            )
-        post_to_slack_notify(self.token, message, channel)
+        if message and channel:
+            post_to_slack_notify(self.token, message, channel)
+        else:
+            msg = ""
+            if not message:
+                msg += f"Request to send Slack message missing message text. "
+            if not channel:
+                msg += f"Request to send Slack message missing target channel."
+            raise EntityUpdateException(msg)
