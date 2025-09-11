@@ -42,6 +42,7 @@ class EntityUpdater:
         self.fields_to_append_to = fields_to_append_to if fields_to_append_to else {}
         self.delimiter = delimiter
         self.entity_type = self.get_entity_type()
+        self.fields_to_change = self.get_fields_to_change()
 
     @cached_property
     def entity_data(self):
@@ -61,8 +62,7 @@ class EntityUpdater:
                 """
             )
 
-    @property
-    def fields_to_change(self) -> dict:
+    def get_fields_to_change(self) -> dict:
         duplicates = set(self.fields_to_overwrite.keys()).intersection(
             set(self.fields_to_append_to.keys())
         )

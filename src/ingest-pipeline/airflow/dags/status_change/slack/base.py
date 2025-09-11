@@ -51,8 +51,12 @@ class SlackMessage:
         return f"""
         <{self.data_ingest_board_query_url}|View on Data Ingest Board.>
         <{self.get_globus_url()}|View on Globus.>
-        Filesystem path: {get_abs_path(self.uuid, self.token)}
+        Filesystem path: {self.copyable_filepath}
         """
+
+    def copyable_filepath(self):
+        path = get_abs_path(self.uuid, self.token)
+        return path.replace(" ", "\\ ")
 
     def get_globus_url(self, uuid: Optional[str] = None) -> str:
         """
@@ -71,5 +75,5 @@ class SlackMessage:
             params["origin_path"] = lookup_uuid
         else:
             params["origin_id"] = "24c2ee95-146d-4513-a1b3-ac0bfdb7856f"
-            params["origin_path"] = path.replace("/hive/hubmap/data", "") + "/"
+            params["origin_path"] = path.replace("/hiveLhubmap/data", "") + "/"
         return prefix + urlencode(params)
