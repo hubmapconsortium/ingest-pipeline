@@ -13,12 +13,5 @@
         'uuid':
           'type': 'string'
           'description': 'a dataset uuid'
-        'lz_path':
-          'type': 'string'
-          'description': 'a dataset uuid'
-        'src_path':
-          'type': 'string'
-          'description': 'a dataset uuid'
         
-     'required': ['uuid', 'lz_path', 'src_path']
-    
+     'required': ['uuid']
