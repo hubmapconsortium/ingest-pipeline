@@ -175,7 +175,7 @@ with HMDAG(
 
         input_parameters = [
             {"parameter_name": "--enable_manhole", "value": ""},
-            {"parameter_name": "--processes", "value": get_threads_resource(dag.dag_id)},
+            {"parameter_name": "--threadpool_limit", "value": get_threads_resource(dag.dag_id)},
             {"parameter_name": "--image_dir", "value": str(data_dir / "pipeline_output/expr")},
             {"parameter_name": "--mask_dir", "value": str(data_dir / "pipeline_output/mask")},
         ]
