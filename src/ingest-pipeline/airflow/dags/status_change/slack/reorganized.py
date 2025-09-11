@@ -108,4 +108,7 @@ class SlackUploadReorganizedPriority(SlackUploadReorganized):
             + "\n\nDatasets:\n"
             + "\n".join(dataset_info)
         )
-        return f"""Priority upload ({upload_label}) reorganized:\n   {print_vals}"""
+        return f"""
+        Priority upload ({upload_label}) reorganized:
+        {print_vals}
+        """

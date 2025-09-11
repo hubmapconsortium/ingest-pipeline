@@ -19,8 +19,6 @@ class SlackMessage:
         self.token = token
         self.channel = airflow_conf.as_dict().get("slack_channels", {}).get(self.name.upper())
         self.entity_data = entity_data if entity_data else get_submission_context(token, uuid)
-        # TODO: does this need to be SenNet aware?
-        self.data_ingest_board = "https://ingest.board.hubmapconsortium.org/"
 
     @classmethod
     def test(cls, entity_data: dict, token: str) -> bool:
@@ -37,9 +35,11 @@ class SlackMessage:
 
     @property
     def data_ingest_board_query_url(self):
-        return urljoin(
-            self.data_ingest_board, f"?q={get_hubmap_id_from_uuid(self.token, self.uuid)}"
-        )
+        # TODO: env and project awareness
+        params = {"q": get_hubmap_id_from_uuid(self.token, self.uuid)}
+        if self.entity_data.get("entity_type") == "upload":
+            params["entity_type"] = "upload"
+        return urljoin("https://ingest.board.hubmapconsortium.org/", urlencode(params))
 
     @property
     def dataset_links(self):
@@ -54,6 +54,7 @@ class SlackMessage:
         Filesystem path: {self.copyable_filepath}
         """
 
+    @property
     def copyable_filepath(self):
         path = get_abs_path(self.uuid, self.token)
         return path.replace(" ", "\\ ")
@@ -75,5 +76,5 @@ class SlackMessage:
             params["origin_path"] = lookup_uuid
         else:
             params["origin_id"] = "24c2ee95-146d-4513-a1b3-ac0bfdb7856f"
-            params["origin_path"] = path.replace("/hiveLhubmap/data", "") + "/"
+            params["origin_path"] = path.replace("/hive/hubmap/data", "") + "/"
         return prefix + urlencode(params)

@@ -264,7 +264,7 @@ class StatusChanger(EntityUpdater):
         if self.status is None:
             if self.fields_to_change:
                 self._send_to_entity_updater(
-                    f"Status for {self.uuid} unchanged, sending to EntityUpdater to update fields: {self.fields_to_append_to | self.fields_to_overwrite}"
+                    f"Status for {self.uuid} unchanged, sending to EntityUpdater."
                 )
             else:
                 logging.info(
@@ -274,7 +274,7 @@ class StatusChanger(EntityUpdater):
         elif self.same_status == True:
             if self.fields_to_change:
                 self._send_to_entity_updater(
-                    f"Status for {self.uuid} unchanged, sending to EntityUpdater to update fields: {self.fields_to_append_to | self.fields_to_overwrite}"
+                    f"Status for {self.uuid} unchanged, sending to EntityUpdater."
                 )
             else:
                 logging.info(
@@ -290,7 +290,7 @@ class StatusChanger(EntityUpdater):
     def validate_fields_to_change(self):
         super().validate_fields_to_change()
         assert self.status
-        self.fields_to_change["status"] = self.status.value
+        self.fields_to_change["status"] = Statuses.get_status_str(self.status)
 
     def _validate_status(self, status: Union[Statuses, str, None]) -> Optional[Statuses]:
         if not status:
@@ -310,7 +310,7 @@ class StatusChanger(EntityUpdater):
         assert type(status) is Statuses
         # Can't set the same status over the existing status; keep status but set same_status = True.
         logging.info(f"Previous status: {self.entity_data.get('status', '').lower()}")
-        logging.info(f"New status: {status}.")
+        logging.info(f"New status: {status.value}.")
         if Statuses.get_status_str(status) == self.entity_data.get("status", "").lower():
             logging.info(
                 f"Status passed to StatusChanger is the same as the current status in Entity API."
@@ -328,6 +328,10 @@ class StatusChanger(EntityUpdater):
 
     def _send_to_entity_updater(self, msg: str):
         logging.info(msg)
+        # Just to be sure!
         self.fields_to_overwrite.pop("status", None)
         self.fields_to_append_to.pop("status", None)
-        super().update()
+        self.fields_to_change.pop("status", None)
+        # Slightly fragile, needs to keep pace with EntityUpdater.update()
+        super().validate_fields_to_change()
+        super().set_entity_api_data()

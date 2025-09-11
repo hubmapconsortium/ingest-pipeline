@@ -8,9 +8,9 @@ class SlackUploadInvalid(SlackMessage):
     def format(self):
         # TODO: not sure how to link to uploads on data ingest board
         return f"""
-            Upload {self.uuid} is in Invalid state.
-            {self.dataset_links}
-            """
+        Upload {self.uuid} is in Invalid state.
+        {self.dataset_links}
+        """
 
 
 class SlackDatasetInvalid(SlackMessage):
@@ -44,7 +44,7 @@ class SlackDatasetInvalidDerived(SlackDatasetInvalid):
         child_uuid = self.uuid
         self.uuid = get_primary_dataset(self.entity_data, self.token)
         return f"""
-            Derived dataset <{self.get_globus_url(child_uuid)}|{child_uuid}> is in Error state.
-            Primary dataset: <{self.get_globus_url()}|{self.uuid}>
-            {self.dataset_links}
+        Derived dataset <{self.get_globus_url(child_uuid)}|{child_uuid}> is in Error state.
+        Primary dataset: <{self.get_globus_url()}|{self.uuid}>
+        {self.dataset_links}
         """
