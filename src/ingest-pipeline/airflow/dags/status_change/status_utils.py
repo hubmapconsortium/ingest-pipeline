@@ -16,32 +16,40 @@ class EntityUpdateException(Exception):
     pass
 
 
-class Statuses(str, Enum):
+class Statuses(Enum):
     # Dataset Hold and Deprecated are not currently in use but are valid for Entity API
-    DATASET_DEPRECATED = "deprecated"
-    DATASET_ERROR = "error"
-    DATASET_HOLD = "hold"
-    DATASET_INVALID = "invalid"
-    DATASET_NEW = "new"
-    DATASET_PROCESSING = "processing"
-    DATASET_PUBLISHED = "published"
-    DATASET_QA = "qa"
-    DATASET_SUBMITTED = "submitted"
-    PUBLICATION_ERROR = "error"
-    PUBLICATION_HOLD = "hold"
-    PUBLICATION_INVALID = "invalid"
-    PUBLICATION_NEW = "new"
-    PUBLICATION_PROCESSING = "processing"
-    PUBLICATION_PUBLISHED = "published"
-    PUBLICATION_QA = "qa"
-    PUBLICATION_SUBMITTED = "submitted"
-    UPLOAD_ERROR = "error"
-    UPLOAD_INVALID = "invalid"
-    UPLOAD_NEW = "new"
-    UPLOAD_PROCESSING = "processing"
-    UPLOAD_REORGANIZED = "reorganized"
-    UPLOAD_SUBMITTED = "submitted"
-    UPLOAD_VALID = "valid"
+    DATASET_DEPRECATED = "dataset_deprecated"
+    DATASET_ERROR = "dataset_error"
+    DATASET_HOLD = "dataset_hold"
+    DATASET_INVALID = "dataset_invalid"
+    DATASET_NEW = "dataset_new"
+    DATASET_PROCESSING = "dataset_processing"
+    DATASET_PUBLISHED = "dataset_published"
+    DATASET_QA = "dataset_qa"
+    DATASET_SUBMITTED = "dataset_submitted"
+    PUBLICATION_ERROR = "publication_error"
+    PUBLICATION_HOLD = "publication_hold"
+    PUBLICATION_INVALID = "publication_invalid"
+    PUBLICATION_NEW = "publication_new"
+    PUBLICATION_PROCESSING = "publication_processing"
+    PUBLICATION_PUBLISHED = "publication_published"
+    PUBLICATION_QA = "publication_qa"
+    PUBLICATION_SUBMITTED = "publication_submitted"
+    UPLOAD_ERROR = "upload_error"
+    UPLOAD_INVALID = "upload_invalid"
+    UPLOAD_NEW = "upload_new"
+    UPLOAD_PROCESSING = "upload_processing"
+    UPLOAD_REORGANIZED = "upload_reorganized"
+    UPLOAD_SUBMITTED = "upload_submitted"
+    UPLOAD_VALID = "upload_valid"
+
+    @staticmethod
+    def get_status_str(status: Statuses):
+        return status.value.split("_")[1]
+
+    @staticmethod
+    def get_entity_type_str(status: Statuses):
+        return status.value.split("_")[0]
 
 
 # Needed some way to disambiguate statuses shared by datasets and uploads

@@ -1,7 +1,16 @@
 import logging
 
-from .slack.error import SlackDatasetError, SlackDatasetErrorPrimary
-from .slack.invalid import SlackDatasetInvalid, SlackDatasetInvalidDerived
+from .slack.error import (
+    SlackDatasetError,
+    SlackDatasetErrorDerived,
+    SlackDatasetErrorPrimary,
+    SlackUploadError,
+)
+from .slack.invalid import (
+    SlackDatasetInvalid,
+    SlackDatasetInvalidDerived,
+    SlackUploadInvalid,
+)
 from .slack.qa import SlackDatasetQA
 from .slack.reorganized import SlackUploadReorganized, SlackUploadReorganizedPriority
 from .status_utils import (
@@ -41,7 +50,7 @@ class SlackManager:
         return {
             Statuses.DATASET_ERROR: {
                 "main_class": SlackDatasetError,
-                "subclasses": [SlackDatasetErrorPrimary],
+                "subclasses": [SlackDatasetErrorPrimary, SlackDatasetErrorDerived],
             },
             Statuses.DATASET_INVALID: {
                 "main_class": SlackDatasetInvalid,
@@ -49,6 +58,14 @@ class SlackManager:
             },
             Statuses.DATASET_QA: {
                 "main_class": SlackDatasetQA,
+                "subclasses": [],
+            },
+            Statuses.UPLOAD_ERROR: {
+                "main_class": SlackUploadError,
+                "subclasses": [],
+            },
+            Statuses.UPLOAD_INVALID: {
+                "main_class": SlackUploadInvalid,
                 "subclasses": [],
             },
             Statuses.UPLOAD_REORGANIZED: {

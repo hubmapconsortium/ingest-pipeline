@@ -311,7 +311,7 @@ class StatusChanger(EntityUpdater):
         # Can't set the same status over the existing status; keep status but set same_status = True.
         logging.info(f"Previous status: {self.entity_data.get('status', '').lower()}")
         logging.info(f"New status: {status}.")
-        if status.value == self.entity_data.get("status", "").lower():
+        if Statuses.get_status_str(status) == self.entity_data.get("status", "").lower():
             logging.info(
                 f"Status passed to StatusChanger is the same as the current status in Entity API."
             )

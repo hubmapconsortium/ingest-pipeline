@@ -7,17 +7,33 @@ class SlackUploadError(SlackMessage):
 
     def format(self):
         return f"""
-            Upload <{self.get_globus_url}|{self.uuid}> is in Error state.
+            Upload {self.uuid} is in Error state.
             {self.dataset_links}
             """
 
 
 class SlackDatasetError(SlackMessage):
+    name = "dataset_error"
+
+    def format(self):
+        return f"""
+            Dataset {self.uuid} is in Error state.
+            {self.dataset_links}
+            """
+
+
+class SlackDatasetErrorDerived(SlackMessage):
     """
     Error occurred during pipeline processing.
     """
 
-    name = "dataset_error"
+    name = "dataset_error_derived"
+
+    @classmethod
+    def test(cls, entity_data, token):
+        if get_primary_dataset(entity_data, token):
+            return True
+        return False
 
     def format(self):
         child_uuid = self.uuid
@@ -32,7 +48,7 @@ class SlackDatasetError(SlackMessage):
 
 class SlackDatasetErrorPrimary(SlackDatasetError):
     """
-    Just in case any non-derived datasets make it here.
+    Error in primary dataset (e.g. uncaught exception during scan_and_begin_processing)
     """
 
     name = "dataset_error_primary"
@@ -45,6 +61,6 @@ class SlackDatasetErrorPrimary(SlackDatasetError):
 
     def format(self):
         return f"""
-            Dataset <{self.get_globus_url}|{self.uuid}> is in Error state.
+            Dataset {self.uuid} is in Error state.
             {self.dataset_links}
             """
