@@ -86,16 +86,7 @@ class EntityUpdater:
             "status" in self.fields_to_change.keys()
             and self.fields_to_change["status"] is not None
         ):
-            status = self.fields_to_overwrite.pop("status", None)
-            StatusChanger(
-                self.uuid,
-                self.token,
-                self.http_conn_id,
-                self.fields_to_overwrite,
-                self.fields_to_append_to,
-                self.delimiter,
-                status=status,
-            ).update()
+            self._send_to_status_manager()
             return
         self.validate_fields_to_change()
         self.set_entity_api_data()
@@ -153,6 +144,18 @@ class EntityUpdater:
                 new_field_data[field] = value
         return new_field_data
 
+    def _send_to_status_manager(self):
+        status = self.fields_to_overwrite.pop("status", None)
+        StatusChanger(
+            self.uuid,
+            self.token,
+            self.http_conn_id,
+            self.fields_to_overwrite,
+            self.fields_to_append_to,
+            self.delimiter,
+            status=status,
+        ).update()
+
     @staticmethod
     def _enums_to_lowercase(data: Any) -> Any:
         """
@@ -191,7 +194,8 @@ Example usage with optional params:
             fields_to_overwrite={"test_field": "test"},  # optional
             fields_to_append_to={"ingest_task": "test"},  # optional
             delimiter=",",  # optional
-            status=Statuses.STATUS_ENUM,  # or "<status>"
+            status=<Statuses.STATUS_ENUM>,  # or "<status>"
+            error_report=<ErrorReport>
         ).update()
 """
 
@@ -254,32 +258,24 @@ class StatusChanger(EntityUpdater):
     def update(self) -> None:
         """
         This is the main method for using the StatusChanger.
-        - If no status (incl. if status is the same as existing status
-            on entity) and other fields_to_change, instantiate
-            EntityUpdater and return; otherwise log and return.
-        - Adds status to fields_to_change.
+        - If no status or same status and other fields_to_change, send to
+            EntityUpdater; if same status continue to message step.
+        - Validates fields and adds status to fields_to_change.
         - Runs EntityUpdater._set_entity_api_data() process.
         - Also instantiates any messaging managers from status_map and calls their update methods.
         """
-        if self.status is None:
+        if self.status is None or self.same_status == True:
             if self.fields_to_change:
                 self._send_to_entity_updater(
                     f"Status for {self.uuid} unchanged, sending to EntityUpdater."
                 )
             else:
                 logging.info(
-                    f"No status to update or fields to change for {self.uuid}, not making any changes in entity-api."
+                    f"No status update or fields to change for {self.uuid}, not making any changes in entity-api."
                 )
-            return
-        elif self.same_status == True:
-            if self.fields_to_change:
-                self._send_to_entity_updater(
-                    f"Status for {self.uuid} unchanged, sending to EntityUpdater."
-                )
-            else:
-                logging.info(
-                    f"Same status passed, no fields to change for {self.uuid}, skipping entity-api update."
-                )
+            if not self.status:
+                # Messages are tied to status, so only continue if we have one
+                return
         else:
             logging.info("Updating status...")
             self.validate_fields_to_change()
@@ -309,8 +305,7 @@ class StatusChanger(EntityUpdater):
                 )
         assert type(status) is Statuses
         # Can't set the same status over the existing status; keep status but set same_status = True.
-        logging.info(f"Previous status: {self.entity_data.get('status', '').lower()}")
-        logging.info(f"New status: {status.value}.")
+        logging.info(f"Current status: {self.entity_data.get('status', '').lower()}")
         if Statuses.get_status_str(status) == self.entity_data.get("status", "").lower():
             logging.info(
                 f"Status passed to StatusChanger is the same as the current status in Entity API."
@@ -324,6 +319,7 @@ class StatusChanger(EntityUpdater):
             assert (
                 extra_status.lower() == status
             ), f"Entity {self.uuid} passed multiple statuses ({status} and {extra_status})."
+        logging.info(f"New status: {status.value}.")
         return status
 
     def _send_to_entity_updater(self, msg: str):
