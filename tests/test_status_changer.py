@@ -10,7 +10,7 @@ from status_change.status_manager import (
     EntityUpdater,
     StatusChanger,
     Statuses,
-    StatusChangeAction
+    StatusChangeAction,
 )
 from status_change.slack_formatter import format_priority_reorganized_msg
 from status_change.failure_callback import FailureCallback
@@ -20,9 +20,10 @@ from utils import pythonop_set_dataset_state
 def send_email():  # for patching later
     pass
 
+
 class SendEmailSCA(StatusChangeAction):
     def run(self, context):
-         send_email()
+        send_email()
 
 
 class TestEntityUpdater(unittest.TestCase):
@@ -185,11 +186,11 @@ class TestEntityUpdater(unittest.TestCase):
             extra_options={},
             entity_type="Upload",
             fields_to_overwrite={"test_extra_field": False},
-                # fields_to_overwrite={
-                #     #"status": "Published",
-                #     "unrelated_field": False,
-                # }
-            )
+            # fields_to_overwrite={
+            #     #"status": "Published",
+            #     "unrelated_field": False,
+            # }
+        )
         sc._validate_fields_to_change()
         sc.update()
         # patch the StatusChanger to avoid the tests in its constructor which
@@ -305,10 +306,11 @@ class TestEntityUpdater(unittest.TestCase):
     @patch("status_change.slack_formatter.get_submission_context")
     @patch("status_change.status_manager.HttpHook.run")
     @patch("status_change.slack_formatter.airflow_conf.as_dict")
-    def test_upload_reorganized_priority_slack(self, af_conf_mock, hhr_mock,
-                                               context_mock, organ_mock):
+    def test_upload_reorganized_priority_slack(
+        self, af_conf_mock, hhr_mock, context_mock, organ_mock
+    ):
         af_conf_mock.return_value = {
-            "slack_channels" : {"PRIORITY_UPLOAD_REORGANIZED": "test_channel"}
+            "slack_channels": {"PRIORITY_UPLOAD_REORGANIZED": "test_channel"}
         }
         with patch("status_change.status_manager.get_submission_context") as mock_gsc:
             mock_gsc.return_value = self.context_mock_value
@@ -330,7 +332,7 @@ class TestEntityUpdater(unittest.TestCase):
     @patch("status_change.slack_formatter.airflow_conf.as_dict")
     def test_upload_reorganized_not_priority(self, af_conf_mock, hhr_mock, context_mock):
         af_conf_mock.return_value = {
-            "slack_channels" : {"PRIORITY_UPLOAD_REORGANIZED": "test_channel"}
+            "slack_channels": {"PRIORITY_UPLOAD_REORGANIZED": "test_channel"}
         }
         with patch("status_change.status_manager.StatusChanger._set_entity_api_data"):
             new_context = self.context_mock_value.copy()
@@ -350,7 +352,7 @@ class TestEntityUpdater(unittest.TestCase):
     @patch("status_change.slack_formatter.airflow_conf.as_dict")
     def test_slack_not_triggered(self, af_conf_mock, hhr_mock, context_mock):
         af_conf_mock.return_value = {
-            "slack_channels" : {"PRIORITY_UPLOAD_REORGANIZED": "test_channel"}
+            "slack_channels": {"PRIORITY_UPLOAD_REORGANIZED": "test_channel"}
         }
         with patch("status_change.status_manager.StatusChanger._set_entity_api_data"):
             context_mock.return_value = self.context_mock_value
@@ -386,22 +388,25 @@ class TestEntityUpdater(unittest.TestCase):
     def test_failure_callback(self, gat_mock, tbfa_mock, gsc_mock):
         def _xcom_getter(key):
             return {"uuid": "abc123"}[key]
+
         class _exception_formatter:
             def __init__(self, excp_str):
                 self.excp_str = excp_str
+
             def format(self):
                 return f"This is the formatted version of {self.excp_str}"
+
         gsc_mock.return_value = self.context_mock_value
         gat_mock.return_value = "auth_token"
         tbfa_mock.from_exception = _exception_formatter
         dag_run_mock = MagicMock(
             conf={"dryrun": False},
             dag_id="test_dag_id",
-            execution_date=date.fromisoformat("2025-06-05")
+            execution_date=date.fromisoformat("2025-06-05"),
         )
         task_mock = MagicMock(task_id="mytaskid")
         task_instance_mock = MagicMock()
-        task_instance_mock.xcom_pull.side_effect=_xcom_getter
+        task_instance_mock.xcom_pull.side_effect = _xcom_getter
         fcb = FailureCallback(__name__)
         tweaked_ctx = self.context_mock_value.copy()
         tweaked_ctx["task_instance"] = task_instance_mock
@@ -413,7 +418,7 @@ class TestEntityUpdater(unittest.TestCase):
             hhr_mock.return_value.json.return_value = self.good_context
             fcb(tweaked_ctx)
             args, kwargs = hhr_mock.call_args
-            assert args[0] == "/entities/abc123"
+            assert args[0] == "/entities/abc123?reindex=True"
             assert "mytaskid" in args[1]
             assert "test_dag_id" in args[1]
             assert "2025-06-05" in args[1]
@@ -421,6 +426,7 @@ class TestEntityUpdater(unittest.TestCase):
             assert __name__ in args[1]
             assert "This is the formatted version of FakeTestException" in args[1]
             assert args[2]["authorization"] == "Bearer auth_token"
+
 
 # if __name__ == "__main__":
 #     suite = unittest.TestLoader().loadTestsFromTestCase(TestEntityUpdater)
