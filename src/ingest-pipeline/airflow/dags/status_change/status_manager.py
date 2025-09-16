@@ -51,7 +51,7 @@ class EntityUpdater:
 
     def get_entity_type(self):
         try:
-            entity_type = self.entity_data["entity_type"]
+            entity_type = self.entity_data.get("entity_type")
             assert entity_type is not None
             return entity_type
         except Exception as excp:
@@ -304,22 +304,31 @@ class StatusChanger(EntityUpdater):
                     """
                 )
         assert type(status) is Statuses
+        status_str = Statuses.get_status_str(status)
         # Can't set the same status over the existing status; keep status but set same_status = True.
         logging.info(f"Current status: {self.entity_data.get('status', '').lower()}")
-        if Statuses.get_status_str(status) == self.entity_data.get("status", "").lower():
+        if status_str == self.entity_data.get("status", "").lower():
             logging.info(
                 f"Status passed to StatusChanger is the same as the current status in Entity API."
             )
             self.same_status = True
         # Double-check that you don't have different values for status in other fields.
-        elif (extra_status := self.fields_to_change.get("status")) is not None and isinstance(
-            extra_status, str
-        ):
-            logging.info("Status passed in fields_to_change.")
-            assert (
-                extra_status.lower() == status
-            ), f"Entity {self.uuid} passed multiple statuses ({status} and {extra_status})."
-        logging.info(f"New status: {status.value}.")
+        if (extra_status := self.fields_to_change.get("status")) is not None:
+            logging.info(f"Status passed in fields_to_change: {extra_status}.")
+            try:
+                if isinstance(extra_status, str):
+                    assert extra_status.lower() == status_str
+                elif isinstance(extra_status, Statuses):
+                    assert extra_status == status
+            except Exception:
+                extra_status_str = (
+                    extra_status.lower()
+                    if type(extra_status) is str
+                    else Statuses.get_status_str(status)
+                )
+                raise EntityUpdateException(
+                    f"Entity {self.uuid} passed multiple statuses ({status_str} and {extra_status_str})."
+                )
         return status
 
     def _send_to_entity_updater(self, msg: str):

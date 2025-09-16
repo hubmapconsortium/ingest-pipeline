@@ -42,6 +42,9 @@ class FailureCallback(AirflowCallback):
         FailureCallback needs to set the dataset status to "Error",
         otherwise it will remain in the "Processing" state.
         """
+        if not self.uuid:
+            logging.info("No UUID passed, can't set status or send notifications.")
+            return
         data = self.get_extra_fields()
         logging.info("data:\n" + pformat(data))
         StatusChanger(
@@ -56,7 +59,18 @@ class FailureCallback(AirflowCallback):
         This happens when the DAG to which the instance is attached actually
         encounters an error.
         """
+        try:
+            if context.get("dag_run").conf.get("dryrun"):  # type: ignore
+                return
+        except Exception as e:
+            logging.info(e)
+            return
         self.get_data(context)
+        if not self.uuid:
+            # Not sure if this should blow up
+            logging.info(f"No uuid sent with context, can't update status. Context:")
+            logging.info(pformat(context))
+            return
         self.set_status()
 
     def get_data(self, context):

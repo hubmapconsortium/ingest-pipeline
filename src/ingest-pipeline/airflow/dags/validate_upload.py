@@ -75,6 +75,14 @@ with HMDAG(
         print("ds_rslt:")
         pprint(ds_rslt)
 
+        # Push to xcom before checking ds_rslt to make UUID available to on_failure_callback
+        lz_path = ds_rslt["local_directory_full_path"]
+        uuid = ds_rslt["uuid"]  # 'uuid' may  actually be a DOI
+        print(f"Finished uuid {uuid}")
+        print(f"lz path: {lz_path}")
+        kwargs["ti"].xcom_push(key="lz_path", value=lz_path)
+        kwargs["ti"].xcom_push(key="uuid", value=uuid)
+
         for key in ["entity_type", "status", "uuid", "local_directory_full_path"]:
             assert key in ds_rslt, f"Dataset status for {uuid} has no {key}"
 
@@ -84,13 +92,6 @@ with HMDAG(
             raise AirflowException(
                 f"status of Upload {uuid} is not New, Submitted, Invalid, or Processing"
             )
-
-        lz_path = ds_rslt["local_directory_full_path"]
-        uuid = ds_rslt["uuid"]  # 'uuid' may  actually be a DOI
-        print(f"Finished uuid {uuid}")
-        print(f"lz path: {lz_path}")
-        kwargs["ti"].xcom_push(key="lz_path", value=lz_path)
-        kwargs["ti"].xcom_push(key="uuid", value=uuid)
 
     t_find_uuid = PythonOperator(
         task_id="find_uuid",
@@ -133,7 +134,13 @@ with HMDAG(
         validation_file_path = Path(get_tmp_dir_path(kwargs["run_id"])) / "validation_report.txt"
         with open(validation_file_path, "w") as f:
             f.write(report.as_text())
-        kwargs["ti"].xcom_push(key="error_counts", value=json.dumps(report.counts, indent=9).strip("{}").replace('"', "").replace(",", ""))
+        kwargs["ti"].xcom_push(
+            key="error_counts",
+            value=json.dumps(report.counts, indent=9)
+            .strip("{}")
+            .replace('"', "")
+            .replace(",", ""),
+        )
         kwargs["ti"].xcom_push(key="validation_file_path", value=str(validation_file_path))
 
     t_run_validation = PythonOperator(
@@ -172,7 +179,8 @@ with HMDAG(
                 Error counts:
                 {error_counts}
                 ------------
-                """)
+                """
+            )
         StatusChanger(
             kwargs["ti"].xcom_pull(key="uuid"),
             get_auth_tok(**kwargs),
