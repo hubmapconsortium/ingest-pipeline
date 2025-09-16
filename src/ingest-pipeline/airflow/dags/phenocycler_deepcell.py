@@ -1,3 +1,4 @@
+import re
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -157,6 +158,85 @@ with HMDAG(
             "next_op": "prepare_cwl_sprm",
             "bail_op": "set_dataset_error",
             "test_op": "pipeline_exec_cwl_segmentation",
+        },
+    )
+
+    prepare_cell_count_cmd = EmptyOperator(task_id="prepare_cell_count_cmd")
+
+    @task(task_id="cell_count_cmd")
+    def build_cell_count_cmd(**kwargs):
+        tmpdir = get_tmp_dir_path(kwargs["run_id"])
+        print("tmpdir: ", tmpdir)
+        pattern = r"\: (\d+),$"
+        with open(Path(tmpdir, "session.log"), "r") as f:
+            for line in f:
+                if "num_cells" in line:
+                    num_cells = re.search(pattern, line).group(1)
+        kwargs["ti"].xcom_push(key="small_sprm", value=1 if int(num_cells) < 200000 == 0 else 0)
+        return 0
+
+    cell_count_cmd = build_cell_count_cmd()
+
+    t_maybe_start_small_sprm = PythonOperator(
+        task_id="maybe_start_small",
+        python_callable=utils.pythonop_maybe_keep,
+        provide_context=True,
+        op_kwargs={
+            "next_op": "prepare_cwl_sprm",
+            "bail_op": "prepare_small",
+            "test_op": "cell_count_cmd",
+            "test_key": "small_sprm",
+        },
+    )
+
+    prepare_small = EmptyOperator(task_id="prepare_small")
+
+
+    def build_cwltool_cmd_small_sprm(**kwargs):
+        run_id = kwargs["run_id"]
+        tmpdir = get_tmp_dir_path(run_id)
+        print("tmpdir: ", tmpdir)
+        parent_data_dir = get_parent_data_dir(**kwargs)
+        print("parent_data_dir: ", parent_data_dir)
+        data_dir = tmpdir / "cwl_out"
+        print("data_dir: ", data_dir)
+
+        workflows = kwargs["ti"].xcom_pull(key="cwl_workflows", task_ids="build_cwl_segmentation")
+
+        input_parameters = [
+            {"parameter_name": "--enable_manhole", "value": ""},
+            {"parameter_name": "--threadpool_limit", "value": get_threads_resource(dag.dag_id)},
+            {"parameter_name": "--image_dir", "value": str(data_dir / "pipeline_output/expr")},
+            {"parameter_name": "--mask_dir", "value": str(data_dir / "pipeline_output/mask")},
+        ]
+        command = get_cwl_cmd_from_workflows(workflows, 1, input_parameters, tmpdir, kwargs["ti"])
+
+        return join_quote_command_str(command)
+
+
+    t_build_cmd_small = PythonOperator(
+        task_id="build_cmd_small",
+        python_callable=build_cwltool_cmd_small_sprm,
+        provide_context=True,
+    )
+
+    t_pipeline_exec_small = BashOperator(
+        task_id="pipeline_exec_small",
+        bash_command=""" \
+            tmp_dir={{tmp_dir_path(run_id)}} ; \
+            {{ti.xcom_pull(task_ids='build_cmd_small')}} >> ${tmp_dir}/session.log 2>&1 ; \
+            echo $?
+            """,
+    )
+
+    t_maybe_keep_small = BranchPythonOperator(
+        task_id="maybe_keep_cwl_small",
+        python_callable=utils.pythonop_maybe_keep,
+        provide_context=True,
+        op_kwargs={
+            "next_op": "prepare_cwl_create_vis_symlink_archive",
+            "bail_op": "set_dataset_error",
+            "test_op": "pipeline_exec_small",
         },
     )
 
@@ -535,10 +615,53 @@ with HMDAG(
         >> t_pipeline_exec_cwl_segmentation
         >> t_maybe_keep_cwl_segmentation
 
+        >> prepare_cell_count_cmd
+        >> cell_count_cmd
+        >> t_maybe_start_small_sprm
+
         >> prepare_cwl_sprm
         >> t_build_cmd_sprm
         >> t_pipeline_exec_cwl_sprm
         >> t_maybe_keep_cwl_sprm
+
+        >> prepare_cwl_create_vis_symlink_archive
+        >> t_build_cmd_create_vis_symlink_archive
+        >> t_pipeline_exec_cwl_create_vis_symlink_archive
+        >> t_maybe_keep_cwl_create_vis_symlink_archive
+
+        >> prepare_cwl_ome_tiff_pyramid
+        >> t_build_cmd_ome_tiff_pyramid
+        >> t_pipeline_exec_cwl_ome_tiff_pyramid
+        >> t_maybe_keep_cwl_ome_tiff_pyramid
+
+        >> prepare_cwl_ome_tiff_offsets
+        >> t_build_cmd_ome_tiff_offsets
+        >> t_pipeline_exec_cwl_ome_tiff_offsets
+        >> t_maybe_keep_cwl_ome_tiff_offsets
+
+        >> prepare_cwl_sprm_to_json
+        >> t_build_cmd_sprm_to_json
+        >> t_pipeline_exec_cwl_sprm_to_json
+        >> t_maybe_keep_cwl_sprm_to_json
+
+        >> prepare_cwl_sprm_to_anndata
+        >> t_build_cmd_sprm_to_anndata
+        >> t_pipeline_exec_cwl_sprm_to_anndata
+        >> t_maybe_keep_cwl_sprm_to_anndata
+        >> t_maybe_create_dataset
+
+        >> t_send_create_dataset
+        >> t_move_data
+        >> t_expand_symlinks
+        >> t_send_status
+        >> t_join
+    )
+    (
+        t_maybe_start_small_sprm
+        >> prepare_small
+        >> t_build_cmd_small
+        >> t_pipeline_exec_small
+        >> t_maybe_keep_small
 
         >> prepare_cwl_create_vis_symlink_archive
         >> t_build_cmd_create_vis_symlink_archive
