@@ -19,23 +19,32 @@ class FailureCallback(AirflowCallback):
         )
     """
 
-    def get_extra_fields(self):
+    def log(self):
         if not self.dag_run or not self.task:
-            return {
-                "validation_message": f"""Process failed in {self.called_from},
+            logging.error(
+                f"""Process failed in {self.called_from},
                 but is missing either dag_run (value: '{self.dag_run}')
                 or task (value: '{self.task}').
                 {f'Error: {self.formatted_exception}' if self.formatted_exception else ""}
-                """,
-            }
-
-        return {
-            "validation_message": f"""
+                """
+            )
+            return
+        logging.error(
+            f"""
                 Process {self.dag_run.dag_id} started {self.dag_run.execution_date}
                 failed at task {self.task.task_id} in {self.called_from}.
                 {f'Error: {self.formatted_exception}' if self.formatted_exception else ""}
-            """,
-        }
+            """
+        )
+
+    def get_extra_fields(self):
+        if self.entity_type == "upload":
+            msg = f"Process failed in {self.called_from}."
+            if self.dag_run:
+                msg += f" DAG run: {self.dag_run.dag_id}."
+            if self.task:
+                msg += f" Task ID: {self.task.task_id}."
+            return {"validation_message": msg}
 
     def set_status(self):
         """
@@ -45,6 +54,7 @@ class FailureCallback(AirflowCallback):
         if not self.uuid:
             logging.info("No UUID passed, can't set status or send notifications.")
             return
+        self.log()
         data = self.get_extra_fields()
         logging.info("data:\n" + pformat(data))
         StatusChanger(

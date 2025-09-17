@@ -1,5 +1,6 @@
 from abc import ABC
 
+from status_change.status_utils import get_submission_context
 from utils import get_auth_tok
 
 
@@ -32,3 +33,5 @@ class AirflowCallback(ABC):
         self.auth_tok = get_auth_tok(**context)
         self.dag_run = context.get("dag_run")
         self.task = context.get("task")
+        self.entity_data = get_submission_context(self.auth_tok, self.uuid)
+        self.entity_type = self.entity_data.get("entity_type", "").lower()
