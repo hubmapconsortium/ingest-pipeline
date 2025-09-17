@@ -1,4 +1,5 @@
 import os
+import time
 import yaml
 import utils
 from pprint import pprint
@@ -198,6 +199,7 @@ with HMDAG(
     )
 
     def wrapped_send_status_msg(**kwargs):
+        time.sleep(10)
         if send_status_msg(**kwargs):
             scanned_md = read_metadata_file(**kwargs)  # Yes, it's getting re-read
             kwargs["ti"].xcom_push(
