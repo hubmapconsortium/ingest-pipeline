@@ -155,7 +155,7 @@ with HMDAG(
         python_callable=utils.pythonop_maybe_keep,
         provide_context=True,
         op_kwargs={
-            "next_op": "prepare_cwl_sprm",
+            "next_op": "prepare_cell_count_cmd",
             "bail_op": "set_dataset_error",
             "test_op": "pipeline_exec_cwl_segmentation",
         },
@@ -172,7 +172,8 @@ with HMDAG(
             for line in f:
                 if "num_cells" in line:
                     num_cells = re.search(pattern, line).group(1)
-        kwargs["ti"].xcom_push(key="small_sprm", value=1 if int(num_cells) < 200000 == 0 else 0)
+        print("num_cells: ", num_cells)
+        kwargs["ti"].xcom_push(key="small_sprm", value=1 if int(num_cells) < 200000 else 0)
         return 0
 
     cell_count_cmd = build_cell_count_cmd()
