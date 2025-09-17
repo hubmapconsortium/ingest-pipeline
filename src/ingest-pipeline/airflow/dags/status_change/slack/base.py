@@ -37,9 +37,9 @@ class SlackMessage:
     def data_ingest_board_query_url(self):
         # TODO: env and project awareness
         params = {"q": get_hubmap_id_from_uuid(self.token, self.uuid)}
-        if self.entity_data.get("entity_type") == "upload":
+        if self.entity_data.get("entity_type", "").lower() == "upload":
             params["entity_type"] = "uploads"
-        return urljoin("https://ingest.board.hubmapconsortium.org/", urlencode(params))
+        return f"https://ingest.board.hubmapconsortium.org/?{urlencode(params)}"
 
     @property
     def entity_links(self):
