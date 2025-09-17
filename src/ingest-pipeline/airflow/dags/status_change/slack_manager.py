@@ -39,6 +39,7 @@ class SlackManager:
             logging.info(
                 f"Status {status} does not have any Slack messaging rules; no message will be sent."
             )
+        self.is_valid_for_status = bool(status in self.status_to_class)
 
     @property
     def status_to_class(self):

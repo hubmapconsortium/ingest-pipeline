@@ -22,6 +22,12 @@ class DataIngestBoardManager:
     Handle updating metadata fields tied to Data Ingest Board.
     """
 
+    clear_only = [
+        "upload_reorganized",
+        "upload_valid",
+        "dataset_qa",
+    ]
+
     def __init__(
         self,
         status: Statuses,
@@ -38,6 +44,9 @@ class DataIngestBoardManager:
         self.error_report = error_report
         self.entity_data = get_submission_context(self.token, self.uuid)
         self.update_fields = self.get_fields()
+        self.is_valid_for_status = bool(
+            getattr(self, status.value, None) or status.value in self.clear_only
+        )
 
     def update(self):
         if not self.update_fields:
@@ -64,7 +73,7 @@ class DataIngestBoardManager:
     def get_fields(self) -> Optional[dict]:
         entity = self.entity_data.get("entity_type", "").lower()
         msg_type = self.status.value
-        if clear_msg := self.clear_only(msg_type, entity):
+        if clear_msg := self.get_clear_message(msg_type, entity):
             return clear_msg
         func = getattr(self, msg_type, None)
         if not func:
@@ -74,16 +83,11 @@ class DataIngestBoardManager:
             return
         return func()
 
-    def clear_only(self, msg_type: str, entity: str) -> Optional[dict]:
+    def get_clear_message(self, msg_type: str, entity: str) -> Optional[dict]:
         """
         Clear error messages following success.
         """
-        clear_only = {
-            "upload_reorganized",
-            "upload_valid",
-            "dataset_qa",
-        }
-        if msg_type in clear_only:
+        if msg_type in self.clear_only:
             if entity == "dataset":
                 # Derived datasets need to write to primary dataset error_message;
                 # set self.uuid to primary if uuid passed in is for a derived dataset.

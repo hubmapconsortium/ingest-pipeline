@@ -202,6 +202,7 @@ Example usage with optional params:
 
 class StatusChanger(EntityUpdater):
     same_status = False
+    message_classes = [SlackManager, DataIngestBoardManager]
 
     def __init__(
         self,
@@ -228,33 +229,6 @@ class StatusChanger(EntityUpdater):
         self.status = self._validate_status(status)
         self.error_report = error_report
 
-    @property
-    def status_map(self):
-        """
-        Add any statuses to map that require a specific set of methods in addition to
-        default _set_entity_api_data.
-
-        key: Statuses enum member
-        value: appropriate Manager class (just SlackManager currently)
-        Format: {<status>: [ManagerClass]}
-        Example: {
-            Statuses.DATASET_QA: [SlackManager]
-        }
-        """
-
-        # TODO: It may be that variation is not necessary to account for, and managers
-        # can just handle any statuses passed to them that are inapplicable; re-address
-        # following email integration.
-        return {
-            Statuses.UPLOAD_ERROR: [SlackManager, DataIngestBoardManager],
-            Statuses.UPLOAD_INVALID: [SlackManager, DataIngestBoardManager],
-            Statuses.UPLOAD_VALID: [SlackManager, DataIngestBoardManager],
-            Statuses.UPLOAD_REORGANIZED: [SlackManager, DataIngestBoardManager],
-            Statuses.DATASET_ERROR: [SlackManager, DataIngestBoardManager],
-            Statuses.DATASET_INVALID: [SlackManager, DataIngestBoardManager],
-            Statuses.DATASET_QA: [SlackManager, DataIngestBoardManager],
-        }
-
     def update(self) -> None:
         """
         This is the main method for using the StatusChanger.
@@ -262,7 +236,8 @@ class StatusChanger(EntityUpdater):
             EntityUpdater; if same status continue to message step.
         - Validates fields and adds status to fields_to_change.
         - Runs EntityUpdater._set_entity_api_data() process.
-        - Also instantiates any messaging managers from status_map and calls their update methods.
+        - Also instantiates messaging classes, sends updates based on class's
+            is_valid_for_status value.
         """
         if self.status is None or self.same_status == True:
             if self.fields_to_change:
@@ -280,8 +255,13 @@ class StatusChanger(EntityUpdater):
             logging.info("Updating status...")
             self.validate_fields_to_change()
             self.set_entity_api_data()
-        for message_method in self.status_map.get(self.status, []):
-            message_method(self.status, self.uuid, self.token, self.error_report).update()
+        self.call_message_managers()
+
+    def call_message_managers(self):
+        for message_type in self.message_classes:
+            message_class = message_type(self.status, self.uuid, self.token, self.error_report)
+            if message_class.is_valid_for_status:
+                message_class.update()
 
     def validate_fields_to_change(self):
         super().validate_fields_to_change()
