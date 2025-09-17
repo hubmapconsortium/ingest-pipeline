@@ -8,7 +8,7 @@ class SlackUploadError(SlackMessage):
     def format(self):
         return f"""
         Upload {self.uuid} is in Error state.
-        {self.dataset_links}
+        {self.entity_links}
         """
 
 
@@ -18,7 +18,7 @@ class SlackDatasetError(SlackMessage):
     def format(self):
         return f"""
         Dataset {self.uuid} is in Error state.
-        {self.dataset_links}
+        {self.entity_links}
         """
 
 
@@ -42,7 +42,7 @@ class SlackDatasetErrorDerived(SlackMessage):
         return f"""
         Derived dataset <{self.get_globus_url(child_uuid)}|{child_uuid}> is in Error state.
         Primary dataset: <{self.get_globus_url()}|{self.uuid}>
-        {self.dataset_links}
+        {self.entity_links}
         """
 
 
@@ -62,5 +62,5 @@ class SlackDatasetErrorPrimary(SlackDatasetError):
     def format(self):
         return f"""
         Dataset {self.uuid} is in Error state.
-        {self.dataset_links}
+        {self.entity_links}
         """

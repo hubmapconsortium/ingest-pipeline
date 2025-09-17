@@ -38,11 +38,11 @@ class SlackMessage:
         # TODO: env and project awareness
         params = {"q": get_hubmap_id_from_uuid(self.token, self.uuid)}
         if self.entity_data.get("entity_type") == "upload":
-            params["entity_type"] = "upload"
+            params["entity_type"] = "uploads"
         return urljoin("https://ingest.board.hubmapconsortium.org/", urlencode(params))
 
     @property
-    def dataset_links(self):
+    def entity_links(self):
         """
         View on Data Ingest Board.
         View on Globus.
