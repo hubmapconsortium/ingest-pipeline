@@ -42,6 +42,13 @@ class SlackMessage:
         return f"https://ingest.board.hubmapconsortium.org/?{urlencode(params)}"
 
     @property
+    def ingest_ui_url(self):
+        # TODO: env and project awareness
+        entity_type = self.entity_data.get("entity_type", "")
+        base_url = urljoin("https://ingest.dev.hubmapconsortium.org/", entity_type)
+        return urljoin(base_url + "/" if not base_url.endswith("/") else base_url, self.uuid)
+
+    @property
     def entity_links(self):
         """
         View on Data Ingest Board.
@@ -49,6 +56,7 @@ class SlackMessage:
         Filesystem path: /path/to/data
         """
         return f"""
+        <{self.ingest_ui_url}|View on Ingest UI.>
         <{self.data_ingest_board_query_url}|View on Data Ingest Board.>
         <{self.get_globus_url()}|View on Globus.>
         Filesystem path: {self.copyable_filepath}

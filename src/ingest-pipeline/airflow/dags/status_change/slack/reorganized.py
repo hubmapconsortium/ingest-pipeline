@@ -39,7 +39,7 @@ class SlackUploadReorganized(SlackMessage):
             uuid = dataset.get("uuid", "")
             # Organ and globus_url are derived from additional API calls.
             data.append(get_organ(uuid, self.token))
-            data.append(f"{self.get_globus_url(uuid)}|Globus")
+            data.append(f"<{self.get_globus_url(uuid)}|Globus>")
             data.append(get_abs_path(uuid, self.token, escaped=True))
             info.append(", ".join(self._clean_dataset_rows(data)))
         return info

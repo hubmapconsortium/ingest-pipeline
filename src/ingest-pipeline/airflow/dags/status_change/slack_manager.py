@@ -33,7 +33,7 @@ class SlackManager:
     def __init__(self, status: Statuses, uuid: str, token: str, *args, **kwargs):
         self.uuid = uuid
         self.token = token
-        self.get_message_class(status)
+        self.message_class = self.get_message_class(status)
         if not self.message_class:
             logging.info(
                 f"Status {status.value} does not have any Slack messaging rules; no message will be sent."
@@ -76,24 +76,22 @@ class SlackManager:
             },
         }
 
-    def get_message_class(self, msg_type: Statuses) -> Optional[Type[SlackMessage]]:
+    def get_message_class(self, msg_type: Statuses) -> Optional[SlackMessage]:
         relevant_classes = self.status_to_class.get(msg_type)
         if not relevant_classes:
-            self.message_class = None
             return
         entity_data = get_submission_context(self.token, self.uuid)
-        if main_class := relevant_classes["main_class"]:
-            self.message_class = main_class(self.uuid, self.token, entity_data)
-        # Set to main class by default. Run tests on subclasses; instantiate first to qualify.
         for subclass in relevant_classes.get("subclasses", []):
             if subclass.test(entity_data, self.token):
                 return subclass(self.uuid, self.token, entity_data)
+        if main_class := relevant_classes["main_class"]:
+            return main_class(self.uuid, self.token, entity_data)
 
     def update(self):
         if not self.message_class:
             return
         message = self.message_class.format()
-        channel = self.message_class.channel
+        channel = str(self.message_class.channel)
         logging.info(f"Sending message from {self.message_class.name}...")
         if message and channel:
             post_to_slack_notify(self.token, message, channel)
