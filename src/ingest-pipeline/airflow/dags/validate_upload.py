@@ -146,7 +146,12 @@ with HMDAG(
     def send_status_msg(**kwargs):
         validation_file_path = Path(kwargs["ti"].xcom_pull(key="validation_file_path"))
         error_counts = kwargs["ti"].xcom_pull(key="error_counts")
-        error_counts_print = error_counts.strip("{}").replace('"', "").replace(",", "")
+        error_counts_print = (
+            json.dumps(json.loads(error_counts), indent=9)
+            .strip("{}")
+            .replace('"', "")
+            .replace(",", "")
+        )
         error_counts_msg = "; ".join([f"{k}: {v}" for k, v in json.loads(error_counts).items()])
         with open(validation_file_path) as f:
             report_txt = f.read()
