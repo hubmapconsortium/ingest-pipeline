@@ -70,7 +70,7 @@ class SlackUploadReorganized(SlackMessage):
         self.get_non_upload_metadata()
         dataset_info = self._format_upload_reorganized_datasets()
         msg_data = {
-            "hubmap_id": f"<{self.ingest_ui_url}|{self.entity_data.get('hubmap_id')}",
+            "hubmap_id": f"<{self.ingest_ui_url}|{self.entity_data.get('hubmap_id')}>",
             "created_by_user_displayname": self.entity_data.get("created_by_user_displayname"),
             "created_by_user_email": self.entity_data.get("created_by_user_email"),
             "dataset_type": self.dataset_type,
