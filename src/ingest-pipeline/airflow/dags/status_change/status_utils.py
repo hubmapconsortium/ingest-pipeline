@@ -146,7 +146,7 @@ def get_abs_path(uuid: str, token: str, escaped: bool = False) -> str:
     )
     abs_path = response.json().get("path")
     if escaped:
-        abs_path.replace(" ", "\\ ")
+        return abs_path.replace(" ", "\\ ")
     return abs_path
 
 
