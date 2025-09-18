@@ -29,7 +29,7 @@ class DataIngestBoardManager:
         status: Statuses,
         uuid: str,
         token: str,
-        msg: Optional[str] = None,
+        msg: str = "",
         *args,
         **kwargs,
     ):
@@ -37,7 +37,7 @@ class DataIngestBoardManager:
         self.uuid = uuid
         self.token = token
         self.status = status
-        self.msg = str(msg)
+        self.msg = str(msg) if msg else None
         self.entity_data = get_submission_context(self.token, self.uuid)
         self.update_fields = self.get_fields()
         self.is_valid_for_status = bool(self.update_fields)
