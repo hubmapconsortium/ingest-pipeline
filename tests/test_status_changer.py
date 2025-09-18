@@ -190,7 +190,8 @@ class TestStatusChanger(unittest.TestCase):
     def test_recognized_status(self):
         self.upload_valid.validate_fields_to_change()
         self.assertEqual(
-            self.upload_valid.fields_to_change["status"], self.upload_valid.status.value
+            self.upload_valid.fields_to_change["status"],
+            Statuses.get_status_str(self.upload_valid.status),
         )
 
     def test_extra_fields(self):

@@ -56,8 +56,7 @@ class SlackMessage:
 
     @property
     def copyable_filepath(self):
-        path = get_abs_path(self.uuid, self.token)
-        return path.replace(" ", "\\ ")
+        return get_abs_path(self.uuid, self.token, escaped=True)
 
     def get_globus_url(self, uuid: Optional[str] = None) -> str:
         """

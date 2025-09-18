@@ -8,7 +8,7 @@ class SlackUploadReorganized(SlackMessage):
 
     def __init__(self, uuid, token, entity_data=None):
         super().__init__(uuid, token, entity_data)
-        self.datasets = self.entity_data.get("datasets", [])
+        self.datasets: list[dict] = self.entity_data.get("datasets", [])
 
     @property
     def dataset_vals(self):
@@ -21,7 +21,9 @@ class SlackUploadReorganized(SlackMessage):
 
     def get_non_upload_metadata(self):
         self.dataset_type = self.datasets[0].get("dataset_type") if self.datasets else None
-        self.organ = get_organ(self.datasets[0].get("uuid"), self.token) if self.datasets else None
+        self.organ = (
+            get_organ(self.datasets[0].get("uuid", ""), self.token) if self.datasets else None
+        )
 
     def _format_upload_reorganized_datasets(self) -> list[str]:
         """
@@ -31,14 +33,14 @@ class SlackUploadReorganized(SlackMessage):
         if not self.datasets:
             return [""]
         # Add keys as index 0.
-        info = [",".join([*self.dataset_vals, "organ", "globus_url", "filesystem_path"])]
+        info = [",".join([*self.dataset_vals, "organ", "globus_link", "filesystem_path"])]
         for dataset in self.datasets:
             data = [dataset.get(key, "") for key in self.dataset_vals]
             uuid = dataset.get("uuid", "")
             # Organ and globus_url are derived from additional API calls.
             data.append(get_organ(uuid, self.token))
-            data.append(self.get_globus_url(uuid))
-            data.append(get_abs_path(uuid, self.token))
+            data.append(f"{self.get_globus_url(uuid)}|Globus")
+            data.append(get_abs_path(uuid, self.token, escaped=True))
             info.append(", ".join(self._clean_dataset_rows(data)))
         return info
 
@@ -59,7 +61,6 @@ class SlackUploadReorganized(SlackMessage):
         self.get_non_upload_metadata()
         dataset_info = self._format_upload_reorganized_datasets()
         msg_data = {
-            "uuid": self.entity_data.get("uuid"),
             "hubmap_id": self.entity_data.get("hubmap_id"),
             "created_by_user_displayname": self.entity_data.get("created_by_user_displayname"),
             "created_by_user_email": self.entity_data.get("created_by_user_email"),

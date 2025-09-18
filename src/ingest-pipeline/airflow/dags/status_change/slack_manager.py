@@ -36,7 +36,7 @@ class SlackManager:
         self.get_message_class(status)
         if not self.message_class:
             logging.info(
-                f"Status {status} does not have any Slack messaging rules; no message will be sent."
+                f"Status {status.value} does not have any Slack messaging rules; no message will be sent."
             )
         self.is_valid_for_status = bool(self.message_class)
 

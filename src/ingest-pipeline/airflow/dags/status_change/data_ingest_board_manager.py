@@ -69,7 +69,7 @@ class DataIngestBoardManager:
 
     def get_fields(self) -> Optional[dict]:
         entity = self.entity_data.get("entity_type", "").lower()
-        msg_type = f"{entity}_{self.status.value}"
+        msg_type = f"{entity}_{Statuses.get_status_str(self.status)}"
         if clear_msg := self.get_clear_message(msg_type, entity):
             return clear_msg
         func = getattr(self, msg_type, None)
