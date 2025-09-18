@@ -1,5 +1,5 @@
 import logging
-from typing import TYPE_CHECKING, Optional
+from typing import Optional
 
 from .status_utils import (  # get_primary_dataset,
     EntityUpdateException,
@@ -7,9 +7,6 @@ from .status_utils import (  # get_primary_dataset,
     get_submission_context,
     put_request_to_entity_api,
 )
-
-if TYPE_CHECKING:
-    from submodules import ingest_validation_tools_error_report
 
 
 class DataIngestBoardManager:
@@ -32,7 +29,7 @@ class DataIngestBoardManager:
         status: Statuses,
         uuid: str,
         token: str,
-        error_report: Optional["ingest_validation_tools_error_report.ErrorReport"] = None,  # type: ignore
+        msg: Optional[str] = None,
         *args,
         **kwargs,
     ):
@@ -40,7 +37,7 @@ class DataIngestBoardManager:
         self.uuid = uuid
         self.token = token
         self.status = status
-        self.error_report = error_report
+        self.msg = msg
         self.entity_data = get_submission_context(self.token, self.uuid)
         self.update_fields = self.get_fields()
         self.is_valid_for_status = bool(self.update_fields)
@@ -102,16 +99,12 @@ class DataIngestBoardManager:
         if "Process failed" in str(self.entity_data.get("error_message")):
             return
         return {
-            "error_message": (
-                self.counts if self.counts else f"Upload {self.uuid} is in Error state."
-            )
+            "error_message": (self.msg if self.msg else f"Upload {self.uuid} is in Error state.")
         }
 
     def upload_invalid(self):
         return {
-            "error_message": (
-                self.counts if self.counts else f"Upload {self.uuid} is in Invalid state."
-            )
+            "error_message": (self.msg if self.msg else f"Upload {self.uuid} is in Invalid state.")
         }
 
     def dataset_error(self):
@@ -124,8 +117,8 @@ class DataIngestBoardManager:
             return
         # if self.check_is_derived:
         #     msg = (
-        #         self.counts
-        #         if self.counts
+        #         self.msg
+        #         if self.msg
         #         else f"Derived dataset {self.child_uuid} is in Error state."
         #     )
         # else:
@@ -138,7 +131,7 @@ class DataIngestBoardManager:
         to ensure writing error to correct entity.
         """
         # if not self.check_is_derived:
-        msg = self.counts if self.counts else f"Dataset {self.uuid} is in Invalid state."
+        msg = self.msg if self.msg else f"Dataset {self.uuid} is in Invalid state."
         # else:
         #     msg = f"Derived dataset {self.child_uuid} is in Invalid state."
         return {"error_message": msg}
@@ -148,12 +141,6 @@ class DataIngestBoardManager:
     # Utils
     #
     ###########
-
-    @property
-    def counts(self) -> Optional[str]:
-        if self.error_report:
-            counts = self.error_report.counts()
-            return "\n".join([f"{key}: {val}" for key, val in counts.items()])
 
     # @property
     # def child_uuid(self) -> Optional[str]:

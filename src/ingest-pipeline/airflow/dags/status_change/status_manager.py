@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from copy import deepcopy
 from functools import cached_property
-from typing import TYPE_CHECKING, Any, Optional, Union
+from typing import Any, Optional, Union
 
 from schema_utils import (
     localized_assert_json_matches_schema as assert_json_matches_schema,
@@ -18,9 +18,6 @@ from .status_utils import (
     get_submission_context,
     put_request_to_entity_api,
 )
-
-if TYPE_CHECKING:
-    from submodules import ingest_validation_tools_error_report
 
 ENTITY_JSON_SCHEMA = "entity_metadata_schema.yml"  # from this repo's schemata directory
 
@@ -197,7 +194,7 @@ Example usage with optional params:
             fields_to_append_to={"ingest_task": "test"},  # optional
             delimiter=",",  # optional
             status=<Statuses.STATUS_ENUM>,  # or "<status>"
-            error_report=<ErrorReport>
+            data_ingest_board_msg=<ErrorReport.counts>
         ).update()
 """
 
@@ -216,7 +213,7 @@ class StatusChanger(EntityUpdater):
         delimiter: str = "|",
         # Additional field to support privileged field "status"
         status: Optional[Union[Statuses, str]] = None,
-        error_report: Optional["ingest_validation_tools_error_report.ErrorReport"] = None,  # type: ignore
+        data_ingest_board_msg: Optional[str] = None,
         **kwargs,  # Avoid blowing up if passed deprecated params
     ):
         del kwargs
@@ -229,7 +226,7 @@ class StatusChanger(EntityUpdater):
             delimiter,
         )
         self.status = self._validate_status(status)
-        self.error_report = error_report
+        self.data_ingest_board_msg = data_ingest_board_msg
 
     def update(self) -> None:
         """
@@ -261,7 +258,9 @@ class StatusChanger(EntityUpdater):
 
     def call_message_managers(self):
         for message_type in self.message_classes:
-            message_class = message_type(self.status, self.uuid, self.token, self.error_report)
+            message_class = message_type(
+                self.status, self.uuid, self.token, msg=self.data_ingest_board_msg
+            )
             if message_class.is_valid_for_status:
                 message_class.update()
 

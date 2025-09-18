@@ -516,8 +516,11 @@ class TestFailureCallback(unittest.TestCase):
 
 class TestDataIngestBoardManager(unittest.TestCase):
 
-    def test_clear_status(self):
-        pass
+    @patch("status_change.data_ingest_board_manager.get_submission_context")
+    def test_clear_status(self, dib_context_mock):
+        dib_context_mock.return_value = upload_context_mock_value
+        dib = DataIngestBoardManager(Statuses.UPLOAD_VALID, "test_uuid", "test_token")
+        assert dib.get_fields() == {"error_message": ""}
 
     @patch("status_change.data_ingest_board_manager.DataIngestBoardManager.upload_invalid")
     @patch("status_change.data_ingest_board_manager.DataIngestBoardManager.update")
@@ -554,6 +557,13 @@ class TestDataIngestBoardManager(unittest.TestCase):
         dib = DataIngestBoardManager(Statuses.DATASET_HOLD, "test_uuid", "test_token")
         assert dib.get_fields() == None
         assert dib.is_valid_for_status == False
+
+    @patch("status_change.data_ingest_board_manager.get_submission_context")
+    def test_get_msg(self, dib_context_mock):
+        msg = "Antibodies/Contributors Errors: 1"
+        dib_context_mock.return_value = upload_context_mock_value
+        dib = DataIngestBoardManager(Statuses.UPLOAD_INVALID, "test_uuid", "test_token", msg=msg)
+        assert dib.get_fields() == {"error_message": msg}
 
 
 # if __name__ == "__main__":
