@@ -134,13 +134,7 @@ with HMDAG(
         validation_file_path = Path(get_tmp_dir_path(kwargs["run_id"])) / "validation_report.txt"
         with open(validation_file_path, "w") as f:
             f.write(report.as_text())
-        kwargs["ti"].xcom_push(
-            key="error_counts",
-            value=json.dumps(report.counts, indent=9)
-            .strip("{}")
-            .replace('"', "")
-            .replace(",", ""),
-        )
+        kwargs["ti"].xcom_push(key="error_counts", value=report.counts)
         kwargs["ti"].xcom_push(key="validation_file_path", value=str(validation_file_path))
 
     t_run_validation = PythonOperator(
@@ -151,7 +145,9 @@ with HMDAG(
 
     def send_status_msg(**kwargs):
         validation_file_path = Path(kwargs["ti"].xcom_pull(key="validation_file_path"))
-        error_counts = Path(kwargs["ti"].xcom_pull(key="error_counts"))
+        error_counts = kwargs["ti"].xcom_pull(key="error_counts")
+        error_counts_print = error_counts.strip("{}").replace('"', "").replace(",", "")
+        error_counts_msg = "; ".join([f"{k}: {v}" for k, v in json.loads(error_counts).items()])
         with open(validation_file_path) as f:
             report_txt = f.read()
         if report_txt.startswith("No errors!"):
@@ -177,7 +173,7 @@ with HMDAG(
                 f"""
                 ------------
                 Error counts:
-                {error_counts}
+                {error_counts_print}
                 ------------
                 """
             )
@@ -186,7 +182,7 @@ with HMDAG(
             get_auth_tok(**kwargs),
             status=status,
             fields_to_overwrite=extra_fields,
-            msg=error_counts if error_counts else None,
+            data_ingest_board_msg=error_counts_msg,
         ).update()
 
     t_send_status = PythonOperator(

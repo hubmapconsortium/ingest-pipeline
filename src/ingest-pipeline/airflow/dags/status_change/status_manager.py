@@ -319,8 +319,8 @@ class StatusChanger(EntityUpdater):
                 )
         return status
 
-    def _send_to_entity_updater(self, msg: str):
-        logging.info(msg)
+    def _send_to_entity_updater(self, log_msg: str):
+        logging.info(log_msg)
         # Just to be sure!
         self.fields_to_overwrite.pop("status", None)
         self.fields_to_append_to.pop("status", None)
