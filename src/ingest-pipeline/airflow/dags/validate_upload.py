@@ -147,12 +147,9 @@ with HMDAG(
         validation_file_path = Path(kwargs["ti"].xcom_pull(key="validation_file_path"))
         error_counts = kwargs["ti"].xcom_pull(key="error_counts")
         error_counts_print = (
-            json.dumps(json.loads(error_counts), indent=9)
-            .strip("{}")
-            .replace('"', "")
-            .replace(",", "")
+            json.dumps(error_counts, indent=9).strip("{}").replace('"', "").replace(",", "")
         )
-        error_counts_msg = "; ".join([f"{k}: {v}" for k, v in json.loads(error_counts).items()])
+        error_counts_msg = "; ".join([f"{k}: {v}" for k, v in error_counts.items()])
         with open(validation_file_path) as f:
             report_txt = f.read()
         if report_txt.startswith("No errors!"):
