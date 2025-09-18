@@ -1,3 +1,5 @@
+from typing import Tuple
+
 from status_change.status_utils import get_abs_path, get_organ
 
 from .base import SlackMessage
@@ -58,24 +60,30 @@ class SlackUploadReorganized(SlackMessage):
         return cleaned_data
 
     def format(self) -> str:
+        dataset_info, msg_data = self.get_upload_info()
+        return f"""
+        Upload {self.uuid} reorganized:
+        {self.get_combined_info(msg_data, dataset_info)}
+        """
+
+    def get_upload_info(self) -> Tuple[list, dict]:
         self.get_non_upload_metadata()
         dataset_info = self._format_upload_reorganized_datasets()
         msg_data = {
-            "hubmap_id": self.entity_data.get("hubmap_id"),
+            "hubmap_id": f"<{self.ingest_ui_url}|{self.entity_data.get('hubmap_id')}",
             "created_by_user_displayname": self.entity_data.get("created_by_user_displayname"),
             "created_by_user_email": self.entity_data.get("created_by_user_email"),
             "dataset_type": self.dataset_type,
             "organ": self.organ,
         }
-        print_vals = (
-            "\n   ".join([f"{key}: {value}" for key, value in msg_data.items()])
+        return dataset_info, msg_data
+
+    def get_combined_info(self, data: dict, dataset_info: list):
+        return (
+            "\n   ".join([f"{key}: {value}" for key, value in data.items()])
             + "\n\nDatasets:\n"
             + "\n".join(dataset_info)
         )
-        return f"""
-        Upload {self.uuid} reorganized:
-        {print_vals}
-        """
 
 
 class SlackUploadReorganizedPriority(SlackUploadReorganized):
@@ -105,29 +113,11 @@ class SlackUploadReorganizedPriority(SlackUploadReorganized):
         Formats data for priority project reorganization Slack message.
         Prioritizes returning a message over tracking down missing data.
         """
-        self.get_non_upload_metadata()
-        dataset_info = self._format_upload_reorganized_datasets()
+        dataset_info, msg_data = self.get_upload_info()
         priority_projects_list = ", ".join(self.entity_data.get("priority_project_list", []))
-        msg_data = {
-            "uuid": self.entity_data.get("uuid"),
-            "hubmap_id": self.entity_data.get("hubmap_id"),
-            "created_by_user_displayname": self.entity_data.get("created_by_user_displayname"),
-            "created_by_user_email": self.entity_data.get("created_by_user_email"),
-            "priority_project_list": priority_projects_list,
-            "dataset_type": self.dataset_type,
-            "organ": self.organ,
-        }
-        return self.create_msg_str(priority_projects_list, msg_data, dataset_info)
+        msg_data["priority_project_list"] = priority_projects_list
 
-    def create_msg_str(
-        self, upload_label: str, data: dict[str, str], dataset_info: list[str]
-    ) -> str:
-        print_vals = (
-            "\n   ".join([f"{key}: {value}" for key, value in data.items()])
-            + "\n\nDatasets:\n"
-            + "\n".join(dataset_info)
-        )
         return f"""
-        Priority upload ({upload_label}) reorganized:
-        {print_vals}
+        Priority upload ({priority_projects_list}) reorganized:
+        {self.get_combined_info(msg_data, dataset_info)}
         """
