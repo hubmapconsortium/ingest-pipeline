@@ -1,10 +1,9 @@
 import logging
 from typing import TYPE_CHECKING, Optional
 
-from .status_utils import (
+from .status_utils import (  # get_primary_dataset,
     EntityUpdateException,
     Statuses,
-    get_primary_dataset,
     get_submission_context,
     put_request_to_entity_api,
 )
@@ -33,7 +32,7 @@ class DataIngestBoardManager:
         status: Statuses,
         uuid: str,
         token: str,
-        error_report: Optional["ingest_validation_tools_error_report.ErrorReport"],  # type: ignore
+        error_report: Optional["ingest_validation_tools_error_report.ErrorReport"] = None,  # type: ignore
         *args,
         **kwargs,
     ):
@@ -44,9 +43,7 @@ class DataIngestBoardManager:
         self.error_report = error_report
         self.entity_data = get_submission_context(self.token, self.uuid)
         self.update_fields = self.get_fields()
-        self.is_valid_for_status = bool(
-            getattr(self, status.value, None) or status.value in self.clear_only
-        )
+        self.is_valid_for_status = bool(self.update_fields)
 
     def update(self):
         if not self.update_fields:
@@ -72,7 +69,7 @@ class DataIngestBoardManager:
 
     def get_fields(self) -> Optional[dict]:
         entity = self.entity_data.get("entity_type", "").lower()
-        msg_type = self.status.value
+        msg_type = f"{entity}_{self.status.value}"
         if clear_msg := self.get_clear_message(msg_type, entity):
             return clear_msg
         func = getattr(self, msg_type, None)
@@ -88,10 +85,10 @@ class DataIngestBoardManager:
         Clear error messages following success.
         """
         if msg_type in self.clear_only:
-            if entity == "dataset":
-                # Derived datasets need to write to primary dataset error_message;
-                # set self.uuid to primary if uuid passed in is for a derived dataset.
-                self.check_is_derived
+            # if entity == "dataset":
+            #     # Derived datasets need to write to primary dataset error_message;
+            #     # set self.uuid to primary if uuid passed in is for a derived dataset.
+            #     self.check_is_derived
             return {"error_message": ""}
 
     ########################
@@ -101,6 +98,9 @@ class DataIngestBoardManager:
     ########################
 
     def upload_error(self):
+        # If this was called by FailureCallback, don't overwrite its more detailed message
+        if "Process failed" in str(self.entity_data.get("error_message")):
+            return
         return {
             "error_message": (
                 self.counts if self.counts else f"Upload {self.uuid} is in Error state."
@@ -119,14 +119,17 @@ class DataIngestBoardManager:
         Derived datasets need to write to primary dataset's error_message field;
         handle any errant primary datasets set to Error as well.
         """
-        if self.check_is_derived:
-            msg = (
-                self.counts
-                if self.counts
-                else f"Derived dataset {self.child_uuid} is in Error state."
-            )
-        else:
-            msg = f"Dataset {self.uuid} is in Error state."
+        # If this was called by FailureCallback, don't overwrite its more detailed message
+        if "Process failed" in str(self.entity_data.get("error_message")):
+            return
+        # if self.check_is_derived:
+        #     msg = (
+        #         self.counts
+        #         if self.counts
+        #         else f"Derived dataset {self.child_uuid} is in Error state."
+        #     )
+        # else:
+        msg = f"Dataset {self.uuid} is in Error state."
         return {"error_message": msg}
 
     def dataset_invalid(self):
@@ -134,10 +137,10 @@ class DataIngestBoardManager:
         Derived datasets should not be invalid but check just in case
         to ensure writing error to correct entity.
         """
-        if not self.check_is_derived:
-            msg = self.counts if self.counts else f"Dataset {self.uuid} is in Invalid state."
-        else:
-            msg = f"Derived dataset {self.child_uuid} is in Invalid state."
+        # if not self.check_is_derived:
+        msg = self.counts if self.counts else f"Dataset {self.uuid} is in Invalid state."
+        # else:
+        #     msg = f"Derived dataset {self.child_uuid} is in Invalid state."
         return {"error_message": msg}
 
     ###########
@@ -152,17 +155,17 @@ class DataIngestBoardManager:
             counts = self.error_report.counts()
             return "\n".join([f"{key}: {val}" for key, val in counts.items()])
 
-    @property
-    def child_uuid(self) -> Optional[str]:
-        """
-        Check if dataset is descendant of another dataset.
-        If so, set self.uuid to primary and return child uuid.
-        """
-        if primary_uuid := get_primary_dataset(self.entity_data, self.token):
-            child_uuid = self.uuid
-            self.uuid = primary_uuid
-            return child_uuid
-
-    @property
-    def check_is_derived(self) -> bool:
-        return bool(self.child_uuid)
+    # @property
+    # def child_uuid(self) -> Optional[str]:
+    #     """
+    #     Check if dataset is descendant of another dataset.
+    #     If so, set self.uuid to primary and return child uuid.
+    #     """
+    #     if primary_uuid := get_primary_dataset(self.entity_data, self.token):
+    #         child_uuid = self.uuid
+    #         self.uuid = primary_uuid
+    #         return child_uuid
+    #
+    # @property
+    # def check_is_derived(self) -> bool:
+    #     return bool(self.child_uuid)

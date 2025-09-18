@@ -1,14 +1,13 @@
 import logging
+from typing import Optional, Type
 
-from .slack.error import (
+from .slack.base import SlackMessage
+from .slack.error import (  # SlackDatasetErrorDerived,; SlackDatasetErrorPrimary,
     SlackDatasetError,
-    SlackDatasetErrorDerived,
-    SlackDatasetErrorPrimary,
     SlackUploadError,
 )
-from .slack.invalid import (
+from .slack.invalid import (  # SlackDatasetInvalidDerived,
     SlackDatasetInvalid,
-    SlackDatasetInvalidDerived,
     SlackUploadInvalid,
 )
 from .slack.qa import SlackDatasetQA
@@ -39,7 +38,7 @@ class SlackManager:
             logging.info(
                 f"Status {status} does not have any Slack messaging rules; no message will be sent."
             )
-        self.is_valid_for_status = bool(status in self.status_to_class)
+        self.is_valid_for_status = bool(self.message_class)
 
     @property
     def status_to_class(self):
@@ -51,11 +50,13 @@ class SlackManager:
         return {
             Statuses.DATASET_ERROR: {
                 "main_class": SlackDatasetError,
-                "subclasses": [SlackDatasetErrorPrimary, SlackDatasetErrorDerived],
+                "subclasses": [],
+                # "subclasses": [SlackDatasetErrorPrimary, SlackDatasetErrorDerived],
             },
             Statuses.DATASET_INVALID: {
                 "main_class": SlackDatasetInvalid,
-                "subclasses": [SlackDatasetInvalidDerived],
+                "subclasses": [],
+                # "subclasses": [SlackDatasetInvalidDerived],
             },
             Statuses.DATASET_QA: {
                 "main_class": SlackDatasetQA,
@@ -75,7 +76,7 @@ class SlackManager:
             },
         }
 
-    def get_message_class(self, msg_type: Statuses):
+    def get_message_class(self, msg_type: Statuses) -> Optional[Type[SlackMessage]]:
         relevant_classes = self.status_to_class.get(msg_type)
         if not relevant_classes:
             self.message_class = None
@@ -86,8 +87,7 @@ class SlackManager:
         # Set to main class by default. Run tests on subclasses; instantiate first to qualify.
         for subclass in relevant_classes.get("subclasses", []):
             if subclass.test(entity_data, self.token):
-                self.message_class = subclass(self.uuid, self.token, entity_data)
-                break
+                return subclass(self.uuid, self.token, entity_data)
 
     def update(self):
         if not self.message_class:
@@ -97,10 +97,10 @@ class SlackManager:
         logging.info(f"Sending message from {self.message_class.name}...")
         if message and channel:
             post_to_slack_notify(self.token, message, channel)
-        else:
-            msg = ""
-            if not message:
-                msg += f"Request to send Slack message missing message text. "
-            if not channel:
-                msg += f"Request to send Slack message missing target channel."
-            raise EntityUpdateException(msg)
+        elif not message:
+            raise EntityUpdateException(f"Request to send Slack message missing message text.")
+        elif not channel:
+            # This is likely a config issue, let's soft fail here
+            logging.info(
+                f"Request to send Slack message missing target channel. No Slack message will be sent."
+            )

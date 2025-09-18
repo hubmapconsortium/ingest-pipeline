@@ -31,20 +31,19 @@ class FailureCallback(AirflowCallback):
             return
         logging.error(
             f"""
-                Process {self.dag_run.dag_id} started {self.dag_run.execution_date}
+                Process failed: {self.dag_run.dag_id} started {self.dag_run.execution_date}
                 failed at task {self.task.task_id} in {self.called_from}.
                 {f'Error: {self.formatted_exception}' if self.formatted_exception else ""}
             """
         )
 
     def get_extra_fields(self):
-        if self.entity_type == "upload":
-            msg = f"Process failed in {self.called_from}."
-            if self.dag_run:
-                msg += f" DAG run: {self.dag_run.dag_id}."
-            if self.task:
-                msg += f" Task ID: {self.task.task_id}."
-            return {"validation_message": msg}
+        msg = f"Process failed in {self.called_from}."
+        if self.dag_run:
+            msg += f" DAG run: {self.dag_run.dag_id}."
+        if self.task:
+            msg += f" Task ID: {self.task.task_id}."
+        return {"error_message": msg}
 
     def set_status(self):
         """
@@ -87,9 +86,3 @@ class FailureCallback(AirflowCallback):
         super().get_data(context)
         exception = context.get("exception")
         self.formatted_exception = formatted_exception(exception)
-
-
-class FailureCallbackPipeline(FailureCallback):
-    """ """
-
-    pass

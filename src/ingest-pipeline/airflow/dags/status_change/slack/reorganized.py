@@ -56,8 +56,25 @@ class SlackUploadReorganized(SlackMessage):
         return cleaned_data
 
     def format(self) -> str:
-        # Placeholder
-        return f"Upload {self.uuid} reorganized successfully!"
+        self.get_non_upload_metadata()
+        dataset_info = self._format_upload_reorganized_datasets()
+        msg_data = {
+            "uuid": self.entity_data.get("uuid"),
+            "hubmap_id": self.entity_data.get("hubmap_id"),
+            "created_by_user_displayname": self.entity_data.get("created_by_user_displayname"),
+            "created_by_user_email": self.entity_data.get("created_by_user_email"),
+            "dataset_type": self.dataset_type,
+            "organ": self.organ,
+        }
+        print_vals = (
+            "\n   ".join([f"{key}: {value}" for key, value in msg_data.items()])
+            + "\n\nDatasets:\n"
+            + "\n".join(dataset_info)
+        )
+        return f"""
+        Upload {self.uuid} reorganized:
+        {print_vals}
+        """
 
 
 class SlackUploadReorganizedPriority(SlackUploadReorganized):
@@ -79,6 +96,7 @@ class SlackUploadReorganizedPriority(SlackUploadReorganized):
 
     @classmethod
     def test(cls, entity_data, token) -> bool:
+        del token
         return bool(entity_data.get("priority_project_list"))
 
     def format(self) -> str:
