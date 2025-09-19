@@ -183,8 +183,8 @@ with HMDAG(
         python_callable=utils.pythonop_maybe_keep,
         provide_context=True,
         op_kwargs={
-            "next_op": "prepare_cwl_sprm",
-            "bail_op": "prepare_small",
+            "next_op": "prepare_small",
+            "bail_op": "prepare_cwl_sprm",
             "test_op": "cell_count_cmd",
             "test_key": "small_sprm",
         },
