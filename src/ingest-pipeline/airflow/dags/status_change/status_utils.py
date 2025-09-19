@@ -5,6 +5,7 @@ import logging
 import traceback
 from enum import Enum
 from typing import Any, Optional
+from urllib.parse import urlencode
 
 from requests import codes
 from requests.exceptions import HTTPError
@@ -201,8 +202,12 @@ def get_primary_dataset(entity_data: dict, token: str) -> Optional[str]:
                     return ancestor.get("uuid")
 
 
-def put_request_to_entity_api(uuid: str, token: str, update_fields: dict) -> dict:
+def put_request_to_entity_api(
+    uuid: str, token: str, update_fields: dict, params: dict = {}
+) -> dict:
     endpoint = f"/entities/{uuid}"
+    if encoded_params := urlencode(params):
+        endpoint += f"?{encoded_params}"
     headers = {
         "authorization": "Bearer " + token,
         "X-Hubmap-Application": "ingest-pipeline",

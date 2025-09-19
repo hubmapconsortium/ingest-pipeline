@@ -510,8 +510,17 @@ class TestFailureCallback(unittest.TestCase):
                         "This is the formatted version of FakeTestException"
                         == fcb.formatted_exception
                     )
-                    assert hhr_mock.call_args[0][0] == "entities/abc123"
-                    assert hhr_mock.call_args[1]["headers"]["authorization"] == "Bearer auth_token"
+                    # mocking HttpHook.run in status_utils means there are a lot of calls,
+                    # need to find the call with the error info (i.e. the PUT call)
+                    hhr_call = None
+                    for call in hhr_mock.call_args_list:
+                        for call_tuple in call:
+                            for call_arg in call_tuple:
+                                if "error_message" in call_arg:
+                                    hhr_call = call
+                    assert hhr_call
+                    assert hhr_call[0][0] == "/entities/abc123?reindex=True"
+                    assert hhr_call[0][2]["authorization"] == "Bearer auth_token"
 
 
 class TestDataIngestBoardManager(unittest.TestCase):

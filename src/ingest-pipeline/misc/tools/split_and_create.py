@@ -10,6 +10,7 @@ from shutil import copy2, copytree
 from typing import List, Tuple, TypeVar, Union
 
 import pandas as pd
+import numpy as np
 from extra_utils import SoftAssayClient
 from status_change.status_manager import StatusChanger, Statuses
 
@@ -167,6 +168,7 @@ def create_new_uuid(row, source_entity, entity_factory, primary_entity, dryrun=F
             description=description,
             is_epic=is_epic,
             priority_project_list=priority_project_list,
+            reindex=False,
         )
         return rslt["uuid"]
 
@@ -386,26 +388,46 @@ def update_upload_entity(child_uuid_list, source_entity, dryrun=False, verbose=F
             # Set links from Upload to split Datasets
             print(f"Setting status of {source_entity.uuid} to 'Reorganized'. Child UUIDs:")
             pprint(child_uuid_list)
+            # Update status first, then let's iterate over the child list
             StatusChanger(
                 source_entity.uuid,
                 source_entity.entity_factory.auth_tok,
                 status=Statuses.UPLOAD_REORGANIZED,
-                fields_to_overwrite={"dataset_uuids_to_link": child_uuid_list},
                 verbose=verbose,
+                reindex=False,
             ).update()
+            time.sleep(30)
             print(f"{source_entity.uuid} status is Reorganized")
 
-            for uuid in child_uuid_list:
-                print(f"Setting status of dataset {uuid} to Submitted")
+            # Batch update the child uuids
+            for chunk in [
+                child_uuid_list[i : i + 100] for i in range(0, len(child_uuid_list), 100)
+            ]:
                 StatusChanger(
-                    uuid,
+                    source_entity.uuid,
                     source_entity.entity_factory.auth_tok,
-                    status=Statuses.DATASET_SUBMITTED,
+                    fields_to_overwrite={"dataset_uuids_to_link": list(chunk)},
                     verbose=verbose,
+                    reindex=False,
                 ).update()
-                print(
-                    f"Reorganized new: {uuid} from Upload: {source_entity.uuid} status is Submitted"
-                )
+                time.sleep(60)
+
+            for child_uuid_chunk in [
+                child_uuid_list[i : i + 10] for i in range(0, len(child_uuid_list), 10)
+            ]:
+                for uuid in child_uuid_chunk:
+                    print(f"Setting status of dataset {uuid} to Submitted")
+                    StatusChanger(
+                        uuid,
+                        source_entity.entity_factory.auth_tok,
+                        status=Statuses.DATASET_SUBMITTED,
+                        verbose=verbose,
+                        reindex=False,
+                    ).update()
+                    print(
+                        f"Reorganized new: {uuid} from Upload: {source_entity.uuid} status is Submitted"
+                    )
+                time.sleep(30)
     else:
         print(
             f"source entity <{source_entity.uuid}> is not an upload,"
@@ -425,7 +447,9 @@ def submit_uuid(uuid, entity_factory, dryrun=False):
         rslt = entity_factory.submit_dataset(
             uuid=uuid,
             contains_human_genetic_sequences=uuid_entity_to_submit.contains_human_genetic_sequences,
+            reindex=False,
         )
+        time.sleep(10)
         return rslt
 
 
@@ -476,14 +500,24 @@ def reorganize(source_uuid, **kwargs) -> Union[Tuple, None]:
                 axis=1,
                 dataset_type=full_entity.primary_assay.get("dataset-type"),
             )
-            source_df["new_uuid"] = source_df.apply(
-                create_new_uuid,
-                axis=1,
-                source_entity=source_entity,
-                entity_factory=entity_factory,
-                primary_entity=full_entity.primary_assay,
-                dryrun=dryrun,
-            )
+
+            new_uuids = []
+            for df_chunk in [source_df[i : i + 10] for i in range(0, len(source_df), 10)]:
+                for df_i in range(len(df_chunk)):
+                    df = df_chunk.iloc[df_i]
+                    new_uuids.append(
+                        create_new_uuid(
+                            df,
+                            source_entity=source_entity,
+                            entity_factory=entity_factory,
+                            primary_entity=full_entity.primary_assay,
+                            dryrun=dryrun,
+                        )
+                    )
+                time.sleep(30)
+
+            source_df["new_uuid"] = new_uuids
+
             source_df = apply_special_case_transformations(source_df, source_data_types)
             print(source_df[["data_path", "canonical_assay_type", "new_uuid"]])
             this_frozen_df_fname = frozen_df_fname.format("_" + str(src_idx))
@@ -569,6 +603,7 @@ def create_multiassay_component(
         headers=headers,
         data=json.dumps(data),
     )
+    time.sleep(10)
     response.raise_for_status()
 
 

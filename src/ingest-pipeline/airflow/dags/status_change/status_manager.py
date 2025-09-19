@@ -31,6 +31,7 @@ class EntityUpdater:
         fields_to_overwrite: Optional[dict] = None,
         fields_to_append_to: Optional[dict] = None,
         delimiter: str = "|",
+        reindex: bool = True,
     ):
         self.uuid = uuid
         self.token = token
@@ -40,6 +41,7 @@ class EntityUpdater:
         self.delimiter = delimiter
         self.entity_type = self.get_entity_type()
         self.fields_to_change = self.get_fields_to_change()
+        self.reindex = reindex
 
     @cached_property
     def entity_data(self):
@@ -96,7 +98,9 @@ class EntityUpdater:
             """
         )
         try:
-            response = put_request_to_entity_api(self.uuid, self.token, self.fields_to_change)
+            response = put_request_to_entity_api(
+                self.uuid, self.token, self.fields_to_change, {"reindex": self.reindex}
+            )
         except Exception as e:
             raise EntityUpdateException(
                 f"""
@@ -214,6 +218,7 @@ class StatusChanger(EntityUpdater):
         # Additional field to support privileged field "status"
         status: Optional[Union[Statuses, str]] = None,
         data_ingest_board_msg: Optional[str] = None,
+        reindex: bool = True,
         **kwargs,  # Avoid blowing up if passed deprecated params
     ):
         del kwargs
@@ -224,6 +229,7 @@ class StatusChanger(EntityUpdater):
             fields_to_overwrite,
             fields_to_append_to,
             delimiter,
+            reindex,
         )
         self.status = self._validate_status(status)
         self.data_ingest_board_msg = data_ingest_board_msg
