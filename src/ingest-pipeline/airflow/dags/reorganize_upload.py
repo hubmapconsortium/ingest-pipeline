@@ -15,6 +15,7 @@ from airflow.operators.python import BranchPythonOperator
 from airflow.operators.bash import BashOperator
 from airflow.exceptions import AirflowException
 from airflow.providers.http.hooks.http import HttpHook
+from requests.exceptions import HTTPError
 from airflow.decorators import task
 
 from hubmap_operators.common_operators import (
@@ -335,24 +336,28 @@ with HMDAG(
         dataset_lz_path_fun=get_dataset_lz_path,
         metadata_fun=read_metadata_file,
         include_file_metadata=False,
+        reindex=False,
     )
 
     def wrapped_send_status_msg(**kwargs):
         child_uuid_list = kwargs["ti"].xcom_pull(task_ids="split_stage_2", key="child_uuid_list")
-        for uuid in child_uuid_list:
-            kwargs["uuid_dataset"] = uuid
-            if send_status_msg(**kwargs):
-                scanned_md = read_metadata_file(**kwargs)  # Yes, it's getting re-read
-                print(
-                    f"""Got CollectionType {scanned_md['collectiontype'] 
-                    if 'collectiontype' in scanned_md else None} """
-                )
-                soft_data_assay_type = get_soft_data_assaytype(uuid, **kwargs)
-                print(f"Got {soft_data_assay_type} as the soft_data_type for UUID {uuid}")
-            else:
-                print(f"Something went wrong!!")
-                return 1
-            time.sleep(240)
+        for child_uuid_chunk in [
+            child_uuid_list[i : i + 10] for i in range(0, len(child_uuid_list), 10)
+        ]:
+            for uuid in child_uuid_chunk:
+                kwargs["uuid_dataset"] = uuid
+                if send_status_msg(**kwargs):
+                    scanned_md = read_metadata_file(**kwargs)  # Yes, it's getting re-read
+                    print(
+                        f"""Got CollectionType {scanned_md['collectiontype'] 
+                        if 'collectiontype' in scanned_md else None} """
+                    )
+                    soft_data_assay_type = get_soft_data_assaytype(uuid, **kwargs)
+                    print(f"Got {soft_data_assay_type} as the soft_data_type for UUID {uuid}")
+                else:
+                    print(f"Something went wrong!!")
+                    return 1
+            time.sleep(30)
         return 0
 
     t_send_status = PythonOperator(
@@ -360,6 +365,47 @@ with HMDAG(
         python_callable=wrapped_send_status_msg,
         provide_context=True,
         trigger_rule="all_done",
+    )
+
+    def reindex_routine(**kwargs):
+        auth_token = get_auth_tok(**kwargs)
+
+        search_hook = HttpHook("PUT", http_conn_id="search_api_connection")
+        headers = {
+            "authorization": f"Bearer {auth_token}",
+            "content-type": "text/plain",
+            "X-Hubmap-Application": "search-api",
+        }
+
+        try:
+            upload_uuid = kwargs["dag_run"].conf["uuid"]
+            response = search_hook.run(
+                endpoint=f"reindex/{upload_uuid}", headers=headers, extra_options=[]
+            )
+            response.raise_for_status()
+        except HTTPError as e:
+            print(f"ERROR: {e}")
+            return 1
+
+        time.sleep(240)
+
+        child_uuid_list = kwargs["ti"].xcom_pull(task_ids="split_stage_2", key="child_uuid_list")
+        for uuid in child_uuid_list:
+            try:
+                response = search_hook.run(
+                    endpoint=f"reindex/{uuid}", headers=headers, extra_options=[]
+                )
+                response.raise_for_status()
+            except HTTPError as e:
+                print(f"ERROR: {e}")
+                return 1
+            time.sleep(240)
+        return 0
+
+    t_reindex_routine = PythonOperator(
+        task_id="reindex_routine",
+        python_callable=reindex_routine,
+        provide_context=True,
     )
 
     t_log_info = LogInfoOperator(task_id="log_info")
@@ -436,6 +482,7 @@ with HMDAG(
         >> t_md_consistency_tests
         >> t_reset_permissions
         >> t_send_status
+        >> t_reindex_routine
         >> t_join
         >> t_preserve_info
         >> t_cleanup_tmpdir
