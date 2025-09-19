@@ -1,0 +1,87 @@
+from typing import Optional
+from urllib.parse import urlencode, urljoin
+
+from status_change.status_utils import (
+    get_abs_path,
+    get_hubmap_id_from_uuid,
+    get_submission_context,
+)
+
+from airflow.configuration import conf as airflow_conf
+
+
+class SlackMessage:
+    # Name should match what's in airflow_conf.slack_channels
+    name = "base"
+
+    def __init__(self, uuid: str, token: str, entity_data: Optional[dict] = None):
+        self.uuid = uuid
+        self.token = token
+        self.channel = airflow_conf.as_dict().get("slack_channels", {}).get(self.name.upper())
+        self.entity_data = entity_data if entity_data else get_submission_context(token, uuid)
+
+    @classmethod
+    def test(cls, entity_data: dict, token: str) -> bool:
+        """
+        If there are special case subclasses for a given status, their
+        test() methods will be called to determine if the subclass applies.
+        Only one should return True because the subclass test loop breaks
+        after first True result.
+        """
+        return False
+
+    def format(self) -> str:
+        raise NotImplementedError
+
+    @property
+    def data_ingest_board_query_url(self):
+        # TODO: env and project awareness
+        params = {"q": get_hubmap_id_from_uuid(self.token, self.uuid)}
+        if self.entity_data.get("entity_type", "").lower() == "upload":
+            params["entity_type"] = "uploads"
+        return f"https://ingest.board.hubmapconsortium.org/?{urlencode(params)}"
+
+    @property
+    def ingest_ui_url(self):
+        # TODO: env and project awareness
+        entity_type = self.entity_data.get("entity_type", "")
+        base_url = urljoin("https://ingest.dev.hubmapconsortium.org/", entity_type)
+        return urljoin(base_url + "/" if not base_url.endswith("/") else base_url, self.uuid)
+
+    @property
+    def entity_links(self):
+        """
+        View on Data Ingest Board.
+        View on Globus.
+        Filesystem path: /path/to/data
+        """
+        return f"""
+        <{self.ingest_ui_url}|View on Ingest UI.>
+        <{self.data_ingest_board_query_url}|View on Data Ingest Board.>
+        <{self.get_globus_url()}|View on Globus.>
+        Filesystem path: {self.copyable_filepath}
+        """
+
+    @property
+    def copyable_filepath(self):
+        return get_abs_path(self.uuid, self.token, escaped=True)
+
+    def get_globus_url(self, uuid: Optional[str] = None) -> str:
+        """
+        Return the Globus URL (default) for a dataset.
+        URL format is https://app.globus.org/file-manager?origin_id=<id>&origin_path=<uuid | consortium|private/<group>/<uuid>>
+        """
+        if uuid:
+            lookup_uuid = uuid
+        else:
+            lookup_uuid = self.uuid
+        path = get_abs_path(lookup_uuid, self.token)
+        prefix = "https://app.globus.org/file-manager?"
+        params = {}
+        if "public" in path:
+            params["origin_id"] = "af603d86-eab9-4eec-bb1d-9d26556741bb"
+            params["origin_path"] = lookup_uuid
+        else:
+            params["origin_id"] = "24c2ee95-146d-4513-a1b3-ac0bfdb7856f"
+            params["origin_path"] = path.replace("/hive/hubmap/data", "") + "/"
+        return prefix + urlencode(params)
