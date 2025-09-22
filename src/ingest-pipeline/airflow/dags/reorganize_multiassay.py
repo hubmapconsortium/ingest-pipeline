@@ -1,6 +1,7 @@
 from pathlib import Path
 from pprint import pprint
 from datetime import datetime, timedelta
+import time
 
 from airflow.operators.python import PythonOperator
 from airflow.operators.python import BranchPythonOperator
@@ -74,31 +75,48 @@ with HMDAG(
     },
 ) as dag:
 
-    def find_uuid(**kwargs):
-        uuid = kwargs["dag_run"].conf["uuid"]
-
-        ds_rslt = pythonop_get_dataset_state(dataset_uuid_callable=lambda **kwargs: uuid, **kwargs)
+    def check_one_uuid(uuid, **kwargs):
+        """
+        Look up information on the given uuid or HuBMAP identifier.
+        Returns:
+        - the uuid, translated from an identifier if necessary
+        - data type(s) of the dataset
+        - local directory full path of the dataset
+        """
+        print(f"Starting uuid {uuid}")
+        my_callable = lambda **kwargs: uuid
+        ds_rslt = pythonop_get_dataset_state(dataset_uuid_callable=my_callable, **kwargs)
         if not ds_rslt:
             raise AirflowException(f"Invalid uuid/doi for group: {uuid}")
         print("ds_rslt:")
         pprint(ds_rslt)
 
-        for key in ["entity_type", "status", "uuid", "dataset_type", "local_directory_full_path"]:
+        for key in ["status", "uuid", "local_directory_full_path", "metadata", "dataset_type"]:
             assert key in ds_rslt, f"Dataset status for {uuid} has no {key}"
 
-        if ds_rslt["entity_type"] != "Dataset":
-            raise AirflowException(f"{uuid} is not an Dataset")
         if ds_rslt["status"] not in ["New", "Submitted", "Error"]:
-            raise AirflowException(
-                f"status of Dataset {uuid} is not New, Error or Submitted, {ds_rslt['status']}"
-            )
+            raise AirflowException(f"Dataset {uuid} is not QA or better")
 
-        lz_path = ds_rslt["local_directory_full_path"]
-        uuid = ds_rslt["uuid"]  # 'uuid' may  actually be a DOI
-        print(f"Finished uuid {uuid}")
-        print(f"lz path: {lz_path}")
-        kwargs["ti"].xcom_push(key="lz_path", value=lz_path)
-        kwargs["ti"].xcom_push(key="uuid", value=uuid)
+        return (
+            ds_rslt["uuid"],
+            ds_rslt["local_directory_full_path"],
+            ds_rslt["metadata"],
+            ds_rslt["dataset_type"],
+        )
+
+    def find_uuid(**kwargs):
+        uuids = kwargs["dag_run"].conf["uuids"]
+
+        ds_uuids = []
+        lz_paths = []
+
+        for uuid in uuids:
+            ds_uuid, lz_path, _, _ = check_one_uuid(uuid)
+            ds_uuids.append(ds_uuid)
+            lz_paths.append(lz_path)
+
+        kwargs["ti"].xcom_push(key="lz_paths", value=lz_paths)
+        kwargs["ti"].xcom_push(key="uuids", value=ds_uuids)
 
     t_find_uuid = PythonOperator(
         task_id="find_uuid", python_callable=find_uuid, provide_context=True, op_kwargs={}
@@ -119,20 +137,25 @@ with HMDAG(
     )
 
     def split(**kwargs):
-        uuid = kwargs["ti"].xcom_pull(task_ids="find_uuid", key="uuid")
+        ds_uuids = kwargs["ti"].xcom_pull(task_ids="find_uuid", key="ds_uuids")
         entity_host = HttpHook.get_connection("entity_api_connection").host
-        try:
-            reorganize_multiassay(
-                uuid,
-                # dryrun=True,
-                dryrun=False,
-                instance=find_matching_endpoint(entity_host),
-                auth_tok=get_auth_tok(**kwargs),
-            )
-            kwargs["ti"].xcom_push(key="split", value="0")  # signal success
-        except Exception as e:
-            print(f"Encountered {e}")
-            kwargs["ti"].xcom_push(key="split", value="1")  # signal failure
+
+        for ds_uuid in ds_uuids:
+            try:
+                reorganize_multiassay(
+                    ds_uuid,
+                    # dryrun=True,
+                    reindex=False,
+                    dryrun=False,
+                    instance=find_matching_endpoint(entity_host),
+                    auth_tok=get_auth_tok(**kwargs),
+                )
+            except Exception as e:
+                print(f"Encountered {e}")
+                kwargs["ti"].xcom_push(key="split", value="1")  # signal failure
+                return
+            time.sleep(30)
+        kwargs["ti"].xcom_push(key="split", value="0")  # signal success
 
     t_split = PythonOperator(
         task_id="split", python_callable=split, provide_context=True, op_kwargs={}
@@ -142,13 +165,20 @@ with HMDAG(
         task_id="maybe_keep",
         python_callable=pythonop_maybe_keep,
         provide_context=True,
-        op_kwargs={"next_op": "get_component_uuids", "bail_op": "set_dataset_error", "test_op": "split"},
+        op_kwargs={
+            "next_op": "get_component_uuids",
+            "bail_op": "set_dataset_error",
+            "test_op": "split",
+        },
     )
 
     def get_component_dataset_uuids(**kwargs):
-        return [{"uuid": uuid} for uuid in get_component_uuids(kwargs["ti"].xcom_pull(task_ids="find_uuid", key="uuid"),
-                                                               get_auth_tok(**kwargs))]
-
+        return [
+            {"uuid": uuid}
+            for uuid in get_component_uuids(
+                kwargs["ti"].xcom_pull(task_ids="find_uuid", key="uuid"), get_auth_tok(**kwargs)
+            )
+        ]
 
     t_get_component_uuids = PythonOperator(
         task_id="get_component_uuids",
@@ -157,6 +187,7 @@ with HMDAG(
         provide_context=True,
     )
 
+    # TODO: Bring this in to this DAG rather than triggering a separate DAG.
     t_launch_multiassay_component_metadata = TriggerDagRunOperator.partial(
         task_id="trigger_multiassay_component_metadata",
         trigger_dag_id="multiassay_component_metadata",
@@ -175,7 +206,11 @@ with HMDAG(
         python_callable=pythonop_set_dataset_state,
         provide_context=True,
         trigger_rule="all_done",
-        op_kwargs={"dataset_uuid_callable": _get_upload_uuid, "ds_state": "Error"},
+        op_kwargs={
+            "dataset_uuid_callable": _get_upload_uuid,
+            "ds_state": "Error",
+            "reindex": False,
+        },
     )
 
     (
