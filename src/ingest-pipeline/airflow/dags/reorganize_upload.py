@@ -377,6 +377,7 @@ with HMDAG(
         time.sleep(240)
 
         # TODO: Seems like we can just issue a re-index for the donors. But let's do it like this for now.
+        # If we can skip this for multi-assay datasets, that will save us a lot of time.
         child_uuid_list = kwargs["ti"].xcom_pull(task_ids="split_stage_2", key="child_uuid_list")
         for uuid in child_uuid_list:
             if not search_api_reindex(uuid, **kwargs):
