@@ -1,5 +1,6 @@
 import pytz
 from airflow.api.common.trigger_dag import trigger_dag
+from django.template.base import kwarg_re
 
 import utils
 import os
@@ -37,6 +38,7 @@ from utils import (
     get_queue_resource,
     get_preserve_scratch_resource,
     get_soft_data_assaytype,
+    search_api_reindex,
 )
 
 from misc.tools.split_and_create import reorganize
@@ -368,37 +370,18 @@ with HMDAG(
     )
 
     def reindex_routine(**kwargs):
-        auth_token = get_auth_tok(**kwargs)
-
-        search_hook = HttpHook("PUT", http_conn_id="search_api_connection")
-        headers = {
-            "authorization": f"Bearer {auth_token}",
-            "content-type": "text/plain",
-            "X-Hubmap-Application": "search-api",
-        }
-
-        try:
-            upload_uuid = kwargs["dag_run"].conf["uuid"]
-            response = search_hook.run(
-                endpoint=f"reindex/{upload_uuid}", headers=headers, extra_options=[]
-            )
-            response.raise_for_status()
-        except HTTPError as e:
-            print(f"ERROR: {e}")
+        upload_uuid = kwargs["dag_run"].conf["uuid"]
+        if not search_api_reindex(upload_uuid, **kwargs):
             return 1
 
         time.sleep(240)
 
+        # TODO: Seems like we can just issue a re-index for the donors. But let's do it like this for now.
         child_uuid_list = kwargs["ti"].xcom_pull(task_ids="split_stage_2", key="child_uuid_list")
         for uuid in child_uuid_list:
-            try:
-                response = search_hook.run(
-                    endpoint=f"reindex/{uuid}", headers=headers, extra_options=[]
-                )
-                response.raise_for_status()
-            except HTTPError as e:
-                print(f"ERROR: {e}")
+            if not search_api_reindex(uuid, **kwargs):
                 return 1
+
             time.sleep(240)
         return 0
 
@@ -414,7 +397,7 @@ with HMDAG(
 
     def flex_maybe_multiassay_epic_spawn(**kwargs):
         """
-        This will tigger DAG Runs if the upload was a MultiAssay to create its components a build
+        This will trigger DAG Runs if the upload was a MultiAssay to create its components a build
         basic metadata
         """
         print("kwargs:")
@@ -436,21 +419,24 @@ with HMDAG(
                 process = "transform.epic"
             else:
                 return 0
-            for uuid in kwargs["ti"].xcom_pull(task_ids="split_stage_2", key="child_uuid_list"):
-                execution_date = datetime.now(
-                    pytz.timezone(airflow_conf.as_dict()["core"]["timezone"])
-                )
-                run_id = "{}_{}_{}".format(uuid, process, execution_date.isoformat())
-                conf = {
-                    "process": process,
-                    "dag_id": dag_id,
-                    "run_id": run_id,
-                    "crypt_auth_tok": kwargs["dag_run"].conf["crypt_auth_tok"],
-                    "uuid": uuid,
-                }
-                time.sleep(1)
-                print(f"Triggering {dag_id} for UUID {uuid}")
-                trigger_dag(dag_id, run_id, conf, execution_date=execution_date)
+
+            execution_date = datetime.now(
+                pytz.timezone(airflow_conf.as_dict()["core"]["timezone"])
+            )
+
+            upload_uuid = _get_upload_uuid(**kwargs)
+            child_uuids = kwargs["ti"].xcom_pull(task_ids="split_stage_2", key="child_uuid_list")
+            run_id = "{}_{}_{}".format(upload_uuid, process, execution_date.isoformat())
+            conf = {
+                "process": process,
+                "dag_id": dag_id,
+                "run_id": run_id,
+                "crypt_auth_tok": kwargs["dag_run"].conf["crypt_auth_tok"],
+                "uuids": child_uuids,
+            }
+            time.sleep(1)
+            print(f"Triggering {dag_id} for UUIDs: \n{child_uuids}")
+            trigger_dag(dag_id, run_id, conf, execution_date=execution_date)
         return 0
 
     t_maybe_multiassay_epic_spawn = PythonOperator(
