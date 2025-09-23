@@ -633,7 +633,6 @@ def reorganize_multiassay(source_uuid, verbose=False, reindex=True, **kwargs) ->
         verbose=verbose,
         reindex=reindex,
     ).update()
-    # How do we reindex the parent dataset in this case?
     print(f"{source_entity.uuid} status is Submitted")
 
 
