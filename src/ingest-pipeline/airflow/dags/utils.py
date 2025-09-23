@@ -34,15 +34,17 @@ from cryptography.fernet import Fernet
 from requests import codes
 from requests.exceptions import HTTPError
 from schema_utils import (
-    localized_assert_json_matches_schema as assert_json_matches_schema,
     JSONType,
+)
+from schema_utils import (
+    localized_assert_json_matches_schema as assert_json_matches_schema,
 )
 from status_change.status_manager import EntityUpdateException, StatusChanger
 
 from airflow import DAG
 from airflow.configuration import conf as airflow_conf
-from airflow.providers.http.hooks.http import HttpHook
 from airflow.models.baseoperator import BaseOperator
+from airflow.providers.http.hooks.http import HttpHook
 
 airflow_conf.read(join(environ["AIRFLOW_HOME"], "instance", "app.cfg"))
 try:
@@ -1639,7 +1641,6 @@ def make_send_status_msg_function(
                 "pipeline_message": err_txt[-20000:],
             }
             return_status = False
-        entity_type = ds_rslt.get("entity_type")
         if status:
             if kwargs["dag"].dag_id == "multiassay_component_metadata":
                 status = None
@@ -1649,7 +1650,6 @@ def make_send_status_msg_function(
                     get_auth_tok(**kwargs),
                     status=status,
                     fields_to_overwrite=extra_fields,
-                    entity_type=entity_type if entity_type else None,
                     reindex=reindex,
                 ).update()
             except EntityUpdateException:
@@ -1676,7 +1676,7 @@ def map_queue_name(raw_queue_name: str) -> str:
 
 
 def create_dataset_state_error_callback(
-    dataset_uuid_callable: Callable[[Any], str]
+    dataset_uuid_callable: Callable[[Any], str],
 ) -> Callable[[Mapping, Any], None]:
     def set_dataset_state_error(context_dict: Mapping, **kwargs) -> None:
         """
