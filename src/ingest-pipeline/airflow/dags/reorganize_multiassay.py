@@ -147,7 +147,7 @@ with HMDAG(
         lz_paths = []
 
         for uuid in uuids:
-            ds_uuid, lz_path, _, _ = check_one_uuid(uuid)
+            ds_uuid, lz_path, _, _ = check_one_uuid(uuid, **kwargs)
             ds_uuids.append(ds_uuid)
             lz_paths.append(lz_path)
 
