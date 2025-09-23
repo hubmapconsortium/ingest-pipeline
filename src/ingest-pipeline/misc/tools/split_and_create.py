@@ -564,6 +564,7 @@ def create_multiassay_component(
     auth_tok: str,
     components: list,
     parent_dir: str,
+    reindex: bool = True,
 ) -> None:
     headers = {
         "authorization": "Bearer " + auth_tok,
@@ -599,15 +600,14 @@ def create_multiassay_component(
     }
     print(f"Data to create components {data}")
     response = HttpHook("POST", http_conn_id="ingest_api_connection").run(
-        endpoint=f"datasets/components",
+        endpoint=f"datasets/components?reindex={reindex}",
         headers=headers,
         data=json.dumps(data),
     )
-    time.sleep(10)
     response.raise_for_status()
 
 
-def reorganize_multiassay(source_uuid, verbose=False, **kwargs) -> None:
+def reorganize_multiassay(source_uuid, verbose=False, reindex=True, **kwargs) -> None:
     auth_tok = kwargs["auth_tok"]
     instance = kwargs["instance"]
 
@@ -618,14 +618,20 @@ def reorganize_multiassay(source_uuid, verbose=False, **kwargs) -> None:
     full_entity = SoftAssayClient(list(source_entity.full_path.glob("*metadata.tsv")), auth_tok)
     # We are NOT passing in the priority project list here. Doesn't seem that it'd be helpful to have that information
     # tied on the components of a multi-assay dataset. (05/21/2025 - Juan Muerto)
+    print(f"Assay components: {full_entity.assay_components}")
     create_multiassay_component(
-        source_uuid, auth_tok, full_entity.assay_components, str(source_entity.full_path)
+        source_uuid,
+        auth_tok,
+        full_entity.assay_components,
+        str(source_entity.full_path),
+        reindex=reindex,
     )
     StatusChanger(
         source_entity.uuid,
         source_entity.entity_factory.auth_tok,
         status=Statuses.DATASET_SUBMITTED,
         verbose=verbose,
+        reindex=reindex,
     ).update()
     print(f"{source_entity.uuid} status is Submitted")
 

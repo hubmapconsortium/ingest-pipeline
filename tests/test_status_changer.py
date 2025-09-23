@@ -303,6 +303,7 @@ class TestStatusChanger(unittest.TestCase):
             status="Processing",
             fields_to_overwrite={"pipeline_message": message},
             http_conn_id="entity_api_connection",
+            reindex=True,
         )
         # Pass a valid ds_state and assert it was passed properly
         pythonop_set_dataset_state(
@@ -319,6 +320,7 @@ class TestStatusChanger(unittest.TestCase):
             status="QA",
             fields_to_overwrite={"pipeline_message": message},
             http_conn_id="entity_api_connection",
+            reindex=True,
         )
 
     @patch("utils.get_auth_tok")
