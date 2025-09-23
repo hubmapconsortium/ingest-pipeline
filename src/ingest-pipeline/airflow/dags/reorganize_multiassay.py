@@ -235,7 +235,7 @@ with HMDAG(
                 src_dir="{{dag_run.conf.src_path}}/md" ; \
                 top_dir="{{dag_run.conf.src_path}}" ; \
                 work_dir="{{tmp_dir_path(run_id)}}" ; \
-                component_types="{{ti.xcom_pull(task_ids='get_component_datasets', key='ds_types_for_md'}}" ; \
+                component_types="{{ti.xcom_pull(task_ids='get_component_datasets', key='ds_types_for_md')}}" ; \
                 cd $work_dir ; \
                 export WORK_DIRS=({{ti.xcom_pull(task_ids='find_uuid', key='work_dirs_for_md')}}); \
                 for lz_dir in "${WORK_DIRS[@]}"; \
