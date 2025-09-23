@@ -242,7 +242,7 @@ with HMDAG(
                 for lz_dir in "${WORK_DIRS[@]}"; \
                 do \
                 # NEED TO LOOP OVER COMPONENTS
-                for component_type in "${component_types[@]}"; \
+                for component_type in "${COMPONENT_TYPES[@]}"; \
                 do \
                 env PYTHONPATH=${PYTHONPATH}:$top_dir \
                 ${PYTHON_EXE} $src_dir/metadata_extract.py --out ./${lz_dir##*/}-${component_type}-rslt.yml --yaml \
