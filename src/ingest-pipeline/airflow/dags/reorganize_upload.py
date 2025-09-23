@@ -1,6 +1,5 @@
 import pytz
 from airflow.api.common.trigger_dag import trigger_dag
-from django.template.base import kwarg_re
 
 import utils
 import os
