@@ -195,7 +195,7 @@ with HMDAG(
         python_callable=pythonop_maybe_keep,
         provide_context=True,
         op_kwargs={
-            "next_op": "get_component_uuids",
+            "next_op": "get_component_datasets",
             "bail_op": "set_dataset_error",
             "test_op": "split",
         },
