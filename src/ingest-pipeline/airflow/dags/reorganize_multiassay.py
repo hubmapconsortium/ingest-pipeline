@@ -164,42 +164,42 @@ with HMDAG(
     t_create_tmpdir = CreateTmpDirOperator(task_id="create_tmpdir")
     t_cleanup_tmpdir = CleanupTmpDirOperator(task_id="cleanup_tmpdir")
 
-    # This section performs the component split
-    def split(**kwargs):
-        ds_uuids = kwargs["ti"].xcom_pull(task_ids="find_uuid", key="uuids")
-        entity_host = HttpHook.get_connection("entity_api_connection").host
-
-        for ds_uuid in ds_uuids:
-            try:
-                reorganize_multiassay(
-                    ds_uuid,
-                    # dryrun=True,
-                    reindex=False,
-                    dryrun=False,
-                    instance=find_matching_endpoint(entity_host),
-                    auth_tok=get_auth_tok(**kwargs),
-                )
-            except Exception as e:
-                print(f"Encountered {e}")
-                kwargs["ti"].xcom_push(key="split", value="1")  # signal failure
-                return
-            time.sleep(30)
-        kwargs["ti"].xcom_push(key="split", value="0")  # signal success
-
-    t_split = PythonOperator(
-        task_id="split", python_callable=split, provide_context=True, op_kwargs={}
-    )
-
-    t_maybe_keep = BranchPythonOperator(
-        task_id="maybe_keep",
-        python_callable=pythonop_maybe_keep,
-        provide_context=True,
-        op_kwargs={
-            "next_op": "get_component_datasets",
-            "bail_op": "set_dataset_error",
-            "test_op": "split",
-        },
-    )
+    # # This section performs the component split
+    # def split(**kwargs):
+    #     ds_uuids = kwargs["ti"].xcom_pull(task_ids="find_uuid", key="uuids")
+    #     entity_host = HttpHook.get_connection("entity_api_connection").host
+    #
+    #     for ds_uuid in ds_uuids:
+    #         try:
+    #             reorganize_multiassay(
+    #                 ds_uuid,
+    #                 # dryrun=True,
+    #                 reindex=False,
+    #                 dryrun=False,
+    #                 instance=find_matching_endpoint(entity_host),
+    #                 auth_tok=get_auth_tok(**kwargs),
+    #             )
+    #         except Exception as e:
+    #             print(f"Encountered {e}")
+    #             kwargs["ti"].xcom_push(key="split", value="1")  # signal failure
+    #             return
+    #         time.sleep(30)
+    #     kwargs["ti"].xcom_push(key="split", value="0")  # signal success
+    #
+    # t_split = PythonOperator(
+    #     task_id="split", python_callable=split, provide_context=True, op_kwargs={}
+    # )
+    #
+    # t_maybe_keep = BranchPythonOperator(
+    #     task_id="maybe_keep",
+    #     python_callable=pythonop_maybe_keep,
+    #     provide_context=True,
+    #     op_kwargs={
+    #         "next_op": "get_component_datasets",
+    #         "bail_op": "set_dataset_error",
+    #         "test_op": "split",
+    #     },
+    # )
 
     # Now we get all of the components
     def get_component_datasets(**kwargs):
@@ -363,8 +363,8 @@ with HMDAG(
         t_log_info
         >> t_find_uuid
         >> t_create_tmpdir
-        >> t_split
-        >> t_maybe_keep
+        # >> t_split
+        # >> t_maybe_keep
         >> t_get_component_datasets
         >> t_run_md_extract
         >> t_send_status
