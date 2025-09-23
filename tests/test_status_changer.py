@@ -263,6 +263,7 @@ class TestEntityUpdater(unittest.TestCase):
             status="QA",
             fields_to_overwrite={"pipeline_message": message},
             http_conn_id="entity_api_connection",
+            reindex=True,
         )
 
     @patch("utils.get_auth_tok")
