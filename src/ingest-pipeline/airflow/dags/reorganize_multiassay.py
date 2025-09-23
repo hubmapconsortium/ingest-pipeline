@@ -236,17 +236,17 @@ with HMDAG(
                 src_dir="{{dag_run.conf.src_path}}/md" ; \
                 top_dir="{{dag_run.conf.src_path}}" ; \
                 work_dir="{{tmp_dir_path(run_id)}}" ; \
-                export COMPONENT_TYPES=({{ti.xcom_pull(task_ids='get_component_datasets', key='ds_types_for_md')}}) ; \
+                component_types=({{ti.xcom_pull(task_ids='get_component_datasets', key='ds_types_for_md')}}) ; \
                 cd $work_dir ; \
                 export WORK_DIRS=({{ti.xcom_pull(task_ids='find_uuid', key='work_dirs_for_md')}}); \
                 for lz_dir in "${WORK_DIRS[@]}"; \
                 do \
                 # NEED TO LOOP OVER COMPONENTS
-                for component_type in "${COMPONENT_TYPES[@]}"; \
+                for component_type in "${component_types[@]}"; \
                 do \
                 env PYTHONPATH=${PYTHONPATH}:$top_dir \
-                ${PYTHON_EXE} $src_dir/metadata_extract.py --out ./${lz_dir##*/}-${component_type}-rslt.yml --yaml \
-                "$lz_dir" --component ${component_type} >> session.log 2> error.log ;\
+                ${PYTHON_EXE} $src_dir/metadata_extract.py --out "./${lz_dir##*/}-${component_type}-rslt.yml" --yaml \
+                "$lz_dir" --component "${component_type}" >> session.log 2> error.log ;\
                 done; \
                 done; \
                 if [ -s error.log ] ; \
