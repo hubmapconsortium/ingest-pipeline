@@ -245,8 +245,9 @@ with HMDAG(
                 for component_type in $component_types[@]; \
                 do \
                 env PYTHONPATH=${PYTHONPATH}:$top_dir \
-                ${PYTHON_EXE} $src_dir/metadata_extract.py --out ./${lz_dir##*/}-"$component_type"-rslt.yml --yaml \
-                "$lz_dir" --component "$component_type" >> session.log 2> error.log ;\
+                echo $component_type \
+                ${PYTHON_EXE} $src_dir/metadata_extract.py --out ./${lz_dir##*/}-$component_type-rslt.yml --yaml \
+                "$lz_dir" --component $component_type >> session.log 2> error.log ;\
                 done; \
                 done; \
                 if [ -s error.log ] ; \
