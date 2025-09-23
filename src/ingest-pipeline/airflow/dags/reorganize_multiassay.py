@@ -232,6 +232,7 @@ with HMDAG(
     t_run_md_extract = BashOperator(
         task_id="run_md_extract",
         bash_command=""" \
+                set -x ; \
                 src_dir="{{dag_run.conf.src_path}}/md" ; \
                 top_dir="{{dag_run.conf.src_path}}" ; \
                 work_dir="{{tmp_dir_path(run_id)}}" ; \
