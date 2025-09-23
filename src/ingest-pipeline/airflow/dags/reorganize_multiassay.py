@@ -299,9 +299,10 @@ with HMDAG(
     def wrapped_send_status_msg(**kwargs):
         components = kwargs["ti"].xcom_pull(task_ids="get_component_datasets")
         # Need to iterate over the componenets
-        for component_chunks in [components[i : i + 10] for i in range(0, len(components), 10)]:
-            for component in component_chunks:
-                kwargs["uuid_dataset"] = component["uuid"]
+        uuids = kwargs["dag_run"].conf["uuids"]
+        for uuid in uuids:
+            for component in components[uuid]:
+                kwargs["uuid_dataset"] = uuid
                 kwargs["uuid_dataset_type"] = component["dataset_type"]
                 if send_status_msg(**kwargs):
                     scanned_md = read_metadata_file(**kwargs)  # Yes, it's getting re-read
