@@ -374,5 +374,5 @@ with HMDAG(
         >> t_cleanup_tmpdir
     )
 
-    t_maybe_keep >> t_set_dataset_error
-    t_set_dataset_error >> t_join
+    # t_maybe_keep >> t_set_dataset_error
+    # t_set_dataset_error >> t_join
