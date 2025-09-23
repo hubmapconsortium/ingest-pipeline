@@ -90,7 +90,7 @@ def get_dataset_uuid(**kwargs):
 def read_metadata_file(**kwargs):
     md_fname = os.path.join(
         get_tmp_dir_path(kwargs["run_id"]),
-        f"{kwargs['uuid_dataset']}-{kwargs['uuid_dataset_type']}-rslt.yml",
+        f"{kwargs['uuid_parent_dataset']}-{kwargs['uuid_dataset_type']}-rslt.yml",
     )
     with open(md_fname, "r") as f:
         scanned_md = yaml.safe_load(f)
@@ -298,12 +298,12 @@ with HMDAG(
 
     def wrapped_send_status_msg(**kwargs):
         components = kwargs["ti"].xcom_pull(task_ids="get_component_datasets")
-        # Need to iterate over the componenets
         uuids = kwargs["dag_run"].conf["uuids"]
         for uuid in uuids:
             for component in components[uuid]:
-                kwargs["uuid_dataset"] = uuid
+                kwargs["uuid_parent_dataset"] = uuid
                 kwargs["uuid_dataset_type"] = component["dataset_type"]
+                kwargs["uuid_dataset"] = component["uuid"]
                 if send_status_msg(**kwargs):
                     scanned_md = read_metadata_file(**kwargs)  # Yes, it's getting re-read
                     print(
