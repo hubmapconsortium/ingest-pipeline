@@ -55,19 +55,6 @@ default_args = {
 }
 
 
-def _get_frozen_df_path(run_id):
-    # This version of the path is passed to the internals of
-    # split_and_create, and must contain formatting space for
-    # a suffix.
-    return str(Path(get_tmp_dir_path(run_id)) / "frozen_source_df{}.tsv")
-
-
-def _get_frozen_df_wildcard(run_id):
-    # This version of the path is used from a bash command line
-    # and must match all frozen_df files regardless of suffix.
-    return str(Path(get_tmp_dir_path(run_id)) / "frozen_source_df*.tsv")
-
-
 def get_dataset_lz_path(**kwargs) -> str:
     uuid = kwargs["uuid_dataset"]
 
@@ -104,8 +91,6 @@ with HMDAG(
     default_args=default_args,
     user_defined_macros={
         "tmp_dir_path": get_tmp_dir_path,
-        "frozen_df_path": _get_frozen_df_path,
-        "frozen_df_wildcard": _get_frozen_df_wildcard,
         "preserve_scratch": get_preserve_scratch_resource("reorganize_multiassay"),
     },
 ) as dag:
@@ -165,43 +150,43 @@ with HMDAG(
     t_cleanup_tmpdir = CleanupTmpDirOperator(task_id="cleanup_tmpdir")
 
     # # This section performs the component split
-    # def split(**kwargs):
-    #     ds_uuids = kwargs["ti"].xcom_pull(task_ids="find_uuid", key="uuids")
-    #     entity_host = HttpHook.get_connection("entity_api_connection").host
-    #
-    #     for ds_uuid in ds_uuids:
-    #         try:
-    #             reorganize_multiassay(
-    #                 ds_uuid,
-    #                 # dryrun=True,
-    #                 reindex=False,
-    #                 dryrun=False,
-    #                 instance=find_matching_endpoint(entity_host),
-    #                 auth_tok=get_auth_tok(**kwargs),
-    #             )
-    #         except Exception as e:
-    #             print(f"Encountered {e}")
-    #             kwargs["ti"].xcom_push(key="split", value="1")  # signal failure
-    #             return
-    #         time.sleep(30)
-    #     kwargs["ti"].xcom_push(key="split", value="0")  # signal success
-    #
-    # t_split = PythonOperator(
-    #     task_id="split", python_callable=split, provide_context=True, op_kwargs={}
-    # )
-    #
-    # t_maybe_keep = BranchPythonOperator(
-    #     task_id="maybe_keep",
-    #     python_callable=pythonop_maybe_keep,
-    #     provide_context=True,
-    #     op_kwargs={
-    #         "next_op": "get_component_datasets",
-    #         "bail_op": "set_dataset_error",
-    #         "test_op": "split",
-    #     },
-    # )
+    def split(**kwargs):
+        ds_uuids = kwargs["ti"].xcom_pull(task_ids="find_uuid", key="uuids")
+        entity_host = HttpHook.get_connection("entity_api_connection").host
 
-    # Now we get all of the components
+        for ds_uuid in ds_uuids:
+            try:
+                reorganize_multiassay(
+                    ds_uuid,
+                    # dryrun=True,
+                    reindex=False,
+                    dryrun=False,
+                    instance=find_matching_endpoint(entity_host),
+                    auth_tok=get_auth_tok(**kwargs),
+                )
+            except Exception as e:
+                print(f"Encountered {e}")
+                kwargs["ti"].xcom_push(key="split", value="1")  # signal failure
+                return
+            time.sleep(30)
+        kwargs["ti"].xcom_push(key="split", value="0")  # signal success
+
+    t_split = PythonOperator(
+        task_id="split", python_callable=split, provide_context=True, op_kwargs={}
+    )
+
+    t_maybe_keep = BranchPythonOperator(
+        task_id="maybe_keep",
+        python_callable=pythonop_maybe_keep,
+        provide_context=True,
+        op_kwargs={
+            "next_op": "get_component_datasets",
+            "bail_op": "set_dataset_error",
+            "test_op": "split",
+        },
+    )
+
+    # Now we get the components
     def get_component_datasets(**kwargs):
         uuids = kwargs["ti"].xcom_pull(task_ids="find_uuid", key="uuids")
         all_components = {}
@@ -273,18 +258,6 @@ with HMDAG(
         },
     )
 
-    # TODO: Do we need this
-    t_preserve_info = BashOperator(
-        task_id="preserve_info",
-        bash_command="""
-        frozen_df_wildcard="{{frozen_df_wildcard(run_id)}}" ; \
-        upload_path="{{ti.xcom_pull(task_ids="find_uuid", key="lz_path")}}" ; \
-        if ls $frozen_df_wildcard > /dev/null 2>&1 ; then \
-          cp ${frozen_df_wildcard} "${upload_path}" ; \
-        fi
-        """,
-    )
-
     send_status_msg = make_send_status_msg_function(
         dag_file=__file__,
         retcode_ops=["run_md_extract", "md_consistency_tests"],
@@ -326,9 +299,13 @@ with HMDAG(
     def reindex_routine(**kwargs):
         # TODO: Seems like we can just issue a re-index for the donors. But let's do it like this for now.
         parent_dataset_uuids = kwargs["ti"].xcom_pull(task_ids="find_uuid", key="uuids")
+
         component_uuids = [
             component["uuid"]
-            for component in kwargs["ti"].xcom_pull(task_ids="get_component_datasets")
+            for uuid, component_list in kwargs["ti"]
+            .xcom_pull(task_ids="get_component_datasets")
+            .items()
+            for component in component_list
         ]
 
         for uuid in parent_dataset_uuids + component_uuids:
@@ -344,7 +321,7 @@ with HMDAG(
         provide_context=True,
     )
 
-    def _get_upload_uuid(**kwargs):
+    def _get_dataset_uuid(**kwargs):
         return kwargs["ti"].xcom_pull(task_ids="find_uuid", key="uuid")
 
     t_set_dataset_error = PythonOperator(
@@ -353,7 +330,7 @@ with HMDAG(
         provide_context=True,
         trigger_rule="all_done",
         op_kwargs={
-            "dataset_uuid_callable": _get_upload_uuid,
+            "dataset_uuid_callable": _get_dataset_uuid,
             "ds_state": "Error",
             "reindex": False,
         },
@@ -363,16 +340,15 @@ with HMDAG(
         t_log_info
         >> t_find_uuid
         >> t_create_tmpdir
-        # >> t_split
-        # >> t_maybe_keep
+        >> t_split
+        >> t_maybe_keep
         >> t_get_component_datasets
         >> t_run_md_extract
         >> t_send_status
         >> t_reindex_routine
         >> t_join
-        >> t_preserve_info
         >> t_cleanup_tmpdir
     )
 
-    # t_maybe_keep >> t_set_dataset_error
-    # t_set_dataset_error >> t_join
+    t_maybe_keep >> t_set_dataset_error
+    t_set_dataset_error >> t_join
