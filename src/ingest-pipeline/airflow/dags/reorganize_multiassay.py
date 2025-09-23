@@ -116,7 +116,9 @@ with HMDAG(
             assert key in ds_rslt, f"Dataset status for {uuid} has no {key}"
 
         if ds_rslt["status"] not in ["New", "Submitted", "Error"]:
-            raise AirflowException(f"Dataset {uuid} is not QA or better")
+            raise AirflowException(
+                f"status of Dataset {uuid} is not New, Error or Submitted, {ds_rslt['status']}"
+            )
 
         return (
             ds_rslt["uuid"],
