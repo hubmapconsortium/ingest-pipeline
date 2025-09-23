@@ -2,6 +2,7 @@ import os
 import yaml
 import utils
 from pprint import pprint
+import time
 
 from airflow.operators.bash import BashOperator
 from airflow.operators.python import PythonOperator
@@ -196,6 +197,7 @@ with HMDAG(
             kwargs["ti"].xcom_push(key="assay_type", value=assay_type)
         else:
             kwargs["ti"].xcom_push(key="collectiontype", value=None)
+        time.sleep(240)
 
     t_send_status = PythonOperator(
         task_id="send_status_msg",
