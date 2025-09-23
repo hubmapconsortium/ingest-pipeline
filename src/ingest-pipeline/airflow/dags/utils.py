@@ -1594,7 +1594,11 @@ def make_send_status_msg_function(
                     status = (
                         "Submitted"
                         if kwargs["dag"].dag_id
-                        in ["multiassay_component_metadata", "reorganize_upload"]
+                        in [
+                            "multiassay_component_metadata",
+                            "reorganize_upload",
+                            "reorganize_multiassay",
+                        ]
                         else "QA"
                     )
                 if metadata_fun:

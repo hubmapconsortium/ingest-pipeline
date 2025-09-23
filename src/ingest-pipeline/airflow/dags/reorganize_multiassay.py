@@ -241,7 +241,6 @@ with HMDAG(
                 export WORK_DIRS=({{ti.xcom_pull(task_ids='find_uuid', key='work_dirs_for_md')}}); \
                 for lz_dir in "${WORK_DIRS[@]}"; \
                 do \
-                # NEED TO LOOP OVER COMPONENTS
                 for component_type in "${component_types[@]}"; \
                 do \
                 env PYTHONPATH=${PYTHONPATH}:$top_dir \
