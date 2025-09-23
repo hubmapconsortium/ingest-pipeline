@@ -365,6 +365,7 @@ with HMDAG(
         >> t_split
         >> t_maybe_keep
         >> t_get_component_datasets
+        >> t_run_md_extract
         >> t_send_status
         >> t_reindex_routine
         >> t_join
