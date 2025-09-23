@@ -154,7 +154,7 @@ with HMDAG(
         kwargs["ti"].xcom_push(key="lz_paths", value=lz_paths)
         kwargs["ti"].xcom_push(key="uuids", value=ds_uuids)
 
-        work_dirs = " ".join(lz_paths)
+        work_dirs = " ".join([f'"{lz_path}"' for lz_path in lz_paths])
         kwargs["ti"].xcom_push(key="work_dirs_for_md", value=work_dirs)
 
     t_find_uuid = PythonOperator(
@@ -208,7 +208,7 @@ with HMDAG(
         dataset_types = []
         for uuid in uuids:
             components = get_components(uuid, get_auth_tok(**kwargs))
-            dataset_types.extend([component["dataset_type"] for component in components])
+            dataset_types.extend([f'"{component["dataset_type"]}"' for component in components])
             all_components[uuid] = components
 
         dataset_types = list(set(dataset_types))
