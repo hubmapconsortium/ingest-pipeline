@@ -433,6 +433,7 @@ with HMDAG(
                 "run_id": run_id,
                 "crypt_auth_tok": kwargs["dag_run"].conf["crypt_auth_tok"],
                 "uuids": child_uuids,
+                "src_path": kwargs["dag_run"].conf["src_path"],
             }
             time.sleep(1)
             print(f"Triggering {dag_id} for UUIDs: \n{child_uuids}")
