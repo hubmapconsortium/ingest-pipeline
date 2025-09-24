@@ -1,10 +1,12 @@
 import logging
 from typing import Optional
 
+from ..utils import get_tmp_dir_path
 from .status_utils import (  # get_primary_dataset,
     EntityUpdateException,
     Statuses,
     get_submission_context,
+    is_internal_error,
     put_request_to_entity_api,
 )
 
@@ -24,12 +26,16 @@ class DataIngestBoardManager:
         "dataset_qa",
     ]
 
+    # TODO: not sure of full list, e.g. QA?
+    assign_to_dp = [Statuses.DATASET_INVALID, Statuses.UPLOAD_INVALID]
+
     def __init__(
         self,
         status: Statuses,
         uuid: str,
         token: str,
         msg: str = "",
+        run_id: str = "",
         *args,
         **kwargs,
     ):
@@ -40,6 +46,7 @@ class DataIngestBoardManager:
         self.msg = str(msg) if msg else None
         self.entity_data = get_submission_context(self.token, self.uuid)
         self.update_fields = self.get_fields()
+        self.run_id = run_id
         self.is_valid_for_status = bool(self.update_fields)
 
     def update(self):
@@ -75,7 +82,10 @@ class DataIngestBoardManager:
                 f"Message method {msg_type} not found. Not updating metadata for {self.uuid}."
             )
             return
-        return func()
+        update_data = func()
+        if self.assigned_to_group_name:
+            update_data["assigned_to_group_name"] = self.assigned_to_group_name
+        return update_data
 
     def get_clear_message(self, msg_type: str, entity: str) -> Optional[dict]:
         """
@@ -88,6 +98,19 @@ class DataIngestBoardManager:
             #     self.check_is_derived
             return {"error_message": ""}
 
+    @property
+    def internal_error(self) -> bool:
+        # Error status or internal_error_str(s) found
+        return is_internal_error(self.entity_data)
+
+    @property
+    def assigned_to_group_name(self) -> Optional[str]:
+        if self.internal_error:
+            return "IEC Testing Group"
+        elif group_name := self.entity_data.get("group_name"):
+            if self.status in self.assign_to_dp:
+                return group_name
+
     ########################
     #
     # Status-based messages
@@ -95,14 +118,30 @@ class DataIngestBoardManager:
     ########################
 
     def upload_error(self):
-        # If this was called by FailureCallback, don't overwrite its more detailed message
-        if "Process failed" in str(self.entity_data.get("error_message")):
-            return
         return {
-            "error_message": (self.msg if self.msg else f"Upload {self.uuid} is in Error state.")
+            "error_message": (
+                self.msg
+                if self.msg
+                else f"Internal error. Log directory: {get_tmp_dir_path(self.run_id)}"
+            )
         }
 
     def upload_invalid(self):
+        """
+        Should normally return error counts.
+
+        It is likely that anything that caused the upload to hit
+        an internal error would have put the upload into an Error
+        state. But, check anyway, just in case.
+        """
+        if self.internal_error:
+            return {
+                "error_message": (
+                    self.msg
+                    if self.msg
+                    else f"Internal error; Upload {self.uuid} is in Invalid state. Log directory: {get_tmp_dir_path(self.run_id)}"
+                )
+            }
         return {
             "error_message": (self.msg if self.msg else f"Upload {self.uuid} is in Invalid state.")
         }
@@ -112,9 +151,6 @@ class DataIngestBoardManager:
         Derived datasets need to write to primary dataset's error_message field;
         handle any errant primary datasets set to Error as well.
         """
-        # If this was called by FailureCallback, don't overwrite its more detailed message
-        if "Process failed" in str(self.entity_data.get("error_message")):
-            return
         # if self.check_is_derived:
         #     msg = (
         #         self.msg
@@ -122,7 +158,7 @@ class DataIngestBoardManager:
         #         else f"Derived dataset {self.child_uuid} is in Error state."
         #     )
         # else:
-        msg = f"Dataset {self.uuid} is in Error state."
+        msg = f"Dataset {self.uuid} is in Error state. Log directory: {get_tmp_dir_path(self.run_id)}"
         return {"error_message": msg}
 
     def dataset_invalid(self):
@@ -130,6 +166,14 @@ class DataIngestBoardManager:
         Derived datasets should not be invalid but check just in case
         to ensure writing error to correct entity.
         """
+        if self.internal_error:
+            return {
+                "error_message": (
+                    self.msg
+                    if self.msg
+                    else f"Internal error; Dataset {self.uuid} is in Invalid state. Log directory: {get_tmp_dir_path(self.run_id)}"
+                )
+            }
         # if not self.check_is_derived:
         msg = self.msg if self.msg else f"Dataset {self.uuid} is in Invalid state."
         # else:

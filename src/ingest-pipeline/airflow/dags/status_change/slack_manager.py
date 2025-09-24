@@ -1,5 +1,5 @@
 import logging
-from typing import Optional, Type
+from typing import Optional
 
 from .slack.base import SlackMessage
 from .slack.error import (  # SlackDatasetErrorDerived,; SlackDatasetErrorPrimary,
@@ -33,6 +33,7 @@ class SlackManager:
     """
 
     def __init__(self, status: Statuses, uuid: str, token: str, *args, **kwargs):
+        del args, kwargs
         self.uuid = uuid
         self.token = token
         self.message_class = self.get_message_class(status)
@@ -81,6 +82,7 @@ class SlackManager:
         relevant_classes = self.status_to_class.get(msg_type)
         if not relevant_classes:
             return
+        # Entity data will include updates from prior message managers
         entity_data = get_submission_context(self.token, self.uuid)
         for subclass in relevant_classes.get("subclasses", []):
             if subclass.test(entity_data, self.token):

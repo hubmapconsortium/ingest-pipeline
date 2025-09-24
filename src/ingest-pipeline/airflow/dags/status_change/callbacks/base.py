@@ -25,6 +25,7 @@ class AirflowCallback(ABC):
             self.get_data(context)
             # Do something
         """
+        del context
         raise NotImplementedError
 
     def get_data(self, context: dict):

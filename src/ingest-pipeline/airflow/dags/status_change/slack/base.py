@@ -1,9 +1,11 @@
 from typing import Optional
-from urllib.parse import urlencode, urljoin
+from urllib.parse import urlencode
 
 from status_change.status_utils import (
     get_abs_path,
-    get_hubmap_id_from_uuid,
+    get_data_ingest_board_query_url,
+    get_entity_ingest_url,
+    get_project,
     get_submission_context,
     slack_channels,
 )
@@ -13,10 +15,14 @@ class SlackMessage:
     # Name should match what's in status_utils.slack_channels
     name = "base"
 
-    def __init__(self, uuid: str, token: str, entity_data: Optional[dict] = None):
+    def __init__(
+        self, uuid: str, token: str, entity_data: Optional[dict] = None, run_id: str = ""
+    ):
         self.uuid = uuid
         self.token = token
+        self.run_id = run_id
         self.channel = slack_channels.get(self.name, "")
+        self.entity_id_str = f"{get_project(self.entity_data).value[0]}_id"
         self.entity_data = entity_data if entity_data else get_submission_context(token, uuid)
 
     @classmethod
@@ -31,36 +37,31 @@ class SlackMessage:
         Only one should return True because the subclass test loop breaks
         after first True result.
         """
+        del entity_data, token
         return False
 
     def format(self) -> str:
         raise NotImplementedError
 
     @property
-    def data_ingest_board_query_url(self):
-        # TODO: env and project awareness
-        params = {"q": get_hubmap_id_from_uuid(self.token, self.uuid)}
-        if self.entity_data.get("entity_type", "").lower() == "upload":
-            params["entity_type"] = "uploads"
-        return f"https://ingest.board.hubmapconsortium.org/?{urlencode(params)}"
-
-    @property
     def ingest_ui_url(self):
-        # TODO: env and project awareness
-        entity_type = self.entity_data.get("entity_type", "")
-        base_url = urljoin("https://ingest.dev.hubmapconsortium.org/", entity_type)
-        return urljoin(base_url + "/" if not base_url.endswith("/") else base_url, self.uuid)
+        return get_entity_ingest_url(self.run_id, self.entity_data)
 
     @property
-    def entity_links(self):
+    def data_ingest_board_url(self):
+        return get_data_ingest_board_query_url(self.run_id, self.entity_data)
+
+    @property
+    def entity_links_str(self):
         """
+        View on Ingest UI.
         View on Data Ingest Board.
         View on Globus.
         Filesystem path: /path/to/data
         """
         return f"""
         <{self.ingest_ui_url}|View on Ingest UI.>
-        <{self.data_ingest_board_query_url}|View on Data Ingest Board.>
+        <{self.data_ingest_board_url}|View on Data Ingest Board.>
         <{self.get_globus_url()}|View on Globus.>
         Filesystem path: {self.copyable_filepath}
         """

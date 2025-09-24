@@ -4,17 +4,28 @@ import json
 import logging
 import traceback
 from enum import Enum
-from typing import Any, Optional
-from urllib.parse import urlencode
+from typing import Any, Literal, Optional
+from urllib.parse import urlencode, urljoin
 
 from requests import codes
 from requests.exceptions import HTTPError
 
 from airflow.providers.http.hooks.http import HttpHook
 
+from ..utils import get_tmp_dir_path
+
 
 class EntityUpdateException(Exception):
     pass
+
+
+"""
+Strings that should *only* occur in failure states
+(e.g. not in the course of normal validation, where
+"404" can appear in a real, external-facing error
+message)
+"""
+internal_error_strs = ["EntityUpdateException", "Process failed", "Traceback"]
 
 
 class Statuses(str, Enum):
@@ -99,6 +110,11 @@ slack_channels = {
 }
 
 slack_channels_testing = {"base": "C08V3TAP3GQ"}
+
+
+class Project(Enum):
+    HUBMAP = ("hubmap", "HuBMAP")
+    SENNET = ("sennet", "SenNet")
 
 
 # This is simplified from pythonop_get_dataset_state in utils
@@ -238,3 +254,62 @@ def get_env() -> Optional[str]:
     if host := HttpHook.get_connection("entity_api_connection").host:
         return find_matching_endpoint(host)
     logging.error(f"Could not determine env. Host: {host}.")
+
+
+def is_internal_error(entity_data: dict) -> bool:
+    if error_msg := entity_data.get("error_message"):
+        for error_str in internal_error_strs:
+            if error_str in error_msg:
+                return True
+    elif entity_data.get("status", "").lower() == "error":
+        return True
+    return False
+
+
+def get_project(entity_data: dict) -> Project:
+    if entity_data.get("hubmap_id"):
+        return Project.HUBMAP
+    return Project.SENNET
+
+
+def get_entity_id(entity_data: dict) -> str:
+    if get_project(entity_data) == Project.HUBMAP:
+        entity_id = entity_data.get("hubmap_id", "")
+    else:
+        entity_id = entity_data.get("sennet_id", "")
+    return entity_id
+
+
+def get_api_url(
+    run_id: str, entity_data: dict, api_name: Literal["entity", "ingest", "ingest-board", "search"]
+) -> str:
+    # TODO tests
+    proj = get_project(entity_data).value[0]
+    url_env = None
+    for env in ["dev", "test", "stage"]:
+        if env in str(get_tmp_dir_path(run_id)).lower():
+            url_env = env
+            break
+    if not url_env:  # prod
+        if api_name == "ingest-board":  # ingest-board does not include "api" in URL
+            return f"https://ingest.board.{proj}consortium.org/"
+        return f"https://{api_name}.api.{proj}consortium.org/"
+    elif api_name == "ingest-board":  # ingest-board does not include "api" in URL
+        return f"https://ingest-board.{url_env}.{proj}consortium.org/"
+    return f"https://{api_name}-api.{proj}consortium.org/"  # non-prod env
+
+
+def get_entity_ingest_url(run_id: str, entity_data: dict) -> str:
+    url = get_api_url(run_id, entity_data, "ingest")
+    entity_type = entity_data.get("entity_type", "")
+    base_url = urljoin(url, entity_type)
+    return urljoin(base_url, entity_data.get("uuid"))
+
+
+def get_data_ingest_board_query_url(run_id: str, entity_data: dict) -> str:
+    url = get_api_url(run_id, entity_data, "ingest-board")
+    entity_id = get_entity_id(entity_data)
+    params = {"q": entity_id}
+    if entity_data.get("entity_type", "").lower() == "upload":
+        params["entity_type"] = "uploads"
+    return f"{url}?{urlencode(params)}"
