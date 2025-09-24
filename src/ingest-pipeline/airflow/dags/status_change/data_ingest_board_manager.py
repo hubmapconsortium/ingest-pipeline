@@ -1,7 +1,6 @@
 import logging
 from typing import Optional
 
-from ..utils import get_tmp_dir_path
 from .status_utils import (  # get_primary_dataset,
     EntityUpdateException,
     Statuses,
@@ -111,6 +110,12 @@ class DataIngestBoardManager:
             if self.status in self.assign_to_dp:
                 return group_name
 
+    @property
+    def log_directory_path(self) -> str:
+        from utils import get_tmp_dir_path
+
+        return str(get_tmp_dir_path(self.run_id))
+
     ########################
     #
     # Status-based messages
@@ -122,7 +127,7 @@ class DataIngestBoardManager:
             "error_message": (
                 self.msg
                 if self.msg
-                else f"Internal error. Log directory: {get_tmp_dir_path(self.run_id)}"
+                else f"Internal error. Log directory: {self.log_directory_path}"
             )
         }
 
@@ -139,7 +144,7 @@ class DataIngestBoardManager:
                 "error_message": (
                     self.msg
                     if self.msg
-                    else f"Internal error; Upload {self.uuid} is in Invalid state. Log directory: {get_tmp_dir_path(self.run_id)}"
+                    else f"Internal error; Upload {self.uuid} is in Invalid state. Log directory: {self.log_directory_path}"
                 )
             }
         return {
@@ -158,7 +163,7 @@ class DataIngestBoardManager:
         #         else f"Derived dataset {self.child_uuid} is in Error state."
         #     )
         # else:
-        msg = f"Dataset {self.uuid} is in Error state. Log directory: {get_tmp_dir_path(self.run_id)}"
+        msg = f"Dataset {self.uuid} is in Error state. Log directory: {self.log_directory_path}"
         return {"error_message": msg}
 
     def dataset_invalid(self):
@@ -171,7 +176,7 @@ class DataIngestBoardManager:
                 "error_message": (
                     self.msg
                     if self.msg
-                    else f"Internal error; Dataset {self.uuid} is in Invalid state. Log directory: {get_tmp_dir_path(self.run_id)}"
+                    else f"Internal error; Dataset {self.uuid} is in Invalid state. Log directory: {self.log_directory_path}"
                 )
             }
         # if not self.check_is_derived:

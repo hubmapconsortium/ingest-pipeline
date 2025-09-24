@@ -1,4 +1,3 @@
-from ..utils import get_tmp_dir_path
 from .status_utils import (
     Statuses,
     get_entity_ingest_url,
@@ -54,6 +53,8 @@ class EmailManager:
         return subj, msg
 
     def internal_error_format(self) -> tuple[str, str]:
+        from utils import get_tmp_dir_path
+
         subj = f"Internal error for {self.entity_type} {self.entity_id}"
         msg = f"""
         HuBMAP ID: {self.entity_id}

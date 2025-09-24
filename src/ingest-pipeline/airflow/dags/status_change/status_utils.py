@@ -12,8 +12,6 @@ from requests.exceptions import HTTPError
 
 from airflow.providers.http.hooks.http import HttpHook
 
-from ..utils import get_tmp_dir_path
-
 
 class EntityUpdateException(Exception):
     pass
@@ -283,7 +281,8 @@ def get_entity_id(entity_data: dict) -> str:
 def get_api_url(
     run_id: str, entity_data: dict, api_name: Literal["entity", "ingest", "ingest-board", "search"]
 ) -> str:
-    # TODO tests
+    from utils import get_tmp_dir_path
+
     proj = get_project(entity_data).value[0]
     url_env = None
     for env in ["dev", "test", "stage"]:
@@ -296,7 +295,7 @@ def get_api_url(
         return f"https://{api_name}.api.{proj}consortium.org/"
     elif api_name == "ingest-board":  # ingest-board does not include "api" in URL
         return f"https://ingest-board.{url_env}.{proj}consortium.org/"
-    return f"https://{api_name}-api.{proj}consortium.org/"  # non-prod env
+    return f"https://{api_name}-api.{url_env}.{proj}consortium.org/"  # non-prod env
 
 
 def get_entity_ingest_url(run_id: str, entity_data: dict) -> str:
