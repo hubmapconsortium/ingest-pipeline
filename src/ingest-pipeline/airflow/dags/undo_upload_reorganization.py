@@ -93,7 +93,6 @@ with HMDAG(
     def instantiate_factories():
         # Need an EntityFactory
         auth_tok = encrypt_tok(airflow_conf.as_dict()["connections"]["APP_CLIENT_SECRET"]).decode()
-        print(auth_tok)
         return EntityFactory(
             auth_tok,
             instance=find_matching_endpoint(HttpHook.get_connection("entity_api_connection").host),
