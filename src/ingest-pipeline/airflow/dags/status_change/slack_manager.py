@@ -91,17 +91,17 @@ class SlackManager:
         if not self.message_class:
             return
         message = self.message_class.format()
-        channel = str(self.message_class.channel)
+        channel = self.message_class.channel
         logging.info(f"Sending message from {self.message_class.name}...")
         logging.info(f"Channel: {channel}")
         logging.info(f"Message: {message}")
         if not message:
             raise EntityUpdateException(f"Request to send Slack message missing message text.")
         if not channel:
+            channel = SlackMessage.get_channel()
             logging.error(
                 f"Request to send Slack message missing target channel. Sending to default channel {channel}."
             )
-            channel = str(SlackMessage.channel)
         try:
             post_to_slack_notify(self.token, message, channel)
         except Exception as e:
