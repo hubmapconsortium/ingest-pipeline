@@ -148,6 +148,14 @@ with HMDAG(
 
         for tsv in run_tmp_path.glob("frozen_source_df*.tsv"):
             tmp_df = pd.read_csv(tsv, sep="\t")
+            if (
+                "non_global_files" in tmp_df
+                and len(tmp_df[tmp_df["non_global_files"].notna()]) > 0
+            ):
+                raise AirflowException(
+                    f"ERROR: This DAG does not support shared uploads. All data should exist in the original upload."
+                )
+
             for _, row in tmp_df.iterrows():
                 uuid_to_data_path[row["new_uuid"]] = row["data_path"]
 
