@@ -34,15 +34,17 @@ from cryptography.fernet import Fernet
 from requests import codes
 from requests.exceptions import HTTPError
 from schema_utils import (
-    localized_assert_json_matches_schema as assert_json_matches_schema,
     JSONType,
+)
+from schema_utils import (
+    localized_assert_json_matches_schema as assert_json_matches_schema,
 )
 from status_change.status_manager import EntityUpdateException, StatusChanger
 
 from airflow import DAG
 from airflow.configuration import conf as airflow_conf
-from airflow.providers.http.hooks.http import HttpHook
 from airflow.models.baseoperator import BaseOperator
+from airflow.providers.http.hooks.http import HttpHook
 
 airflow_conf.read(join(environ["AIRFLOW_HOME"], "instance", "app.cfg"))
 try:
@@ -1030,6 +1032,8 @@ def pythonop_set_dataset_state(**kwargs) -> None:
         return
     for arg in ["dataset_uuid_callable"]:
         assert arg in kwargs, "missing required argument {}".format(arg)
+
+    reindex = kwargs.get("reindex", True)
     dataset_uuid = kwargs["dataset_uuid_callable"](**kwargs)
     http_conn_id = kwargs.get("http_conn_id", "entity_api_connection")
     status = kwargs["ds_state"] if "ds_state" in kwargs else "Processing"
@@ -1041,6 +1045,7 @@ def pythonop_set_dataset_state(**kwargs) -> None:
             status=status,
             fields_to_overwrite={"pipeline_message": message} if message else {},
             http_conn_id=http_conn_id,
+            reindex=reindex,
         ).update()
 
 
@@ -1591,7 +1596,11 @@ def make_send_status_msg_function(
                     status = (
                         "Submitted"
                         if kwargs["dag"].dag_id
-                        in ["multiassay_component_metadata", "reorganize_upload"]
+                        in [
+                            "multiassay_component_metadata",
+                            "reorganize_upload",
+                            "reorganize_multiassay",
+                        ]
                         else "QA"
                     )
                 if metadata_fun:
@@ -1639,7 +1648,6 @@ def make_send_status_msg_function(
                 "pipeline_message": err_txt[-20000:],
             }
             return_status = False
-        entity_type = ds_rslt.get("entity_type")
         if status:
             if kwargs["dag"].dag_id == "multiassay_component_metadata":
                 status = None
@@ -1649,7 +1657,6 @@ def make_send_status_msg_function(
                     get_auth_tok(**kwargs),
                     status=status,
                     fields_to_overwrite=extra_fields,
-                    entity_type=entity_type if entity_type else None,
                     reindex=reindex,
                 ).update()
             except EntityUpdateException:
@@ -1676,7 +1683,7 @@ def map_queue_name(raw_queue_name: str) -> str:
 
 
 def create_dataset_state_error_callback(
-    dataset_uuid_callable: Callable[[Any], str]
+    dataset_uuid_callable: Callable[[Any], str],
 ) -> Callable[[Mapping, Any], None]:
     def set_dataset_state_error(context_dict: Mapping, **kwargs) -> None:
         """
@@ -1922,6 +1929,25 @@ def gather_calculated_metadata(**kwargs):
     data_dir = kwargs["ti"].xcom_pull(task_ids="send_create_dataset")
     output_metadata = json.load(open(f"{data_dir}/calculated_metadata.json"))
     return {"calculated_metadata": output_metadata}
+
+
+def search_api_reindex(uuid, **kwargs):
+    auth_token = get_auth_tok(**kwargs)
+    search_hook = HttpHook("PUT", http_conn_id="search_api_connection")
+    headers = {
+        "authorization": f"Bearer {auth_token}",
+        "content-type": "text/plain",
+        "X-Hubmap-Application": "search-api",
+    }
+
+    try:
+        response = search_hook.run(endpoint=f"reindex/{uuid}", headers=headers, extra_options=[])
+        response.raise_for_status()
+    except HTTPError as e:
+        print(f"Redinex for {uuid} failed. ERROR: {e}")
+        return False
+
+    return True
 
 
 def main():

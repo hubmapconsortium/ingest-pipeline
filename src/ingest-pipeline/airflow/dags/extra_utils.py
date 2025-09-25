@@ -17,7 +17,7 @@ def check_link_published_drvs(uuid: str, auth_tok: str) -> Tuple[bool, str]:
     headers = {
         "content-type": "application/json",
         "X-Hubmap-Application": "ingest-pipeline",
-        "Authorization": f"Bearer {auth_tok}"
+        "Authorization": f"Bearer {auth_tok}",
     }
     extra_options = {}
 
@@ -27,22 +27,19 @@ def check_link_published_drvs(uuid: str, auth_tok: str) -> Tuple[bool, str]:
     print("response: ")
     pprint(response.json())
     for data in response.json():
-        if (
-            data.get("entity_type") == "Dataset"
-            and data.get("status") == "Published"
-        ):
+        if data.get("entity_type") == "Dataset" and data.get("status") == "Published":
             needs_previous_version = True
             published_uuid = data.get("uuid")
     return needs_previous_version, published_uuid
 
 
-def get_component_uuids(uuid:str, auth_tok: str) -> List:
+def get_components(uuid: str, auth_tok: str) -> List:
     children = []
     endpoint = f"/children/{uuid}"
     headers = {
         "content-type": "application/json",
         "X-Hubmap-Application": "ingest-pipeline",
-        "Authorization": f"Bearer {auth_tok}"
+        "Authorization": f"Bearer {auth_tok}",
     }
     extra_options = {}
 
@@ -53,7 +50,7 @@ def get_component_uuids(uuid:str, auth_tok: str) -> List:
     pprint(response.json())
     for data in response.json():
         if data.get("creation_action") == "Multi-Assay Split":
-            children.append(data.get("uuid"))
+            children.append(data)
     return children
 
 
@@ -139,9 +136,15 @@ class SoftAssayClient:
 
 def build_tag_containers(cwl_path: Path) -> str:
     try:
-        docker_builder(tag_timestamp=False, tag_git_describe=False, tag="airflow-devel",
-                       push=False, ignore_missing_submodules=True, pretend=False,
-                       base_dir=cwl_path)
+        docker_builder(
+            tag_timestamp=False,
+            tag_git_describe=False,
+            tag="airflow-devel",
+            push=False,
+            ignore_missing_submodules=True,
+            pretend=False,
+            base_dir=cwl_path,
+        )
     except Exception as e:
         return f"Error in docker builder: {e}"
     try:
