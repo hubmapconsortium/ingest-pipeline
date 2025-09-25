@@ -182,13 +182,13 @@ with HMDAG(
                         dest_item = target_path / item.name
 
                         if item.is_dir():
-                            if item.name == "extras":
-                                print(
-                                    f"Extras directory will not be moved. Data should still exist in original upload."
-                                )
-                                continue
-
                             if dest_item.exists():
+                                if item.name == "extras":
+                                    print(
+                                        f"Extras directory will not be moved. Data should still exist in original upload."
+                                    )
+                                    continue
+
                                 if dryrun:
                                     print(f"DRYRUN: Would remove existing directory {dest_item}")
                                 else:
