@@ -8,6 +8,7 @@ from pathlib import Path
 from pprint import pprint
 from datetime import datetime, timedelta
 import pandas as pd
+import shutil
 
 from airflow.configuration import conf as airflow_conf
 from airflow.operators.python import PythonOperator
@@ -89,8 +90,7 @@ with HMDAG(
     #   - Upload failed during re-indexing
     #       - Not really anything to fix here, just need to reindex things
 
-    @task()
-    def instantiate_factories(**kwargs):
+    def instantiate_factories():
         # Need an EntityFactory
         auth_tok = {
             "crypt_auth_tok": encrypt_tok(
@@ -103,11 +103,12 @@ with HMDAG(
         )
 
     @task()
-    def check_conf(ef: EntityFactory, dag_run: DagRun):
+    def check_conf(dag_run: DagRun):
         if "prev_run_id" not in dag_run.conf or "upload_uuid" not in dag_run.conf:
             print("Missing prev_run_id or upload_uuid in configuration.")
             raise AirflowException("Missing required configuration: prev_run_id or upload_uuid")
 
+        ef = instantiate_factories()
         upload = ef.get(dag_run.conf["upload_uuid"])
         if upload.prop_dct["entity_type"] != "Upload":
             print(
@@ -129,9 +130,8 @@ with HMDAG(
         return True
 
     @task()
-    def move_data(ef: EntityFactory, dag_run: DagRun):
-        import shutil
-
+    def move_data(dag_run: DagRun):
+        ef = instantiate_factories()
         upload_uuid = dag_run.conf["upload_uuid"]
         prev_run_id = dag_run.conf["prev_run_id"]
         dryrun = dag_run.conf.get("dryrun", False)
@@ -211,9 +211,8 @@ with HMDAG(
         return moved_count > 0
 
     # Task definitions
-    entity_factory_task = instantiate_factories()
-    config_validation_task = check_conf(entity_factory_task)
-    move_data_task = move_data(entity_factory_task)
+    config_validation_task = check_conf()
+    move_data_task = move_data()
 
     # Task dependencies
-    entity_factory_task >> config_validation_task >> move_data_task
+    config_validation_task >> move_data_task
