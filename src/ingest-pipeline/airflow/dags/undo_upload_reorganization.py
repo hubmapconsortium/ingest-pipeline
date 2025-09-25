@@ -227,6 +227,9 @@ with HMDAG(
     def update_statuses(dataset_uuids, dag_run: DagRun):
         # Set upload to New and datasets to Error
         upload_uuid = dag_run.conf["upload_uuid"]
+        crypt_auth_tok = encrypt_tok(
+            airflow_conf.as_dict()["connections"]["APP_CLIENT_SECRET"]
+        ).decode()
         try:
             pythonop_set_dataset_state(
                 **{
@@ -234,6 +237,7 @@ with HMDAG(
                     "dataset_uuid_callable": lambda **kwargs: upload_uuid,
                     "ds_state": "New",
                     "reindex": False,
+                    "crypt_auth_tok": crypt_auth_tok,
                 }
             )
 
@@ -244,6 +248,7 @@ with HMDAG(
                         "dataset_uuid_callable": lambda **kwargs: uuid,
                         "ds_state": "New",
                         "reindex": False,
+                        "crypt_auth_tok": crypt_auth_tok,
                     }
                 )
         except Exception as e:
