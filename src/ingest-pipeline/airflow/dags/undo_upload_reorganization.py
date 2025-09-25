@@ -170,7 +170,7 @@ with HMDAG(
             try:
                 # Move all contents from dataset back to original location
                 if dataset_path.exists():
-                    items_to_move = list(dataset_path.glob("*"))
+                    items_to_move = [item for item in dataset_path.glob("*") if not item.name.endswith("-metadata.tsv")]
                     if not items_to_move:
                         print(f"Warning: Dataset path {dataset_path} exists but is empty")
 
