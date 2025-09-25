@@ -170,7 +170,11 @@ with HMDAG(
             try:
                 # Move all contents from dataset back to original location
                 if dataset_path.exists():
-                    items_to_move = [item for item in dataset_path.glob("*") if not item.name.endswith("-metadata.tsv")]
+                    items_to_move = [
+                        item
+                        for item in dataset_path.glob("*")
+                        if not item.name.endswith("-metadata.tsv")
+                    ]
                     if not items_to_move:
                         print(f"Warning: Dataset path {dataset_path} exists but is empty")
 
@@ -178,6 +182,12 @@ with HMDAG(
                         dest_item = target_path / item.name
 
                         if item.is_dir():
+                            if item.name("extras"):
+                                print(
+                                    f"Extras directory will not be moved. Data should still exist in original upload."
+                                )
+                                continue
+
                             if dest_item.exists():
                                 if dryrun:
                                     print(f"DRYRUN: Would remove existing directory {dest_item}")
