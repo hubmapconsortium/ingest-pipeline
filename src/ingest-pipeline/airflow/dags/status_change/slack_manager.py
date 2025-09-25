@@ -93,12 +93,16 @@ class SlackManager:
         message = self.message_class.format()
         channel = str(self.message_class.channel)
         logging.info(f"Sending message from {self.message_class.name}...")
-        if message and channel:
-            post_to_slack_notify(self.token, message, channel)
-        elif not message:
+        logging.info(f"Channel: {channel}")
+        logging.info(f"Message: {message}")
+        if not message:
             raise EntityUpdateException(f"Request to send Slack message missing message text.")
-        elif not channel:
-            # This is likely a config issue, let's soft fail here
-            logging.info(
-                f"Request to send Slack message missing target channel. No Slack message will be sent."
+        if not channel:
+            logging.error(
+                f"Request to send Slack message missing target channel. Sending to default channel {channel}."
             )
+            channel = str(SlackMessage.channel)
+        try:
+            post_to_slack_notify(self.token, message, channel)
+        except Exception as e:
+            logging.error(f"No Slack message sent. Encountered error: {e}")

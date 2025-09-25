@@ -17,8 +17,11 @@ class SlackMessage:
     def __init__(self, uuid: str, token: str, entity_data: Optional[dict] = None):
         self.uuid = uuid
         self.token = token
-        self.channel = airflow_conf.as_dict().get("slack_channels", {}).get(self.name.upper())
         self.entity_data = entity_data if entity_data else get_submission_context(token, uuid)
+
+    @classmethod
+    def channel(cls):
+        return airflow_conf.as_dict().get("slack_channels", {}).get(cls.name.upper())
 
     @classmethod
     def test(cls, entity_data: dict, token: str) -> bool:
