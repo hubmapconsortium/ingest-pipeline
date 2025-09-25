@@ -1,4 +1,3 @@
-import pytz
 from airflow.api.common.trigger_dag import trigger_dag
 
 import utils
@@ -29,18 +28,16 @@ from hubmap_operators.common_operators import (
 )
 
 from utils import (
-    pythonop_maybe_keep,
     make_send_status_msg_function,
     get_tmp_dir_path,
     get_auth_tok,
-    pythonop_get_dataset_state,
     pythonop_set_dataset_state,
     find_matching_endpoint,
     HMDAG,
     get_queue_resource,
     get_preserve_scratch_resource,
-    get_soft_data_assaytype,
     _get_scratch_base_path,
+    search_api_reindex,
 )
 
 from misc.tools.split_and_create import reorganize
@@ -204,7 +201,7 @@ with HMDAG(
                 print(f"{error_prefix}Error moving data for UUID {uuid}: {e}")
 
         mode_str = "DRYRUN: Would have moved" if dryrun else "Successfully moved"
-        print(f"{mode_str} data for {moved_count} out of {len(uuids)} datasets")
+        print(f"{mode_str} data for {moved_count} out of {len(uuid_to_data_path)} datasets")
         return moved_count > 0
 
     # Task definitions
