@@ -92,7 +92,13 @@ with HMDAG(
 
     def instantiate_factories():
         # Need an EntityFactory
-        auth_tok = airflow_conf.as_dict()["connections"]["APP_CLIENT_SECRET"]
+        auth_tok = get_auth_tok(
+            **{
+                "crypt_auth_tok": encrypt_tok(
+                    airflow_conf.as_dict()["connections"]["APP_CLIENT_SECRET"]
+                ).decode()
+            }
+        )
         return EntityFactory(
             auth_tok,
             instance=find_matching_endpoint(HttpHook.get_connection("entity_api_connection").host),
@@ -141,7 +147,7 @@ with HMDAG(
         uuid_to_data_path = {}
 
         for tsv in run_tmp_path.glob("frozen_source_df*.tsv"):
-            tmp_df = pd.read_csv(tsv, separator="\t")
+            tmp_df = pd.read_csv(tsv, sep="\t")
             for _, row in tmp_df.iterrows():
                 uuid_to_data_path[row["new_uuid"]] = row["data_path"]
 
@@ -157,9 +163,9 @@ with HMDAG(
 
             # Create parent directory if it doesn't exist
             if dryrun:
-                print(f"DRYRUN: Would create parent directory {target_path.parent}")
+                print(f"DRYRUN: Would create directory {target_path}")
             else:
-                target_path.parent.mkdir(parents=True, exist_ok=True)
+                target_path.mkdir(parents=True, exist_ok=True)
 
             try:
                 # Move all contents from dataset back to original location
