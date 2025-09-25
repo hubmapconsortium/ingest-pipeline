@@ -1,11 +1,6 @@
 from airflow.api.common.trigger_dag import trigger_dag
 
-import utils
-import os
-import yaml
 import time
-from pathlib import Path
-from pprint import pprint
 from datetime import datetime, timedelta
 import pandas as pd
 import shutil
@@ -16,7 +11,6 @@ from airflow.operators.python import BranchPythonOperator
 from airflow.operators.bash import BashOperator
 from airflow.exceptions import AirflowException
 from airflow.providers.http.hooks.http import HttpHook
-from requests.exceptions import HTTPError
 from airflow.decorators import task
 from airflow.models.dagrun import DagRun
 
@@ -29,7 +23,6 @@ from hubmap_operators.common_operators import (
 )
 
 from utils import (
-    make_send_status_msg_function,
     get_tmp_dir_path,
     get_auth_tok,
     pythonop_set_dataset_state,
@@ -228,11 +221,65 @@ with HMDAG(
 
         mode_str = "DRYRUN: Would have moved" if dryrun else "Successfully moved"
         print(f"{mode_str} data for {moved_count} out of {len(uuid_to_data_path)} datasets")
-        return moved_count > 0
+        return uuid_to_data_path
+
+    @task()
+    def update_statuses(dataset_uuids, dag_run: DagRun):
+        # Set upload to New and datasets to Error
+        upload_uuid = dag_run.conf["upload_uuid"]
+        try:
+            pythonop_set_dataset_state(
+                **{
+                    "dryrun": dag_run.conf["dryrun"],
+                    "dataset_uuid_callable": lambda **kwargs: upload_uuid,
+                    "ds_state": "New",
+                    "reindex": False,
+                }
+            )
+
+            for uuid in dataset_uuids.keys():
+                pythonop_set_dataset_state(
+                    **{
+                        "dryrun": dag_run.conf["dryrun"],
+                        "dataset_uuid_callable": lambda **kwargs: uuid,
+                        "ds_state": "New",
+                        "reindex": False,
+                    }
+                )
+        except Exception as e:
+            raise AirflowException(e)
+
+        return 1
+
+    @task()
+    def reindex(dataset_uuids, dag_run: DagRun):
+        upload_uuid = dag_run.conf["upload_uuid"]
+        pass_token = {
+            "crypt_auth_tok": encrypt_tok(
+                airflow_conf.as_dict()["connections"]["APP_CLIENT_SECRET"]
+            ).decode()
+        }
+
+        if not search_api_reindex(
+            upload_uuid,
+            **pass_token,
+        ):
+            return 1
+
+        time.sleep(240)
+
+        for uuid in dataset_uuids.keys():
+            if not search_api_reindex(uuid, **pass_token):
+                return 1
+
+            time.sleep(240)
+        return 0
 
     # Task definitions
     config_validation_task = check_conf()
     move_data_task = move_data()
+    update_statuses_task = update_statuses(move_data_task)
+    reindex_task = reindex(move_data_task)
 
     # Task dependencies
-    config_validation_task >> move_data_task
+    config_validation_task >> move_data_task >> update_statuses_task >> reindex_task
