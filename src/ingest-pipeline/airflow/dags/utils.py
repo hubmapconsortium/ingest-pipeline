@@ -1370,6 +1370,7 @@ def get_cwltool_base_cmd(tmpdir: Path) -> List[str]:
         "env",
         "TMPDIR={}".format(tmpdir),
         "_JAVA_OPTIONS={}".format("-XX:ActiveProcessorCount=2"),
+        "PYTHONUNBUFFERED=1",
         "cwltool",
         "--timestamps",
         "--preserve-environment",
