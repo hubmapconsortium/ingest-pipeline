@@ -182,7 +182,7 @@ with HMDAG(
                         dest_item = target_path / item.name
 
                         if item.is_dir():
-                            if item.name("extras"):
+                            if item.name == "extras":
                                 print(
                                     f"Extras directory will not be moved. Data should still exist in original upload."
                                 )
