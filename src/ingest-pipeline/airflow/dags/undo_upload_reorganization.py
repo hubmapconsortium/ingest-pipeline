@@ -38,6 +38,7 @@ from utils import (
     get_preserve_scratch_resource,
     _get_scratch_base_path,
     search_api_reindex,
+    encrypt_tok
 )
 
 from misc.tools.split_and_create import reorganize
@@ -91,8 +92,11 @@ with HMDAG(
     @task()
     def instantiate_factories(**kwargs):
         # Need an EntityFactory
+        auth_tok = "crypt_auth_tok": encrypt_tok(
+                airflow_conf.as_dict()["connections"]["APP_CLIENT_SECRET"]
+            ).decode(),
         return EntityFactory(
-            get_auth_tok(**kwargs),
+            auth_tok,
             instance=find_matching_endpoint(HttpHook.get_connection("entity_api_connection").host),
         )
 
