@@ -1,5 +1,6 @@
 from pprint import pprint
 from datetime import datetime, timedelta
+import time
 
 from airflow.operators.python import PythonOperator
 from airflow.exceptions import AirflowException
@@ -148,6 +149,7 @@ with HMDAG(
                 raise AirflowException("send_status_msg returned False")
         except Exception as excp:
             raise AirflowException(f"setting dataset attributes failed: {excp}") from excp
+        time.sleep(240)
 
     t_send_status = PythonOperator(
         task_id="send_status_msg",

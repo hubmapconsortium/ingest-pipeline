@@ -53,11 +53,16 @@ def run_zip(target_path: Path, zarr_name: str, delete_flg: bool) -> None:
     assert full_target_path != target_path.anchor, "zip is aimed at /"
     zip_name = target_path / f"{zarr_name}.zip"
     zip_name = zip_name.absolute()
+    # Guard against single quotes in path, as in "Children's Hospital"
+    esc_quote = "\'\"\'\"\'"
+    target_path_str = str(full_target_path).replace("'", esc_quote)
+    zip_name_str = str(zip_name).replace("'", esc_quote)
+    zarr_name_str = zarr_name.replace("'", esc_quote)
     cmd0 = "( [[ $PWD != '/' ]] && [[ $PWD != '/hive' ]] )"
-    cmd1 = f"cd '{full_target_path}'"
-    cmd2 = f"zip -r '{zip_name}' ."
+    cmd1 = f"cd '{target_path_str}'"
+    cmd2 = f"zip -r '{zip_name_str}' ."
     cmd3 = "cd .."
-    cmd4 = f"rm -r -v {zarr_name}"
+    cmd4 = f"rm -r -v {zarr_name_str}"
     if delete_flg:
         full_cmd = f"{cmd0} && {cmd1} && {cmd2} && {cmd3} && {cmd4}"
     else:
@@ -108,9 +113,13 @@ def verify_uuid(uuid: str) -> Tuple[bool, bool]:
     )
     try:
         resp.raise_for_status()
-    except Exception as excp:
-        LOGGER.error(f"Validation of {uuid} failed: {type(excp)} {excp}")
-        return False, False
+    except requests.exceptions.HTTPError as excp:
+        if excp.response.status_code == 401:
+            LOGGER.error(f"entity-api request returned unauthorized!")
+            raise
+        else:
+            LOGGER.error(f"Validation of {uuid} failed: {type(excp)} {excp}")
+            return False, False
     return True, resp.json()['status'].lower() == 'published'
 
 
@@ -148,7 +157,6 @@ def main() -> None:
         type=int,
         default=0
     )
-        
 
     args = parser.parse_args()
 
@@ -162,22 +170,28 @@ def main() -> None:
         parser.error(f"{start_path} is not an existing directory")
 
     all_valid_uuids = []
-    for idx, candidate in enumerate(start_path.glob(args.proto)):
-        if nmax and idx >= nmax:
-            break
-        LOGGER.info(f"testing {candidate}")
-        uuid, props = restructure(
-            candidate,
-            dryrun=dryrun,
-            delete_flg=delete_flg,
-            allow_published=allow_published
-        )
-        if uuid and props.is_dataset:
-            all_valid_uuids.append(uuid)
+    try:
+        for idx, candidate in enumerate(start_path.glob(args.proto)):
+            if nmax and idx >= nmax:
+                break
+            LOGGER.info(f"testing {candidate}")
+            uuid, props = restructure(
+                candidate,
+                dryrun=dryrun,
+                delete_flg=delete_flg,
+                allow_published=allow_published
+            )
+            if uuid and props.is_dataset:
+                all_valid_uuids.append(uuid)
 
-    all_valid_uuids = list(set(all_valid_uuids))
-    print(f"{len(all_valid_uuids)} uuids to update")
-    print(f"rebuilding json: {json.dumps({'uuids':all_valid_uuids})}")
+        all_valid_uuids = list(set(all_valid_uuids))
+        print(f"{len(all_valid_uuids)} uuids to update")
+        print(f"rebuilding json: {json.dumps({'uuids':all_valid_uuids})}")
+    except Exception as excp:
+        print(f"Exiting on exception {excp};"
+              f" {len(all_valid_uuids)} so far")
+        print("partial rebuilding json:"
+              f" {json.dumps({'uuids':all_valid_uuids})}")
 
 if __name__ == "__main__":
     main()
