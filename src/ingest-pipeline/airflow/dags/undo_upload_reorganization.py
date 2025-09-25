@@ -1,26 +1,13 @@
-from airflow.api.common.trigger_dag import trigger_dag
-
 import time
 from datetime import datetime, timedelta
 import pandas as pd
 import shutil
 
 from airflow.configuration import conf as airflow_conf
-from airflow.operators.python import PythonOperator
-from airflow.operators.python import BranchPythonOperator
-from airflow.operators.bash import BashOperator
 from airflow.exceptions import AirflowException
 from airflow.providers.http.hooks.http import HttpHook
 from airflow.decorators import task
 from airflow.models.dagrun import DagRun
-
-
-from hubmap_operators.common_operators import (
-    LogInfoOperator,
-    JoinOperator,
-    CreateTmpDirOperator,
-    CleanupTmpDirOperator,
-)
 
 from utils import (
     get_tmp_dir_path,
@@ -35,8 +22,6 @@ from utils import (
     encrypt_tok,
 )
 
-from misc.tools.split_and_create import reorganize
-from misc.tools.set_standard_protections import process_one_uuid
 from misc.tools.survey import EntityFactory
 
 
@@ -254,7 +239,7 @@ with HMDAG(
         except Exception as e:
             raise AirflowException(e)
 
-        return 1
+        return True
 
     @task()
     def reindex(dataset_uuids, dag_run: DagRun):
@@ -269,16 +254,17 @@ with HMDAG(
             upload_uuid,
             **pass_token,
         ):
-            return 1
+            raise AirflowException(f"Failed to reindex upload {upload_uuid}")
 
         time.sleep(240)
 
         for uuid in dataset_uuids.keys():
             if not search_api_reindex(uuid, **pass_token):
-                return 1
+                raise AirflowException(f"Failed to reindex dataset {uuid}")
 
             time.sleep(240)
-        return 0
+
+        return True
 
     # Task definitions
     config_validation_task = check_conf()
