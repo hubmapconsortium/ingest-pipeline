@@ -222,10 +222,10 @@ with HMDAG(
     t_pipeline_exec_cwl_sprm = BashOperator(
         task_id="pipeline_exec_cwl_sprm",
         bash_command=""" \
-                    tmp_dir={{tmp_dir_path(run_id)}} ; \
-                    {{ti.xcom_pull(task_ids='build_cmd')}} >> ${tmp_dir}/session.log 2>&1 ; \
-                    echo $?
-                    """,
+            tmp_dir={{tmp_dir_path(run_id)}} ; \
+            {{ti.xcom_pull(task_ids='build_cmd_sprm')}} >> ${tmp_dir}/session.log 2>&1 ; \
+            echo $?
+            """,
     )
 
     t_maybe_keep_cwl_sprm = BranchPythonOperator(
@@ -251,8 +251,9 @@ with HMDAG(
         print("parent_data_dir: ", parent_data_dir)
         data_dir = tmpdir / "cwl_out"
         print("data_dir: ", data_dir)
+        task_id_workflow = "build_cmd_small" if kwargs.get("small_branch") else "build_cmd_sprm"
 
-        workflows = kwargs["ti"].xcom_pull(key="cwl_workflows", task_ids="build_cmd_sprm")
+        workflows = kwargs["ti"].xcom_pull(key="cwl_workflows", task_ids=task_id_workflow)
 
         input_parameters = [
             {"parameter_name": "--ometiff_dir", "value": str(data_dir / "pipeline_output")},
@@ -301,8 +302,11 @@ with HMDAG(
         data_dir = get_parent_data_dir(**kwargs)
         print("data_dir: ", data_dir)
 
+        task_id_workflow = "build_cmd_create_vis_symlink_archive_small" if kwargs.get(
+            "small_branch") else "build_cmd_create_vis_symlink_archive"
+
         workflows = kwargs["ti"].xcom_pull(
-            key="cwl_workflows", task_ids="build_cmd_create_vis_symlink_archive"
+            key="cwl_workflows", task_ids=task_id_workflow
         )
 
         input_parameters = [
@@ -322,10 +326,10 @@ with HMDAG(
     t_pipeline_exec_cwl_ome_tiff_pyramid = BashOperator(
         task_id="pipeline_exec_cwl_ome_tiff_pyramid",
         bash_command=""" \
-        tmp_dir={{tmp_dir_path(run_id)}} ; \
-        {{ti.xcom_pull(task_ids='build_cwl_ome_tiff_pyramid')}} >> $tmp_dir/session.log 2>&1 ; \
-        echo $?
-        """,
+            tmp_dir={{tmp_dir_path(run_id)}} ; \
+            {{ti.xcom_pull(task_ids='build_cwl_ome_tiff_pyramid')}} >> $tmp_dir/session.log 2>&1 ; \
+            echo $?
+            """,
     )
 
     t_maybe_keep_cwl_ome_tiff_pyramid = BranchPythonOperator(
@@ -350,8 +354,11 @@ with HMDAG(
         data_dir = tmpdir / "cwl_out"
         print("data_dir: ", data_dir)
 
+        task_id_workflow = "build_cwl_ome_tiff_pyramid_small" if kwargs.get(
+            "small_branch") else "build_cwl_ome_tiff_pyramid"
+
         workflows = kwargs["ti"].xcom_pull(
-            key="cwl_workflows", task_ids="build_cwl_ome_tiff_pyramid"
+            key="cwl_workflows", task_ids=task_id_workflow
         )
 
         input_parameters = [
@@ -370,10 +377,10 @@ with HMDAG(
     t_pipeline_exec_cwl_ome_tiff_offsets = BashOperator(
         task_id="pipeline_exec_cwl_ome_tiff_offsets",
         bash_command=""" \
-        tmp_dir={{tmp_dir_path(run_id)}} ; \
-        {{ti.xcom_pull(task_ids='build_cmd_ome_tiff_offsets')}} >> ${tmp_dir}/session.log 2>&1 ; \
-        echo $?
-        """,
+            tmp_dir={{tmp_dir_path(run_id)}} ; \
+            {{ti.xcom_pull(task_ids='build_cmd_ome_tiff_offsets')}} >> ${tmp_dir}/session.log 2>&1 ; \
+            echo $?
+            """,
     )
 
     t_maybe_keep_cwl_ome_tiff_offsets = BranchPythonOperator(
@@ -397,9 +404,11 @@ with HMDAG(
         print("parent_data_dir: ", parent_data_dir)
         data_dir = tmpdir / "cwl_out"  # This stage reads input from stage 1
         print("data_dir: ", data_dir)
+        task_id_workflow = "build_cmd_ome_tiff_offsets_small" if kwargs.get(
+            "small_branch") else "build_cmd_ome_tiff_offsets"
 
         workflows = kwargs["ti"].xcom_pull(
-            key="cwl_workflows", task_ids="build_cmd_ome_tiff_offsets"
+            key="cwl_workflows", task_ids=task_id_workflow
         )
 
         input_parameters = [
@@ -418,10 +427,10 @@ with HMDAG(
     t_pipeline_exec_cwl_sprm_to_json = BashOperator(
         task_id="pipeline_exec_cwl_sprm_to_json",
         bash_command=""" \
-        tmp_dir={{tmp_dir_path(run_id)}} ; \
-        {{ti.xcom_pull(task_ids='build_cmd_sprm_to_json')}} >> ${tmp_dir}/session.log 2>&1 ; \
-        echo $?
-        """,
+            tmp_dir={{tmp_dir_path(run_id)}} ; \
+            {{ti.xcom_pull(task_ids='build_cmd_sprm_to_json')}} >> ${tmp_dir}/session.log 2>&1 ; \
+            echo $?
+            """,
     )
 
     t_maybe_keep_cwl_sprm_to_json = BranchPythonOperator(
@@ -445,8 +454,12 @@ with HMDAG(
         print("parent_data_dir: ", parent_data_dir)
         data_dir = tmpdir / "cwl_out"  # This stage reads input from stage 1
         print("data_dir: ", data_dir)
+        task_id_workflow = "build_cmd_sprm_to_json_small" if kwargs.get(
+            "small_branch") else "build_cmd_sprm_to_json"
 
-        workflows = kwargs["ti"].xcom_pull(key="cwl_workflows", task_ids="build_cmd_sprm_to_json")
+        workflows = kwargs["ti"].xcom_pull(
+            key="cwl_workflows", task_ids=task_id_workflow
+        )
 
         input_parameters = [
             {"parameter_name": "--input_dir", "value": str(data_dir / "sprm_outputs")},
@@ -464,10 +477,10 @@ with HMDAG(
     t_pipeline_exec_cwl_sprm_to_anndata = BashOperator(
         task_id="pipeline_exec_cwl_sprm_to_anndata",
         bash_command=""" \
-        tmp_dir={{tmp_dir_path(run_id)}} ; \
-        {{ti.xcom_pull(task_ids='build_cmd_sprm_to_anndata')}} >> ${tmp_dir}/session.log 2>&1 ; \
-        echo $?
-        """,
+            tmp_dir={{tmp_dir_path(run_id)}} ; \
+            {{ti.xcom_pull(task_ids='build_cmd_sprm_to_anndata')}} >> ${tmp_dir}/session.log 2>&1 ; \
+            echo $?
+            """,
     )
 
     t_maybe_keep_cwl_sprm_to_anndata = BranchPythonOperator(
@@ -507,13 +520,13 @@ with HMDAG(
     t_expand_symlinks = BashOperator(
         task_id="expand_symlinks",
         bash_command="""
-        tmp_dir="{{tmp_dir_path(run_id)}}" ; \
-        ds_dir="{{ti.xcom_pull(task_ids='send_create_dataset')}}" ; \
-        groupname="{{conf.as_dict()['connections']['OUTPUT_GROUP_NAME']}}" ; \
-        cd "$ds_dir" ; \
-        tar -xf symlinks.tar ; \
-        echo $?
-        """,
+            tmp_dir="{{tmp_dir_path(run_id)}}" ; \
+            ds_dir="{{ti.xcom_pull(task_ids='send_create_dataset')}}" ; \
+            groupname="{{conf.as_dict()['connections']['OUTPUT_GROUP_NAME']}}" ; \
+            cd "$ds_dir" ; \
+            tar -xf symlinks.tar ; \
+            echo $?
+            """,
     )
 
     send_status_msg = make_send_status_msg_function(
@@ -577,6 +590,7 @@ with HMDAG(
         task_id="build_cmd_create_vis_symlink_archive_small",
         python_callable=build_cwltool_cmd_create_vis_symlink_archive,
         provide_context=True,
+        op_kwargs={"small_branch": True},
     )
 
     t_pipeline_exec_cwl_create_vis_symlink_archive_small = BashOperator(
@@ -605,6 +619,7 @@ with HMDAG(
         task_id="build_cwl_ome_tiff_pyramid_small",
         python_callable=build_cwltool_cwl_ome_tiff_pyramid,
         provide_context=True,
+        op_kwargs={"small_branch": True},
     )
 
     t_pipeline_exec_cwl_ome_tiff_pyramid_small = BashOperator(
@@ -633,6 +648,7 @@ with HMDAG(
         task_id="build_cmd_ome_tiff_offsets_small",
         python_callable=build_cwltool_cmd_ome_tiff_offsets,
         provide_context=True,
+        op_kwargs={"small_branch": True},
     )
 
     t_pipeline_exec_cwl_ome_tiff_offsets_small = BashOperator(
@@ -660,6 +676,7 @@ with HMDAG(
         task_id="build_cmd_sprm_to_json_small",
         python_callable=build_cwltool_cmd_sprm_to_json,
         provide_context=True,
+        op_kwargs={"small_branch": True},
     )
 
     t_pipeline_exec_cwl_sprm_to_json_small = BashOperator(
@@ -684,22 +701,11 @@ with HMDAG(
 
     prepare_cwl_sprm_to_anndata_small = EmptyOperator(task_id="prepare_cwl_sprm_to_anndata_small")
 
-    t_expand_symlinks_small = BashOperator(
-        task_id="expand_symlinks_small",
-        bash_command="""
-            tmp_dir="{{tmp_dir_path(run_id)}}" ; \
-            ds_dir="{{ti.xcom_pull(task_ids='send_create_dataset_small')}}" ; \
-            groupname="{{conf.as_dict()['connections']['OUTPUT_GROUP_NAME']}}" ; \
-            cd "$ds_dir" ; \
-            tar -xf symlinks.tar ; \
-            echo $?
-            """,
-    )
-
     t_build_cmd_sprm_to_anndata_small = PythonOperator(
         task_id="build_cmd_sprm_to_anndata_small",
         python_callable=build_cwltool_cmd_sprm_to_anndata,
         provide_context=True,
+        op_kwargs={"small_branch": True},
     )
 
     t_pipeline_exec_cwl_sprm_to_anndata_small = BashOperator(
@@ -716,10 +722,22 @@ with HMDAG(
         python_callable=utils.pythonop_maybe_keep,
         provide_context=True,
         op_kwargs={
-            "next_op": "maybe_create_dataset",
+            "next_op": "maybe_create_dataset_small",
             "bail_op": "set_dataset_error",
             "test_op": "pipeline_exec_cwl_sprm_to_anndata_small",
         },
+    )
+
+    t_expand_symlinks_small = BashOperator(
+        task_id="expand_symlinks_small",
+        bash_command="""
+            tmp_dir="{{tmp_dir_path(run_id)}}" ; \
+            ds_dir="{{ti.xcom_pull(task_ids='send_create_dataset_small')}}" ; \
+            groupname="{{conf.as_dict()['connections']['OUTPUT_GROUP_NAME']}}" ; \
+            cd "$ds_dir" ; \
+            tar -xf symlinks.tar ; \
+            echo $?
+            """,
     )
 
     t_maybe_create_dataset_small = BranchPythonOperator(
@@ -748,13 +766,13 @@ with HMDAG(
     send_status_msg_small = make_send_status_msg_function(
         dag_file=__file__,
         retcode_ops=[
-            "pipeline_exec_cwl_segmentation",
-            "pipeline_exec_cwl_sprm",
-            "pipeline_exec_cwl_create_vis_symlink_archive",
-            "pipeline_exec_cwl_ome_tiff_offsets",
-            "pipeline_exec_cwl_sprm_to_json",
-            "pipeline_exec_cwl_sprm_to_anndata",
-            "move_data",
+            "pipeline_exec_cwl_segmentation_small",
+            "pipeline_exec_cwl_sprm_small",
+            "pipeline_exec_cwl_create_vis_symlink_archive_small",
+            "pipeline_exec_cwl_ome_tiff_offsets_small",
+            "pipeline_exec_cwl_sprm_to_json_small",
+            "pipeline_exec_cwl_sprm_to_anndata_small",
+            "move_data_small",
         ],
         cwl_workflows=lambda **kwargs: kwargs["ti"].xcom_pull(
             key="cwl_workflows", task_ids="build_cmd_sprm_to_anndata_small"
