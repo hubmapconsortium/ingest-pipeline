@@ -246,7 +246,7 @@ with HMDAG(
                     **{
                         "dag_run": dag_run,
                         "dataset_uuid_callable": lambda **kwargs: uuid,
-                        "ds_state": "New",
+                        "ds_state": "Error",
                         "reindex": False,
                         "crypt_auth_tok": crypt_auth_tok,
                     }
