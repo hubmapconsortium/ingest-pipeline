@@ -230,7 +230,7 @@ with HMDAG(
         try:
             pythonop_set_dataset_state(
                 **{
-                    "dryrun": dag_run.conf.get("dryrun", False),
+                    "dagrun": dag_run,
                     "dataset_uuid_callable": lambda **kwargs: upload_uuid,
                     "ds_state": "New",
                     "reindex": False,
@@ -240,7 +240,7 @@ with HMDAG(
             for uuid in dataset_uuids.keys():
                 pythonop_set_dataset_state(
                     **{
-                        "dryrun": dag_run.conf.get("dryrun", False),
+                        "dagrun": dag_run,
                         "dataset_uuid_callable": lambda **kwargs: uuid,
                         "ds_state": "New",
                         "reindex": False,
