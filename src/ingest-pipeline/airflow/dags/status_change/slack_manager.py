@@ -95,8 +95,8 @@ class SlackManager:
         try:
             env = get_env()
         except Exception as e:
-            logging.info(f"Error retrieving env, defaulting to DEV. {e}")
             env = "dev"
+            logging.info(f"Error retrieving env, defaulting to DEV. {e}")
         if env == "prod":
             channel = self.message_class.channel
         else:
@@ -105,7 +105,10 @@ class SlackManager:
                 f"Non-prod environment, switching channel from {self.message_class.channel} to {channel}."
             )
         if not channel:
-            channel = SlackMessage.get_channel()  # always default to base channel
+            channel = SlackMessage.get_channel()
+            logging.info(
+                f"No channel found for message class {self.message_class.name} on {env}, using default channel."
+            )
         logging.info(f"Sending message from {self.message_class.name}...")
         logging.info(f"Channel: {channel}")
         logging.info(f"Message: {message}")
