@@ -419,27 +419,96 @@ class SlackTest(SlackMessage):
     def format(self):
         return "I am formatted"
 
+
+class TestSlack(unittest.TestCase):
+
     def test_slack_message_formatting(self):
         status = Statuses.DATASET_DEPRECATED
         with patch.object(
             SlackManager,
             "status_to_class",
-            {status: {"main_class": self.SlackTest, "subclasses": []}},
+            {status: {"main_class": SlackTest, "subclasses": []}},
         ):
             mgr = self.slack_manager(status, {})
         assert mgr.message_class.format() == "I am formatted"
 
-    @patch("status_change.slack.base.airflow_conf.as_dict")
-    def test_get_slack_channel(self, af_mock):
-        channel = "test_channel"
-        af_mock.return_value = {"slack_channels": {"TEST_CLASS": channel}}
-        with patch.object(
-            SlackManager,
-            "status_to_class",
-            {"test_status": {"main_class": self.SlackTest, "subclasses": []}},
+    @patch("status_change.status_utils.get_env")
+    def test_get_slack_channel(self, env_mock):
+        env_mock.return_value = "prod"
+        with patch.dict(
+            "status_change.slack_manager.SlackManager.status_to_class",
+            {"test_status": {"main_class": SlackTest, "subclasses": []}},
         ):
-            mgr = self.slack_manager("test_status", {})
-        assert mgr.message_class.channel == channel
+            with patch.dict(
+                "status_change.status_utils.slack_channels", {"test_class": "test_channel"}
+            ):
+                mgr = self.slack_manager("test_status", {})
+        assert mgr.message_class.channel == "test_channel"
+
+    @patch("status_change.slack_manager.get_env")
+    def test_update_with_slack_channel(self, env_mock):
+        """
+        We expect to see prod environment use value in `slack_channels`,
+        and non-prod envs to replace channel value with the
+        value from `slack_channels_testing`.
+        """
+        with patch.dict(
+            "status_change.status_utils.slack_channels",
+            {"base": "base_channel", "test_class": "test_channel"},
+        ):
+            with patch.dict(
+                "status_change.status_utils.slack_channels_testing",
+                {"test_class": "base_channel"},
+            ):
+                with patch.dict(
+                    "status_change.slack_manager.SlackManager.status_to_class",
+                    {Statuses.UPLOAD_INVALID: {"main_class": SlackTest, "subclasses": []}},
+                ):
+                    for env_val, channel in {
+                        "prod": "test_channel",
+                        "dev": "base_channel",
+                    }.items():
+                        env_mock.return_value = env_val
+                        mgr = self.slack_manager(Statuses.UPLOAD_INVALID, good_upload_context)
+                        with patch(
+                            "status_change.slack_manager.post_to_slack_notify"
+                        ) as slack_mock:
+                            mgr.update()
+                            slack_mock.assert_called_once_with(
+                                "test_token", "I am formatted", channel
+                            )
+
+    @patch("status_change.slack_manager.get_env")
+    def test_update_with_slack_channel_not_found(self, env_mock):
+        """
+        We expect to see "base" channel if channel not found for status
+        in all environments.
+        """
+        with patch.dict(
+            "status_change.status_utils.slack_channels",
+            {"base": "base_channel"},
+        ):
+            with patch.dict(
+                "status_change.status_utils.slack_channels_testing",
+                {"base": "base_channel"},
+            ):
+                with patch.dict(
+                    "status_change.slack_manager.SlackManager.status_to_class",
+                    {Statuses.DATASET_HOLD: {"main_class": SlackTest, "subclasses": []}},
+                ):
+                    for env_val, channel in {
+                        "prod": "base_channel",
+                        "dev": "base_channel",
+                    }.items():
+                        env_mock.return_value = env_val
+                        mgr = self.slack_manager(Statuses.DATASET_HOLD, good_upload_context)
+                        with patch(
+                            "status_change.slack_manager.post_to_slack_notify"
+                        ) as slack_mock:
+                            mgr.update()
+                            slack_mock.assert_called_once_with(
+                                "test_token", "I am formatted", channel
+                            )
 
     @patch("status_change.slack.base.get_submission_context")
     @patch("status_change.slack_manager.get_submission_context")

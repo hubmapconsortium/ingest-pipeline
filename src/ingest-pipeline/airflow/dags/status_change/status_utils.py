@@ -87,6 +87,19 @@ ENTITY_STATUS_MAP = {
     },
 }
 
+slack_channels = {
+    "base": "C08V3TAP3GQ",  # testing-status-change
+    "dataset_error": "C08V3TAP3GQ",
+    "dataset_invalid": "C08V3TAP3GQ",
+    "dataset_qa": "C099KMKJT26",  # dataset-qa-notifications
+    "upload_error": "C08V3TAP3GQ",
+    "upload_invalid": "C08V3TAP3GQ",
+    "upload_reorganized": "C08V3TAP3GQ",
+    "upload_priority_reorganized": "C08STFJTJKT",  # fasttrack-ingest
+}
+
+slack_channels_testing = {"base": "C08V3TAP3GQ"}
+
 
 # This is simplified from pythonop_get_dataset_state in utils
 def get_submission_context(token: str, uuid: str) -> dict[str, Any]:
@@ -217,3 +230,11 @@ def put_request_to_entity_api(
     response = http_hook.run(endpoint, json.dumps(update_fields), headers)
     logging.info(f"""Response: {response.json()}""")
     return response.json()
+
+
+def get_env():
+    from utils import find_matching_endpoint
+
+    if host := HttpHook.get_connection("entity_api_connection").host:
+        return find_matching_endpoint(host)
+    logging.error(f"Could not determine env. Host: {host}.")

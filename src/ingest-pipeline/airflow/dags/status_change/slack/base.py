@@ -5,20 +5,23 @@ from status_change.status_utils import (
     get_abs_path,
     get_hubmap_id_from_uuid,
     get_submission_context,
+    slack_channels,
 )
-
-from airflow.configuration import conf as airflow_conf
 
 
 class SlackMessage:
-    # Name should match what's in airflow_conf.slack_channels
+    # Name should match what's in status_utils.slack_channels
     name = "base"
 
     def __init__(self, uuid: str, token: str, entity_data: Optional[dict] = None):
         self.uuid = uuid
         self.token = token
-        self.channel = airflow_conf.as_dict().get("slack_channels", {}).get(self.name.upper())
+        self.channel = slack_channels.get(self.name, "")
         self.entity_data = entity_data if entity_data else get_submission_context(token, uuid)
+
+    @classmethod
+    def get_channel(cls):
+        return slack_channels.get(cls.name, "")
 
     @classmethod
     def test(cls, entity_data: dict, token: str) -> bool:

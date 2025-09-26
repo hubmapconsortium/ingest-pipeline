@@ -268,7 +268,11 @@ class StatusChanger(EntityUpdater):
                 self.status, self.uuid, self.token, msg=self.data_ingest_board_msg
             )
             if message_class.is_valid_for_status:
-                message_class.update()
+                try:
+                    message_class.update()
+                except EntityUpdateException as e:
+                    # Do not blow up for known errors
+                    logging.error(f"Message not sent for {message_class.__name__}. Error: {e}")
 
     def validate_fields_to_change(self):
         super().validate_fields_to_change()
