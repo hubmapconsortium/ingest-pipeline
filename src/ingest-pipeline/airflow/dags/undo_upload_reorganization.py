@@ -102,10 +102,6 @@ with HMDAG(
                 f"Could not find path {_get_scratch_base_path() / dag_run.conf['prev_run_id']}"
             )
 
-        dryrun = dag_run.conf.get("dryrun", False)
-        if dryrun:
-            print("DRYRUN MODE: Will only print paths, no actual data movement")
-
         print("Configuration validation passed")
         return True
 
@@ -202,7 +198,9 @@ with HMDAG(
                     print(f"{warning_prefix}Warning: Dataset path {dataset_path} does not exist")
             except Exception as e:
                 error_prefix = "DRYRUN: " if dryrun else ""
-                print(f"{error_prefix}Error moving data for UUID {uuid}: {e}")
+                raise AirflowException(
+                    f"{error_prefix}Error moving data for UUID {uuid}: {e}. \nMoved {moved_count} items out of {len(uuid_to_data_path)}."
+                )
 
         mode_str = "DRYRUN: Would have moved" if dryrun else "Successfully moved"
         print(f"{mode_str} data for {moved_count} out of {len(uuid_to_data_path)} datasets")
