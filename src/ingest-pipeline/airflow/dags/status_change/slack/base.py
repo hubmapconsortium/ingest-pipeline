@@ -22,7 +22,7 @@ class SlackMessage:
         self.token = token
         self.run_id = run_id
         self.channel = slack_channels.get(self.name, "")
-        self.entity_id_str = f"{get_project(self.entity_data).value[0]}_id"
+        self.entity_id_str = f"{get_project().value[0]}_id"
         self.entity_data = entity_data if entity_data else get_submission_context(token, uuid)
 
     @classmethod
@@ -45,11 +45,11 @@ class SlackMessage:
 
     @property
     def ingest_ui_url(self):
-        return get_entity_ingest_url(self.run_id, self.entity_data)
+        return get_entity_ingest_url(self.entity_data)
 
     @property
     def data_ingest_board_url(self):
-        return get_data_ingest_board_query_url(self.run_id, self.entity_data)
+        return get_data_ingest_board_query_url(self.entity_data)
 
     @property
     def entity_links_str(self):
@@ -75,6 +75,7 @@ class SlackMessage:
         Return the Globus URL (default) for a dataset.
         URL format is https://app.globus.org/file-manager?origin_id=<id>&origin_path=<uuid | consortium|private/<group>/<uuid>>
         """
+        # TODO this is totally not aware of sennet
         if uuid:
             lookup_uuid = uuid
         else:

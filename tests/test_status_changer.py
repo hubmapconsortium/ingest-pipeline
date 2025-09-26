@@ -18,13 +18,14 @@ from status_change.status_manager import (
     Statuses,
 )
 from status_change.status_utils import (
-    get_api_url,
     get_data_ingest_board_query_url,
     get_entity_id,
     get_entity_ingest_url,
     get_project,
 )
 from utils import pythonop_set_dataset_state
+
+from airflow.models.connection import Connection
 
 good_upload_context = {
     "validation_message": "existing validation_message text",
@@ -658,9 +659,10 @@ class TestStatusUtils(unittest.TestCase):
     sn_entity_data = {"sennet_id": "test_sn_id"}
 
     def test_get_project(self):
-        proj = get_project(self.hm_entity_data)
+        # TODO fix
+        proj = get_project()
         assert proj.value[0] == "hubmap"
-        proj = get_project(self.sn_entity_data)
+        proj = get_project()
         assert proj.value[0] == "sennet"
 
     def test_get_entity_id(self):
@@ -669,82 +671,94 @@ class TestStatusUtils(unittest.TestCase):
         entity_id = get_entity_id(self.sn_entity_data)
         assert entity_id == "test_sn_id"
 
-    @patch("utils.airflow_conf.as_dict")
-    def test_get_api_url(self, conf_mock):
-        print("get_api_url")
-        print("----------------------------")
-        env_to_api_name_to_url = {
-            "/dir/dev": {
-                "entity": "https://entity-api.dev",
-                "ingest": "https://ingest-api.dev",
-                "ingest-board": "https://ingest-board.dev",
-                "search": "https://search-api.dev",
-            },
-            "/dir/prod": {
-                "entity": "https://entity.api",
-                "ingest": "https://ingest.api",
-                "ingest-board": "https://ingest.board",
-                "search": "https://search.api",
-            },
-        }
-        for env_source_path, api_name_to_url in env_to_api_name_to_url.items():
-            conf_mock.return_value = {"connections": {"WORKFLOW_SCRATCH": env_source_path}}
-            for proj_name, entity_data in {
-                "hubmap": self.hm_entity_data,
-                "sennet": self.sn_entity_data,
-            }.items():
-                print(proj_name)
-                print(env_source_path)
-                for api_name, url_prefix in api_name_to_url.items():
-                    url = get_api_url(f"{proj_name}_{api_name}_run_id", entity_data, api_name)
-                    expected_url = f"{url_prefix}.{proj_name}consortium.org/"
-                    print(f"assert {url} == {expected_url}")
-                    assert url == expected_url
-                print("------------------")
+    # @patch("utils.airflow_conf.as_dict")
+    # def test_get_api_url(self, conf_mock):
+    #     print("get_api_url")
+    #     print("----------------------------")
+    #     env_to_api_name_to_url = {
+    #         "/dir/dev": {
+    #             "entity": "https://entity-api.dev",
+    #             "ingest": "https://ingest-api.dev",
+    #             "ingest-board": "https://ingest-board.dev",
+    #             "search": "https://search-api.dev",
+    #         },
+    #         "/dir/prod": {
+    #             "entity": "https://entity.api",
+    #             "ingest": "https://ingest.api",
+    #             "ingest-board": "https://ingest.board",
+    #             "search": "https://search.api",
+    #         },
+    #     }
+    #     for env_source_path, api_name_to_url in env_to_api_name_to_url.items():
+    #         conf_mock.return_value = {"connections": {"WORKFLOW_SCRATCH": env_source_path}}
+    #         for proj_name, entity_data in {
+    #             "hubmap": self.hm_entity_data,
+    #             "sennet": self.sn_entity_data,
+    #         }.items():
+    #             print(proj_name)
+    #             print(env_source_path)
+    #             for api_name, url_prefix in api_name_to_url.items():
+    #                 url = get_api_url(entity_data, api_name)
+    #                 expected_url = f"{url_prefix}.{proj_name}consortium.org/"
+    #                 print(f"assert {url} == {expected_url}")
+    #                 assert url == expected_url
+    #             print("------------------")
 
-    @patch("utils.airflow_conf.as_dict")
-    def test_get_entity_ingest_url(self, conf_mock):
-        print("get_entity_ingest_url")
-        print("----------------------------")
-        for env_source_path, url_prefix in {
-            "/dir/dev": "https://ingest-api.dev",
-            "/dir/prod": "https://ingest.api",
+    @patch("status_change.status_utils.HttpHook.get_connection")
+    def test_get_entity_ingest_url(self, hhr_mock):
+        for url_prefix, entity_data in {
+            "https://ingest-api.dev.hubmapconsortium.org": {
+                "entity_type": "upload",
+                "uuid": "test_hm_uuid",
+            },
+            "https://ingest.api.sennetconsortium.org": {
+                "entity_type": "dataset",
+                "uuid": "test_sn_uuid",
+            },
         }.items():
-            conf_mock.return_value = {"connections": {"WORKFLOW_SCRATCH": env_source_path}}
-            for proj_name, entity_data in {
-                "hubmap": self.hm_entity_data,
-                "sennet": self.sn_entity_data,
-            }.items():
-                print(proj_name)
-                print(env_source_path)
-                url = get_entity_ingest_url(f"{proj_name}_ingest_run_id", entity_data)
-                expected_url = f"{url_prefix}.{proj_name}consortium.org/"
-                print(f"assert {url} == {expected_url}")
-                assert url == expected_url
-                print("------------------")
+            hhr_mock.return_value = Connection(host=url_prefix)
+            url = get_entity_ingest_url(entity_data)
+            expected_url = f"{url_prefix}/{entity_data['entity_type']}/{entity_data['uuid']}"
+            print(f"assert {url} == {expected_url}")
+            assert url == expected_url
 
-    @patch("utils.airflow_conf.as_dict")
-    def test_get_data_ingest_board_query_url(self, conf_mock):
-        print("get_data_ingest_board_query_url")
-        print("----------------------------")
-        for env_source_path, url_prefix in {
-            "/dir/dev": "https://ingest-board.dev",
-            "/dir/prod": "https://ingest.board",
-        }.items():
-            conf_mock.return_value = {"connections": {"WORKFLOW_SCRATCH": env_source_path}}
-            for proj_name, entity_data in {
-                "hubmap": self.hm_entity_data,
-                "sennet": self.sn_entity_data,
-            }.items():
-                print(proj_name)
-                print(env_source_path)
-                url = get_data_ingest_board_query_url(f"{proj_name}_ingest_run_id", entity_data)
-                expected_url = (
-                    f"{url_prefix}.{proj_name}consortium.org/?q={entity_data[f'{proj_name}_id']}"
-                )
-                print(f"assert {url} == {expected_url}")
-                assert url == expected_url
-                print("------------------")
+    endpoints = {
+        "PROD": {"entity_url": "https://ingest.api.sennetconsortium.org"},
+        "DEV": {"entity_url": "https://ingest-api.dev.hubmapconsortium.org"},
+    }
+
+    @patch("utils.ENDPOINTS", endpoints)
+    @patch("status_change.status_utils.HttpHook.get_connection")
+    def test_get_data_ingest_board_query_url(self, hhr_mock):
+        for url_prefix, ingest_conn, entity_data in [
+            (
+                "https://ingest-board.dev.hubmapconsortium.org",
+                "https://ingest-api.dev.hubmapconsortium.org",
+                {
+                    "entity_type": "upload",
+                    "uuid": "test_hm_uuid",
+                    "hubmap_id": "test_hm_id",
+                },
+            ),
+            (
+                "https://ingest.board.sennetconsortium.org",
+                "https://ingest.api.sennetconsortium.org",
+                {
+                    "entity_type": "dataset",
+                    "uuid": "test_sn_uuid",
+                    "sennet_id": "test_sn_id",
+                },
+            ),
+        ]:
+            hhr_mock.return_value = Connection(host=ingest_conn)
+            url = get_data_ingest_board_query_url(entity_data)
+            entity_id = entity_data.get(f"{get_project().value[0]}_id")
+            expected_url = f"{url_prefix}/?q={entity_id}"
+            if entity_data["entity_type"] == "upload":
+
+                expected_url += "&entity_type=uploads"
+            print(f"assert {url} == {expected_url}")
+            assert url == expected_url
 
 
 # if __name__ == "__main__":

@@ -4,7 +4,7 @@ import json
 import logging
 import traceback
 from enum import Enum
-from typing import Any, Literal, Optional
+from typing import Any, Optional
 from urllib.parse import urlencode, urljoin
 
 from requests import codes
@@ -115,16 +115,36 @@ class Project(Enum):
     SENNET = ("sennet", "SenNet")
 
 
+def get_project() -> Project:
+    url = HttpHook.get_connection("ingest_api_connection").host
+    if "hubmap" in str(url):
+        return Project.HUBMAP
+    return Project.SENNET
+
+
+def get_entity_id(entity_data: dict) -> str:
+    if get_project() == Project.HUBMAP:
+        entity_id = entity_data.get("hubmap_id", "")
+    else:
+        entity_id = entity_data.get("sennet_id", "")
+    return entity_id
+
+
+def get_headers(token: str):
+    return {
+        "authorization": f"Bearer {token}",
+        "content-type": "application/json",
+        f"X-{get_project().value[0].title()}-Application": "ingest-pipeline",
+    }
+
+
 # This is simplified from pythonop_get_dataset_state in utils
 def get_submission_context(token: str, uuid: str) -> dict[str, Any]:
     """
-    uuid can also be a HuBMAP ID.
+    uuid can also be a HuBMAP/SenNet ID.
     """
-    headers = {
-        "authorization": f"Bearer {token}",
-        "content-type": "application/json",
-        "X-Hubmap-Application": "ingest-pipeline",
-    }
+    # TODO check that this works with hubmap/sennet ID
+    headers = get_headers(token)
     http_hook = HttpHook("GET", http_conn_id="entity_api_connection")
 
     endpoint = f"entities/{uuid}"
@@ -143,8 +163,10 @@ def get_submission_context(token: str, uuid: str) -> dict[str, Any]:
         return {}
 
 
-def get_hubmap_id_from_uuid(token: str, uuid: str) -> str | None:
-    return get_submission_context(token, uuid).get("hubmap_id")
+def get_entity_id_from_uuid(token: str, uuid: str) -> str | None:
+    return get_submission_context(token, uuid).get(
+        get_entity_id(get_submission_context(token, uuid))
+    )
 
 
 def formatted_exception(exception):
@@ -163,11 +185,7 @@ def formatted_exception(exception):
 
 def get_abs_path(uuid: str, token: str, escaped: bool = False) -> str:
     http_hook = HttpHook("GET", http_conn_id="ingest_api_connection")
-    headers = {
-        "authorization": f"Bearer {token}",
-        "content-type": "application/json",
-        "X-Hubmap-Application": "ingest-pipeline",
-    }
+    headers = get_headers(token)
     response = http_hook.run(
         endpoint=f"datasets/{uuid}/file-system-abs-path",
         headers=headers,
@@ -206,11 +224,7 @@ def post_to_slack_notify(token: str, message: str, channel: str):
 
 def get_ancestors(uuid: str, token: str) -> dict:
     endpoint = f"/ancestors/{uuid}"
-    headers = {
-        "authorization": "Bearer " + token,
-        "X-Hubmap-Application": "ingest-pipeline",
-        "content-type": "application/json",
-    }
+    headers = get_headers(token)
     http_hook = HttpHook("GET", http_conn_id="entity_api_connection")
     response = http_hook.run(endpoint, headers)
     logging.info(f"""Response: {response.json()}""")
@@ -235,11 +249,7 @@ def put_request_to_entity_api(
     endpoint = f"/entities/{uuid}"
     if encoded_params := urlencode(params):
         endpoint += f"?{encoded_params}"
-    headers = {
-        "authorization": "Bearer " + token,
-        "X-Hubmap-Application": "ingest-pipeline",
-        "content-type": "application/json",
-    }
+    headers = get_headers(token)
     http_hook = HttpHook("PUT", http_conn_id="entity_api_connection")
     response = http_hook.run(endpoint, json.dumps(update_fields), headers)
     logging.info(f"""Response: {response.json()}""")
@@ -264,49 +274,33 @@ def is_internal_error(entity_data: dict) -> bool:
     return False
 
 
-def get_project(entity_data: dict) -> Project:
-    if entity_data.get("hubmap_id"):
-        return Project.HUBMAP
-    return Project.SENNET
-
-
-def get_entity_id(entity_data: dict) -> str:
-    if get_project(entity_data) == Project.HUBMAP:
-        entity_id = entity_data.get("hubmap_id", "")
-    else:
-        entity_id = entity_data.get("sennet_id", "")
-    return entity_id
-
-
-def get_api_url(
-    run_id: str, entity_data: dict, api_name: Literal["entity", "ingest", "ingest-board", "search"]
-) -> str:
-    from utils import get_tmp_dir_path
-
-    proj = get_project(entity_data).value[0]
-    url_env = None
-    for env in ["dev", "test", "stage"]:
-        if env in str(get_tmp_dir_path(run_id)).lower():
-            url_env = env
-            break
-    if not url_env:  # prod
-        if api_name == "ingest-board":  # ingest-board does not include "api" in URL
-            return f"https://ingest.board.{proj}consortium.org/"
-        return f"https://{api_name}.api.{proj}consortium.org/"
-    elif api_name == "ingest-board":  # ingest-board does not include "api" in URL
-        return f"https://ingest-board.{url_env}.{proj}consortium.org/"
-    return f"https://{api_name}-api.{url_env}.{proj}consortium.org/"  # non-prod env
-
-
-def get_entity_ingest_url(run_id: str, entity_data: dict) -> str:
-    url = get_api_url(run_id, entity_data, "ingest")
+def get_entity_ingest_url(entity_data: dict) -> str:
+    url = HttpHook.get_connection("ingest_api_connection").host
+    if not url:
+        raise Exception("ingest_api_connection not found")
+    if not url.endswith("/"):
+        url += "/"
     entity_type = entity_data.get("entity_type", "")
     base_url = urljoin(url, entity_type)
+    if not base_url.endswith("/"):
+        base_url += "/"
     return urljoin(base_url, entity_data.get("uuid"))
 
 
-def get_data_ingest_board_query_url(run_id: str, entity_data: dict) -> str:
-    url = get_api_url(run_id, entity_data, "ingest-board")
+def get_data_ingest_board_query_url(entity_data: dict) -> str:
+    from utils import find_matching_endpoint
+
+    proj = get_project().value[0]
+    ingest_url = HttpHook.get_connection("ingest_api_connection").host
+    if not ingest_url:
+        raise Exception(
+            "ingest_api_connection not found while determining env for Data Ingest Board URL."
+        )
+    env = find_matching_endpoint(ingest_url)
+    if env.lower() == "prod":
+        url = f"https://ingest.board.{proj}consortium.org/"
+    else:
+        url = f"https://ingest-board.{env.lower()}.{proj}consortium.org/"
     entity_id = get_entity_id(entity_data)
     params = {"q": entity_id}
     if entity_data.get("entity_type", "").lower() == "upload":
