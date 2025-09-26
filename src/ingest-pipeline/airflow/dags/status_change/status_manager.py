@@ -264,11 +264,17 @@ class StatusChanger(EntityUpdater):
 
     def call_message_managers(self):
         for message_type in self.message_classes:
-            message_class = message_type(
+            message_manager = message_type(
                 self.status, self.uuid, self.token, msg=self.data_ingest_board_msg
             )
-            if message_class.is_valid_for_status:
-                message_class.update()
+            if message_manager.is_valid_for_status:
+                try:
+                    message_manager.update()
+                except EntityUpdateException as e:
+                    # Do not blow up for known errors
+                    logging.error(
+                        f"Message not sent for {message_manager.message_class.name}. Error: {e}"
+                    )
 
     def validate_fields_to_change(self):
         super().validate_fields_to_change()
