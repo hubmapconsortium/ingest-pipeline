@@ -232,7 +232,7 @@ def put_request_to_entity_api(
     return response.json()
 
 
-def get_env():
+def get_env() -> Optional[str]:
     from utils import find_matching_endpoint
 
     if host := HttpHook.get_connection("entity_api_connection").host:

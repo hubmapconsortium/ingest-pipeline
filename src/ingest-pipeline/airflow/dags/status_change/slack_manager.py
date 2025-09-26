@@ -92,7 +92,12 @@ class SlackManager:
         if not self.message_class:
             return
         message = self.message_class.format()
-        if get_env() == "prod":
+        try:
+            env = get_env()
+        except Exception as e:
+            logging.info(f"Error retrieving env, defaulting to DEV. {e}")
+            env = "dev"
+        if env == "prod":
             channel = self.message_class.channel
         else:
             channel = slack_channels_testing.get(self.message_class.name)
