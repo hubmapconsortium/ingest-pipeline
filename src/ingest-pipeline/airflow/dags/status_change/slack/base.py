@@ -15,12 +15,9 @@ class SlackMessage:
     # Name should match what's in status_utils.slack_channels
     name = "base"
 
-    def __init__(
-        self, uuid: str, token: str, entity_data: Optional[dict] = None, run_id: str = ""
-    ):
+    def __init__(self, uuid: str, token: str, entity_data: Optional[dict] = None):
         self.uuid = uuid
         self.token = token
-        self.run_id = run_id
         self.channel = slack_channels.get(self.name, "")
         self.entity_id_str = f"{get_project().value[0]}_id"
         self.entity_data = entity_data if entity_data else get_submission_context(token, uuid)

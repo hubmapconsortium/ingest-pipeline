@@ -1,7 +1,7 @@
 import unittest
 from datetime import date
 from functools import cached_property
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, PropertyMock, patch
 
 from status_change.callbacks.failure_callback import FailureCallback
 from status_change.data_ingest_board_manager import DataIngestBoardManager
@@ -312,6 +312,8 @@ class TestStatusChanger(unittest.TestCase):
             fields_to_overwrite={"pipeline_message": message},
             http_conn_id="entity_api_connection",
             reindex=True,
+            dag=None,
+            run_id=None,
         )
         # Pass a valid ds_state and assert it was passed properly
         pythonop_set_dataset_state(
@@ -329,6 +331,8 @@ class TestStatusChanger(unittest.TestCase):
             fields_to_overwrite={"pipeline_message": message},
             http_conn_id="entity_api_connection",
             reindex=True,
+            dag=None,
+            run_id=None,
         )
 
     @patch("utils.get_auth_tok")
@@ -655,21 +659,29 @@ class TestDataIngestBoardManager(unittest.TestCase):
 
 
 class TestStatusUtils(unittest.TestCase):
-    hm_entity_data = {"hubmap_id": "test_hm_id"}
-    sn_entity_data = {"sennet_id": "test_sn_id"}
+    hm_entity_data = {"hubmap_id": "test_hubmap_id"}
+    sn_entity_data = {"sennet_id": "test_sennet_id"}
 
-    def test_get_project(self):
-        # TODO fix
-        proj = get_project()
-        assert proj.value[0] == "hubmap"
-        proj = get_project()
-        assert proj.value[0] == "sennet"
+    @patch("status_change.status_utils.HttpHook.get_connection")
+    def test_get_project(self, conn_mock):
+        for ingest_context in ["hubmap", "sennet"]:
+            conn_mock.return_value = Connection(
+                host=f"https://ingest.api.{ingest_context}consortium.org"
+            )
+            proj = get_project()
+            assert proj.value[0] == ingest_context
 
-    def test_get_entity_id(self):
-        entity_id = get_entity_id(self.hm_entity_data)
-        assert entity_id == "test_hm_id"
-        entity_id = get_entity_id(self.sn_entity_data)
-        assert entity_id == "test_sn_id"
+    @patch("status_change.status_utils.HttpHook.get_connection")
+    def test_get_entity_id(self, conn_mock):
+        for ingest_context, entity_data in {
+            "hubmap": self.hm_entity_data,
+            "sennet": self.sn_entity_data,
+        }.items():
+            conn_mock.return_value = Connection(
+                host=f"https://ingest.api.{ingest_context}consortium.org"
+            )
+            entity_id = get_entity_id(entity_data)
+            assert entity_id == f"test_{ingest_context}_id"
 
     # @patch("utils.airflow_conf.as_dict")
     # def test_get_api_url(self, conf_mock):
