@@ -115,6 +115,20 @@ class Project(Enum):
     SENNET = ("sennet", "SenNet")
 
 
+globus_dirs = {
+    "hubmap": {
+        "public": "af603d86-eab9-4eec-bb1d-9d26556741bb",
+        "protected": "24c2ee95-146d-4513-a1b3-ac0bfdb7856f",
+        "path_replace_str": "/hive/hubmap/data",
+    },
+    "sennet": {
+        "public": "96b2b9e5-6915-4dbc-9ab5-173ad628902e",
+        "protected": "45617036-f2cc-4320-8108-edf599290158",
+        "path_replace_str": "/codcc-{env}/data",
+    },
+}
+
+
 def get_project() -> Project:
     url = HttpHook.get_connection("ingest_api_connection").host
     if "hubmap" in str(url):
@@ -260,7 +274,7 @@ def get_env() -> Optional[str]:
     from utils import find_matching_endpoint
 
     if host := HttpHook.get_connection("entity_api_connection").host:
-        return find_matching_endpoint(host)
+        return find_matching_endpoint(host).lower()
     logging.error(f"Could not determine env. Host: {host}.")
 
 

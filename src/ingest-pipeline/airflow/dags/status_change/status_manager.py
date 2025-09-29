@@ -203,6 +203,7 @@ Example usage with optional params:
             fields_to_overwrite={"test_field": "test"},  # optional
             fields_to_append_to={"ingest_task": "test"},  # optional
             delimiter=",",  # optional
+            reindex=True,  # optional
             dag="validate_upload",
             run_id="<airflow_run_id>",
             status=<Statuses.STATUS_ENUM>,  # or "<status>"

@@ -7,6 +7,7 @@ from status_change.status_utils import (
     get_entity_ingest_url,
     get_project,
     get_submission_context,
+    globus_dirs,
     slack_channels,
 )
 
@@ -67,23 +68,28 @@ class SlackMessage:
     def copyable_filepath(self):
         return get_abs_path(self.uuid, self.token, escaped=True)
 
-    def get_globus_url(self, uuid: Optional[str] = None) -> str:
+    def get_globus_url(self, uuid: Optional[str] = None) -> Optional[str]:
         """
         Return the Globus URL (default) for a dataset.
         URL format is https://app.globus.org/file-manager?origin_id=<id>&origin_path=<uuid | consortium|private/<group>/<uuid>>
         """
-        # TODO this is totally not aware of sennet
         if uuid:
             lookup_uuid = uuid
         else:
             lookup_uuid = self.uuid
         path = get_abs_path(lookup_uuid, self.token)
         prefix = "https://app.globus.org/file-manager?"
+        proj = get_project()
+        project_dict = globus_dirs.get(proj.value[0])
+        if not project_dict:
+            return
         params = {}
         if "public" in path:
-            params["origin_id"] = "af603d86-eab9-4eec-bb1d-9d26556741bb"
+            params["origin_id"] = project_dict.get("public")
             params["origin_path"] = lookup_uuid
         else:
-            params["origin_id"] = "24c2ee95-146d-4513-a1b3-ac0bfdb7856f"
-            params["origin_path"] = path.replace("/hive/hubmap/data", "") + "/"
+            params["origin_id"] = project_dict.get("protected")
+            params["origin_path"] = (
+                path.replace(project_dict.get("path_replace_str", ""), "") + "/"
+            )
         return prefix + urlencode(params)
