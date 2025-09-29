@@ -160,6 +160,7 @@ class EntityUpdater:
             fields_to_overwrite=self.fields_to_overwrite,
             fields_to_append_to=self.fields_to_append_to,
             delimiter=self.delimiter,
+            reindex=self.reindex,
             dag=self.dag,
             run_id=self.run_id,
             status=status,

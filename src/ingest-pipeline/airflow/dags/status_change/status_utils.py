@@ -157,7 +157,6 @@ def get_submission_context(token: str, uuid: str) -> dict[str, Any]:
     """
     uuid can also be a HuBMAP/SenNet ID.
     """
-    # TODO check that this works with hubmap/sennet ID
     headers = get_headers(token)
     http_hook = HttpHook("GET", http_conn_id="entity_api_connection")
 

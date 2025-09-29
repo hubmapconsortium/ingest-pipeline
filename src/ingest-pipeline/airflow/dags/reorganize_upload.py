@@ -92,7 +92,7 @@ def get_dataset_uuid(**kwargs):
     return kwargs["uuid_dataset"]
 
 def get_run_id(**kwargs):
-    return kwargs["ti"].xcom_pull(task_ids="split_stage_2", key="run_id")
+    return kwargs.get("run_id")
 
 with HMDAG(
     "reorganize_upload",
@@ -211,7 +211,6 @@ with HMDAG(
                 auth_tok=get_auth_tok(**kwargs),
                 frozen_df_fname=_get_frozen_df_path(kwargs["run_id"]),
             )
-            kwargs["ti"].xcom_push(key="run_id", value=kwargs.get("run_id"))
             kwargs["ti"].xcom_push(key="split_stage_2", value="0")  # signal success
             kwargs["ti"].xcom_push(key="is_multiassay", value=is_multiassay)
             kwargs["ti"].xcom_push(key="is_epic", value=is_epic)

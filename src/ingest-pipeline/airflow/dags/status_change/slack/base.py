@@ -20,7 +20,7 @@ class SlackMessage:
         self.uuid = uuid
         self.token = token
         self.channel = slack_channels.get(self.name, "")
-        self.entity_id_str = f"{get_project().value[0]}_id"
+        self.entity_id_str = f"{get_project().value[0]}_id"  # "hubmap_id" or "sennet_id"
         self.entity_data = entity_data if entity_data else get_submission_context(token, uuid)
 
     @classmethod

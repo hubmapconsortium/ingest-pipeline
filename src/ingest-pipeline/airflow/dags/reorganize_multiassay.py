@@ -84,7 +84,7 @@ def read_metadata_file(**kwargs):
     return scanned_md
 
 def get_run_id(**kwargs):
-    return kwargs["ti"].xcom_pull(task_ids="split_stage_2", key="run_id")
+    return kwargs.get("run_id")
 
 
 with HMDAG(
