@@ -235,7 +235,7 @@ with HMDAG(
         op_kwargs={
             "next_op": "prepare_cwl_create_vis_symlink_archive",
             "bail_op": "set_dataset_error",
-            "test_op": "pipeline_exec",
+            "test_op": "pipeline_exec_cwl_sprm",
         },
     )
 
@@ -538,7 +538,7 @@ with HMDAG(
             "pipeline_exec_cwl_ome_tiff_offsets",
             "pipeline_exec_cwl_sprm_to_json",
             "pipeline_exec_cwl_sprm_to_anndata",
-            "move_data_small",
+            "move_data",
         ],
         cwl_workflows=lambda **kwargs: kwargs["ti"].xcom_pull(
             key="cwl_workflows", task_ids="build_cmd_sprm_to_anndata"
