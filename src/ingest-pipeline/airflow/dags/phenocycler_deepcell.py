@@ -777,6 +777,7 @@ with HMDAG(
         cwl_workflows=lambda **kwargs: kwargs["ti"].xcom_pull(
             key="cwl_workflows", task_ids="build_cmd_sprm_to_anndata_small"
         ),
+        uuid_src_task_id="send_create_dataset_small",
         workflow_description=workflow_description,
         workflow_version=workflow_version,
     )
