@@ -145,10 +145,11 @@ def get_entity_id(entity_data: dict) -> str:
 
 
 def get_headers(token: str):
+    proj = get_project().value[0].title()
     return {
         "authorization": f"Bearer {token}",
         "content-type": "application/json",
-        f"X-{get_project().value[0].title()}-Application": "ingest-pipeline",
+        f"X-{proj}-Application": "ingest-pipeline",
     }
 
 
@@ -257,7 +258,10 @@ def get_primary_dataset(entity_data: dict, token: str) -> Optional[str]:
 
 
 def put_request_to_entity_api(
-    uuid: str, token: str, update_fields: dict, params: dict = {}
+    uuid: str,
+    token: str,
+    update_fields: dict,
+    params: dict = {},
 ) -> dict:
     endpoint = f"/entities/{uuid}"
     if encoded_params := urlencode(params):

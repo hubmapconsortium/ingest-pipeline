@@ -43,9 +43,9 @@ class DataIngestBoardManager:
         self.token = token
         self.status = status
         self.msg = str(msg) if msg else ""
+        self.run_id = run_id
         self.entity_data = get_submission_context(self.token, self.uuid)
         self.update_fields = self.get_fields()
-        self.run_id = run_id
         self.is_valid_for_status = bool(self.update_fields)
 
     def update(self):
