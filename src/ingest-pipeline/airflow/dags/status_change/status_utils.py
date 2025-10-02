@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import traceback
 from enum import Enum
 from typing import Any, Optional
@@ -23,7 +24,7 @@ Strings that should *only* occur in failure states
 "404" can appear in a real, external-facing error
 message)
 """
-internal_error_strs = ["EntityUpdateException", "Process failed", "Traceback"]
+internal_error_strs = ["EntityUpdateException", "Process failed", "Traceback", "Internal error"]
 
 
 class Statuses(str, Enum):
@@ -119,12 +120,12 @@ globus_dirs = {
     "hubmap": {
         "public": "af603d86-eab9-4eec-bb1d-9d26556741bb",
         "protected": "24c2ee95-146d-4513-a1b3-ac0bfdb7856f",
-        "path_replace_str": "/hive/hubmap/data",
+        "path_replace_regex": r"/hive/hubmap.*/data",
     },
     "sennet": {
         "public": "96b2b9e5-6915-4dbc-9ab5-173ad628902e",
         "protected": "45617036-f2cc-4320-8108-edf599290158",
-        "path_replace_str": "/codcc-{env}/data",
+        "path_replace_regex": f"/codcc.*/data",
     },
 }
 
@@ -144,7 +145,7 @@ def get_entity_id(entity_data: dict) -> str:
     return entity_id
 
 
-def get_headers(token: str):
+def get_headers(token: str) -> dict:
     proj = get_project().value[0].title()
     return {
         "authorization": f"Bearer {token}",
@@ -175,12 +176,6 @@ def get_submission_context(token: str, uuid: str) -> dict[str, Any]:
             raise RuntimeError("entity database authorization was rejected?")
         print("benign error")
         return {}
-
-
-def get_entity_id_from_uuid(token: str, uuid: str) -> str | None:
-    return get_submission_context(token, uuid).get(
-        get_entity_id(get_submission_context(token, uuid))
-    )
 
 
 def formatted_exception(exception):
@@ -277,7 +272,10 @@ def get_env() -> Optional[str]:
     from utils import find_matching_endpoint
 
     if host := HttpHook.get_connection("entity_api_connection").host:
-        return find_matching_endpoint(host).lower()
+        try:
+            return find_matching_endpoint(host).lower()
+        except Exception:
+            pass
     logging.error(f"Could not determine env. Host: {host}.")
 
 
@@ -323,3 +321,25 @@ def get_data_ingest_board_query_url(entity_data: dict) -> str:
     if entity_data.get("entity_type", "").lower() == "upload":
         params["entity_type"] = "uploads"
     return f"{url}?{urlencode(params)}"
+
+
+def get_globus_url(uuid: str, token: str) -> Optional[str]:
+    """
+    Return the Globus URL (default) for a dataset.
+    URL format is https://app.globus.org/file-manager?origin_id=<id>&origin_path=<uuid | consortium|private/<group>/<uuid>>
+    """
+    path = get_abs_path(uuid, token)
+    prefix = "https://app.globus.org/file-manager?"
+    proj = get_project()
+    project_dict = globus_dirs.get(proj.value[0])
+    if not project_dict:
+        return
+    params = {}
+    if "public" in path:
+        params["origin_id"] = project_dict.get("public")
+        params["origin_path"] = uuid
+    else:
+        regex = project_dict.get("path_replace_regex", "")
+        params["origin_id"] = project_dict.get("protected")
+        params["origin_path"] = re.sub(regex, "", path) + "/"
+    return prefix + urlencode(params)

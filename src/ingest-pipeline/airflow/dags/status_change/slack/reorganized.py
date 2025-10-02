@@ -1,6 +1,6 @@
 from typing import Tuple
 
-from status_change.status_utils import get_abs_path, get_organ
+from status_change.status_utils import get_abs_path, get_globus_url, get_organ
 
 from .base import SlackMessage
 
@@ -41,7 +41,7 @@ class SlackUploadReorganized(SlackMessage):
             uuid = dataset.get("uuid", "")
             # Organ and globus_url are derived from additional API calls.
             data.append(get_organ(uuid, self.token))
-            data.append(f"<{self.get_globus_url(uuid)}|Globus>")
+            data.append(f"<{get_globus_url(uuid, self.token)}|Globus>")
             data.append(get_abs_path(uuid, self.token, escaped=True))
             info.append(", ".join(self._clean_dataset_rows(data)))
         return info

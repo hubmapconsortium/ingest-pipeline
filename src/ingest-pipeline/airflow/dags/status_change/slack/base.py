@@ -1,13 +1,12 @@
 from typing import Optional
-from urllib.parse import urlencode
 
 from status_change.status_utils import (
     get_abs_path,
     get_data_ingest_board_query_url,
     get_entity_ingest_url,
+    get_globus_url,
     get_project,
     get_submission_context,
-    globus_dirs,
     slack_channels,
 )
 
@@ -60,36 +59,10 @@ class SlackMessage:
         return f"""
         <{self.ingest_ui_url}|View on Ingest UI.>
         <{self.data_ingest_board_url}|View on Data Ingest Board.>
-        <{self.get_globus_url()}|View on Globus.>
+        <{get_globus_url(self.uuid, self.token)}|View on Globus.>
         Filesystem path: {self.copyable_filepath}
         """
 
     @property
     def copyable_filepath(self):
         return get_abs_path(self.uuid, self.token, escaped=True)
-
-    def get_globus_url(self, uuid: Optional[str] = None) -> Optional[str]:
-        """
-        Return the Globus URL (default) for a dataset.
-        URL format is https://app.globus.org/file-manager?origin_id=<id>&origin_path=<uuid | consortium|private/<group>/<uuid>>
-        """
-        if uuid:
-            lookup_uuid = uuid
-        else:
-            lookup_uuid = self.uuid
-        path = get_abs_path(lookup_uuid, self.token)
-        prefix = "https://app.globus.org/file-manager?"
-        proj = get_project()
-        project_dict = globus_dirs.get(proj.value[0])
-        if not project_dict:
-            return
-        params = {}
-        if "public" in path:
-            params["origin_id"] = project_dict.get("public")
-            params["origin_path"] = lookup_uuid
-        else:
-            params["origin_id"] = project_dict.get("protected")
-            params["origin_path"] = (
-                path.replace(project_dict.get("path_replace_str", ""), "") + "/"
-            )
-        return prefix + urlencode(params)

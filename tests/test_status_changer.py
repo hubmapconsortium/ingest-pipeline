@@ -21,11 +21,14 @@ from status_change.status_utils import (
     get_data_ingest_board_query_url,
     get_entity_id,
     get_entity_ingest_url,
+    get_env,
+    get_globus_url,
+    get_headers,
     get_project,
+    is_internal_error,
 )
 from utils import pythonop_set_dataset_state
 
-from airflow.configuration import AirflowConfigParser
 from airflow.models.connection import Connection
 
 conn_mock_hm = Connection(host=f"https://ingest.api.hubmapconsortium.org")
@@ -734,38 +737,51 @@ class TestStatusUtils(unittest.TestCase):
             entity_id = get_entity_id(entity_data)
             assert entity_id == f"test_{ingest_context}_id"
 
-    # @patch("utils.airflow_conf.as_dict")
-    # def test_get_api_url(self, conf_mock):
-    #     print("get_api_url")
-    #     print("----------------------------")
-    #     env_to_api_name_to_url = {
-    #         "/dir/dev": {
-    #             "entity": "https://entity-api.dev",
-    #             "ingest": "https://ingest-api.dev",
-    #             "ingest-board": "https://ingest-board.dev",
-    #             "search": "https://search-api.dev",
-    #         },
-    #         "/dir/prod": {
-    #             "entity": "https://entity.api",
-    #             "ingest": "https://ingest.api",
-    #             "ingest-board": "https://ingest.board",
-    #             "search": "https://search.api",
-    #         },
-    #     }
-    #     for env_source_path, api_name_to_url in env_to_api_name_to_url.items():
-    #         conf_mock.return_value = {"connections": {"WORKFLOW_SCRATCH": env_source_path}}
-    #         for proj_name, entity_data in {
-    #             "hubmap": self.hm_entity_data,
-    #             "sennet": self.sn_entity_data,
-    #         }.items():
-    #             print(proj_name)
-    #             print(env_source_path)
-    #             for api_name, url_prefix in api_name_to_url.items():
-    #                 url = get_api_url(entity_data, api_name)
-    #                 expected_url = f"{url_prefix}.{proj_name}consortium.org/"
-    #                 print(f"assert {url} == {expected_url}")
-    #                 assert url == expected_url
-    #             print("------------------")
+    @patch("status_change.status_utils.HttpHook.get_connection")
+    def test_get_headers(self, conn_mock):
+        for proj in ["hubmap", "sennet"]:
+            conn_mock.return_value = Connection(host=f"https://ingest.api.{proj}consortium.org")
+            assert get_headers("test_token") == {
+                "authorization": f"Bearer test_token",
+                "content-type": "application/json",
+                f"X-{proj.title()}-Application": "ingest-pipeline",
+            }
+
+    def test_is_internal_error(self):
+        entity_data_dicts = [
+            ({"error_message": None, "status": "new"}, False),
+            ({"error_message": None, "status": "error"}, True),
+            ({"status": "error"}, True),
+            ({"status": "invalid"}, False),
+            ({"error_message": "Internal error: test error", "status": "invalid"}, True),
+            ({"error_message": "Directory errors: 5", "status": "invalid"}, False),
+        ]
+
+        for entity_data, is_error in entity_data_dicts:
+            assert is_internal_error(entity_data) == is_error, f"{entity_data} is not {is_error}"
+
+    endpoints = {
+        "hubmap": {
+            "PROD": {"entity_url": "https://entity.api.hubmapconsortium.org"},
+            "DEV": {"entity_url": "https://entity-api.dev.hubmapconsortium.org"},
+        },
+        "sennet": {
+            "PROD": {"entity_url": "https://entity.api.sennetconsortium.org"},
+            "DEV": {"entity_url": "https://entity-api.dev.sennetconsortium.org"},
+        },
+    }
+
+    @patch("status_change.status_utils.HttpHook.get_connection")
+    def test_get_env(self, conn_mock):
+        for proj in ["hubmap", "sennet"]:
+            with patch("utils.ENDPOINTS", self.endpoints[proj]):
+                for env, host_url in {
+                    "prod": f"https://entity.api.{proj}consortium.org",
+                    "dev": f"https://entity-api.dev.{proj}consortium.org",
+                    None: "https://badurl",
+                }.items():
+                    conn_mock.return_value = Connection(host=host_url)
+                    assert get_env() == env
 
     @patch("status_change.status_utils.HttpHook.get_connection")
     def test_get_entity_ingest_url(self, hhr_mock):
@@ -785,43 +801,78 @@ class TestStatusUtils(unittest.TestCase):
             print(f"assert {url} == {expected_url}")
             assert url == expected_url
 
-    endpoints = {
-        "PROD": {"entity_url": "https://ingest.api.sennetconsortium.org"},
-        "DEV": {"entity_url": "https://ingest-api.dev.hubmapconsortium.org"},
-    }
-
-    @patch("utils.ENDPOINTS", endpoints)
     @patch("status_change.status_utils.HttpHook.get_connection")
     def test_get_data_ingest_board_query_url(self, hhr_mock):
-        for url_prefix, ingest_conn, entity_data in [
-            (
-                "https://ingest-board.dev.hubmapconsortium.org",
-                "https://ingest-api.dev.hubmapconsortium.org",
-                {
-                    "entity_type": "upload",
-                    "uuid": "test_hm_uuid",
-                    "hubmap_id": "test_hm_id",
-                },
-            ),
-            (
-                "https://ingest.board.sennetconsortium.org",
-                "https://ingest.api.sennetconsortium.org",
-                {
-                    "entity_type": "dataset",
-                    "uuid": "test_sn_uuid",
-                    "sennet_id": "test_sn_id",
-                },
-            ),
-        ]:
-            hhr_mock.return_value = Connection(host=ingest_conn)
-            url = get_data_ingest_board_query_url(entity_data)
-            entity_id = entity_data.get(f"{get_project().value[0]}_id")
-            expected_url = f"{url_prefix}/?q={entity_id}"
-            if entity_data["entity_type"] == "upload":
+        for proj in ["hubmap", "sennet"]:
+            with patch("utils.ENDPOINTS", self.endpoints[proj]):
+                for url_prefix, ingest_conn, entity_data in [
+                    (
+                        f"https://ingest-board.dev.{proj}consortium.org",
+                        f"https://entity-api.dev.{proj}consortium.org",
+                        {
+                            "entity_type": "upload",
+                            "uuid": "test_dev_uuid",
+                            f"{proj}_id": "test_dev_id",
+                        },
+                    ),
+                    (
+                        f"https://ingest.board.{proj}consortium.org",
+                        f"https://entity.api.{proj}consortium.org",
+                        {
+                            "entity_type": "dataset",
+                            "uuid": "test_prod_uuid",
+                            f"{proj}_id": "test_prod_id",
+                        },
+                    ),
+                ]:
+                    hhr_mock.return_value = Connection(host=ingest_conn)
+                    url = get_data_ingest_board_query_url(entity_data)
+                    entity_id = entity_data.get(f"{get_project().value[0]}_id")
+                    expected_url = f"{url_prefix}/?q={entity_id}"
+                    if entity_data["entity_type"] == "upload":
 
-                expected_url += "&entity_type=uploads"
-            print(f"assert {url} == {expected_url}")
-            assert url == expected_url
+                        expected_url += "&entity_type=uploads"
+                    print(f"assert {url} == {expected_url}")
+                    assert url == expected_url
+
+    @patch("status_change.status_utils.get_abs_path")
+    @patch("status_change.status_utils.HttpHook.get_connection")
+    def test_get_globus_url(self, conn_mock, abs_path_mock):
+        test_data = {
+            "sn_public_uuid": {
+                "sennet": {
+                    "abs_path": "/codcc-dev/data/public/sn_public_uuid",
+                    "dest_path": "https://app.globus.org/file-manager?origin_id=96b2b9e5-6915-4dbc-9ab5-173ad628902e&origin_path=sn_public_uuid",
+                }
+            },
+            "hm_public_uuid": {
+                "hubmap": {
+                    "abs_path": "/hive/hubmap-dev/data/public/hm_public_uuid",
+                    "dest_path": "https://app.globus.org/file-manager?origin_id=af603d86-eab9-4eec-bb1d-9d26556741bb&origin_path=hm_public_uuid",
+                }
+            },
+            "sn_protected_uuid": {
+                "sennet": {
+                    "abs_path": "/codcc-prod/data/protected/component/sn_protected_uuid",
+                    "dest_path": "https://app.globus.org/file-manager?origin_id=45617036-f2cc-4320-8108-edf599290158&origin_path=%2Fprotected%2Fcomponent%2Fsn_protected_uuid%2F",
+                }
+            },
+            "hm_protected_uuid": {
+                "hubmap": {
+                    "abs_path": "/hive/hubmap/data/protected/component/hm_protected_uuid",
+                    "dest_path": "https://app.globus.org/file-manager?origin_id=24c2ee95-146d-4513-a1b3-ac0bfdb7856f&origin_path=%2Fprotected%2Fcomponent%2Fhm_protected_uuid%2F",
+                }
+            },
+        }
+        for uuid, data in test_data.items():
+            for proj, paths in data.items():
+                with patch("utils.ENDPOINTS", self.endpoints[proj]):
+                    abs_path_mock.return_value = paths["abs_path"]
+                    conn_mock.return_value = Connection(
+                        host=f"https://entity.api.{proj}consortium.org"
+                    )
+                    print(get_globus_url(uuid, "test_token"))
+                    assert get_globus_url(uuid, "test_token") == paths["dest_path"]
 
 
 # if __name__ == "__main__":

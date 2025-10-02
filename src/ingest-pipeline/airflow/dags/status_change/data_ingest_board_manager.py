@@ -25,8 +25,8 @@ class DataIngestBoardManager:
         "dataset_qa",
     ]
 
-    # TODO: not sure of full list, e.g. QA?
-    assign_to_dp = [Statuses.DATASET_INVALID, Statuses.UPLOAD_INVALID]
+    # assign_to_dp = [Statuses.DATASET_INVALID, Statuses.UPLOAD_INVALID]  # ?? +QA?
+    assign_to_dp = []  # leaving blank, need to define with curators
 
     def __init__(
         self,
