@@ -1035,6 +1035,7 @@ def pythonop_set_dataset_state(**kwargs) -> None:
 
     reindex = kwargs.get("reindex", True)
     dataset_uuid = kwargs["dataset_uuid_callable"](**kwargs)
+    run_id = kwargs["get_run_id"](**kwargs) if callable(kwargs.get("get_run_id")) else None
     http_conn_id = kwargs.get("http_conn_id", "entity_api_connection")
     status = kwargs["ds_state"] if "ds_state" in kwargs else "Processing"
     message = kwargs.get("message", None)
@@ -1046,6 +1047,8 @@ def pythonop_set_dataset_state(**kwargs) -> None:
             fields_to_overwrite={"pipeline_message": message} if message else {},
             http_conn_id=http_conn_id,
             reindex=reindex,
+            dag=kwargs.get("dag"),
+            run_id=run_id,
         ).update()
 
 
@@ -1658,6 +1661,8 @@ def make_send_status_msg_function(
                     status=status,
                     fields_to_overwrite=extra_fields,
                     reindex=reindex,
+                    dag=dag_file.strip(".py"),
+                    run_id=kwargs.get("run_id"),
                 ).update()
             except EntityUpdateException:
                 return_status = False
@@ -1685,6 +1690,7 @@ def map_queue_name(raw_queue_name: str) -> str:
 def create_dataset_state_error_callback(
     dataset_uuid_callable: Callable[[Any], str],
 ) -> Callable[[Mapping, Any], None]:
+    # TODO: this should be deprecated in favor of status_change.callbacks.FailureCallback
     def set_dataset_state_error(context_dict: Mapping, **kwargs) -> None:
         """
         This routine is meant to be

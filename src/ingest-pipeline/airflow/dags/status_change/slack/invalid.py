@@ -8,7 +8,7 @@ class SlackUploadInvalid(SlackMessage):
     def format(self):
         return f"""
         Upload {self.uuid} is in Invalid state.
-        {self.entity_links}
+        {self.entity_links_str}
         """
 
 
@@ -22,7 +22,7 @@ class SlackDatasetInvalid(SlackMessage):
     def format(self):
         return f"""
         Dataset {self.uuid} is in Invalid state.
-        {self.entity_links}
+        {self.entity_links_str}
         """
 
 
@@ -45,5 +45,5 @@ class SlackDatasetInvalid(SlackMessage):
 #         return f"""
 #         Derived dataset <{self.get_globus_url(child_uuid)}|{child_uuid}> is in Error state.
 #         Primary dataset: <{self.get_globus_url()}|{self.uuid}>
-#         {self.entity_links}
+#         {self.entity_links_str}
 #         """

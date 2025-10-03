@@ -91,6 +91,8 @@ def get_dataset_lz_path(**kwargs) -> str:
 def get_dataset_uuid(**kwargs):
     return kwargs["uuid_dataset"]
 
+def get_run_id(**kwargs):
+    return kwargs.get("run_id")
 
 with HMDAG(
     "reorganize_upload",
@@ -454,7 +456,7 @@ with HMDAG(
         python_callable=pythonop_set_dataset_state,
         provide_context=True,
         trigger_rule="all_done",
-        op_kwargs={"dataset_uuid_callable": _get_upload_uuid, "ds_state": "Error"},
+        op_kwargs={"dataset_uuid_callable": _get_upload_uuid, "ds_state": "Error", "dag": __name__, "run_id": get_run_id},
     )
 
     (

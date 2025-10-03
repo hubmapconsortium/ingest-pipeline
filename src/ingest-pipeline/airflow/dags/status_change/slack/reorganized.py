@@ -1,6 +1,6 @@
 from typing import Tuple
 
-from status_change.status_utils import get_abs_path, get_organ
+from status_change.status_utils import get_abs_path, get_globus_url, get_organ
 
 from .base import SlackMessage
 
@@ -15,7 +15,7 @@ class SlackUploadReorganized(SlackMessage):
     @property
     def dataset_vals(self):
         return [
-            "hubmap_id",
+            self.entity_id_str,
             "created_by_user_displayname",
             "created_by_user_email",
             "dataset_type",
@@ -41,7 +41,7 @@ class SlackUploadReorganized(SlackMessage):
             uuid = dataset.get("uuid", "")
             # Organ and globus_url are derived from additional API calls.
             data.append(get_organ(uuid, self.token))
-            data.append(f"<{self.get_globus_url(uuid)}|Globus>")
+            data.append(f"<{get_globus_url(uuid, self.token)}|Globus>")
             data.append(get_abs_path(uuid, self.token, escaped=True))
             info.append(", ".join(self._clean_dataset_rows(data)))
         return info
@@ -70,7 +70,7 @@ class SlackUploadReorganized(SlackMessage):
         self.get_non_upload_metadata()
         dataset_info = self._format_upload_reorganized_datasets()
         msg_data = {
-            "hubmap_id": f"<{self.ingest_ui_url}|{self.entity_data.get('hubmap_id')}>",
+            self.entity_id_str: f"<{self.ingest_ui_url}|{self.entity_data.get(self.entity_id_str)}>",  # entity id with link to Ingest UI
             "created_by_user_displayname": self.entity_data.get("created_by_user_displayname"),
             "created_by_user_email": self.entity_data.get("created_by_user_email"),
             "dataset_type": self.dataset_type,
@@ -96,7 +96,7 @@ class SlackUploadReorganizedPriority(SlackUploadReorganized):
     @property
     def dataset_vals(self):
         return [
-            "hubmap_id",
+            self.entity_id_str,
             "created_by_user_displayname",
             "created_by_user_email",
             "priority_project_list",
