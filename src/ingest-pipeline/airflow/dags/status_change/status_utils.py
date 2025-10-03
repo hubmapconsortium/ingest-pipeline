@@ -132,7 +132,7 @@ globus_dirs = {
 
 def get_project() -> Project:
     url = HttpHook.get_connection("ingest_api_connection").host
-    if "hubmap" in str(url):
+    if "hubmap" in str(url) or "hive" in str(url):
         return Project.HUBMAP
     return Project.SENNET
 
@@ -271,11 +271,13 @@ def put_request_to_entity_api(
 def get_env() -> Optional[str]:
     from utils import find_matching_endpoint
 
-    if host := HttpHook.get_connection("entity_api_connection").host:
-        try:
-            return find_matching_endpoint(host).lower()
-        except Exception:
-            pass
+    host = None
+    for conn in ["ingest_api_connection", "entity_api_connection"]:
+        if host := HttpHook.get_connection(conn).host:
+            try:
+                return find_matching_endpoint(host).lower()
+            except Exception:
+                continue
     logging.error(f"Could not determine env. Host: {host}.")
 
 
@@ -290,13 +292,17 @@ def is_internal_error(entity_data: dict) -> bool:
 
 
 def get_entity_ingest_url(entity_data: dict) -> str:
-    url = HttpHook.get_connection("ingest_api_connection").host
-    if not url:
-        raise Exception("ingest_api_connection not found")
-    if not url.endswith("/"):
-        url += "/"
+    # ingest_url is generally in the vm00# format (at least for HuBMAP)
+    # so some concatenation is necessary; this defaults to PROD HuBMAP URL
+    url_end = "hubmapconsortium.org/"
+    if get_project() == Project.SENNET:
+        url_end = "sennetconsortium.org/"
+    env = get_env()
+    url_start = "https://ingest.api."
+    if env != "prod":
+        url_start = f"https://ingest-api.{env}."
     entity_type = entity_data.get("entity_type", "")
-    base_url = urljoin(url, entity_type)
+    base_url = urljoin(url_start + url_end, entity_type)
     if not base_url.endswith("/"):
         base_url += "/"
     return urljoin(base_url, entity_data.get("uuid"))
@@ -306,12 +312,15 @@ def get_data_ingest_board_query_url(entity_data: dict) -> str:
     from utils import find_matching_endpoint
 
     proj = get_project().value[0]
-    ingest_url = HttpHook.get_connection("ingest_api_connection").host
-    if not ingest_url:
-        raise Exception(
-            "ingest_api_connection not found while determining env for Data Ingest Board URL."
-        )
-    env = find_matching_endpoint(ingest_url)
+    env = None
+    for conn in ["ingest_api_connection", "entity_api_connection"]:
+        if host := HttpHook.get_connection(conn).host:
+            try:
+                env = find_matching_endpoint(host).lower()
+            except Exception:
+                continue
+    if not env:
+        raise Exception(f"Could not determine env.")
     if env.lower() == "prod":
         url = f"https://ingest.board.{proj}consortium.org/"
     else:

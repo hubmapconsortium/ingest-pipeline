@@ -32,7 +32,6 @@ class EntityUpdater:
         fields_to_append_to: Optional[dict] = None,
         delimiter: str = "|",
         reindex: bool = True,
-        dag: Optional[str] = None,
         run_id: Optional[str] = None,
     ):
         self.uuid = uuid
@@ -42,7 +41,6 @@ class EntityUpdater:
         self.fields_to_append_to = fields_to_append_to if fields_to_append_to else {}
         self.delimiter = delimiter
         self.reindex = reindex
-        self.dag = dag
         self.run_id = run_id
         self.entity_type = self.get_entity_type()
         self.fields_to_change = self.get_fields_to_change()
@@ -161,7 +159,6 @@ class EntityUpdater:
             fields_to_append_to=self.fields_to_append_to,
             delimiter=self.delimiter,
             reindex=self.reindex,
-            dag=self.dag,
             run_id=self.run_id,
             status=status,
         ).update()
@@ -205,7 +202,6 @@ Example usage with optional params:
             fields_to_append_to={"ingest_task": "test"},  # optional
             delimiter=",",  # optional
             reindex=True,  # optional
-            dag="validate_upload",
             run_id="<airflow_run_id>",
             status=<Statuses.STATUS_ENUM>,  # or "<status>"
             data_ingest_board_msg=<ErrorReport.counts>
@@ -227,7 +223,6 @@ class StatusChanger(EntityUpdater):
         fields_to_append_to: Optional[dict] = None,
         delimiter: str = "|",
         reindex: bool = True,
-        dag: Optional[str] = None,
         run_id: Optional[str] = None,
         # Additional field to support privileged field "status"
         status: Optional[Union[Statuses, str]] = None,
@@ -243,7 +238,6 @@ class StatusChanger(EntityUpdater):
             fields_to_append_to,
             delimiter,
             reindex,
-            dag,
             run_id,
         )
         self.status = self._validate_status(status)
