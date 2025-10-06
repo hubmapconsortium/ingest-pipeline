@@ -43,7 +43,7 @@ default_args = {
 }
 
 with HMDAG(
-    "phenocycler_segmentation",
+    "phenocycler_deepcell_segmentation",
     schedule_interval=None,
     is_paused_upon_creation=False,
     default_args=default_args,
