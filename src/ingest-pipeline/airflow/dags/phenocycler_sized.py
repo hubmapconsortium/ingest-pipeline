@@ -34,7 +34,7 @@ from utils import (
 )
 
 
-def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
+def generate_phenocycler_dag(params: SequencingDagParameters) -> DAG:
     default_args = {
         "owner": "hubmap",
         "depends_on_past": False,
@@ -109,15 +109,16 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
         data_dir = tmpdir / "cwl_out"
         print("data_dir: ", data_dir)
 
-        workflows = kwargs["ti"].xcom_pull(key="cwl_workflows", task_ids="build_cwl_segmentation")
-
         input_parameters = [
             {"parameter_name": "--enable_manhole", "value": ""},
             {"parameter_name": "--threadpool_limit", "value": get_threads_resource(dag.dag_id)},
             {"parameter_name": "--image_dir", "value": str(data_dir / "pipeline_output/expr")},
             {"parameter_name": "--mask_dir", "value": str(data_dir / "pipeline_output/mask")},
         ]
-        command = get_cwl_cmd_from_workflows(workflows, 1, input_parameters, tmpdir, kwargs["ti"])
+
+        command = get_cwl_cmd_from_workflows(
+            cwl_workflows, 0, input_parameters, tmpdir, kwargs["ti"]
+        )
 
         return join_quote_command_str(command)
 
@@ -167,7 +168,7 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
             {"parameter_name": "--ometiff_dir", "value": str(data_dir / "pipeline_output")},
             {"parameter_name": "--sprm_output", "value": str(data_dir / "sprm_outputs")},
         ]
-        command = get_cwl_cmd_from_workflows(workflows, 2, input_parameters, tmpdir, kwargs["ti"])
+        command = get_cwl_cmd_from_workflows(workflows, 1, input_parameters, tmpdir, kwargs["ti"])
 
         return join_quote_command_str(command)
 
@@ -221,7 +222,7 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
             {"parameter_name": "--processes", "value": get_threads_resource(dag.dag_id)},
             {"parameter_name": "--ometiff_directory", "value": str(tmpdir / "cwl_out")},
         ]
-        command = get_cwl_cmd_from_workflows(workflows, 3, input_parameters, tmpdir, kwargs["ti"])
+        command = get_cwl_cmd_from_workflows(workflows, 2, input_parameters, tmpdir, kwargs["ti"])
 
         return join_quote_command_str(command)
 
@@ -272,7 +273,7 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
         input_parameters = [
             {"parameter_name": "--input_dir", "value": str(data_dir / "ometiff-pyramids")},
         ]
-        command = get_cwl_cmd_from_workflows(workflows, 4, input_parameters, tmpdir, kwargs["ti"])
+        command = get_cwl_cmd_from_workflows(workflows, 3, input_parameters, tmpdir, kwargs["ti"])
 
         return join_quote_command_str(command)
 
@@ -322,7 +323,7 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
         input_parameters = [
             {"parameter_name": "--input_dir", "value": str(data_dir / "sprm_outputs")},
         ]
-        command = get_cwl_cmd_from_workflows(workflows, 5, input_parameters, tmpdir, kwargs["ti"])
+        command = get_cwl_cmd_from_workflows(workflows, 4, input_parameters, tmpdir, kwargs["ti"])
 
         return join_quote_command_str(command)
 
@@ -372,7 +373,7 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
         input_parameters = [
             {"parameter_name": "--input_dir", "value": str(data_dir / "sprm_outputs")},
         ]
-        command = get_cwl_cmd_from_workflows(workflows, 6, input_parameters, tmpdir, kwargs["ti"])
+        command = get_cwl_cmd_from_workflows(workflows, 5, input_parameters, tmpdir, kwargs["ti"])
 
         return join_quote_command_str(command)
 
@@ -524,7 +525,6 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
     t_join >> t_cleanup_tmpdir
 
 phenocycler_dag_params: List[SequencingDagParameters] = [
-    # 10X is special because it was first; no "10x" label in the pipeline name
     SequencingDagParameters(
         dag_id="phenocycler_low_cell_count",
         pipeline_name="phenocycler_low_cell_count",
@@ -540,4 +540,4 @@ phenocycler_dag_params: List[SequencingDagParameters] = [
 ]
 
 for params in phenocycler_dag_params:
-    globals()[params.dag_id] = generate_salmon_rnaseq_dag(params)
+    globals()[params.dag_id] = generate_phenocycler_dag(params)
