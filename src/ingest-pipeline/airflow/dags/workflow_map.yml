@@ -148,7 +148,7 @@ workflow_map:
     'workflow': 'phenocycler_low_cell_count'
   - 'collection_type': 'phenocycler'
     'assay_type': 'phenocycler'
-    'workflow': 'phenocycler_low_high_count'
+    'workflow': 'phenocycler_low_cell_count'
   - 'collection_type': 'generic_metadatatsv'
     'assay_type': 'phenocycler'
     'workflow': 'phenocycler_deepcell_segmentation'
