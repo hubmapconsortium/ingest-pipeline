@@ -175,7 +175,7 @@ with HMDAG(
         trigger_dag_id="phenocycler_segmentation",
         python_callable=trigger_phenocycler,
         op_kwargs={"collection_type": "phenocycler",
-                   "assay_type": "phenocycler-deep-cell"},
+                   "assay_type": "phenocycler-deepcell"},
     )
 
     t_log_info = LogInfoOperator(task_id="log_info")
