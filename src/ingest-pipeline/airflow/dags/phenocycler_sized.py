@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import List
 
 from hubmap_operators.common_operators import (
+    LogInfoOperator,
     MoveDataOperator,
     JoinOperator,
     CleanupTmpDirOperator,
@@ -472,12 +473,15 @@ def generate_phenocycler_dag(params: SequencingDagParameters) -> DAG:
             },
         )
 
+        t_log_info = LogInfoOperator(task_id="log_info")
+
         t_move_data = MoveDataOperator(task_id="move_data")
         t_join = JoinOperator(task_id="join", trigger_rule="one_success")
         t_cleanup_tmpdir = CleanupTmpDirOperator(task_id="cleanup_tmpdir")
 
         (
-            prepare_cwl_sprm
+            t_log_info
+            >> prepare_cwl_sprm
             >> t_build_cmd_sprm
             >> t_pipeline_exec_cwl_sprm
             >> t_maybe_keep_cwl_sprm

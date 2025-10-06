@@ -155,6 +155,8 @@ with HMDAG(
         assay_type = kwargs.get("assay_type")
         payload = {
             "tmp_dir": get_tmp_dir_path((kwargs["run_id"])),
+            "run_id": kwargs["run_id"],
+            "parent_lz_path": kwargs["dag_run"].conf.get("parent_lz_path"),
         }
         print(f"Collection_type: {collection_type} with assay_type {assay_type} and payload: {payload}", )
         for next_dag in utils.downstream_workflow_iter(collection_type, assay_type):
