@@ -151,11 +151,12 @@ with HMDAG(
     )
 
     def trigger_phenocycler(**kwargs):
+        collection_type = kwargs.get("collection_type")
         assay_type = kwargs.get("assay_type")
         payload = {
             "tmp_dir": get_tmp_dir_path((kwargs["run_id"])),
         }
-        for next_dag in utils.downstream_workflow_iter("generic_metadatatsv", assay_type):
+        for next_dag in utils.downstream_workflow_iter(collection_type, assay_type):
             yield next_dag, payload
 
     t_trigger_phenocyler_small = FlexMultiDagRunOperator(
