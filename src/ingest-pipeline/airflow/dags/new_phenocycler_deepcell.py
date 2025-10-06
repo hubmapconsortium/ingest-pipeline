@@ -156,6 +156,7 @@ with HMDAG(
         payload = {
             "tmp_dir": get_tmp_dir_path((kwargs["run_id"])),
         }
+        print(f"Collection_type: {collection_type} with assay_type {assay_type} and payload: {payload}", )
         for next_dag in utils.downstream_workflow_iter(collection_type, assay_type):
             yield next_dag, payload
 
