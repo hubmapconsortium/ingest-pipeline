@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import List
 
-from hubmap_operators import (
+from hubmap_operators.common_operators import (
     MoveDataOperator,
     JoinOperator,
     CleanupTmpDirOperator,

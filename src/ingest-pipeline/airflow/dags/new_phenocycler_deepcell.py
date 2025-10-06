@@ -20,7 +20,7 @@ from utils import (
     get_cwl_cmd_from_workflows,
     join_quote_command_str,
 )
-from hubmap_operators import (
+from hubmap_operators.common_operators import (
     LogInfoOperator,
     CreateTmpDirOperator,
     FlexMultiDagRunOperator,
