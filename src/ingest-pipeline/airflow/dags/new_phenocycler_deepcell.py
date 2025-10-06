@@ -165,7 +165,7 @@ with HMDAG(
         dag=dag,
         trigger_dag_id="phenocycler_segmentation",
         python_callable=trigger_phenocycler,
-        op_kwargs={"collection_type": "phenocycler_small",
+        op_kwargs={"collection_type": "small_phenocycler",
                    "assay_type": "phenocycler"},
     )
 
