@@ -20,10 +20,10 @@ from utils import (
     get_cwl_cmd_from_workflows,
     join_quote_command_str,
 )
+from hubmap_operators.flex_multi_dag_run import FlexMultiDagRunOperator
 from hubmap_operators.common_operators import (
     LogInfoOperator,
     CreateTmpDirOperator,
-    FlexMultiDagRunOperator,
 )
 
 from extra_utils import build_tag_containers
