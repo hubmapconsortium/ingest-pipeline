@@ -155,7 +155,7 @@ with HMDAG(
         assay_type = kwargs.get("assay_type")
         payload = {
             "tmp_dir": get_tmp_dir_path((kwargs["run_id"])),
-            "run_id": kwargs["run_id"],
+            # "run_id": kwargs["run_id"],
             "parent_lz_path": kwargs["dag_run"].conf.get("parent_lz_path"),
             "metadata": kwargs["dag_run"].conf.get("metadata"),
             "crypt_auth_tok": kwargs["dag_run"].conf.get("crypt_auth_tok"),

@@ -102,8 +102,9 @@ def generate_phenocycler_dag(params: SequencingDagParameters) -> DAG:
         prepare_cwl_sprm = EmptyOperator(task_id="prepare_cwl_sprm")
 
         def build_cwltool_cmd_sprm(**kwargs):
-            run_id = kwargs["run_id"]
-            tmpdir = get_tmp_dir_path(run_id)
+            # run_id = kwargs["run_id"]
+            # tmpdir = get_tmp_dir_path(run_id)
+            tmpdir = kwargs["dag_run"].conf.get("tmp_dir")
             print("tmpdir: ", tmpdir)
             parent_data_dir = get_parent_data_dir(**kwargs)
             print("parent_data_dir: ", parent_data_dir)
@@ -154,8 +155,9 @@ def generate_phenocycler_dag(params: SequencingDagParameters) -> DAG:
         )
 
         def build_cwltool_cmd_create_vis_symlink_archive(**kwargs):
-            run_id = kwargs["run_id"]
-            tmpdir = get_tmp_dir_path(run_id)
+            # run_id = kwargs["run_id"]
+            # tmpdir = get_tmp_dir_path(run_id)
+            tmpdir = kwargs["dag_run"].conf.get("tmp_dir")
             print("tmpdir: ", tmpdir)
             parent_data_dir = get_parent_data_dir(**kwargs)
             print("parent_data_dir: ", parent_data_dir)
@@ -202,10 +204,9 @@ def generate_phenocycler_dag(params: SequencingDagParameters) -> DAG:
         prepare_cwl_ome_tiff_pyramid = EmptyOperator(task_id="prepare_cwl_ome_tiff_pyramid")
 
         def build_cwltool_cwl_ome_tiff_pyramid(**kwargs):
-            run_id = kwargs["run_id"]
-
-            # tmpdir is temp directory in /hubmap-tmp
-            tmpdir = get_tmp_dir_path(run_id)
+            # run_id = kwargs["run_id"]
+            # tmpdir = get_tmp_dir_path(run_id)
+            tmpdir = kwargs["dag_run"].conf.get("tmp_dir")
             print("tmpdir: ", tmpdir)
 
             # data directory is the stitched images, which are found in tmpdir
@@ -256,8 +257,9 @@ def generate_phenocycler_dag(params: SequencingDagParameters) -> DAG:
         prepare_cwl_ome_tiff_offsets = EmptyOperator(task_id="prepare_cwl_ome_tiff_offsets")
 
         def build_cwltool_cmd_ome_tiff_offsets(**kwargs):
-            run_id = kwargs["run_id"]
-            tmpdir = get_tmp_dir_path(run_id)
+            # run_id = kwargs["run_id"]
+            # tmpdir = get_tmp_dir_path(run_id)
+            tmpdir = kwargs["dag_run"].conf.get("tmp_dir")
             print("tmpdir: ", tmpdir)
             parent_data_dir = get_parent_data_dir(**kwargs)
             print("parent_data_dir: ", parent_data_dir)
@@ -307,8 +309,9 @@ def generate_phenocycler_dag(params: SequencingDagParameters) -> DAG:
         prepare_cwl_sprm_to_json = EmptyOperator(task_id="prepare_cwl_sprm_to_json")
 
         def build_cwltool_cmd_sprm_to_json(**kwargs):
-            run_id = kwargs["run_id"]
-            tmpdir = get_tmp_dir_path(run_id)
+            # run_id = kwargs["run_id"]
+            # tmpdir = get_tmp_dir_path(run_id)
+            tmpdir = kwargs["dag_run"].conf.get("tmp_dir")
             print("tmpdir: ", tmpdir)
             parent_data_dir = get_parent_data_dir(**kwargs)
             print("parent_data_dir: ", parent_data_dir)
@@ -357,8 +360,9 @@ def generate_phenocycler_dag(params: SequencingDagParameters) -> DAG:
         prepare_cwl_sprm_to_anndata = EmptyOperator(task_id="prepare_cwl_sprm_to_anndata")
 
         def build_cwltool_cmd_sprm_to_anndata(**kwargs):
-            run_id = kwargs["run_id"]
-            tmpdir = get_tmp_dir_path(run_id)
+            # run_id = kwargs["run_id"]
+            # tmpdir = get_tmp_dir_path(run_id)
+            tmpdir = kwargs["dag_run"].conf.get("tmp_dir")
             print("tmpdir: ", tmpdir)
             parent_data_dir = get_parent_data_dir(**kwargs)
             print("parent_data_dir: ", parent_data_dir)
