@@ -113,7 +113,7 @@ def get_submission_context(token: str, uuid: str) -> dict[str, Any]:
     }
     http_hook = HttpHook("GET", http_conn_id="entity_api_connection")
 
-    endpoint = f"entities/{uuid}"
+    endpoint = f"entities/{uuid}?exclude=direct_ancestors.files"
 
     try:
         response = http_hook.run(
