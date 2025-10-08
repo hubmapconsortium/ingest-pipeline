@@ -1348,8 +1348,9 @@ def get_tmp_dir_path(run_id: str) -> Path:
     """
     return _get_scratch_base_path() / run_id
 
+
 def get_tmp_dir_path_kwargs(**kwargs) -> Path:
-    return kwargs["dag_run"].conf.get("tmp_dir")
+    return kwargs.get("tmp_dir")
 
 
 @lru_cache(maxsize=1)
