@@ -298,9 +298,9 @@ def get_entity_ingest_url(entity_data: dict) -> str:
     if get_project() == Project.SENNET:
         url_end = "sennetconsortium.org/"
     env = get_env()
-    url_start = "https://ingest.api."
-    if env != "prod":
-        url_start = f"https://ingest-api.{env}."
+    url_start = "https://ingest."
+    if env not in ["prod", None]:
+        url_start = f"https://ingest.{env}."
     entity_type = entity_data.get("entity_type", "")
     base_url = urljoin(url_start + url_end, entity_type)
     if not base_url.endswith("/"):

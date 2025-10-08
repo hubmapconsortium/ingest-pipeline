@@ -788,7 +788,10 @@ class TestStatusUtils(unittest.TestCase):
 
     endpoints = {
         "hubmap": {
-            "PROD": {"entity_url": "https://entity.api.hubmapconsortium.org"},
+            "PROD": {
+                "entity_url": "https://entity.api.hubmapconsortium.org",
+                "ingest_url": "vm004@hive.psc.edu",
+            },
             "DEV": {"entity_url": "https://entity-api.dev.hubmapconsortium.org"},
         },
         "sennet": {
@@ -811,21 +814,30 @@ class TestStatusUtils(unittest.TestCase):
 
     @patch("status_change.status_utils.HttpHook.get_connection")
     def test_get_entity_ingest_url(self, hhr_mock):
-        for url_prefix, entity_data in {
-            "https://ingest-api.dev.hubmapconsortium.org": {
-                "entity_type": "upload",
-                "uuid": "test_hm_uuid",
-            },
-            "https://ingest.api.sennetconsortium.org": {
-                "entity_type": "dataset",
-                "uuid": "test_sn_uuid",
-            },
-        }.items():
-            hhr_mock.return_value = Connection(host=url_prefix)
-            url = get_entity_ingest_url(entity_data)
-            expected_url = f"{url_prefix}/{entity_data['entity_type']}/{entity_data['uuid']}"
-            print(f"assert {url} == {expected_url}")
-            assert url == expected_url
+        for proj in ["hubmap", "sennet"]:
+            for entity_api, data in {
+                f"https://entity-api.dev.{proj}consortium.org": {
+                    f"https://ingest.dev.{proj}consortium.org": {
+                        "entity_type": "upload",
+                        "uuid": f"test_{proj}_uuid",
+                    }
+                },
+                f"https://entity.api.{proj}consortium.org": {
+                    f"https://ingest.{proj}consortium.org": {
+                        "entity_type": "dataset",
+                        "uuid": f"test_{proj}_uuid",
+                    }
+                },
+            }.items():
+                for url_prefix, entity_data in data.items():
+                    hhr_mock.return_value = Connection(host=entity_api)
+                    with patch("utils.ENDPOINTS", self.endpoints[proj]):
+                        url = get_entity_ingest_url(entity_data)
+                        expected_url = (
+                            f"{url_prefix}/{entity_data['entity_type']}/{entity_data['uuid']}"
+                        )
+                        print(f"assert {url} == {expected_url}")
+                        assert url == expected_url
 
     @patch("status_change.status_utils.HttpHook.get_connection")
     def test_get_data_ingest_board_query_url(self, hhr_mock):

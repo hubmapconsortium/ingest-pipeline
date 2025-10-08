@@ -41,7 +41,7 @@ class EntityUpdater:
         self.fields_to_append_to = fields_to_append_to if fields_to_append_to else {}
         self.delimiter = delimiter
         self.reindex = reindex
-        self.run_id = run_id
+        self.run_id = str(run_id)
         self.entity_type = self.get_entity_type()
         self.fields_to_change = self.get_fields_to_change()
 
