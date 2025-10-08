@@ -11,6 +11,7 @@ from urllib.parse import urlencode, urljoin
 from requests import codes
 from requests.exceptions import HTTPError
 
+from airflow.models import DagRun
 from airflow.providers.http.hooks.http import HttpHook
 
 
@@ -118,14 +119,26 @@ class Project(Enum):
 
 globus_dirs = {
     "hubmap": {
-        "public": "af603d86-eab9-4eec-bb1d-9d26556741bb",
-        "protected": "24c2ee95-146d-4513-a1b3-ac0bfdb7856f",
+        "prod": {
+            "public": "af603d86-eab9-4eec-bb1d-9d26556741bb",
+            "protected": "24c2ee95-146d-4513-a1b3-ac0bfdb7856f",
+        },
+        "dev": {
+            "public": "2b82f085-1d50-4c93-897e-cd79d77481ed",
+            "protected": "ff1bd56e-2e65-4ec9-86fa-f79422884e96",
+        },
         "path_replace_regex": r"/hive/hubmap.*/data",
     },
     "sennet": {
-        "public": "96b2b9e5-6915-4dbc-9ab5-173ad628902e",
-        "protected": "45617036-f2cc-4320-8108-edf599290158",
-        "path_replace_regex": f"/codcc.*/data",
+        "prod": {
+            "public": "96b2b9e5-6915-4dbc-9ab5-173ad628902e",
+            "protected": "45617036-f2cc-4320-8108-edf599290158",
+            "dev": {
+                "public": "96b2b9e5-6915-4dbc-9ab5-173ad628902e",
+                "protected": "b1571f8f-4ce5-4c81-9327-47bba11423ff",
+            },
+            "path_replace_regex": f"/codcc.*/data",
+        }
     },
 }
 
@@ -340,15 +353,21 @@ def get_globus_url(uuid: str, token: str) -> Optional[str]:
     path = get_abs_path(uuid, token)
     prefix = "https://app.globus.org/file-manager?"
     proj = get_project()
-    project_dict = globus_dirs.get(proj.value[0])
-    if not project_dict:
+    project_dict = globus_dirs.get(proj.value[0]) or {}
+    if not (env_dict := project_dict.get(get_env(), {})):
         return
     params = {}
     if "public" in path:
-        params["origin_id"] = project_dict.get("public")
+        params["origin_id"] = env_dict.get("public")
         params["origin_path"] = uuid
     else:
-        regex = project_dict.get("path_replace_regex", "")
-        params["origin_id"] = project_dict.get("protected")
+        regex = env_dict.get("path_replace_regex", "")
+        params["origin_id"] = env_dict.get("protected")
         params["origin_path"] = re.sub(regex, "", path) + "/"
     return prefix + urlencode(params)
+
+
+def get_run_id(run_id):
+    if isinstance(run_id, DagRun):
+        return run_id.run_id
+    return str(run_id)

@@ -15,6 +15,7 @@ from .status_utils import (
     ENTITY_STATUS_MAP,
     EntityUpdateException,
     Statuses,
+    get_run_id,
     get_submission_context,
     put_request_to_entity_api,
 )
@@ -41,7 +42,7 @@ class EntityUpdater:
         self.fields_to_append_to = fields_to_append_to if fields_to_append_to else {}
         self.delimiter = delimiter
         self.reindex = reindex
-        self.run_id = str(run_id)
+        self.run_id = get_run_id(run_id)
         self.entity_type = self.get_entity_type()
         self.fields_to_change = self.get_fields_to_change()
 
