@@ -334,7 +334,6 @@ class TestStatusChanger(unittest.TestCase):
             fields_to_overwrite={"pipeline_message": message},
             http_conn_id="entity_api_connection",
             reindex=True,
-            dag=None,
             run_id=None,
         )
         # Pass a valid ds_state and assert it was passed properly
@@ -353,7 +352,6 @@ class TestStatusChanger(unittest.TestCase):
             fields_to_overwrite={"pipeline_message": message},
             http_conn_id="entity_api_connection",
             reindex=True,
-            dag=None,
             run_id=None,
         )
 
@@ -708,7 +706,7 @@ class TestDataIngestBoardManager(unittest.TestCase):
                 Statuses.UPLOAD_INVALID, "test_uuid", "test_token", run_id="test_run_id"
             )
             assert dib.get_fields() == {
-                "error_message": "Internal error. Log directory: test_log.",
+                "error_message": "Internal error. Log directory: test_log",
                 "assigned_to_group_name": "IEC Testing Group",
             }
             dib_w_msg = DataIngestBoardManager(
@@ -719,7 +717,7 @@ class TestDataIngestBoardManager(unittest.TestCase):
                 msg="test message!",
             )
             assert dib_w_msg.get_fields() == {
-                "error_message": f"Internal error. Log directory: test_log. test message!",
+                "error_message": f"Internal error. Log directory: test_log | test message!",
                 "assigned_to_group_name": "IEC Testing Group",
             }
 
@@ -877,28 +875,28 @@ class TestStatusUtils(unittest.TestCase):
     @patch("status_change.status_utils.HttpHook.get_connection")
     def test_get_globus_url(self, conn_mock, abs_path_mock):
         test_data = {
-            "sn_public_uuid": {
+            "sn_public_uuid_dev": {
                 "sennet": {
-                    "abs_path": "/codcc-dev/data/public/sn_public_uuid",
-                    "dest_path": "https://app.globus.org/file-manager?origin_id=96b2b9e5-6915-4dbc-9ab5-173ad628902e&origin_path=sn_public_uuid",
+                    "abs_path": "/codcc-dev/data/public/sn_public_uuid_dev",
+                    "dest_path": "https://app.globus.org/file-manager?origin_id=96b2b9e5-6915-4dbc-9ab5-173ad628902e&origin_path=sn_public_uuid_dev",
                 }
             },
-            "hm_public_uuid": {
+            "hm_public_uuid_dev": {
                 "hubmap": {
-                    "abs_path": "/hive/hubmap-dev/data/public/hm_public_uuid",
-                    "dest_path": "https://app.globus.org/file-manager?origin_id=af603d86-eab9-4eec-bb1d-9d26556741bb&origin_path=hm_public_uuid",
+                    "abs_path": "/hive/hubmap-dev/data/public/hm_public_uuid_dev",
+                    "dest_path": "https://app.globus.org/file-manager?origin_id=af603d86-eab9-4eec-bb1d-9d26556741bb&origin_path=hm_public_uuid_dev",
                 }
             },
-            "sn_protected_uuid": {
+            "sn_protected_uuid_prod": {
                 "sennet": {
-                    "abs_path": "/codcc-prod/data/protected/component/sn_protected_uuid",
-                    "dest_path": "https://app.globus.org/file-manager?origin_id=45617036-f2cc-4320-8108-edf599290158&origin_path=%2Fprotected%2Fcomponent%2Fsn_protected_uuid%2F",
+                    "abs_path": "/codcc-prod/data/protected/component/sn_protected_uuid_prod",
+                    "dest_path": "https://app.globus.org/file-manager?origin_id=45617036-f2cc-4320-8108-edf599290158&origin_path=%2Fprotected%2Fcomponent%2Fsn_protected_uuid_prod%2F",
                 }
             },
-            "hm_protected_uuid": {
+            "hm_protected_uuid_prod": {
                 "hubmap": {
-                    "abs_path": "/hive/hubmap/data/protected/component/hm_protected_uuid",
-                    "dest_path": "https://app.globus.org/file-manager?origin_id=24c2ee95-146d-4513-a1b3-ac0bfdb7856f&origin_path=%2Fprotected%2Fcomponent%2Fhm_protected_uuid%2F",
+                    "abs_path": "/hive/hubmap/data/protected/component/hm_protected_uuid_prod",
+                    "dest_path": "https://app.globus.org/file-manager?origin_id=24c2ee95-146d-4513-a1b3-ac0bfdb7856f&origin_path=%2Fprotected%2Fcomponent%2Fhm_protected_uuid_prod%2F",
                 }
             },
         }

@@ -179,7 +179,6 @@ with HMDAG(
             uuid,
             get_auth_tok(**kwargs),
             status=status,
-            dag=__name__,
             run_id=kwargs.get("run_id"),
             data_ingest_board_msg=error_counts_msg
         ).update()

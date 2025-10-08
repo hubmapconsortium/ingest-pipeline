@@ -15,7 +15,6 @@ from airflow.operators.python import BranchPythonOperator
 from airflow.operators.bash import BashOperator
 from airflow.exceptions import AirflowException
 from airflow.providers.http.hooks.http import HttpHook
-from requests.exceptions import HTTPError
 from airflow.decorators import task
 
 from hubmap_operators.common_operators import (
@@ -456,7 +455,7 @@ with HMDAG(
         python_callable=pythonop_set_dataset_state,
         provide_context=True,
         trigger_rule="all_done",
-        op_kwargs={"dataset_uuid_callable": _get_upload_uuid, "ds_state": "Error", "dag": __name__, "run_id": get_run_id},
+        op_kwargs={"dataset_uuid_callable": _get_upload_uuid, "ds_state": "Error", "run_id": get_run_id},
     )
 
     (

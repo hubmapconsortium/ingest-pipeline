@@ -1,4 +1,3 @@
-from pathlib import Path
 from pprint import pprint
 from datetime import datetime, timedelta
 import time
@@ -9,7 +8,6 @@ from airflow.configuration import conf as airflow_conf
 from airflow.operators.python import PythonOperator
 from airflow.operators.python import BranchPythonOperator
 from airflow.operators.bash import BashOperator
-from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 from airflow.exceptions import AirflowException
 from airflow.providers.http.hooks.http import HttpHook
 
@@ -334,7 +332,7 @@ with HMDAG(
         python_callable=pythonop_set_dataset_state,
         provide_context=True,
         trigger_rule="all_done",
-        op_kwargs={"dataset_uuid_callable": _get_dataset_uuid, "ds_state": "Error", "reindex": False, "dag": __name__, "run_id": get_run_id},
+        op_kwargs={"dataset_uuid_callable": _get_dataset_uuid, "ds_state": "Error", "reindex": False, "run_id": get_run_id},
     )
 
     (

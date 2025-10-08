@@ -1047,7 +1047,6 @@ def pythonop_set_dataset_state(**kwargs) -> None:
             fields_to_overwrite={"pipeline_message": message} if message else {},
             http_conn_id=http_conn_id,
             reindex=reindex,
-            dag=kwargs.get("dag"),
             run_id=run_id,
         ).update()
 
@@ -1661,7 +1660,6 @@ def make_send_status_msg_function(
                     status=status,
                     fields_to_overwrite=extra_fields,
                     reindex=reindex,
-                    dag=dag_file.strip(".py"),
                     run_id=kwargs.get("run_id"),
                 ).update()
             except EntityUpdateException:
