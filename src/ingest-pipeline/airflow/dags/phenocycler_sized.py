@@ -20,7 +20,7 @@ from utils import (
     get_queue_resource,
     get_uuid_for_error,
     HMDAG,
-    get_tmp_dir_path,
+    get_tmp_dir_path_kwargs,
     get_preserve_scratch_resource,
     get_absolute_workflow,
     get_parent_data_dir,
@@ -56,7 +56,7 @@ def generate_phenocycler_dag(params: SequencingDagParameters) -> DAG:
         is_paused_upon_creation=False,
         default_args=default_args,
         user_defined_macros={
-            "tmp_dir_path": get_tmp_dir_path,
+            "tmp_dir_path": get_tmp_dir_path_kwargs,
             "preserve_scratch": get_preserve_scratch_resource(params.dag_id),
         },
     ) as dag:
@@ -133,7 +133,7 @@ def generate_phenocycler_dag(params: SequencingDagParameters) -> DAG:
         t_pipeline_exec_cwl_sprm = BashOperator(
             task_id="pipeline_exec_cwl_sprm",
             bash_command=""" \
-                    tmp_dir={{tmp_dir_path(run_id)}} ; \
+                    tmp_dir={{tmp_dir_path(kwargs)}} ; \
                     {{ti.xcom_pull(task_ids='build_cmd_sprm')}} >> ${tmp_dir}/session.log 2>&1 ; \
                     echo $?
                     """,
