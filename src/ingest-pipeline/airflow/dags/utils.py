@@ -908,7 +908,7 @@ def pythonop_send_create_dataset(**kwargs) -> str:
         source_uuids = [source_uuids]
 
     dataset_name = kwargs["dataset_name_callable"](**kwargs)
-    endpoint = f"entities/{source_uuids[0]}"
+    endpoint = f"entities/{source_uuids[0]}?exclude=direct_ancestors.files"
 
     try:
         previous_revision_path = None
@@ -1094,7 +1094,7 @@ def pythonop_get_dataset_state(**kwargs) -> Dict:
     }
     http_hook = HttpHook(method, http_conn_id="entity_api_connection")
 
-    endpoint = f"entities/{uuid}"
+    endpoint = f"entities/{uuid}?exclude=direct_ancestors.files"
 
     try:
         response = http_hook.run(
