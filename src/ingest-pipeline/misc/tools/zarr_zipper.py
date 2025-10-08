@@ -22,6 +22,7 @@ class TargetProps:
         self.zarr_name = zarr_name
         self.is_dataset = is_dataset
         self.is_published = is_published
+
     def __str__(self):
         return f"TargetProps({self.target_path}, {self.zarr_name}, {self.is_dataset}, {self.is_published})"
 
@@ -54,7 +55,7 @@ def run_zip(target_path: Path, zarr_name: str, delete_flg: bool) -> None:
     zip_name = target_path / f"{zarr_name}.zip"
     zip_name = zip_name.absolute()
     # Guard against single quotes in path, as in "Children's Hospital"
-    esc_quote = "\'\"\'\"\'"
+    esc_quote = "'\"'\"'"
     target_path_str = str(full_target_path).replace("'", esc_quote)
     zip_name_str = str(zip_name).replace("'", esc_quote)
     zarr_name_str = zarr_name.replace("'", esc_quote)
@@ -71,10 +72,8 @@ def run_zip(target_path: Path, zarr_name: str, delete_flg: bool) -> None:
 
 
 def restructure(
-        candidate: Path,
-        dryrun: bool = False,
-        delete_flg: bool = False,
-        allow_published: bool = False) -> str:
+    candidate: Path, dryrun: bool = False, delete_flg: bool = False, allow_published: bool = False
+) -> str:
     try:
         target_path, zarr_name, uuid = parse_path(candidate)
     except RuntimeError as excp:
@@ -106,10 +105,8 @@ def verify_uuid(uuid: str) -> Tuple[bool, bool]:
     if not entity_api:
         raise RuntimeError("ENTITY_API is not defined in the environment")
     resp = requests.get(
-        url=f"{entity_api}/entities/{uuid}",
-        headers={
-            "Authorization": f"Bearer {auth_tok}"
-        }
+        url=f"{entity_api}/entities/{uuid}?exclude=direct_ancestors.files",
+        headers={"Authorization": f"Bearer {auth_tok}"},
     )
     try:
         resp.raise_for_status()
@@ -120,7 +117,7 @@ def verify_uuid(uuid: str) -> Tuple[bool, bool]:
         else:
             LOGGER.error(f"Validation of {uuid} failed: {type(excp)} {excp}")
             return False, False
-    return True, resp.json()['status'].lower() == 'published'
+    return True, resp.json()["status"].lower() == "published"
 
 
 def main() -> None:
@@ -132,13 +129,13 @@ def main() -> None:
         "starting_path", help="path from which to recur downward looking for zarr dirs"
     )
     parser.add_argument(
-        "--proto", help="prototype for zarr search. Remember to quote it!",
-        default="**/*anndata.zarr"
+        "--proto",
+        help="prototype for zarr search. Remember to quote it!",
+        default="**/*anndata.zarr",
     )
     parser.add_argument(
         "--dryrun",
-        help=("describe the steps that would be taken but"
-              " do not make changes"),
+        help=("describe the steps that would be taken but" " do not make changes"),
         action="store_true",
     )
     parser.add_argument(
@@ -155,7 +152,7 @@ def main() -> None:
         "--nmax",
         help="do no more than this many target directories (0 means no limit)",
         type=int,
-        default=0
+        default=0,
     )
 
     args = parser.parse_args()
@@ -176,10 +173,7 @@ def main() -> None:
                 break
             LOGGER.info(f"testing {candidate}")
             uuid, props = restructure(
-                candidate,
-                dryrun=dryrun,
-                delete_flg=delete_flg,
-                allow_published=allow_published
+                candidate, dryrun=dryrun, delete_flg=delete_flg, allow_published=allow_published
             )
             if uuid and props.is_dataset:
                 all_valid_uuids.append(uuid)
@@ -188,10 +182,9 @@ def main() -> None:
         print(f"{len(all_valid_uuids)} uuids to update")
         print(f"rebuilding json: {json.dumps({'uuids':all_valid_uuids})}")
     except Exception as excp:
-        print(f"Exiting on exception {excp};"
-              f" {len(all_valid_uuids)} so far")
-        print("partial rebuilding json:"
-              f" {json.dumps({'uuids':all_valid_uuids})}")
+        print(f"Exiting on exception {excp};" f" {len(all_valid_uuids)} so far")
+        print("partial rebuilding json:" f" {json.dumps({'uuids':all_valid_uuids})}")
+
 
 if __name__ == "__main__":
     main()

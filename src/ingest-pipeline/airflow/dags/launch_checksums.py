@@ -295,7 +295,7 @@ with HMDAG(
         http_hook = HttpHook("GET", http_conn_id="entity_api_connection")
 
         for uuid, lz_path in zip(uuids, lz_paths):
-            endpoint = f"entities/{uuid}?exclude=direct_ancestors.files,files"
+            endpoint = f"entities/{uuid}?exclude=direct_ancestors.files"
 
             try:
                 response = http_hook.run(
