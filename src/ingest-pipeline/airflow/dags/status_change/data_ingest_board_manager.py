@@ -43,7 +43,7 @@ class DataIngestBoardManager:
         self.token = token
         self.status = status
         self.msg = str(msg) if msg else ""
-        self.run_id = self.run_id
+        self.run_id = run_id
         self.entity_data = get_submission_context(self.token, self.uuid)
         self.update_fields = self.get_fields()
         self.is_valid_for_status = bool(self.update_fields)
@@ -125,7 +125,7 @@ class DataIngestBoardManager:
     def get_internal_error_prefix(self) -> str:
         prefix = f"Internal error. Log directory: {self.log_directory_path}"
         if self.msg:
-            error = f"{prefix} {self.msg}"
+            error = f"{prefix} | {self.msg}"
         else:
             error = prefix
         return error

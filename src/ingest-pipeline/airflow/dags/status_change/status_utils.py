@@ -133,12 +133,12 @@ globus_dirs = {
         "prod": {
             "public": "96b2b9e5-6915-4dbc-9ab5-173ad628902e",
             "protected": "45617036-f2cc-4320-8108-edf599290158",
-            "dev": {
-                "public": "96b2b9e5-6915-4dbc-9ab5-173ad628902e",
-                "protected": "b1571f8f-4ce5-4c81-9327-47bba11423ff",
-            },
-            "path_replace_regex": f"/codcc.*/data",
-        }
+        },
+        "dev": {
+            "public": "96b2b9e5-6915-4dbc-9ab5-173ad628902e",
+            "protected": "b1571f8f-4ce5-4c81-9327-47bba11423ff",
+        },
+        "path_replace_regex": f"/codcc.*/data",
     },
 }
 
@@ -354,14 +354,14 @@ def get_globus_url(uuid: str, token: str) -> Optional[str]:
     prefix = "https://app.globus.org/file-manager?"
     proj = get_project()
     project_dict = globus_dirs.get(proj.value[0]) or {}
-    if not (env_dict := project_dict.get(get_env(), {})):
+    if not (env_dict := project_dict.get(get_env() or "", {})):
         return
     params = {}
     if "public" in path:
         params["origin_id"] = env_dict.get("public")
         params["origin_path"] = uuid
     else:
-        regex = env_dict.get("path_replace_regex", "")
+        regex = project_dict.get("path_replace_regex", "")
         params["origin_id"] = env_dict.get("protected")
         params["origin_path"] = re.sub(regex, "", path) + "/"
     return prefix + urlencode(params)
