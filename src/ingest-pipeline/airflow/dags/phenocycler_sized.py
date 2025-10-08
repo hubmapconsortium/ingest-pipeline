@@ -28,7 +28,7 @@ from utils import (
     join_quote_command_str,
     get_parent_dataset_uuids_list,
     get_previous_revision_uuid,
-    build_dataset_name,
+    build_dataset_name as inner_build_dataset_name,
     make_send_status_msg_function,
     get_dataset_uuid,
 )
@@ -96,6 +96,9 @@ def generate_phenocycler_dag(params: SequencingDagParameters) -> DAG:
                 "documentation_url": "",
             },
         ]
+
+        def build_dataset_name(**kwargs):
+            return inner_build_dataset_name(dag.dag_id, params.pipeline_name, **kwargs)
 
         prepare_cwl_sprm = EmptyOperator(task_id="prepare_cwl_sprm")
 
