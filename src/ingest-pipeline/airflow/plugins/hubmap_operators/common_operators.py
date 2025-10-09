@@ -105,3 +105,18 @@ class MoveDataOperator(BashOperator):
             """
         super().__init__(
             bash_command=command, **kwargs)
+
+
+class MoveDataDownstreamOperator(BashOperator):
+    # @apply_defaults
+    def __init__(self, **kwargs):
+        command = """
+            tmp_dir="{{dag_run.conf.tmp_dir}}" ; \
+            ds_dir="{{ti.xcom_pull(task_ids="send_create_dataset")}}" ; \
+            pushd "$ds_dir" ; \
+            popd ; \
+            mv "$tmp_dir"/cwl_out/* "$ds_dir" >> "$tmp_dir/session.log" 2>&1 ; \
+            echo $?
+        """
+        super().__init__(
+            bash_command=command, **kwargs)
