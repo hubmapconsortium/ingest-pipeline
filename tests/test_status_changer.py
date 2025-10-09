@@ -1,8 +1,10 @@
+import json
 import unittest
 from datetime import date
 from functools import cached_property
 from unittest.mock import MagicMock, patch
 
+import requests
 from status_change.callbacks.failure_callback import FailureCallback
 from status_change.data_ingest_board_manager import DataIngestBoardManager
 from status_change.slack.base import SlackMessage
@@ -28,48 +30,28 @@ from status_change.status_utils import (
     get_project,
     is_internal_error,
 )
+from tests.fixtures import (
+    dataset_context_mock_value,
+    endpoints,
+    good_upload_context,
+    slack_upload_reorg_priority_str,
+    slack_upload_reorg_str,
+    upload_context_mock_value,
+)
 from utils import pythonop_set_dataset_state
 
 from airflow.models.connection import Connection
 
 conn_mock_hm = Connection(host=f"https://ingest.api.hubmapconsortium.org")
 
-good_upload_context = {
-    "validation_message": "existing validation_message text",
-    "ingest_task": "existing ingest_task text",
-    "unrelated_field": True,
-    "status": "new",
-    "entity_type": "Upload",
-}
-upload_context_mock_value = {
-    "uuid": "test_uuid",
-    "hubmap_id": "test_hm_id",
-    "created_by_user_displayname": "Test User",
-    "created_by_user_email": "test@user.com",
-    "priority_project_list": ["test_project, test_project_2"],
-    "datasets": [
-        {
-            "uuid": "test_dataset_uuid",
-            "hubmap_id": "test_dataset_hm_id",
-            "created_by_user_displayname": "Test User",
-            "created_by_user_email": "test@user.com",
-            "priority_project_list": ["test_project", "test_project_2"],
-            "dataset_type": "test_dataset_type",
-            "metadata": [{"parent_dataset_id": "test_parent_id"}],
-        }
-    ],
-    "status": "New",
-    "entity_type": "Upload",
-}
 
-dataset_context_mock_value = {
-    "uuid": "test_dataset_uuid",
-    "hubmap_id": "test_hm_dataset_id",
-    "created_by_user_displayname": "Test User",
-    "created_by_user_email": "test@user.com",
-    "status": "New",
-    "entity_type": "Dataset",
-}
+def get_mock_response(good: bool, response_data: bytes) -> requests.Response:
+    mock_resp = requests.models.Response()
+    mock_resp.url = "test_url"
+    mock_resp.status_code = 200 if good else 400
+    mock_resp.reason = "OK" if good else "Bad Request"
+    mock_resp._content = response_data
+    return mock_resp
 
 
 class TestEntityUpdater(unittest.TestCase):
@@ -601,6 +583,55 @@ class TestSlack(unittest.TestCase):
         assert not mgr.is_valid_for_status
         update_mock.assert_not_called()
 
+    @staticmethod
+    def hhr_mock_side_effect(endpoint, headers, *args, **kwargs):
+        context = {
+            "uuid": "test_uuid",
+            "datasets": [
+                {
+                    "uuid": "test_dataset_uuid",
+                    "hubmap_id": "test_hubmap_id",
+                    "dataset_type": "test_type",
+                    "created_by_user_displayname": "test_user",
+                    "created_by_user_email": "test_email",
+                    "organ": "test_organ",
+                }
+            ],
+            "priority_project_list": ["test_priority_project"],
+        }
+        if "organs" in endpoint:
+            return get_mock_response(True, json.dumps(context.get("datasets")).encode("utf-8"))
+        if "file-system-abs-path" in endpoint:
+            return get_mock_response(True, json.dumps({"path": "test_abs_path"}).encode("utf-8"))
+        return get_mock_response(True, json.dumps(context).encode("utf-8"))
+
+    @patch("status_change.status_utils.get_entity_ingest_url")
+    @patch("status_change.status_utils.get_globus_url")
+    @patch("status_change.status_utils.get_abs_path")
+    @patch("status_change.status_utils.HttpHook.get_connection")
+    def test_reorganized_formatting(
+        self, conn_mock, abs_path_mock, globus_url_mock, ingest_url_mock
+    ):
+        for klass, ret_val in {
+            SlackUploadReorganized: slack_upload_reorg_str,
+            SlackUploadReorganizedPriority: slack_upload_reorg_priority_str,
+        }.items():
+            with patch("utils.ENDPOINTS", endpoints["hubmap"]):
+                conn_mock.return_value = Connection(
+                    host=f"https://entity.api.hubmapconsortium.org"
+                )
+                with patch(
+                    "status_change.status_utils.HttpHook.run",
+                    side_effect=self.hhr_mock_side_effect,
+                ):
+                    abs_path_mock.return_value = "test_abs_path"
+                    globus_url_mock.return_value = "test_globus_url"
+                    ingest_url_mock.return_value = "test_ingest_ui_url"
+                    mgr = klass("test_uuid", "test_token")
+                    formatted = mgr.format()
+                    lines = [line.strip() for line in formatted.split("\n") if line.strip()]
+                    assert lines == ret_val
+
 
 class TestFailureCallback(unittest.TestCase):
     @patch("utils.airflow_conf.as_dict")
@@ -848,24 +879,10 @@ class TestStatusUtils(unittest.TestCase):
         for entity_data, is_error in entity_data_dicts:
             assert is_internal_error(entity_data) == is_error, f"{entity_data} is not {is_error}"
 
-    endpoints = {
-        "hubmap": {
-            "PROD": {
-                "entity_url": "https://entity.api.hubmapconsortium.org",
-                "ingest_url": "vm004@hive.psc.edu",
-            },
-            "DEV": {"entity_url": "https://entity-api.dev.hubmapconsortium.org"},
-        },
-        "sennet": {
-            "PROD": {"entity_url": "https://entity.api.sennetconsortium.org"},
-            "DEV": {"entity_url": "https://entity-api.dev.sennetconsortium.org"},
-        },
-    }
-
     @patch("status_change.status_utils.HttpHook.get_connection")
     def test_get_env(self, conn_mock):
         for proj in ["hubmap", "sennet"]:
-            with patch("utils.ENDPOINTS", self.endpoints[proj]):
+            with patch("utils.ENDPOINTS", endpoints[proj]):
                 for env, host_url in {
                     "prod": f"https://entity.api.{proj}consortium.org",
                     "dev": f"https://entity-api.dev.{proj}consortium.org",
@@ -893,7 +910,7 @@ class TestStatusUtils(unittest.TestCase):
             }.items():
                 for url_prefix, entity_data in data.items():
                     hhr_mock.return_value = Connection(host=entity_api)
-                    with patch("utils.ENDPOINTS", self.endpoints[proj]):
+                    with patch("utils.ENDPOINTS", endpoints[proj]):
                         url = get_entity_ingest_url(entity_data)
                         expected_url = (
                             f"{url_prefix}/{entity_data['entity_type']}/{entity_data['uuid']}"
@@ -904,7 +921,7 @@ class TestStatusUtils(unittest.TestCase):
     @patch("status_change.status_utils.HttpHook.get_connection")
     def test_get_data_ingest_board_query_url(self, hhr_mock):
         for proj in ["hubmap", "sennet"]:
-            with patch("utils.ENDPOINTS", self.endpoints[proj]):
+            with patch("utils.ENDPOINTS", endpoints[proj]):
                 for url_prefix, ingest_conn, entity_data in [
                     (
                         f"https://ingest-board.dev.{proj}consortium.org",
@@ -966,7 +983,7 @@ class TestStatusUtils(unittest.TestCase):
         }
         for uuid, data in test_data.items():
             for proj, paths in data.items():
-                with patch("utils.ENDPOINTS", self.endpoints[proj]):
+                with patch("utils.ENDPOINTS", endpoints[proj]):
                     abs_path_mock.return_value = paths["abs_path"]
                     conn_mock.return_value = Connection(
                         host=f"https://entity.api.{proj}consortium.org"

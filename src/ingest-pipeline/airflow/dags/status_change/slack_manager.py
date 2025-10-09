@@ -101,7 +101,7 @@ class SlackManager:
             message = self.message_class.format()
         except NotImplementedError:
             logging.info(
-                f"Message class {self.message_class.name} does not implement a format message; not sending Slack message."
+                f"Message class {self.message_class.name} does not implement a format method; not sending Slack message."
             )
             return
         try:

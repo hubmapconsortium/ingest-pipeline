@@ -13,7 +13,6 @@ from hubmap_operators.common_operators import (
     JoinOperator,
     LogInfoOperator,
 )
-from status_change.status_manager import StatusChanger
 from utils import (
     HMDAG,
     find_matching_endpoint,
@@ -208,6 +207,7 @@ with HMDAG(
                 auth_tok=get_auth_tok(**kwargs),
                 frozen_df_fname=_get_frozen_df_path(kwargs["run_id"]),
             )
+            kwargs["ti"].xcom_push(key="child_uuid_list", value=child_uuid_list)
             kwargs["ti"].xcom_push(key="split_stage_2", value="0")  # signal success
             kwargs["ti"].xcom_push(key="is_multiassay", value=is_multiassay)
             kwargs["ti"].xcom_push(key="is_epic", value=is_epic)
@@ -241,7 +241,6 @@ with HMDAG(
                 work_dirs.append('"{}"'.format(ds_rslt["local_directory_full_path"]))
             work_dirs = " ".join(work_dirs)
             kwargs["ti"].xcom_push(key="child_work_dirs", value=work_dirs)
-            kwargs["ti"].xcom_push(key="child_uuid_list", value=child_uuid_list)
         except Exception as e:
             print(f"Encountered {e}")
             kwargs["ti"].xcom_push(key="split_stage_2", value="1")  # signal failure
@@ -340,14 +339,9 @@ with HMDAG(
     )
 
     def wrapped_send_status_msg(**kwargs):
-        # Re-send parent upload reorganized status to trigger messages
-        StatusChanger(
-            get_dataset_uuid(**kwargs),
-            get_auth_tok(**kwargs),
-            run_id=get_run_id(**kwargs),
-            status="reorganized",
+        child_uuid_list = (
+            kwargs["ti"].xcom_pull(task_ids="split_stage_2", key="child_uuid_list") or []
         )
-        child_uuid_list = kwargs["ti"].xcom_pull(task_ids="split_stage_2", key="child_uuid_list")
         for child_uuid_chunk in [
             child_uuid_list[i : i + 10] for i in range(0, len(child_uuid_list), 10)
         ]:
