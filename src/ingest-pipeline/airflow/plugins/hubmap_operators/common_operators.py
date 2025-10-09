@@ -47,20 +47,37 @@ class CleanupTmpDirOperator(BashOperator):
             trigger_rule = kwargs.pop("trigger_rule")
         else:
             trigger_rule = 'all_success'
+        if 'downstream_tmpdir' in kwargs:
+            command = """
+                tmp_dir="{{dag_run.conf.tmp_dir}}" ; \
+                if [ -e "$tmp_dir/session.log" ] ; then \
+                  ds_dir="{{ti.xcom_pull(task_ids='send_create_dataset')}}" ; \
+                  cp "$tmp_dir/session.log" "$ds_dir"  && echo "copied session.log" ; \
+                fi ; \
+                echo rmscratch is $rmscratch ; \
+                if [ "$rmscratch" = true ] ; then \
+                  rm -r "$tmp_dir" ; \
+                else \
+                  echo "scratch directory was preserved" ; \
+                fi
+            """
+        else:
+            command = """
+                tmp_dir="{{tmp_dir_path(run_id)}}" ; \
+                if [ -e "$tmp_dir/session.log" ] ; then \
+                  ds_dir="{{ti.xcom_pull(task_ids='send_create_dataset')}}" ; \
+                  cp "$tmp_dir/session.log" "$ds_dir"  && echo "copied session.log" ; \
+                fi ; \
+                echo rmscratch is $rmscratch ; \
+                if [ "$rmscratch" = true ] ; then \
+                  rm -r "$tmp_dir" ; \
+                else \
+                  echo "scratch directory was preserved" ; \
+                fi
+            """
+
         super().__init__(
-            bash_command="""
-            tmp_dir="{{tmp_dir_path(run_id)}}" ; \
-            if [ -e "$tmp_dir/session.log" ] ; then \
-              ds_dir="{{ti.xcom_pull(task_ids='send_create_dataset')}}" ; \
-              cp "$tmp_dir/session.log" "$ds_dir"  && echo "copied session.log" ; \
-            fi ; \
-            echo rmscratch is $rmscratch ; \
-            if [ "$rmscratch" = true ] ; then \
-              rm -r "$tmp_dir" ; \
-            else \
-              echo "scratch directory was preserved" ; \
-            fi
-            """,
+            bash_command=command,
             env={'rmscratch': '{{"true" if preserve_scratch is defined and not preserve_scratch else "false"}}'},
             trigger_rule=trigger_rule,
             **kwargs
@@ -94,6 +111,15 @@ class MoveDataOperator(BashOperator):
             chmod -R +w "$tmp_dir/cwl_out" 2>&1 ; \
             echo $?
             """
+        elif 'downstream_tmpdir' in kwargs:
+            command = """
+                tmp_dir="{{dag_run.conf.tmp_dir}}" ; \
+                ds_dir="{{ti.xcom_pull(task_ids="send_create_dataset")}}" ; \
+                pushd "$ds_dir" ; \
+                popd ; \
+                mv "$tmp_dir"/cwl_out/* "$ds_dir" >> "$tmp_dir/session.log" 2>&1 ; \
+                echo $?
+            """
         else:
             command = """
             tmp_dir="{{tmp_dir_path(run_id)}}" ; \
@@ -103,20 +129,5 @@ class MoveDataOperator(BashOperator):
             mv "$tmp_dir"/cwl_out/* "$ds_dir" >> "$tmp_dir/session.log" 2>&1 ; \
             echo $?
             """
-        super().__init__(
-            bash_command=command, **kwargs)
-
-
-class MoveDataDownstreamOperator(BashOperator):
-    # @apply_defaults
-    def __init__(self, **kwargs):
-        command = """
-            tmp_dir="{{dag_run.conf.tmp_dir}}" ; \
-            ds_dir="{{ti.xcom_pull(task_ids="send_create_dataset")}}" ; \
-            pushd "$ds_dir" ; \
-            popd ; \
-            mv "$tmp_dir"/cwl_out/* "$ds_dir" >> "$tmp_dir/session.log" 2>&1 ; \
-            echo $?
-        """
         super().__init__(
             bash_command=command, **kwargs)

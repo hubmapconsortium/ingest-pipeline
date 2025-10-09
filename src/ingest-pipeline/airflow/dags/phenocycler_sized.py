@@ -11,7 +11,7 @@ from typing import List
 
 from hubmap_operators.common_operators import (
     LogInfoOperator,
-    MoveDataDownstreamOperator,
+    MoveDataOperator,
     JoinOperator,
     CleanupTmpDirOperator,
 )
@@ -480,9 +480,9 @@ def generate_phenocycler_dag(params: SequencingDagParameters) -> DAG:
 
         t_log_info = LogInfoOperator(task_id="log_info")
 
-        t_move_data = MoveDataDownstreamOperator(task_id="move_data")
+        t_move_data = MoveDataOperator(task_id="move_data", downstream_tmpdir=True)
         t_join = JoinOperator(task_id="join", trigger_rule="one_success")
-        t_cleanup_tmpdir = CleanupTmpDirOperator(task_id="cleanup_tmpdir")
+        t_cleanup_tmpdir = CleanupTmpDirOperator(task_id="cleanup_tmpdir", downstream_tmpdir=True)
 
         (
             t_log_info
