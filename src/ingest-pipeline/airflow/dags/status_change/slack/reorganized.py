@@ -8,8 +8,8 @@ from .base import SlackMessage
 class SlackUploadReorganized(SlackMessage):
     name = "upload_reorganized"
 
-    def __init__(self, uuid, token, entity_data=None):
-        super().__init__(uuid, token, entity_data)
+    def __init__(self, uuid, token):
+        super().__init__(uuid, token)
         self.datasets: list[dict] = self.entity_data.get("datasets", [])
 
     @property

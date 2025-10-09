@@ -295,12 +295,13 @@ def get_env() -> Optional[str]:
 
 
 def is_internal_error(entity_data: dict) -> bool:
-    if error_msg := entity_data.get("error_message"):
-        for error_str in internal_error_strs:
-            if error_str in error_msg:
-                return True
-    elif entity_data.get("status", "").lower() == "error":
+    status = entity_data.get("status", "").lower()
+    if status == "error":
         return True
+    elif validation_message := entity_data.get("validation_message"):
+        for error_str in internal_error_strs:
+            if error_str.lower() in validation_message.lower():
+                return True
     return False
 
 

@@ -1,5 +1,3 @@
-from typing import Optional
-
 from status_change.status_utils import (
     get_abs_path,
     get_data_ingest_board_query_url,
@@ -15,12 +13,12 @@ class SlackMessage:
     # Name should match what's in status_utils.slack_channels
     name = "base"
 
-    def __init__(self, uuid: str, token: str, entity_data: Optional[dict] = None):
+    def __init__(self, uuid: str, token: str):
         self.uuid = uuid
         self.token = token
         self.channel = slack_channels.get(self.name, "")
         self.entity_id_str = f"{get_project().value[0]}_id"  # "hubmap_id" or "sennet_id"
-        self.entity_data = entity_data if entity_data else get_submission_context(token, uuid)
+        self.entity_data = get_submission_context(token, uuid)
 
     @classmethod
     def get_channel(cls):

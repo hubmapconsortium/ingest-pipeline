@@ -51,6 +51,11 @@ class DataIngestBoardManager:
     def update(self):
         if not self.update_fields:
             return
+        if not self.status == self.entity_data.get("status"):
+            logging.error(
+                f"Status passed to Data Ingest Board Manager was {self.status} but entity metadata status is {self.entity_data.get('status')}. Not updating metadata."
+            )
+            return
         logging.info(
             f"""
             Data Ingest Board fields update:
@@ -84,6 +89,8 @@ class DataIngestBoardManager:
         update_data = func()
         if self.assigned_to_group_name:
             update_data["assigned_to_group_name"] = self.assigned_to_group_name
+        else:
+            update_data["assigned_to_group_name"] = ""
         return update_data
 
     def get_clear_message(self, msg_type: str, entity: str) -> Optional[dict]:
