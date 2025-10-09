@@ -1,43 +1,49 @@
+import pytz
+from airflow.api.common.trigger_dag import trigger_dag
+
+import utils
 import os
+import yaml
 import time
-from datetime import datetime, timedelta
 from pathlib import Path
 from pprint import pprint
+from datetime import datetime, timedelta
 
-import pytz
-import utils
-import yaml
+from airflow.configuration import conf as airflow_conf
+from airflow.operators.python import PythonOperator
+from airflow.operators.python import BranchPythonOperator
+from airflow.operators.bash import BashOperator
+from airflow.exceptions import AirflowException
+from airflow.providers.http.hooks.http import HttpHook
+from airflow.decorators import task
+
 from hubmap_operators.common_operators import (
-    CleanupTmpDirOperator,
-    CreateTmpDirOperator,
-    JoinOperator,
     LogInfoOperator,
+    JoinOperator,
+    CreateTmpDirOperator,
+    CleanupTmpDirOperator,
 )
+
 from utils import (
-    HMDAG,
-    find_matching_endpoint,
-    get_auth_tok,
-    get_preserve_scratch_resource,
-    get_queue_resource,
-    get_soft_data_assaytype,
-    get_tmp_dir_path,
-    make_send_status_msg_function,
-    pythonop_get_dataset_state,
     pythonop_maybe_keep,
+    make_send_status_msg_function,
+    get_tmp_dir_path,
+    get_auth_tok,
+    pythonop_get_dataset_state,
     pythonop_set_dataset_state,
+    find_matching_endpoint,
+    HMDAG,
+    get_queue_resource,
+    get_preserve_scratch_resource,
+    get_soft_data_assaytype,
     search_api_reindex,
 )
 
-from airflow.api.common.trigger_dag import trigger_dag
-from airflow.configuration import conf as airflow_conf
-from airflow.decorators import task
-from airflow.exceptions import AirflowException
-from airflow.operators.bash import BashOperator
-from airflow.operators.python import BranchPythonOperator, PythonOperator
-from airflow.providers.http.hooks.http import HttpHook
-from misc.tools.set_standard_protections import process_one_uuid
 from misc.tools.split_and_create import reorganize
+from misc.tools.set_standard_protections import process_one_uuid
 from misc.tools.survey import EntityFactory
+from status_change.status_manager import StatusChanger
+
 
 # Following are defaults which can be overridden later on
 default_args = {
@@ -85,10 +91,8 @@ def get_dataset_lz_path(**kwargs) -> str:
 def get_dataset_uuid(**kwargs):
     return kwargs["uuid_dataset"]
 
-
 def get_run_id(**kwargs):
     return kwargs.get("run_id")
-
 
 with HMDAG(
     "reorganize_upload",
@@ -339,9 +343,9 @@ with HMDAG(
     )
 
     def wrapped_send_status_msg(**kwargs):
-        child_uuid_list = (
-            kwargs["ti"].xcom_pull(task_ids="split_stage_2", key="child_uuid_list") or []
-        )
+        # re-set status to trigger messages now that child datasets have been created
+        StatusChanger(get_dataset_uuid(**kwargs), get_auth_tok(**kwargs), run_id=kwargs.get("run_id"), status="reorganized")
+        child_uuid_list = kwargs["ti"].xcom_pull(task_ids="split_stage_2", key="child_uuid_list") or []
         for child_uuid_chunk in [
             child_uuid_list[i : i + 10] for i in range(0, len(child_uuid_list), 10)
         ]:
@@ -350,7 +354,7 @@ with HMDAG(
                 if send_status_msg(**kwargs):
                     scanned_md = read_metadata_file(**kwargs)  # Yes, it's getting re-read
                     print(
-                        f"""Got CollectionType {scanned_md['collectiontype'] 
+                        f"""Got CollectionType {scanned_md['collectiontype']
                         if 'collectiontype' in scanned_md else None} """
                     )
                     soft_data_assay_type = get_soft_data_assaytype(uuid, **kwargs)
@@ -454,11 +458,7 @@ with HMDAG(
         python_callable=pythonop_set_dataset_state,
         provide_context=True,
         trigger_rule="all_done",
-        op_kwargs={
-            "dataset_uuid_callable": _get_upload_uuid,
-            "ds_state": "Error",
-            "run_id": get_run_id,
-        },
+        op_kwargs={"dataset_uuid_callable": _get_upload_uuid, "ds_state": "Error", "run_id": get_run_id},
     )
 
     (

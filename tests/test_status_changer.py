@@ -595,6 +595,7 @@ class TestSlack(unittest.TestCase):
                     "created_by_user_displayname": "test_user",
                     "created_by_user_email": "test_email",
                     "organ": "test_organ",
+                    "priority_project_list": ["test_priority_project"],
                 }
             ],
             "priority_project_list": ["test_priority_project"],

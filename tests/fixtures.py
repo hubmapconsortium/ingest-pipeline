@@ -8,7 +8,7 @@ slack_upload_reorg_priority_str = [
     "priority_project_list: test_priority_project",
     "Datasets:",
     "hubmap_id,created_by_user_displayname,created_by_user_email,priority_project_list,dataset_type,organ,globus_link,filesystem_path",
-    "test_hubmap_id, test_user, test_email, , test_type, test_organ, <https://app.globus.org/file-manager?origin_id=24c2ee95-146d-4513-a1b3-ac0bfdb7856f&origin_path=test_abs_path%2F|Globus>, test_abs_path",
+    "test_hubmap_id, test_user, test_email, test_priority_project, test_type, test_organ, <https://app.globus.org/file-manager?origin_id=24c2ee95-146d-4513-a1b3-ac0bfdb7856f&origin_path=test_abs_path%2F|Globus>, test_abs_path",
 ]
 
 
