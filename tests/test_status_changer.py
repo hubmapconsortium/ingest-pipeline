@@ -8,6 +8,7 @@ from status_change.data_ingest_board_manager import DataIngestBoardManager
 from status_change.slack.base import SlackMessage
 from status_change.slack.reorganized import (
     SlackUploadReorganized,
+    SlackUploadReorganizedNoDatasets,
     SlackUploadReorganizedPriority,
 )
 from status_change.slack_manager import SlackManager
@@ -572,7 +573,9 @@ class TestSlack(unittest.TestCase):
     @patch("status_change.status_utils.HttpHook.get_connection")
     def test_slack_manager_main_class(self, conn_mock):
         conn_mock.return_value = conn_mock_hm
-        mgr = self.slack_manager(Statuses.UPLOAD_REORGANIZED, good_upload_context)
+        mgr = self.slack_manager(
+            Statuses.UPLOAD_REORGANIZED, good_upload_context | {"datasets": "present"}
+        )
         assert type(mgr.message_class) is SlackUploadReorganized
 
     @patch("status_change.status_utils.HttpHook.get_connection")
@@ -582,6 +585,15 @@ class TestSlack(unittest.TestCase):
         context_copy.update({"priority_project_list": ["PRIORITY"]})
         mgr = self.slack_manager(Statuses.UPLOAD_REORGANIZED, context_copy)
         assert type(mgr.message_class) is SlackUploadReorganizedPriority
+
+    @patch("status_change.status_utils.HttpHook.get_connection")
+    def test_slack_manager_subclass_pass(self, conn_mock):
+        conn_mock.return_value = conn_mock_hm
+        mgr = self.slack_manager(Statuses.UPLOAD_REORGANIZED, good_upload_context)
+        assert type(mgr.message_class) is SlackUploadReorganizedNoDatasets
+        with self.assertRaises(NotImplementedError):
+            mgr.message_class.format()
+        assert mgr.update() == None
 
     @patch("status_change.slack_manager.SlackManager.update")
     def test_slack_manager_no_rule(self, update_mock):
@@ -690,16 +702,21 @@ class TestDataIngestBoardManager(unittest.TestCase):
     @patch("status_change.data_ingest_board_manager.get_submission_context")
     def test_valid_status_return_ext_error(self, dib_context_mock):
         dib_context_mock.return_value = upload_context_mock_value
+        # invalid status, validation output doesn't have any internal error strings
         dib = DataIngestBoardManager(
             Statuses.UPLOAD_INVALID, "test_uuid", "test_token", run_id="test_run_id"
         )
-        assert dib.get_fields() == {"error_message": f"Invalid status from run test_run_id"}
+        assert dib.get_fields() == {
+            "error_message": f"Invalid status from run test_run_id",
+            "assigned_to_group_name": "",
+        }
 
     @patch("status_change.data_ingest_board_manager.get_submission_context")
-    def test_valid_status_return_int_error(self, dib_context_mock):
+    def test_valid_status_internal_error_strs(self, dib_context_mock):
         context_with_int_error = upload_context_mock_value.copy()
+        # invalid status but internal error in validation message
         dib_context_mock.return_value = context_with_int_error | {
-            "error_message": "Internal error--test"
+            "validation_message": "Internal error--test"
         }
         with patch.object(DataIngestBoardManager, "log_directory_path", "test_log"):
             dib = DataIngestBoardManager(
@@ -722,6 +739,45 @@ class TestDataIngestBoardManager(unittest.TestCase):
             }
 
     @patch("status_change.data_ingest_board_manager.get_submission_context")
+    def test_valid_status_internal_error_status(self, dib_context_mock):
+        context_with_int_error = upload_context_mock_value.copy()
+        # error status, message doesn't matter
+        with patch.object(DataIngestBoardManager, "log_directory_path", "test_log"):
+            dib_context_mock.return_value = context_with_int_error | {
+                "error_message": "Internal error--test",
+                "status": "error",
+            }
+            dib = DataIngestBoardManager(
+                Statuses.UPLOAD_ERROR, "test_uuid", "test_token", run_id="test_run_id"
+            )
+            assert dib.get_fields() == {
+                "error_message": "Internal error. Log directory: test_log",
+                "assigned_to_group_name": "IEC Testing Group",
+            }
+            dib_w_msg = DataIngestBoardManager(
+                Statuses.UPLOAD_ERROR,
+                "test_uuid",
+                "test_token",
+                run_id="test_run_id",
+                msg="test message!",
+            )
+            assert dib_w_msg.get_fields() == {
+                "error_message": f"Internal error. Log directory: test_log | test message!",
+                "assigned_to_group_name": "IEC Testing Group",
+            }
+            dib_context_mock.return_value = context_with_int_error | {
+                "error_message": "",
+                "status": "error",
+            }
+            dib = DataIngestBoardManager(
+                Statuses.UPLOAD_ERROR, "test_uuid", "test_token", run_id="test_run_id"
+            )
+            assert dib.get_fields() == {
+                "error_message": "Internal error. Log directory: test_log",
+                "assigned_to_group_name": "IEC Testing Group",
+            }
+
+    @patch("status_change.data_ingest_board_manager.get_submission_context")
     def test_status_invalid_for_manager(self, dib_context_mock):
         dib_context_mock.return_value = upload_context_mock_value
         dib = DataIngestBoardManager(Statuses.DATASET_HOLD, "test_uuid", "test_token")
@@ -729,11 +785,11 @@ class TestDataIngestBoardManager(unittest.TestCase):
         assert dib.is_valid_for_status == False
 
     @patch("status_change.data_ingest_board_manager.get_submission_context")
-    def test_get_msg(self, dib_context_mock):
+    def test_get_msg_ext_error(self, dib_context_mock):
         msg = "Antibodies/Contributors Errors: 1"
         dib_context_mock.return_value = upload_context_mock_value
         dib = DataIngestBoardManager(Statuses.UPLOAD_INVALID, "test_uuid", "test_token", msg=msg)
-        assert dib.get_fields() == {"error_message": msg}
+        assert dib.get_fields() == {"error_message": msg, "assigned_to_group_name": ""}
 
 
 class TestStatusUtils(unittest.TestCase):
@@ -777,7 +833,15 @@ class TestStatusUtils(unittest.TestCase):
             ({"error_message": None, "status": "error"}, True),
             ({"status": "error"}, True),
             ({"status": "invalid"}, False),
-            ({"error_message": "Internal error: test error", "status": "invalid"}, True),
+            (
+                {"error_message": "Internal error: test error", "status": "invalid"},
+                False,
+            ),  # ignore existing error messages if status is not error, they are likely left over from previous error status
+            (
+                {"validation_message": "Internal error: test error", "status": "invalid"},
+                True,
+            ),  # catch internal error strings in validation_message if status is not error
+            ({"validation_message": "Test error", "status": "invalid"}, False),  #
             ({"error_message": "Directory errors: 5", "status": "invalid"}, False),
         ]
 

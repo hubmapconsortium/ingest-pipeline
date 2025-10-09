@@ -86,6 +86,21 @@ class SlackUploadReorganized(SlackMessage):
         )
 
 
+class SlackUploadReorganizedNoDatasets(SlackMessage):
+    """
+    If no datasets, hold off on sending message.
+    Subclass main message class to raise NotImplementedError
+    for format().
+    """
+
+    @classmethod
+    def test(cls, entity_data, token) -> bool:
+        del token
+        if not entity_data.get("datasets"):
+            return True  # If no datasets, apply this subclass
+        return False
+
+
 class SlackUploadReorganizedPriority(SlackUploadReorganized):
     """
     Reorganized priority project (SWAT, MOSDAP) uploads.

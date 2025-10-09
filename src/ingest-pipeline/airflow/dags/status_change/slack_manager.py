@@ -11,7 +11,11 @@ from .slack.invalid import (  # SlackDatasetInvalidDerived,
     SlackUploadInvalid,
 )
 from .slack.qa import SlackDatasetQA
-from .slack.reorganized import SlackUploadReorganized, SlackUploadReorganizedPriority
+from .slack.reorganized import (
+    SlackUploadReorganized,
+    SlackUploadReorganizedNoDatasets,
+    SlackUploadReorganizedPriority,
+)
 from .status_utils import (
     EntityUpdateException,
     Statuses,
@@ -74,7 +78,7 @@ class SlackManager:
         },
         Statuses.UPLOAD_REORGANIZED: {
             "main_class": SlackUploadReorganized,
-            "subclasses": [SlackUploadReorganizedPriority],
+            "subclasses": [SlackUploadReorganizedPriority, SlackUploadReorganizedNoDatasets],
         },
     }
 
@@ -93,7 +97,13 @@ class SlackManager:
     def update(self):
         if not self.message_class:
             return
-        message = self.message_class.format()
+        try:
+            message = self.message_class.format()
+        except NotImplementedError:
+            logging.info(
+                f"Message class {self.message_class.name} does not implement a format message; not sending Slack message."
+            )
+            return
         try:
             env = get_env()
         except Exception as e:

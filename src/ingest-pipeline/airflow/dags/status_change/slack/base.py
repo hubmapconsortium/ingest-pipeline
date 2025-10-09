@@ -1,3 +1,5 @@
+from typing import Optional
+
 from status_change.status_utils import (
     get_abs_path,
     get_data_ingest_board_query_url,
