@@ -273,6 +273,11 @@ class StatusChanger(EntityUpdater):
         self.call_message_managers()
 
     def call_message_managers(self):
+        try:
+            self._validate_msg_manager_status()
+        except EntityUpdateException as e:
+            logging.info(e)
+            return
         for message_type in self.message_classes:
             message_manager = message_type(
                 self.status,
@@ -344,6 +349,15 @@ class StatusChanger(EntityUpdater):
                     f"Entity {self.uuid} passed multiple statuses ({status_str} and {extra_status_str})."
                 )
         return status
+
+    def _validate_msg_manager_status(self):
+        existing_status = Statuses.valid_str(self.entity_data.get("status", ""))
+        assert self.status
+        update_status = Statuses.valid_str(self.status)
+        if not update_status == existing_status:
+            raise EntityUpdateException(
+                f"Status to be passed to message managers is {update_status} but entity metadata status is {existing_status}. Not calling message managers."
+            )
 
     def _send_to_entity_updater(self, log_msg: str):
         logging.info(log_msg)

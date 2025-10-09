@@ -123,6 +123,8 @@ class SlackUploadReorganizedPriority(SlackUploadReorganized):
     @classmethod
     def test(cls, entity_data, token) -> bool:
         del token
+        if not entity_data.get("datasets"):
+            return False
         return bool(entity_data.get("priority_project_list"))
 
     def format(self) -> str:

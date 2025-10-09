@@ -5,7 +5,7 @@ import logging
 import re
 import traceback
 from enum import Enum
-from typing import Any, Optional
+from typing import Any, Optional, Union
 from urllib.parse import urlencode, urljoin
 
 from requests import codes
@@ -62,6 +62,28 @@ class Statuses(str, Enum):
     @staticmethod
     def get_entity_type_str(status: Statuses):
         return status.split("_")[0]
+
+    @staticmethod
+    def valid_str(status: Union[str, Statuses]) -> str:
+        """
+        Pass string version of status (any case,
+        including entity_type prefix or not)
+        or Statuses instance. Retrieve
+        lower-case status string or raise if not valid.
+        """
+        if type(status) is str:
+            if "_" in status:
+                membership = [member for member in Statuses if status == member.value]
+                if len(membership) == 1:
+                    return Statuses.get_status_str(membership[0])
+            else:
+                for entity_type in ENTITY_STATUS_MAP.keys():
+                    for status_str in ENTITY_STATUS_MAP[entity_type].keys():
+                        if status == status_str:
+                            return status
+        elif isinstance(status, Statuses):
+            return Statuses.get_status_str(status)
+        raise EntityUpdateException(f"Status {status} is not valid.")
 
 
 # Needed some way to disambiguate statuses shared by datasets and uploads

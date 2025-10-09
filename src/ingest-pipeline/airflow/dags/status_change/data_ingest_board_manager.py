@@ -51,11 +51,6 @@ class DataIngestBoardManager:
     def update(self):
         if not self.update_fields:
             return
-        if not self.status == self.entity_data.get("status"):
-            logging.error(
-                f"Status passed to Data Ingest Board Manager was {self.status} but entity metadata status is {self.entity_data.get('status')}. Not updating metadata."
-            )
-            return
         logging.info(
             f"""
             Data Ingest Board fields update:
@@ -77,7 +72,7 @@ class DataIngestBoardManager:
 
     def get_fields(self) -> Optional[dict]:
         entity = self.entity_data.get("entity_type", "").lower()
-        msg_type = f"{entity}_{Statuses.get_status_str(self.status)}"
+        msg_type = f"{entity}_{Statuses.valid_str(self.status)}"
         if clear_msg := self.get_clear_message(msg_type, entity):
             return clear_msg
         func = getattr(self, msg_type, None)
