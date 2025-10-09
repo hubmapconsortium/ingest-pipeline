@@ -564,7 +564,9 @@ class TestSlack(unittest.TestCase):
     def test_slack_manager_subclass(self, conn_mock):
         conn_mock.return_value = conn_mock_hm
         context_copy = good_upload_context.copy()
-        context_copy.update({"priority_project_list": ["PRIORITY"]})
+        context_copy.update(
+            {"priority_project_list": ["PRIORITY"], "datasets": [{"dataset_type": "test_1"}]}
+        )
         mgr = self.slack_manager(Statuses.UPLOAD_REORGANIZED, context_copy)
         assert type(mgr.message_class) is SlackUploadReorganizedPriority
 

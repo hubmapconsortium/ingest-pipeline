@@ -72,6 +72,7 @@ class Statuses(str, Enum):
         lower-case status string or raise if not valid.
         """
         if type(status) is str:
+            status = status.lower()
             if "_" in status:
                 membership = [member for member in Statuses if status == member.value]
                 if len(membership) == 1:
