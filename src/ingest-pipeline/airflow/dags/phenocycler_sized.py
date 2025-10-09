@@ -480,10 +480,9 @@ def generate_phenocycler_dag(params: SequencingDagParameters) -> DAG:
 
         t_log_info = LogInfoOperator(task_id="log_info")
 
-        t_move_data = MoveDataOperator(task_id="move_data", op_kwargs={"downstream_tmpdir": True})
+        t_move_data = MoveDataOperator(task_id="move_downstream_data")
         t_join = JoinOperator(task_id="join", trigger_rule="one_success")
-        t_cleanup_tmpdir = CleanupTmpDirOperator(task_id="cleanup_tmpdir",
-                                                 op_kwargs={"downstream_tmpdir": True})
+        t_cleanup_tmpdir = CleanupTmpDirOperator(task_id="cleanup_downstream_tmpdir")
 
         (
             t_log_info

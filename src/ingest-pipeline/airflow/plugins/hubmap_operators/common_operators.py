@@ -47,7 +47,7 @@ class CleanupTmpDirOperator(BashOperator):
             trigger_rule = kwargs.pop("trigger_rule")
         else:
             trigger_rule = 'all_success'
-        if 'downstream_tmpdir' in kwargs:
+        if 'cleanup_downstream_tmpdir' in kwargs['task_id']:
             command = """
                 tmp_dir="{{dag_run.conf.tmp_dir}}" ; \
                 if [ -e "$tmp_dir/session.log" ] ; then \
@@ -111,7 +111,7 @@ class MoveDataOperator(BashOperator):
             chmod -R +w "$tmp_dir/cwl_out" 2>&1 ; \
             echo $?
             """
-        elif 'downstream_tmpdir' in kwargs:
+        elif 'move_downstream_data' in kwargs['task_id']:
             command = """
                 tmp_dir="{{dag_run.conf.tmp_dir}}" ; \
                 ds_dir="{{ti.xcom_pull(task_ids="send_create_dataset")}}" ; \
