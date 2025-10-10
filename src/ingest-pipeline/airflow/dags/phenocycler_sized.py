@@ -61,41 +61,41 @@ def generate_phenocycler_dag(params: SequencingDagParameters) -> DAG:
         workflow_version = "1.0.0"
         workflow_description = params.workflow_description
 
-        cwl_workflows = [
-            {
-                "workflow_path": str(get_absolute_workflow(Path("sprm", "pipeline.cwl"))),
-                "documentation_url": "",
-            },
-            {
-                "workflow_path": str(
-                    get_absolute_workflow(Path("create-vis-symlink-archive", "pipeline.cwl"))
-                ),
-                "documentation_url": "",
-            },
-            {
-                "workflow_path": str(
-                    get_absolute_workflow(Path("ome-tiff-pyramid", "pipeline.cwl"))),
-                "documentation_url": "",
-            },
-            {
-                "workflow_path": str(
-                    get_absolute_workflow(Path("portal-containers", "ome-tiff-offsets.cwl"))
-                ),
-                "documentation_url": "",
-            },
-            {
-                "workflow_path": str(
-                    get_absolute_workflow(Path("portal-containers", "sprm-to-json.cwl"))
-                ),
-                "documentation_url": "",
-            },
-            {
-                "workflow_path": str(
-                    get_absolute_workflow(Path("portal-containers", "sprm-to-anndata.cwl"))
-                ),
-                "documentation_url": "",
-            },
-        ]
+        # cwl_workflows = [
+        #     {
+        #         "workflow_path": str(get_absolute_workflow(Path("sprm", "pipeline.cwl"))),
+        #         "documentation_url": "",
+        #     },
+        #     {
+        #         "workflow_path": str(
+        #             get_absolute_workflow(Path("create-vis-symlink-archive", "pipeline.cwl"))
+        #         ),
+        #         "documentation_url": "",
+        #     },
+        #     {
+        #         "workflow_path": str(
+        #             get_absolute_workflow(Path("ome-tiff-pyramid", "pipeline.cwl"))),
+        #         "documentation_url": "",
+        #     },
+        #     {
+        #         "workflow_path": str(
+        #             get_absolute_workflow(Path("portal-containers", "ome-tiff-offsets.cwl"))
+        #         ),
+        #         "documentation_url": "",
+        #     },
+        #     {
+        #         "workflow_path": str(
+        #             get_absolute_workflow(Path("portal-containers", "sprm-to-json.cwl"))
+        #         ),
+        #         "documentation_url": "",
+        #     },
+        #     {
+        #         "workflow_path": str(
+        #             get_absolute_workflow(Path("portal-containers", "sprm-to-anndata.cwl"))
+        #         ),
+        #         "documentation_url": "",
+        #     },
+        # ]
 
         def build_dataset_name(**kwargs):
             return inner_build_dataset_name(dag.dag_id, params.pipeline_name, **kwargs)
@@ -112,6 +112,8 @@ def generate_phenocycler_dag(params: SequencingDagParameters) -> DAG:
             data_dir = tmpdir / "cwl_out"
             print("data_dir: ", data_dir)
 
+            workflows = kwargs["dag_run"].conf.get("workflows")
+
             input_parameters = [
                 {"parameter_name": "--enable_manhole", "value": ""},
                 {"parameter_name": "--threadpool_limit", "value": get_threads_resource(dag.dag_id)},
@@ -120,7 +122,7 @@ def generate_phenocycler_dag(params: SequencingDagParameters) -> DAG:
             ]
 
             command = get_cwl_cmd_from_workflows(
-                cwl_workflows, 0, input_parameters, tmpdir, kwargs["ti"]
+                workflows, 1, input_parameters, tmpdir, kwargs["ti"]
             )
 
             return join_quote_command_str(command)
@@ -172,7 +174,8 @@ def generate_phenocycler_dag(params: SequencingDagParameters) -> DAG:
                 {"parameter_name": "--ometiff_dir", "value": str(data_dir / "pipeline_output")},
                 {"parameter_name": "--sprm_output", "value": str(data_dir / "sprm_outputs")},
             ]
-            command = get_cwl_cmd_from_workflows(workflows, 1, input_parameters, tmpdir, kwargs["ti"])
+
+            command = get_cwl_cmd_from_workflows(workflows, 2, input_parameters, tmpdir, kwargs["ti"])
 
             return join_quote_command_str(command)
 
@@ -225,7 +228,8 @@ def generate_phenocycler_dag(params: SequencingDagParameters) -> DAG:
                 {"parameter_name": "--processes", "value": get_threads_resource(dag.dag_id)},
                 {"parameter_name": "--ometiff_directory", "value": str(tmpdir / "cwl_out")},
             ]
-            command = get_cwl_cmd_from_workflows(workflows, 2, input_parameters, tmpdir, kwargs["ti"])
+
+            command = get_cwl_cmd_from_workflows(workflows, 3, input_parameters, tmpdir, kwargs["ti"])
 
             return join_quote_command_str(command)
 
@@ -277,7 +281,8 @@ def generate_phenocycler_dag(params: SequencingDagParameters) -> DAG:
             input_parameters = [
                 {"parameter_name": "--input_dir", "value": str(data_dir / "ometiff-pyramids")},
             ]
-            command = get_cwl_cmd_from_workflows(workflows, 3, input_parameters, tmpdir, kwargs["ti"])
+
+            command = get_cwl_cmd_from_workflows(workflows, 4, input_parameters, tmpdir, kwargs["ti"])
 
             return join_quote_command_str(command)
 
@@ -328,7 +333,8 @@ def generate_phenocycler_dag(params: SequencingDagParameters) -> DAG:
             input_parameters = [
                 {"parameter_name": "--input_dir", "value": str(data_dir / "sprm_outputs")},
             ]
-            command = get_cwl_cmd_from_workflows(workflows, 4, input_parameters, tmpdir, kwargs["ti"])
+
+            command = get_cwl_cmd_from_workflows(workflows, 5, input_parameters, tmpdir, kwargs["ti"])
 
             return join_quote_command_str(command)
 
@@ -379,7 +385,8 @@ def generate_phenocycler_dag(params: SequencingDagParameters) -> DAG:
             input_parameters = [
                 {"parameter_name": "--input_dir", "value": str(data_dir / "sprm_outputs")},
             ]
-            command = get_cwl_cmd_from_workflows(workflows, 5, input_parameters, tmpdir, kwargs["ti"])
+
+            command = get_cwl_cmd_from_workflows(workflows, 6, input_parameters, tmpdir, kwargs["ti"])
 
             return join_quote_command_str(command)
 

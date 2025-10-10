@@ -61,6 +61,35 @@ with HMDAG(
             "workflow_path": str(get_absolute_workflow(Path(pipeline_name, "pipeline.cwl"))),
             "documentation_url": "",
         },
+        {
+            "workflow_path": str(
+                get_absolute_workflow(Path("create-vis-symlink-archive", "pipeline.cwl"))
+            ),
+            "documentation_url": "",
+        },
+        {
+            "workflow_path": str(
+                get_absolute_workflow(Path("ome-tiff-pyramid", "pipeline.cwl"))),
+            "documentation_url": "",
+        },
+        {
+            "workflow_path": str(
+                get_absolute_workflow(Path("portal-containers", "ome-tiff-offsets.cwl"))
+            ),
+            "documentation_url": "",
+        },
+        {
+            "workflow_path": str(
+                get_absolute_workflow(Path("portal-containers", "sprm-to-json.cwl"))
+            ),
+            "documentation_url": "",
+        },
+        {
+            "workflow_path": str(
+                get_absolute_workflow(Path("portal-containers", "sprm-to-anndata.cwl"))
+            ),
+            "documentation_url": "",
+        },
     ]
 
     def build_dataset_name(**kwargs):
@@ -160,6 +189,7 @@ with HMDAG(
             "previous_version_uuid": kwargs.get("dag_run").conf.get("previous_version_uuid"),
             "metadata": kwargs.get("dag_run").conf.get("metadata"),
             "crypt_auth_tok": kwargs["dag_run"].conf.get("crypt_auth_tok"),
+            "workflows": kwargs["ti"].xcom_pull(task_ids="build_cwl_segmentation"),
         }
         print(f"Collection_type: {collection_type} with assay_type {assay_type} and payload: {payload}", )
         for next_dag in utils.downstream_workflow_iter(collection_type, assay_type):
