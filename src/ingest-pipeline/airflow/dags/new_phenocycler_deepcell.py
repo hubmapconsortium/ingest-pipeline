@@ -62,6 +62,10 @@ with HMDAG(
             "documentation_url": "",
         },
         {
+            "workflow_path": str(get_absolute_workflow(Path("sprm", "pipeline.cwl"))),
+            "documentation_url": "",
+        },
+        {
             "workflow_path": str(
                 get_absolute_workflow(Path("create-vis-symlink-archive", "pipeline.cwl"))
             ),
