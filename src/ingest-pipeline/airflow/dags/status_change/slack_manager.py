@@ -36,10 +36,19 @@ class SlackManager:
         msg_and_channel_dict = SlackManager(Statuses.<status>, <uuid>, <token>).update()
     """
 
-    def __init__(self, status: Statuses, uuid: str, token: str, *args, **kwargs):
+    def __init__(
+        self,
+        status: Statuses,
+        uuid: str,
+        token: str,
+        msg: Optional[str] = None,
+        *args,
+        **kwargs,
+    ):
         del args, kwargs
         self.uuid = uuid
         self.token = token
+        self.msg = msg
         self.message_class = self.get_message_class(status)
         if not self.message_class:
             logging.info(
@@ -90,15 +99,21 @@ class SlackManager:
         entity_data = get_submission_context(self.token, self.uuid)
         for subclass in relevant_classes.get("subclasses", []):
             if subclass.test(entity_data, self.token):
-                return subclass(self.uuid, self.token)
+                return subclass(self.uuid, self.token, self.msg)
         if main_class := relevant_classes["main_class"]:
-            return main_class(self.uuid, self.token)
+            return main_class(self.uuid, self.token, self.msg)
 
     def update(self):
         if not self.message_class:
             return
         try:
             message = self.message_class.format()
+            if self.msg:
+                message = f"""
+                {message}
+
+                {self.msg}
+                """
         except NotImplementedError:
             logging.info(
                 f"Message class {self.message_class.name} does not implement a format method; not sending Slack message."
