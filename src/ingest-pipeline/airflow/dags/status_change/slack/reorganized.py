@@ -91,8 +91,9 @@ class SlackUploadReorganizedNoDatasets(SlackMessage):
     If no datasets, hold off on sending message.
     Subclass main message class to raise NotImplementedError
     for format().
-    NOTE: this will incorrectly return false if dataset has been
-    reorganized and child datasets created.
+    NOTE: this will incorrectly return False if dataset has been
+    reorganized and child datasets created, and then the reorg
+    was undone.
     """
 
     @classmethod

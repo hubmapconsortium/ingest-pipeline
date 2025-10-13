@@ -124,7 +124,7 @@ class DataIngestBoardManager:
     #
     ########################
 
-    def get_internal_error_prefix(self) -> str:
+    def get_internal_error_msg(self) -> str:
         prefix = f"Internal error. Log directory: {self.log_directory_path}"
         if self.msg:
             error = f"{prefix} | {self.msg}"
@@ -133,7 +133,7 @@ class DataIngestBoardManager:
         return error
 
     def upload_error(self):
-        return {"error_message": self.get_internal_error_prefix()}
+        return {"error_message": self.get_internal_error_msg()}
 
     def upload_invalid(self):
         """
@@ -144,7 +144,7 @@ class DataIngestBoardManager:
         state. But, check anyway, just in case.
         """
         if self.internal_error:
-            error = self.get_internal_error_prefix()
+            error = self.get_internal_error_msg()
         else:
             error = self.msg if self.msg else f"Invalid status from run {self.run_id}"
         return {"error_message": error}
@@ -161,7 +161,7 @@ class DataIngestBoardManager:
         #         else f"Derived dataset {self.child_uuid} is in Error state."
         #     )
         # else:
-        return {"error_message": self.get_internal_error_prefix()}
+        return {"error_message": self.get_internal_error_msg()}
 
     def dataset_invalid(self):
         """
@@ -169,7 +169,7 @@ class DataIngestBoardManager:
         to ensure writing error to correct entity.
         """
         if self.internal_error:
-            error = self.get_internal_error_prefix()
+            error = self.get_internal_error_msg()
         else:
             error = self.msg if self.msg else f"Invalid status from run {self.run_id}"
         # if self.check_is_derived:
