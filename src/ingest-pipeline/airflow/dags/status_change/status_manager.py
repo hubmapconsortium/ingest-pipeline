@@ -211,7 +211,6 @@ Example usage with optional params:
 
 
 class StatusChanger(EntityUpdater):
-    # List order is intentional; DataIngestBoardManager should run before SlackManager
     message_classes = [DataIngestBoardManager, SlackManager]
     same_status = False
 
