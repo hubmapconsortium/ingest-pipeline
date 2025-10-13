@@ -1025,7 +1025,7 @@ def pythonop_set_dataset_state(**kwargs) -> None:
                               uuid of the dataset to be modified
     'http_conn_id' : the http connection to be used.  Default is "entity_api_connection"
     'ds_state' : one of 'QA', 'Processing', 'Error', 'Invalid'. Default: 'Processing'
-    'message' : update message, saved as dataset metadata element "pipeline_messsage".
+    'message' : update message, saved as dataset metadata element "pipeline_message".
                 The default is not to save any message.
     """
     if kwargs["dag_run"].conf.get("dryrun"):
@@ -1048,7 +1048,6 @@ def pythonop_set_dataset_state(**kwargs) -> None:
             http_conn_id=http_conn_id,
             reindex=reindex,
             run_id=run_id,
-            message=kwargs["ti"].xcom_pull(task_ids="run_validation", key="error_counts"),
         ).update()
 
 

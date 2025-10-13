@@ -99,9 +99,9 @@ class SlackManager:
         entity_data = get_submission_context(self.token, self.uuid)
         for subclass in relevant_classes.get("subclasses", []):
             if subclass.test(entity_data, self.token):
-                return subclass(self.uuid, self.token, self.msg)
+                return subclass(self.uuid, self.token)
         if main_class := relevant_classes["main_class"]:
-            return main_class(self.uuid, self.token, self.msg)
+            return main_class(self.uuid, self.token)
 
     def update(self):
         if not self.message_class:
