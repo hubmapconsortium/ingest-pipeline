@@ -145,7 +145,10 @@ with HMDAG(
             with open(log_fname, "w") as f:
                 f.write("Directory validation failed! Errors follow:\n")
                 f.write(report.as_text())
-            kwargs["ti"].xcom_push(key="error_counts", value=report.counts)
+            kwargs["ti"].xcom_push(
+                key="error_counts",
+                value="; ".join([f"{k}: {v}" for k, v in report.counts.items()]),
+            )
             return 1
         else:
             kwargs["ti"].xcom_push(key="ivt_path", value=inspect.getfile(upload.__class__))
@@ -171,8 +174,6 @@ with HMDAG(
     )
 
     def wrapped_send_status_msg(**kwargs):
-        error_counts = kwargs["ti"].xcom_pull(key="error_counts")
-        kwargs["msg_for_statuschanger"] = "; ".join([f"{k}: {v}" for k, v in error_counts.items()])
         lz_path, uuid = __get_lzpath_uuid(**kwargs)
         if send_status_msg(**kwargs):
             scanned_md = read_metadata_file(**kwargs)  # Yes, it's getting re-read

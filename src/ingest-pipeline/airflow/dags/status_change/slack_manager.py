@@ -112,6 +112,7 @@ class SlackManager:
                 message = f"""
                 {message}
 
+                Message:
                 {self.msg}
                 """
         except NotImplementedError:
