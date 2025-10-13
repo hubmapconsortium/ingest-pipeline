@@ -124,7 +124,7 @@ class SlackUploadReorganizedPriority(SlackUploadReorganized):
     def test(cls, entity_data, token) -> bool:
         del token
         if not entity_data.get("datasets"):
-            return False
+            return False  # If no datasets, do not apply
         return bool(entity_data.get("priority_project_list"))
 
     def format(self) -> str:

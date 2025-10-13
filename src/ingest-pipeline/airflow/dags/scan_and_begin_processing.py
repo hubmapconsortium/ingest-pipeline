@@ -1,6 +1,6 @@
+import inspect
 import os
 import sys
-import inspect
 from datetime import datetime, timedelta
 from pathlib import Path
 from pprint import pprint
@@ -18,10 +18,10 @@ from utils import (
     get_preserve_scratch_resource,
     get_queue_resource,
     get_soft_data_assaytype,
+    get_threads_resource,
     make_send_status_msg_function,
     pythonop_get_dataset_state,
     pythonop_maybe_keep,
-    get_threads_resource,
 )
 
 from airflow.configuration import conf as airflow_conf
@@ -135,16 +135,17 @@ with HMDAG(
             app_context=app_context,
         )
         # Scan reports an error result
-        errors = upload.get_errors(plugin_kwargs=kwargs)
-        if errors:
-            info = upload.get_info()
-            report = ingest_validation_tools_error_report.ErrorReport(errors=errors, info=info)
+        report = ingest_validation_tools_error_report.ErrorReport(
+            errors=upload.get_errors(plugin_kwargs=kwargs), info=upload.get_info()
+        )
+        if report.errors:
             sys.stdout.write("Directory validation failed! Errors follow:\n")
             sys.stdout.write(report.as_text())
             log_fname = os.path.join(utils.get_tmp_dir_path(kwargs["run_id"]), "session.log")
             with open(log_fname, "w") as f:
                 f.write("Directory validation failed! Errors follow:\n")
                 f.write(report.as_text())
+            kwargs["ti"].xcom_push(key="error_counts", value=report.counts)
             return 1
         else:
             kwargs["ti"].xcom_push(key="ivt_path", value=inspect.getfile(upload.__class__))
@@ -170,6 +171,8 @@ with HMDAG(
     )
 
     def wrapped_send_status_msg(**kwargs):
+        error_counts = kwargs["ti"].xcom_pull(key="error_counts")
+        kwargs["msg_for_statuschanger"] = "; ".join([f"{k}: {v}" for k, v in error_counts.items()])
         lz_path, uuid = __get_lzpath_uuid(**kwargs)
         if send_status_msg(**kwargs):
             scanned_md = read_metadata_file(**kwargs)  # Yes, it's getting re-read

@@ -205,7 +205,7 @@ Example usage with optional params:
             reindex=True,  # optional
             run_id="<airflow_run_id>",
             status=<Statuses.STATUS_ENUM>,  # or "<status>"
-            data_ingest_board_msg=<ErrorReport.counts>
+            message=<ErrorReport.counts>
         ).update()
 """
 
@@ -227,7 +227,7 @@ class StatusChanger(EntityUpdater):
         run_id: Optional[str] = None,
         # Additional field to support privileged field "status"
         status: Optional[Union[Statuses, str]] = None,
-        data_ingest_board_msg=None,
+        message=None,
         **kwargs,
     ):
         del kwargs
@@ -242,7 +242,7 @@ class StatusChanger(EntityUpdater):
             run_id,
         )
         self.status = self._validate_status(status)
-        self.data_ingest_board_msg = data_ingest_board_msg
+        self.message = message
 
     def update(self) -> None:
         """
@@ -278,7 +278,7 @@ class StatusChanger(EntityUpdater):
                 self.status,
                 self.uuid,
                 self.token,
-                msg=self.data_ingest_board_msg,
+                msg=self.message,
                 run_id=self.run_id,
             )
             if message_manager.is_valid_for_status:

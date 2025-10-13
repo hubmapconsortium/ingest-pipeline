@@ -1,27 +1,26 @@
+import json
+import logging
 import os
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 
 import utils
-import json
-import logging
 from hubmap_operators.common_operators import (
     CleanupTmpDirOperator,
     CreateTmpDirOperator,
     SetDatasetProcessingOperator,
 )
-
+from status_change.status_manager import StatusChanger, Statuses
 from utils import (
     HMDAG,
     get_auth_tok,
     get_preserve_scratch_resource,
     get_queue_resource,
-    pythonop_get_dataset_state,
     get_threads_resource,
     get_tmp_dir_path,
+    pythonop_get_dataset_state,
 )
-from status_change.status_manager import StatusChanger, Statuses
 
 from airflow.configuration import conf as airflow_conf
 from airflow.exceptions import AirflowException
@@ -180,7 +179,7 @@ with HMDAG(
             get_auth_tok(**kwargs),
             status=status,
             run_id=kwargs.get("run_id"),
-            data_ingest_board_msg=error_counts_msg
+            message=error_counts_msg,
         ).update()
 
     t_send_status = PythonOperator(

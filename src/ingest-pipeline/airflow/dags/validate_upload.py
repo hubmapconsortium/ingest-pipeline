@@ -197,7 +197,7 @@ with HMDAG(
             status=status,
             fields_to_overwrite=extra_fields,
             run_id=kwargs.get("run_id"),
-            data_ingest_board_msg=error_counts_msg,
+            message=error_counts_msg,
         ).update()
 
     t_send_status = PythonOperator(
