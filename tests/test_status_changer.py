@@ -745,71 +745,73 @@ class TestDataIngestBoardManager(unittest.TestCase):
             "assigned_to_group_name": "",
         }
 
+    @patch("utils.airflow_conf.as_dict")
     @patch("status_change.data_ingest_board_manager.get_submission_context")
-    def test_valid_status_internal_error_strs(self, dib_context_mock):
+    def test_valid_status_internal_error_strs(self, dib_context_mock, af_conf_mock):
         context_with_int_error = upload_context_mock_value.copy()
         # invalid status but internal error in validation message
+        af_conf_mock.return_value = {"connections": {"WORKFLOW_SCRATCH": "test_path"}}
         dib_context_mock.return_value = context_with_int_error | {
             "validation_message": "Internal error--test"
         }
-        with patch.object(DataIngestBoardManager, "log_directory_path", "test_log"):
-            dib = DataIngestBoardManager(
-                Statuses.UPLOAD_INVALID, "test_uuid", "test_token", run_id="test_run_id"
-            )
-            assert dib.get_fields() == {
-                "error_message": "Internal error. Log directory: test_log",
-                "assigned_to_group_name": "IEC Testing Group",
-            }
-            dib_w_msg = DataIngestBoardManager(
-                Statuses.UPLOAD_INVALID,
-                "test_uuid",
-                "test_token",
-                run_id="test_run_id",
-                msg="test message!",
-            )
-            assert dib_w_msg.get_fields() == {
-                "error_message": f"Internal error. Log directory: test_log | test message!",
-                "assigned_to_group_name": "IEC Testing Group",
-            }
+        dib = DataIngestBoardManager(
+            Statuses.UPLOAD_INVALID, "test_uuid", "test_token", run_id="test_run_id"
+        )
+        assert dib.get_fields() == {
+            "error_message": "Internal error. Log directory: test_path/test_run_id",
+            "assigned_to_group_name": "IEC Testing Group",
+        }
+        dib_w_msg = DataIngestBoardManager(
+            Statuses.UPLOAD_INVALID,
+            "test_uuid",
+            "test_token",
+            run_id="test_run_id",
+            msg="test message!",
+        )
+        assert dib_w_msg.get_fields() == {
+            "error_message": f"Internal error. Log directory: test_path/test_run_id | test message!",
+            "assigned_to_group_name": "IEC Testing Group",
+        }
 
+    @patch("utils.airflow_conf.as_dict")
     @patch("status_change.data_ingest_board_manager.get_submission_context")
-    def test_valid_status_internal_error_status(self, dib_context_mock):
+    def test_valid_status_internal_error_status(self, dib_context_mock, af_conf_mock):
         context_with_int_error = upload_context_mock_value.copy()
+        af_conf_mock.return_value = {"connections": {"WORKFLOW_SCRATCH": "test_path"}}
         # error status, message doesn't matter
-        with patch.object(DataIngestBoardManager, "log_directory_path", "test_log"):
-            dib_context_mock.return_value = context_with_int_error | {
-                "error_message": "Internal error--test",
-                "status": "error",
-            }
-            dib = DataIngestBoardManager(
-                Statuses.UPLOAD_ERROR, "test_uuid", "test_token", run_id="test_run_id"
-            )
-            assert dib.get_fields() == {
-                "error_message": "Internal error. Log directory: test_log",
-                "assigned_to_group_name": "IEC Testing Group",
-            }
-            dib_w_msg = DataIngestBoardManager(
-                Statuses.UPLOAD_ERROR,
-                "test_uuid",
-                "test_token",
-                run_id="test_run_id",
-                msg="test message!",
-            )
-            assert dib_w_msg.get_fields() == {
-                "error_message": f"Internal error. Log directory: test_log | test message!",
-                "assigned_to_group_name": "IEC Testing Group",
-            }
-            dib_context_mock.return_value = context_with_int_error | {
-                "error_message": "",
-                "status": "error",
-            }
-            dib = DataIngestBoardManager(
-                Statuses.UPLOAD_ERROR, "test_uuid", "test_token", run_id="test_run_id"
-            )
-            assert dib.get_fields() == {
-                "error_message": "Internal error. Log directory: test_log",
-                "assigned_to_group_name": "IEC Testing Group",
-            }
+        dib_context_mock.return_value = context_with_int_error | {
+            "error_message": "Internal error--test",
+            "status": "error",
+        }
+        dib = DataIngestBoardManager(
+            Statuses.UPLOAD_ERROR, "test_uuid", "test_token", run_id="test_run_id"
+        )
+        assert dib.get_fields() == {
+            "error_message": "Internal error. Log directory: test_path/test_run_id",
+            "assigned_to_group_name": "IEC Testing Group",
+        }
+        dib_w_msg = DataIngestBoardManager(
+            Statuses.UPLOAD_ERROR,
+            "test_uuid",
+            "test_token",
+            run_id="test_run_id",
+            msg="test message!",
+        )
+        assert dib_w_msg.get_fields() == {
+            "error_message": f"Internal error. Log directory: test_path/test_run_id | test message!",
+            "assigned_to_group_name": "IEC Testing Group",
+        }
+        dib_context_mock.return_value = context_with_int_error | {
+            "error_message": "",
+            "status": "error",
+        }
+        dib = DataIngestBoardManager(
+            Statuses.UPLOAD_ERROR, "test_uuid", "test_token", run_id="test_run_id"
+        )
+        assert dib.get_fields() == {
+            "error_message": "Internal error. Log directory: test_path/test_run_id",
+            "assigned_to_group_name": "IEC Testing Group",
+        }
 
     @patch("status_change.data_ingest_board_manager.get_submission_context")
     def test_status_invalid_for_manager(self, dib_context_mock):

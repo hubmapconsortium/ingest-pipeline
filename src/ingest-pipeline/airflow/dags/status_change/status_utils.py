@@ -395,3 +395,9 @@ def get_run_id(run_id):
     if isinstance(run_id, DagRun):
         return run_id.run_id
     return str(run_id)
+
+
+def log_directory_path(run_id: str) -> str:
+    from utils import get_tmp_dir_path
+
+    return str(get_tmp_dir_path(run_id))

@@ -345,7 +345,7 @@ with HMDAG(
     def wrapped_send_status_msg(**kwargs):
         # re-set status to trigger messages now that child datasets have been created
         upload_uuid = kwargs["ti"].xcom_pull(task_ids="find_uuid", key="uuid")
-        StatusChanger(upload_uuid, get_auth_tok(**kwargs), run_id=kwargs.get("run_id"), status="reorganized").update()
+        StatusChanger(upload_uuid, get_auth_tok(**kwargs), run_id=kwargs.get("run_id"), status="reorganized", reindex=False).update()
         child_uuid_list = kwargs["ti"].xcom_pull(task_ids="split_stage_2", key="child_uuid_list") or []
         for child_uuid_chunk in [
             child_uuid_list[i : i + 10] for i in range(0, len(child_uuid_list), 10)

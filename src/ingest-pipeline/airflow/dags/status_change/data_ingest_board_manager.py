@@ -6,6 +6,7 @@ from .status_utils import (  # get_primary_dataset,
     Statuses,
     get_submission_context,
     is_internal_error,
+    log_directory_path,
     put_request_to_entity_api,
 )
 
@@ -112,12 +113,6 @@ class DataIngestBoardManager:
             if self.status in self.assign_to_dp:
                 return group_name
 
-    @property
-    def log_directory_path(self) -> str:
-        from utils import get_tmp_dir_path
-
-        return str(get_tmp_dir_path(self.run_id))
-
     ########################
     #
     # Status-based messages
@@ -125,7 +120,7 @@ class DataIngestBoardManager:
     ########################
 
     def get_internal_error_msg(self) -> str:
-        prefix = f"Internal error. Log directory: {self.log_directory_path}"
+        prefix = f"Internal error. Log directory: {log_directory_path(self.run_id)}"
         if self.msg:
             error = f"{prefix} | {self.msg}"
         else:
