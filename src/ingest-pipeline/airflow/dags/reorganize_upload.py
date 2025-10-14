@@ -15,7 +15,6 @@ from airflow.operators.python import BranchPythonOperator
 from airflow.operators.bash import BashOperator
 from airflow.exceptions import AirflowException
 from airflow.providers.http.hooks.http import HttpHook
-from requests.exceptions import HTTPError
 from airflow.decorators import task
 
 from hubmap_operators.common_operators import (
@@ -43,6 +42,7 @@ from utils import (
 from misc.tools.split_and_create import reorganize
 from misc.tools.set_standard_protections import process_one_uuid
 from misc.tools.survey import EntityFactory
+from status_change.status_manager import StatusChanger
 
 
 # Following are defaults which can be overridden later on
@@ -91,6 +91,8 @@ def get_dataset_lz_path(**kwargs) -> str:
 def get_dataset_uuid(**kwargs):
     return kwargs["uuid_dataset"]
 
+def get_run_id(**kwargs):
+    return kwargs.get("run_id")
 
 with HMDAG(
     "reorganize_upload",
@@ -209,6 +211,7 @@ with HMDAG(
                 auth_tok=get_auth_tok(**kwargs),
                 frozen_df_fname=_get_frozen_df_path(kwargs["run_id"]),
             )
+            kwargs["ti"].xcom_push(key="child_uuid_list", value=child_uuid_list)
             kwargs["ti"].xcom_push(key="split_stage_2", value="0")  # signal success
             kwargs["ti"].xcom_push(key="is_multiassay", value=is_multiassay)
             kwargs["ti"].xcom_push(key="is_epic", value=is_epic)
@@ -242,7 +245,6 @@ with HMDAG(
                 work_dirs.append('"{}"'.format(ds_rslt["local_directory_full_path"]))
             work_dirs = " ".join(work_dirs)
             kwargs["ti"].xcom_push(key="child_work_dirs", value=work_dirs)
-            kwargs["ti"].xcom_push(key="child_uuid_list", value=child_uuid_list)
         except Exception as e:
             print(f"Encountered {e}")
             kwargs["ti"].xcom_push(key="split_stage_2", value="1")  # signal failure
@@ -341,7 +343,10 @@ with HMDAG(
     )
 
     def wrapped_send_status_msg(**kwargs):
-        child_uuid_list = kwargs["ti"].xcom_pull(task_ids="split_stage_2", key="child_uuid_list")
+        # re-set status to trigger messages now that child datasets have been created
+        upload_uuid = kwargs["ti"].xcom_pull(task_ids="find_uuid", key="uuid")
+        StatusChanger(upload_uuid, get_auth_tok(**kwargs), run_id=kwargs.get("run_id"), status="reorganized", reindex=False).update()
+        child_uuid_list = kwargs["ti"].xcom_pull(task_ids="split_stage_2", key="child_uuid_list") or []
         for child_uuid_chunk in [
             child_uuid_list[i : i + 10] for i in range(0, len(child_uuid_list), 10)
         ]:
@@ -350,7 +355,7 @@ with HMDAG(
                 if send_status_msg(**kwargs):
                     scanned_md = read_metadata_file(**kwargs)  # Yes, it's getting re-read
                     print(
-                        f"""Got CollectionType {scanned_md['collectiontype'] 
+                        f"""Got CollectionType {scanned_md['collectiontype']
                         if 'collectiontype' in scanned_md else None} """
                     )
                     soft_data_assay_type = get_soft_data_assaytype(uuid, **kwargs)
@@ -454,7 +459,7 @@ with HMDAG(
         python_callable=pythonop_set_dataset_state,
         provide_context=True,
         trigger_rule="all_done",
-        op_kwargs={"dataset_uuid_callable": _get_upload_uuid, "ds_state": "Error"},
+        op_kwargs={"dataset_uuid_callable": _get_upload_uuid, "ds_state": "Error", "run_id": get_run_id},
     )
 
     (

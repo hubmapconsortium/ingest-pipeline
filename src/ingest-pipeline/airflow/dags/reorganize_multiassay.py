@@ -1,4 +1,3 @@
-from pathlib import Path
 from pprint import pprint
 from datetime import datetime, timedelta
 import time
@@ -9,7 +8,6 @@ from airflow.configuration import conf as airflow_conf
 from airflow.operators.python import PythonOperator
 from airflow.operators.python import BranchPythonOperator
 from airflow.operators.bash import BashOperator
-from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 from airflow.exceptions import AirflowException
 from airflow.providers.http.hooks.http import HttpHook
 
@@ -82,6 +80,9 @@ def read_metadata_file(**kwargs):
     with open(md_fname, "r") as f:
         scanned_md = yaml.safe_load(f)
     return scanned_md
+
+def get_run_id(**kwargs):
+    return kwargs.get("run_id")
 
 
 with HMDAG(
@@ -331,11 +332,7 @@ with HMDAG(
         python_callable=pythonop_set_dataset_state,
         provide_context=True,
         trigger_rule="all_done",
-        op_kwargs={
-            "dataset_uuid_callable": _get_dataset_uuid,
-            "ds_state": "Error",
-            "reindex": False,
-        },
+        op_kwargs={"dataset_uuid_callable": _get_dataset_uuid, "ds_state": "Error", "reindex": False, "run_id": get_run_id},
     )
 
     (

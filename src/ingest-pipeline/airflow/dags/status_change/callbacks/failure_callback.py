@@ -38,7 +38,7 @@ class FailureCallback(AirflowCallback):
         )
 
     def get_extra_fields(self):
-        msg = f"Process failed in {self.called_from}."
+        msg = f"Internal error. Process failed in {self.called_from}."
         if self.dag_run:
             msg += f" DAG run: {self.dag_run.dag_id}."
         if self.task:
@@ -61,6 +61,8 @@ class FailureCallback(AirflowCallback):
             self.auth_tok,
             status="error",
             fields_to_overwrite=data,
+            dag=self.called_from,
+            run_id=self.dag_run,
         ).update()
 
     def __call__(self, context):

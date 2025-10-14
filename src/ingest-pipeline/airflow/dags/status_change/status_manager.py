@@ -15,6 +15,7 @@ from .status_utils import (
     ENTITY_STATUS_MAP,
     EntityUpdateException,
     Statuses,
+    get_run_id,
     get_submission_context,
     put_request_to_entity_api,
 )
@@ -32,6 +33,7 @@ class EntityUpdater:
         fields_to_append_to: Optional[dict] = None,
         delimiter: str = "|",
         reindex: bool = True,
+        run_id: Optional[str] = None,
     ):
         self.uuid = uuid
         self.token = token
@@ -39,9 +41,10 @@ class EntityUpdater:
         self.fields_to_overwrite = fields_to_overwrite if fields_to_overwrite else {}
         self.fields_to_append_to = fields_to_append_to if fields_to_append_to else {}
         self.delimiter = delimiter
+        self.reindex = reindex
+        self.run_id = get_run_id(run_id)
         self.entity_type = self.get_entity_type()
         self.fields_to_change = self.get_fields_to_change()
-        self.reindex = reindex
 
     @cached_property
     def entity_data(self):
@@ -152,10 +155,12 @@ class EntityUpdater:
         StatusChanger(
             self.uuid,
             self.token,
-            self.http_conn_id,
-            self.fields_to_overwrite,
-            self.fields_to_append_to,
-            self.delimiter,
+            http_conn_id=self.http_conn_id,
+            fields_to_overwrite=self.fields_to_overwrite,
+            fields_to_append_to=self.fields_to_append_to,
+            delimiter=self.delimiter,
+            reindex=self.reindex,
+            run_id=self.run_id,
             status=status,
         ).update()
 
@@ -197,15 +202,17 @@ Example usage with optional params:
             fields_to_overwrite={"test_field": "test"},  # optional
             fields_to_append_to={"ingest_task": "test"},  # optional
             delimiter=",",  # optional
+            reindex=True,  # optional
+            run_id="<airflow_run_id>",
             status=<Statuses.STATUS_ENUM>,  # or "<status>"
-            data_ingest_board_msg=<ErrorReport.counts>
+            message=<ErrorReport.counts>
         ).update()
 """
 
 
 class StatusChanger(EntityUpdater):
+    message_classes = [DataIngestBoardManager, SlackManager]
     same_status = False
-    message_classes = [SlackManager, DataIngestBoardManager]
 
     def __init__(
         self,
@@ -215,11 +222,12 @@ class StatusChanger(EntityUpdater):
         fields_to_overwrite: Optional[dict] = None,
         fields_to_append_to: Optional[dict] = None,
         delimiter: str = "|",
+        reindex: bool = True,
+        run_id: Optional[str] = None,
         # Additional field to support privileged field "status"
         status: Optional[Union[Statuses, str]] = None,
-        data_ingest_board_msg: Optional[str] = None,
-        reindex: bool = True,
-        **kwargs,  # Avoid blowing up if passed deprecated params
+        message=None,
+        **kwargs,
     ):
         del kwargs
         super().__init__(
@@ -230,9 +238,10 @@ class StatusChanger(EntityUpdater):
             fields_to_append_to,
             delimiter,
             reindex,
+            run_id,
         )
         self.status = self._validate_status(status)
-        self.data_ingest_board_msg = data_ingest_board_msg
+        self.message = message
 
     def update(self) -> None:
         """
@@ -265,7 +274,11 @@ class StatusChanger(EntityUpdater):
     def call_message_managers(self):
         for message_type in self.message_classes:
             message_manager = message_type(
-                self.status, self.uuid, self.token, msg=self.data_ingest_board_msg
+                self.status,
+                self.uuid,
+                self.token,
+                msg=self.message,
+                run_id=self.run_id,
             )
             if message_manager.is_valid_for_status:
                 try:
