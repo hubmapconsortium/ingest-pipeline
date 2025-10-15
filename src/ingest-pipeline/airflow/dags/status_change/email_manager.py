@@ -1,7 +1,7 @@
 import logging
-import smtplib
-from email.message import EmailMessage
 from typing import Optional
+
+from airflow.utils.email import send_email
 
 from .status_utils import (
     EntityUpdateException,
@@ -72,13 +72,7 @@ class EmailManager:
             )
 
     def send_email(self, subj: str, msg: str):
-        email = EmailMessage()
-        email.set_content(msg)
-        email["Subject"] = subj
-        email["To"] = ", ".join(self.main_recipients)
-        email["Cc"] = ", ".join(self.cc)
-        with smtplib.SMTP("localhost") as s:
-            s.send_message(email)
+        send_email(self.main_recipients, subj, msg, cc=self.cc)
 
     def generic_good_status_format(self) -> tuple[str, str]:
         subj = (
@@ -117,11 +111,11 @@ class EmailManager:
         return subj, msg
 
     def get_recipients(self):
-        self.main_recipients = self.int_recipients
-        self.cc = self.int_recipients
+        self.main_recipients = ", ".join(self.int_recipients)
+        self.cc = ", ".join(self.int_recipients)
         # TODO: turning off any ext emails for testing
         # if self.is_internal_error:
-        #     self.main_recipients = self.int_recipients
+        #     self.main_recipients = ", ".join(self.int_recipients)
         # else:
         #     self.main_recipients = self.primary_contact
-        #     self.cc = self.int_recipients
+        #     self.cc = ", ".join(self.int_recipients)
