@@ -36,8 +36,7 @@ class MetadataTSVMetadataFile(TSVMetadataFile):
                 directory_path=dirpath,
                 dataset_ignore_globs=ignore_globs,
                 upload_ignore_globs='*',
-                # offline=True,
-                add_notes=False
+                # offline_only=True,
             )
             if upload.get_errors():
                 # Scan reports an error result
