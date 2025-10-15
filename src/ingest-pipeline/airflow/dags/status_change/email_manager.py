@@ -41,7 +41,7 @@ class EmailManager:
         self.is_internal_error = is_internal_error(self.entity_data)
         self.entity_id = self.entity_data.get(f"{get_project().value[0]}_id")
         self.is_valid_for_status = bool(self.message_content)
-        self.primary_contact = [self.entity_data.get("created_by_user_email", "")]
+        self.primary_contact = self.entity_data.get("created_by_user_email", "")
 
     def update(self):
         if not self.message_content:
@@ -84,16 +84,17 @@ class EmailManager:
     def internal_error_format(self) -> tuple[str, str]:
         subj = f"Internal error for {self.entity_type} {self.entity_id}"
         msg = f"""
-        {self.project.value[1]} ID: {self.entity_id}
-        UUID: {self.uuid}
-        Entity type: {self.entity_type}
-        Status: {self.status}
-        Group: {self.entity_data.get('group_name')}
-        Primary contact: {" | ".join([f'{name}: {email}' for name, email in self.primary_contact])}
-        Ingest page: {get_entity_ingest_url(self.entity_data)}
-        Log file: {log_directory_path(self.run_id)}
-
-        Error: {self.entity_data.get('error_message')}
+        {self.project.value[1]} ID: {self.entity_id}<br>
+        UUID: {self.uuid}<br>
+        Entity type: {self.entity_type}<br>
+        Status: {self.status}<br>
+        Group: {self.entity_data.get('group_name')}<br>
+        Primary contact: {self.primary_contact}<br>
+        Ingest page: {get_entity_ingest_url(self.entity_data)}<br>
+        Log file: {log_directory_path(self.run_id)}<br>
+        </br>
+        Error:<br>
+            {self._parsed_error}
         """
         return subj, msg
 
@@ -101,12 +102,12 @@ class EmailManager:
         subj = f"{self.entity_type} {self.entity_id} is invalid"
         # TODO: ask about any instructions required here
         msg = f"""
-        {self.project.value[1]} ID: {self.entity_id}
-        Group: {self.entity_data.get('group_name')}
-        Ingest page: {get_entity_ingest_url(self.entity_data)}
-
-        {self.entity_type} is invalid:
-            {self.entity_data.get('error_message')}
+        {self.project.value[1]} ID: {self.entity_id}<br>
+        Group: {self.entity_data.get('group_name')}<br>
+        Ingest page: {get_entity_ingest_url(self.entity_data)}<br>
+        </br>
+        {self.entity_type} is invalid:<br>
+            {self._parsed_error}
         """
         return subj, msg
 
@@ -119,3 +120,8 @@ class EmailManager:
         # else:
         #     self.main_recipients = self.primary_contact
         #     self.cc = ", ".join(self.int_recipients)
+
+    def _parsed_error(self):
+        return "<br>".join(
+            [line for line in self.entity_data.get("error_message", []).split("; ")]
+        )
