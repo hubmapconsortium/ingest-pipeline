@@ -1,15 +1,23 @@
+import logging
+import smtplib
+from email.message import EmailMessage
+from typing import Optional
+
 from .status_utils import (
+    EntityUpdateException,
     Statuses,
     get_entity_ingest_url,
     get_project,
     get_submission_context,
     is_internal_error,
+    log_directory_path,
 )
 
 
 class EmailManager:
-    # TODO; name: email
-    int_recipients = {}
+    int_recipients = []  # TODO
+    main_recipients = ""
+    cc = ""
 
     def __init__(
         self,
@@ -31,28 +39,46 @@ class EmailManager:
         self.entity_type = self.entity_data.get("entity_type", "").title()
         self.project = get_project()
         self.is_internal_error = is_internal_error(self.entity_data)
-        # TODO
-        # self.is_valid_for_status = bool(self.get_message_content)
-        # Get hubmap_id or sennet_id
         self.entity_id = self.entity_data.get(f"{get_project().value[0]}_id")
+        self.is_valid_for_status = bool(self.message_content)
+        self.primary_contact = [self.entity_data.get("created_by_user_email", "")]
 
     def update(self):
-        self.send_email(*self.get_message_content)
+        if not self.message_content:
+            logging.error(
+                "Status is valid for EmailManager but no message content available. Exiting without sending."
+            )
+            return
+        self.get_recipients()
+        self.send_email(*self.message_content)
 
     @property
-    def get_message_content(self) -> tuple[str, str]:
+    def message_content(self) -> Optional[tuple[str, str]]:
         if self.is_internal_error:  # error, potentially invalid
             subj, msg = self.internal_error_format()
-        # TODO: do we want to email for all of these?
-        elif self.status in ["qa", "reorganized", "valid"]:
+        elif self.status in [
+            "qa",
+            "reorganized",
+            "valid",
+        ]:  # TODO: determine statuses requiring ext emails
             subj, msg = self.generic_good_status_format()
         else:  # actually invalid
             subj, msg = self.get_ext_invalid_format()
-        return subj, msg
+        if subj and msg:
+            return subj, msg
+        elif subj or msg:
+            raise EntityUpdateException(
+                f"Both subject and message content required. Received subject: {subj}, message: {msg}"
+            )
 
     def send_email(self, subj: str, msg: str):
-        # TODO
-        self.get_recipients()
+        email = EmailMessage()
+        email.set_content(msg)
+        email["Subject"] = subj
+        email["To"] = ", ".join(self.main_recipients)
+        email["Cc"] = ", ".join(self.cc)
+        with smtplib.SMTP("localhost") as s:
+            s.send_message(email)
 
     def generic_good_status_format(self) -> tuple[str, str]:
         subj = (
@@ -62,8 +88,6 @@ class EmailManager:
         return subj, msg
 
     def internal_error_format(self) -> tuple[str, str]:
-        from utils import get_tmp_dir_path
-
         subj = f"Internal error for {self.entity_type} {self.entity_id}"
         msg = f"""
         {self.project.value[1]} ID: {self.entity_id}
@@ -73,34 +97,31 @@ class EmailManager:
         Group: {self.entity_data.get('group_name')}
         Primary contact: {" | ".join([f'{name}: {email}' for name, email in self.primary_contact])}
         Ingest page: {get_entity_ingest_url(self.entity_data)}
-        Log file: {get_tmp_dir_path(self.run_id)}
+        Log file: {log_directory_path(self.run_id)}
 
         Error: {self.entity_data.get('error_message')}
         """
         return subj, msg
 
     def get_ext_invalid_format(self) -> tuple[str, str]:
-        subj = (
-            f"{self.entity_type} {self.entity_id} has successfully reached status {self.status}!"
-        )
+        subj = f"{self.entity_type} {self.entity_id} is invalid"
+        # TODO: ask about any instructions required here
         msg = f"""
         {self.project.value[1]} ID: {self.entity_id}
-        Status: {self.status}
         Group: {self.entity_data.get('group_name')}
-        Primary contact: {" | ".join([f'{name}: {email}' for name, email in self.primary_contact])}
         Ingest page: {get_entity_ingest_url(self.entity_data)}
 
-        {self.entity_type} is invalid: {self.entity_data.get('error_message')}
+        {self.entity_type} is invalid:
+            {self.entity_data.get('error_message')}
         """
         return subj, msg
 
     def get_recipients(self):
-        if self.is_internal_error:
-            self.main_recipients = self.int_recipients
-        else:
-            self.main_recipients = self.primary_contact
-            self.cc = self.int_recipients
-
-    @property
-    def primary_contact(self) -> list[str]:
-        return [self.entity_data.get("created_by_user_email", "")]
+        self.main_recipients = self.int_recipients
+        self.cc = self.int_recipients
+        # TODO: turning off any ext emails for testing
+        # if self.is_internal_error:
+        #     self.main_recipients = self.int_recipients
+        # else:
+        #     self.main_recipients = self.primary_contact
+        #     self.cc = self.int_recipients
