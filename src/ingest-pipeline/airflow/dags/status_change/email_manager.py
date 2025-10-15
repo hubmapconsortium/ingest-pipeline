@@ -1,5 +1,4 @@
 import logging
-from typing import Optional
 
 from airflow.utils.email import send_email
 
@@ -40,20 +39,19 @@ class EmailManager:
         self.project = get_project()
         self.is_internal_error = is_internal_error(self.entity_data)
         self.entity_id = self.entity_data.get(f"{get_project().value[0]}_id")
-        self.is_valid_for_status = bool(self.message_content)
+        self.is_valid_for_status = bool(self.get_message_content())
         self.primary_contact = self.entity_data.get("created_by_user_email", "")
 
     def update(self):
-        if not self.message_content:
+        if not (self.subj and self.msg):
             logging.error(
                 "Status is valid for EmailManager but no message content available. Exiting without sending."
             )
             return
         self.get_recipients()
-        self.send_email(*self.message_content)
+        self.send_email(self.subj, self.msg)
 
-    @property
-    def message_content(self) -> Optional[tuple[str, str]]:
+    def get_message_content(self):
         if self.is_internal_error:  # error, potentially invalid
             subj, msg = self.internal_error_format()
         elif self.status in [
@@ -62,10 +60,20 @@ class EmailManager:
             "valid",
         ]:  # TODO: determine statuses requiring ext emails
             subj, msg = self.generic_good_status_format()
-        else:  # actually invalid
+        elif self.status == "invalid":  # actually invalid
             subj, msg = self.get_ext_invalid_format()
+        else:
+            return
         if subj and msg:
-            return subj, msg
+            logging.info(
+                f"""
+            Sending email
+                Subject: {subj}
+                Message: {msg}
+            """
+            )
+            self.subj = subj
+            self.msg = msg
         elif subj or msg:
             raise EntityUpdateException(
                 f"Both subject and message content required. Received subject: {subj}, message: {msg}"
@@ -94,7 +102,7 @@ class EmailManager:
         Log file: {log_directory_path(self.run_id)}<br>
         </br>
         Error:<br>
-            {self._parsed_error}
+            {self._parsed_error()}
         """
         return subj, msg
 
@@ -107,7 +115,7 @@ class EmailManager:
         Ingest page: {get_entity_ingest_url(self.entity_data)}<br>
         </br>
         {self.entity_type} is invalid:<br>
-            {self._parsed_error}
+            {self._parsed_error()}
         """
         return subj, msg
 
@@ -122,6 +130,6 @@ class EmailManager:
         #     self.cc = ", ".join(self.int_recipients)
 
     def _parsed_error(self):
-        return "<br>".join(
-            [line for line in self.entity_data.get("error_message", []).split("; ")]
+        return "<br>     ".join(
+            [line for line in self.entity_data.get("error_message", "").split("; ")]
         )
