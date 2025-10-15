@@ -3,7 +3,6 @@ import logging
 from airflow.utils.email import send_email
 
 from .status_utils import (
-    EntityUpdateException,
     Statuses,
     get_entity_ingest_url,
     get_project,
@@ -17,6 +16,8 @@ class EmailManager:
     int_recipients = []  # TODO
     main_recipients = ""
     cc = ""
+    subj = ""
+    msg = ""
 
     def __init__(
         self,
@@ -39,17 +40,23 @@ class EmailManager:
         self.project = get_project()
         self.is_internal_error = is_internal_error(self.entity_data)
         self.entity_id = self.entity_data.get(f"{get_project().value[0]}_id")
-        self.is_valid_for_status = bool(self.get_message_content())
         self.primary_contact = self.entity_data.get("created_by_user_email", "")
+        self.get_message_content()
+        self.is_valid_for_status = bool(self.subj and self.msg)
 
     def update(self):
         if not (self.subj and self.msg):
             logging.error(
-                "Status is valid for EmailManager but no message content available. Exiting without sending."
+                f"""
+            Status is valid for EmailManager but missing full message content.
+            Subject: {self.subj}.
+            Message: {self.msg}
+            Exiting without sending.
+            """
             )
             return
         self.get_recipients()
-        self.send_email(self.subj, self.msg)
+        self.send_email()
 
     def get_message_content(self):
         if self.is_internal_error:  # error, potentially invalid
@@ -64,23 +71,19 @@ class EmailManager:
             subj, msg = self.get_ext_invalid_format()
         else:
             return
-        if subj and msg:
-            logging.info(
-                f"""
-            Sending email
-                Subject: {subj}
-                Message: {msg}
-            """
-            )
-            self.subj = subj
-            self.msg = msg
-        elif subj or msg:
-            raise EntityUpdateException(
-                f"Both subject and message content required. Received subject: {subj}, message: {msg}"
-            )
+        self.subj = subj
+        self.msg = msg
 
-    def send_email(self, subj: str, msg: str):
-        send_email(self.main_recipients, subj, msg, cc=self.cc)
+    def send_email(self):
+        assert self.subj and self.msg
+        logging.info(
+            f"""
+        Sending email
+            Subject: {self.subj}
+            Message: {self.msg}
+            """
+        )
+        send_email(self.main_recipients, self.subj, self.msg, cc=self.cc)
 
     def generic_good_status_format(self) -> tuple[str, str]:
         subj = (
