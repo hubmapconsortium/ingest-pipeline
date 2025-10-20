@@ -193,7 +193,8 @@ with HMDAG(
             "previous_version_uuid": kwargs.get("dag_run").conf.get("previous_version_uuid"),
             "metadata": kwargs.get("dag_run").conf.get("metadata"),
             "crypt_auth_tok": kwargs["dag_run"].conf.get("crypt_auth_tok"),
-            "workflows": kwargs["ti"].xcom_pull(task_ids="build_cwl_segmentation"),
+            "workflows": kwargs["ti"].xcom_pull(task_ids="build_cwl_segmentation",
+                                                key="cwl_workflows"),
         }
         print(f"Collection_type: {collection_type} with assay_type {assay_type} and payload: {payload}", )
         for next_dag in utils.downstream_workflow_iter(collection_type, assay_type):
