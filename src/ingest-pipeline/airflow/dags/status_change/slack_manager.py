@@ -1,5 +1,5 @@
 import logging
-from typing import Optional, Type
+from typing import Optional
 
 from .slack.base import SlackMessage
 from .slack.error import (  # SlackDatasetErrorDerived,; SlackDatasetErrorPrimary,
@@ -11,7 +11,11 @@ from .slack.invalid import (  # SlackDatasetInvalidDerived,
     SlackUploadInvalid,
 )
 from .slack.qa import SlackDatasetQA
-from .slack.reorganized import SlackUploadReorganized, SlackUploadReorganizedPriority
+from .slack.reorganized import (
+    SlackUploadReorganized,
+    SlackUploadReorganizedNoDatasets,
+    SlackUploadReorganizedPriority,
+)
 from .status_utils import (
     EntityUpdateException,
     Statuses,
@@ -32,9 +36,19 @@ class SlackManager:
         msg_and_channel_dict = SlackManager(Statuses.<status>, <uuid>, <token>).update()
     """
 
-    def __init__(self, status: Statuses, uuid: str, token: str, *args, **kwargs):
+    def __init__(
+        self,
+        status: Statuses,
+        uuid: str,
+        token: str,
+        msg: Optional[str] = None,
+        *args,
+        **kwargs,
+    ):
+        del args, kwargs
         self.uuid = uuid
         self.token = token
+        self.msg = msg
         self.message_class = self.get_message_class(status)
         if not self.message_class:
             logging.info(
@@ -73,7 +87,7 @@ class SlackManager:
         },
         Statuses.UPLOAD_REORGANIZED: {
             "main_class": SlackUploadReorganized,
-            "subclasses": [SlackUploadReorganizedPriority],
+            "subclasses": [SlackUploadReorganizedPriority, SlackUploadReorganizedNoDatasets],
         },
     }
 
@@ -81,17 +95,31 @@ class SlackManager:
         relevant_classes = self.status_to_class.get(msg_type)
         if not relevant_classes:
             return
+        # Re-request entity data as previous message managers may have altered it
         entity_data = get_submission_context(self.token, self.uuid)
         for subclass in relevant_classes.get("subclasses", []):
             if subclass.test(entity_data, self.token):
-                return subclass(self.uuid, self.token, entity_data)
+                return subclass(self.uuid, self.token)
         if main_class := relevant_classes["main_class"]:
-            return main_class(self.uuid, self.token, entity_data)
+            return main_class(self.uuid, self.token)
 
     def update(self):
         if not self.message_class:
             return
-        message = self.message_class.format()
+        try:
+            message = self.message_class.format()
+            if self.msg:
+                message = f"""
+                {message}
+
+                Message:
+                {self.msg}
+                """
+        except NotImplementedError:
+            logging.info(
+                f"Message class {self.message_class.name} does not implement a format method; not sending Slack message."
+            )
+            return
         try:
             env = get_env()
         except Exception as e:

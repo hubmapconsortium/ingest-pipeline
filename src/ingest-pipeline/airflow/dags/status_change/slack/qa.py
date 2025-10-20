@@ -7,7 +7,7 @@ class SlackDatasetQA(SlackMessage):
     def format(self):
         msg = f"""
         Dataset {self.uuid} has reached QA!
-        {self.entity_links}
+        {self.entity_links_str}
         """
         return msg
 
@@ -29,6 +29,6 @@ class SlackDatasetQA(SlackMessage):
 #         msg = f"""
 #         Derived dataset {self.uuid} has been created!
 #         Parent: {parent}
-#         {self.entity_links}
+#         {self.entity_links_str}
 #         """
 #         return msg

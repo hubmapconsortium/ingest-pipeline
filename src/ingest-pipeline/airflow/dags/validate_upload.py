@@ -196,7 +196,8 @@ with HMDAG(
             get_auth_tok(**kwargs),
             status=status,
             fields_to_overwrite=extra_fields,
-            data_ingest_board_msg=error_counts_msg,
+            run_id=kwargs.get("run_id"),
+            message=error_counts_msg,
         ).update()
 
     t_send_status = PythonOperator(
