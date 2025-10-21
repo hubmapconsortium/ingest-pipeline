@@ -694,7 +694,7 @@ class TestDataIngestBoardManager(MockParent):
         )
         assert dib.get_fields() == {
             "error_message": f"Invalid status from run test_run_id",
-            "assigned_to_group_name": "",
+            "assigned_to_group_name": "test group",
         }
 
     def test_valid_status_internal_error_strs(self):
@@ -775,7 +775,7 @@ class TestDataIngestBoardManager(MockParent):
     def test_get_msg_ext_error(self):
         msg = "Antibodies/Contributors Errors: 1"
         dib = DataIngestBoardManager(Statuses.UPLOAD_INVALID, "test_uuid", "test_token", msg=msg)
-        assert dib.get_fields() == {"error_message": msg, "assigned_to_group_name": ""}
+        assert dib.get_fields() == {"error_message": msg, "assigned_to_group_name": "test group"}
 
 
 class TestStatusUtils(unittest.TestCase):
