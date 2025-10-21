@@ -132,6 +132,8 @@ class SlackManager:
             logging.info(
                 f"Non-prod environment, switching channel from {self.message_class.channel} to {channel}."
             )
+            if not channel:
+                channel = slack_channels_testing.get("base", "")
         if not channel:
             channel = SlackMessage.get_channel()
             logging.info(

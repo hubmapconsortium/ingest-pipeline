@@ -14,11 +14,16 @@ from .status_utils import (
 
 
 class EmailManager:
-    int_recipients = []  # TODO: spec
+    int_recipients = ["bhonick@psc.edu"]
     main_recipients = ""
     cc = ""
     subj = ""
     msg = ""
+    good_statuses = [
+        "qa",
+        "reorganized",
+        "valid",
+    ]
 
     def __init__(
         self,
@@ -34,7 +39,7 @@ class EmailManager:
         self.uuid = uuid
         self.token = token
         self.status = Statuses.valid_str(status)
-        self.msg = str(msg) if msg else None
+        self.addtl_msg = str(msg) if msg else None
         self.run_id = run_id
         self.entity_data = get_submission_context(self.token, self.uuid)
         self.entity_type = self.entity_data.get("entity_type", "").title()
@@ -62,11 +67,7 @@ class EmailManager:
     def get_message_content(self):
         if self.is_internal_error:  # error, potentially invalid
             subj, msg = self.internal_error_format()
-        elif self.status in [
-            "qa",
-            "reorganized",
-            "valid",
-        ]:  # TODO: spec (determine statuses requiring ext emails)
+        elif self.status in self.good_statuses:
             subj, msg = self.generic_good_status_format()
         elif self.status == "invalid":  # actually invalid
             subj, msg = self.get_ext_invalid_format()
@@ -74,6 +75,8 @@ class EmailManager:
             return
         self.subj = subj
         self.msg = msg
+        if self.addtl_msg:
+            self.msg += f"<br></br>{self.addtl_msg}"
 
     def send_email(self):
         assert self.subj and self.msg
@@ -112,7 +115,6 @@ class EmailManager:
 
     def get_ext_invalid_format(self) -> tuple[str, str]:
         subj = f"{self.entity_type} {self.entity_id} is invalid"
-        # TODO: spec (ask about any instructions required here)
         msg = f"""
         {self.project.value[1]} ID: {self.entity_id}<br>
         Group: {self.entity_data.get('group_name')}<br>

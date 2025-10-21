@@ -37,7 +37,6 @@ from tests.fixtures import (
     good_upload_context,
     slack_upload_reorg_priority_str,
     slack_upload_reorg_str,
-    upload_context_mock_value,
 )
 from utils import pythonop_set_dataset_state
 
@@ -55,14 +54,114 @@ def get_mock_response(good: bool, response_data: bytes) -> requests.Response:
     return mock_resp
 
 
-class TestEntityUpdater(unittest.TestCase):
+class MockParent(unittest.TestCase):
+    """
+    The status change functionality is incredibly dependent on
+    other APIs (GET/PUT to entity-api, POST to Slack notifier, email)
+    and configs (airflow_conf). This parent class does its best to
+    turn off all outside calls by default.
+
+    It contains patches at various levels. e.g. HttpHook represents an
+    actual API call but can use different HTTP methods, whereas
+    set_entity_api_data is the method where HttpHook is called to
+    specifically make a PUT request.
+
+    Test classes are subclasses of MockParent. They can override as
+    necessary in a setUp method and/or in individual test methods,
+    e.g. to provide a specific return_value.
+
+    Patches may also need to be turned off as some are nested, and
+    it may be desirable to test functionality inside of a patched method.
+    E.g. a test that asserts self.mock_httphook.assert_called_once()
+    will fail unless the patch affecting the method where it is called
+    is turned off (e.g. self.entity_update.stop() - note that this references
+    the *patch* attribute rather than the mock).
+
+    Other patches may be necessary at the subclass or test level.
+    """
+
+    def setUp(self):
+
+        # Patch objects
+        self.token = patch("utils.get_auth_tok", return_value="test_token")
+        self.conn = patch(
+            "status_change.status_utils.HttpHook.get_connection",
+            return_value=Connection(host=f"https://ingest.api.hubmapconsortium.org"),
+        )
+        self.env = patch("status_change.slack_manager.get_env", side_effect=["prod", "dev"])
+        self.conf = patch(
+            "utils.airflow_conf.as_dict",
+            return_value={"connections": {"WORKFLOW_SCRATCH": "test_path"}},
+        )
+        self.httphook = patch("status_change.status_utils.HttpHook.run")
+        self.entity_update = patch("status_change.status_manager.put_request_to_entity_api")
+        self.status_context = patch(
+            "status_change.status_manager.get_submission_context", return_value=good_upload_context
+        )
+        self.slack_context = patch(
+            "status_change.slack_manager.get_submission_context", return_value=good_upload_context
+        )
+        self.slack_msg_context = patch(
+            "status_change.slack.base.get_submission_context", return_value=good_upload_context
+        )
+        self.slack_update = patch("status_change.slack_manager.SlackManager.update")
+        self.slack_post = patch("status_change.slack_manager.post_to_slack_notify")
+        self.dib_context = patch(
+            "status_change.data_ingest_board_manager.get_submission_context",
+            return_value=good_upload_context,
+        )
+        self.dib_update = patch(
+            "status_change.data_ingest_board_manager.DataIngestBoardManager.update"
+        )
+        self.email_send = patch("status_change.email_manager.EmailManager.send_email")
+        self.email_context = patch(
+            "status_change.email_manager.get_submission_context", return_value=good_upload_context
+        )
+
+        # Mock objects
+        self.mock_token = self.token.start()
+        self.mock_conn = self.conn.start()
+        self.mock_env = self.env.start()
+        self.mock_conf = self.conf.start()
+        self.mock_httphook = self.httphook.start()
+        self.mock_httphook.return_value.json.return_value = good_upload_context  # GET request mock
+        self.mock_entity_update = self.entity_update.start()
+        self.mock_status_context = self.status_context.start()
+        self.mock_slack_context = self.slack_context.start()
+        self.mock_slack_msg_context = self.slack_msg_context.start()
+        self.mock_slack_update = self.slack_update.start()
+        self.mock_slack_post = self.slack_post.start()
+        self.mock_dib_context = self.dib_context.start()
+        self.mock_dib_update = self.dib_update.start()
+        self.mock_email_send = self.email_send.start()
+        self.mock_email_context = self.email_context.start()
+
+        # Stop/clean up patches after test
+        self.addCleanup(self.token.stop)
+        self.addCleanup(self.conn.stop)
+        self.addCleanup(self.env.stop)
+        self.addCleanup(self.conf.stop)
+        self.addCleanup(self.httphook.stop)
+        self.addCleanup(self.entity_update.stop)
+        self.addCleanup(self.status_context.stop)
+        self.addCleanup(self.slack_context.stop)
+        self.addCleanup(self.slack_msg_context.stop)
+        self.addCleanup(self.slack_update.stop)
+        self.addCleanup(self.slack_post.stop)
+        self.addCleanup(self.dib_context.stop)
+        self.addCleanup(self.dib_update.stop)
+        self.addCleanup(self.email_send.stop)
+        self.addCleanup(self.email_context.stop)
+
+        super().setUp()
+
+
+class TestEntityUpdater(MockParent):
     validation_msg = "Test validation message"
     ingest_task = "Plugins passed: test_1, test_2"
 
     @cached_property
-    @patch("status_change.status_manager.get_submission_context")
-    def upload_entity_valid(self, context_mock):
-        context_mock.return_value = good_upload_context
+    def upload_entity_valid(self):
         return EntityUpdater(
             "upload_valid_uuid",
             "upload_valid_token",
@@ -80,64 +179,32 @@ class TestEntityUpdater(unittest.TestCase):
         }
 
     @patch("status_change.status_manager.EntityUpdater.validate_fields_to_change")
-    @patch("status_change.status_utils.HttpHook.run")
-    @patch("status_change.status_utils.HttpHook.get_connection")
-    def test_update(self, conn_mock, hhr_mock, validate_mock):
-        conn_mock.return_value = conn_mock_hm
-        hhr_mock.assert_not_called()
+    def test_update(self, validate_mock):
+        self.entity_update.stop()
         validate_mock.assert_not_called()
         self.upload_entity_valid.update()
         validate_mock.assert_called_once()
-        hhr_mock.assert_called_once()
+        self.mock_httphook.assert_called_once()
 
-    @patch("status_change.status_manager.EntityUpdater.set_entity_api_data")
-    @patch("status_change.status_utils.HttpHook.run")
-    @patch("status_change.status_manager.StatusChanger.update")
-    @patch("status_change.status_manager.get_submission_context")
-    def test_should_be_statuschanger(self, context_mock, sc_mock, hhr_mock, eu_mock):
-        context_mock.return_value = good_upload_context
-        hhr_mock.return_value.json.return_value = good_upload_context
+    @patch("status_change.status_manager.StatusChanger.set_entity_api_data")
+    def test_should_be_statuschanger(self, status_update_mock):
         with_status = EntityUpdater(
             "upload_valid_uuid",
             "upload_valid_token",
             fields_to_overwrite={"status": "valid", "validation_message": self.validation_msg},
             fields_to_append_to={"ingest_task": self.ingest_task},
         )
-        sc_mock.assert_not_called()
+        status_update_mock.assert_not_called()
         with_status.update()
-        sc_mock.assert_called_once()
-        eu_mock.assert_not_called()
+        status_update_mock.assert_called_once()
+        self.mock_entity_update.assert_not_called()
 
 
-class TestStatusChanger(unittest.TestCase):
-    # TODO: setUp
+class TestStatusChanger(MockParent):
     validation_msg = "Test validation message"
 
-    def setUp(self):
-        email_update = patch("status_change.email_manager.EmailManager.update")
-        email_context = patch(
-            "status_change.email_manager.get_submission_context",
-            return_value={"entity_type": "Upload"},
-        )
-        conn = patch(
-            "status_change.status_utils.HttpHook.get_connection",
-            return_value=Connection(host=f"https://ingest.api.hubmapconsortium.org"),
-        )
-        self.mock_email_update = email_update.start()
-        self.mock_email_context = email_context.start()
-        self.mock_conn = conn.start()
-        self.addCleanup(email_update.stop)
-        self.addCleanup(email_context.stop)
-        self.addCleanup(conn.stop)
-        super().setUp()
-
-    @patch("status_change.status_manager.EntityUpdater.set_entity_api_data")
-    @patch("status_change.status_utils.HttpHook.run")
     @patch("status_change.status_manager.StatusChanger.set_entity_api_data")
-    @patch("status_change.status_manager.get_submission_context")
-    def test_should_be_entityupdater(self, context_mock, sc_mock, hhr_mock, eu_mock):
-        context_mock.return_value = good_upload_context
-        hhr_mock.return_value.json.return_value = good_upload_context
+    def test_should_be_entityupdater(self, status_update_mock):
         without_status = StatusChanger(
             "upload_valid_uuid",
             "upload_valid_token",
@@ -145,19 +212,14 @@ class TestStatusChanger(unittest.TestCase):
         )
         assert without_status.status == None
         assert without_status.fields_to_change
-        eu_mock.assert_not_called()
+        self.mock_entity_update.assert_not_called()
         without_status.update()
-        eu_mock.assert_called_once()
-        sc_mock.assert_not_called()
+        self.mock_entity_update.assert_called_once()
+        status_update_mock.assert_not_called()
 
-    @patch("status_change.status_manager.StatusChanger.call_message_managers")
-    @patch("status_change.status_manager.EntityUpdater.set_entity_api_data")
-    @patch("status_change.status_utils.HttpHook.run")
     @patch("status_change.status_manager.StatusChanger.set_entity_api_data")
-    @patch("status_change.status_manager.get_submission_context")
-    def test_same_status(self, context_mock, sc_mock, hhr_mock, eu_mock, mm_mock):
-        context_mock.return_value = good_upload_context
-        hhr_mock.return_value.json.return_value = good_upload_context
+    @patch("status_change.status_manager.StatusChanger.call_message_managers")
+    def test_same_status(self, mm_mock, status_update_mock):
         same_status = StatusChanger(
             "upload_valid_uuid",
             "upload_valid_token",
@@ -166,75 +228,67 @@ class TestStatusChanger(unittest.TestCase):
         )
         assert same_status.same_status == True
         assert same_status.status == Statuses.UPLOAD_NEW
-        eu_mock.assert_not_called()
+        self.mock_entity_update.assert_not_called()
         same_status.update()
-        eu_mock.assert_called_once()
-        sc_mock.assert_not_called()
+        self.mock_entity_update.assert_called_once()
+        status_update_mock.assert_not_called()
         mm_mock.assert_called_once()
 
     @cached_property  # could use lru_cache with project arg to make hubmap/sennet aware
     def upload_valid(self):
-        with patch("status_change.status_manager.get_submission_context") as mock_mthd:
-            mock_mthd.return_value = good_upload_context
-            return StatusChanger(
-                "upload_valid_uuid",
-                "upload_valid_token",
-                status="Valid",
-                extra_options={},
-            )
+        return StatusChanger(
+            "upload_valid_uuid",
+            "upload_valid_token",
+            status="Valid",
+            extra_options={},
+        )
 
     @cached_property
     def upload_invalid(self):
-        with patch("status_change.status_manager.get_submission_context") as mock_mthd:
-            mock_mthd.return_value = good_upload_context
-            return StatusChanger(
-                "upload_valid_uuid",
-                "upload_valid_token",
-                status="Invalid",
-                extra_options={},
-            )
+        return StatusChanger(
+            "upload_valid_uuid",
+            "upload_valid_token",
+            status="Invalid",
+            extra_options={},
+        )
 
     def test_unrecognized_status(self):
-        with patch("status_change.status_manager.get_submission_context") as gsc_mock:
-            gsc_mock.return_value = good_upload_context
-            with self.assertRaises(EntityUpdateException):
-                # No "Published" status for uploads
-                StatusChanger(
-                    "invalid_status_uuid",
-                    "invalid_status_token",
-                    status="Published",
-                    extra_options={},
-                )
+        with self.assertRaises(EntityUpdateException):
+            # No "Published" status for uploads
+            StatusChanger(
+                "invalid_status_uuid",
+                "invalid_status_token",
+                status="Published",
+                extra_options={},
+            )
 
     def test_recognized_status(self):
         self.upload_valid.validate_fields_to_change()
         self.assertEqual(
             self.upload_valid.fields_to_change["status"],
-            Statuses.get_status_str(self.upload_valid.status),
+            Statuses.valid_str(self.upload_valid.status),
         )
 
     def test_extra_fields(self):
-        with patch("status_change.status_manager.get_submission_context") as gsc_mock:
-            gsc_mock.return_value = good_upload_context
-            with_extra_field = StatusChanger(
-                "extra_field_uuid",
-                "extra_field_token",
-                status=Statuses.UPLOAD_PROCESSING,
-                fields_to_overwrite={"test_extra_field": True},
-            )
-            data = with_extra_field.fields_to_change
-            self.assertIn("test_extra_field", data)
-            self.assertEqual(data["test_extra_field"], True)
+        with_extra_field = StatusChanger(
+            "extra_field_uuid",
+            "extra_field_token",
+            status=Statuses.UPLOAD_PROCESSING,
+            fields_to_overwrite={"test_extra_field": True},
+        )
+        data = with_extra_field.fields_to_change
+        self.assertIn("test_extra_field", data)
+        self.assertEqual(data["test_extra_field"], True)
 
-    @patch("status_change.status_manager.get_submission_context")
-    @patch("status_change.status_manager.put_request_to_entity_api")
-    def test_extra_field_good(self, entity_api_mock, context_mock):
-        with patch("status_change.status_utils.HttpHook.run"):
-            context_mock.return_value = {
+    def test_extra_field_good(self):
+        with patch(
+            "status_change.status_manager.get_submission_context",
+            return_value={
                 "status": "processing",
                 "test_extra_field": False,
                 "entity_type": "Upload",
-            }
+            },
+        ):
             with_extra_field = StatusChanger(
                 "extra_options_uuid",
                 "extra_options_token",
@@ -244,23 +298,25 @@ class TestStatusChanger(unittest.TestCase):
             )
             with_extra_field.update()
             self.assertIn(
-                {"test_extra_field": True, "status": "valid"}, entity_api_mock.call_args.args
+                {"test_extra_field": True, "status": "valid"},
+                self.mock_entity_update.call_args.args,
             )
 
-    @patch("status_change.status_utils.HttpHook.run")
-    def test_valid_status_in_request(self, hhr_mock):
+    def test_valid_status_in_request(self):
+        self.entity_update.stop()
         self.upload_valid.validate_fields_to_change()
         self.upload_valid.set_entity_api_data()
-        self.assertIn('{"status": "valid"}', hhr_mock.call_args.args)
+        self.assertIn('{"status": "valid"}', self.mock_httphook.call_args.args)
 
-    @patch("status_change.status_manager.get_submission_context")
-    def test_invalid_status_in_request(self, ctx_mock):
-        ctx_mock.return_value = {
-            "status": "processing",
-            "test_extra_field": True,
-            "entity_type": "Upload",
-        }
-        with patch("status_change.status_utils.HttpHook.run"):
+    def test_invalid_status_in_request(self):
+        with patch(
+            "status_change.status_manager.get_submission_context",
+            return_value={
+                "status": "processing",
+                "test_extra_field": True,
+                "entity_type": "Upload",
+            },
+        ):
             sc = StatusChanger(
                 "my_test_uuid",
                 "my_test_token",
@@ -277,35 +333,28 @@ class TestStatusChanger(unittest.TestCase):
                 sc.update()
 
     def test_http_conn_id(self):
-        with patch("status_change.status_utils.HttpHook.run") as httpr_mock:
-            httpr_mock.return_value.json.return_value = good_upload_context
-            with_http_conn_id = StatusChanger(
-                "http_conn_uuid",
-                "http_conn_token",
-                status=Statuses.DATASET_NEW,
-                http_conn_id="test_conn_id",
-            )
-            assert with_http_conn_id.http_conn_id == "test_conn_id"
+        with_http_conn_id = StatusChanger(
+            "http_conn_uuid",
+            "http_conn_token",
+            status=Statuses.DATASET_NEW,
+            http_conn_id="test_conn_id",
+        )
+        assert with_http_conn_id.http_conn_id == "test_conn_id"
 
-    @patch("status_change.slack_manager.SlackManager.update")
-    def test_call_message_managers_valid_status(self, slack_mock):
-        self.assertFalse(slack_mock.called)
+    def test_call_message_managers_valid_status(self):
+        self.assertFalse(self.mock_slack_context.called)
         self.assertEqual(self.upload_invalid.status, Statuses.UPLOAD_INVALID)
-        with patch("status_change.slack_manager.post_to_slack_notify"):
-            with patch("status_change.status_utils.HttpHook.run"):
-                self.upload_invalid.update()
-        self.assertTrue(slack_mock.called)
+        self.upload_invalid.update()
+        self.assertTrue(self.mock_slack_context.called)
 
     @staticmethod
     def my_callable(**kwargs):
         return kwargs["uuid"]
 
     @patch("utils.StatusChanger")
-    @patch("utils.get_auth_tok")
-    def test_pythonop_set_dataset_state_valid(self, gat_mock, sc_mock):
+    def test_pythonop_set_dataset_state_valid(self, sc_mock):
         uuid = "test_uuid"
         token = "test_token"
-        gat_mock.return_value = token
         message = "Test message"
         # Not passing a ds_state kwarg sets status to Processing
         dag_run_mock = MagicMock(conf={"dryrun": False})
@@ -344,98 +393,73 @@ class TestStatusChanger(unittest.TestCase):
             run_id=None,
         )
 
-    @patch("utils.get_auth_tok")
-    def test_pythonop_set_dataset_state_invalid(self, gat_mock):
-        with patch("status_change.status_utils.HttpHook.run"):
-            uuid = "test_uuid"
-            token = "test_token"
-            gat_mock.return_value = token
-            message = "Test message"
-            # Pass an invalid ds_state
-            with self.assertRaises(Exception):
-                pythonop_set_dataset_state(
-                    crypt_auth_tok=token,
-                    dataset_uuid_callable=self.my_callable,
-                    uuid=uuid,
-                    message=message,
-                    ds_state="Unknown",
-                )
+    def test_pythonop_set_dataset_state_invalid(self):
+        uuid = "test_uuid"
+        message = "Test message"
+        # Pass an invalid ds_state
+        with self.assertRaises(Exception):
+            pythonop_set_dataset_state(
+                crypt_auth_tok="test_token",
+                dataset_uuid_callable=self.my_callable,
+                uuid=uuid,
+                message=message,
+                ds_state="Unknown",
+            )
 
-    @patch("status_change.slack_manager.get_submission_context")
-    @patch("status_change.slack.base.get_submission_context")
-    @patch("status_change.status_manager.get_submission_context")
-    @patch("status_change.status_manager.put_request_to_entity_api")
     def test_slack_triggered(
         self,
-        entity_api_mock,
-        sc_context_mock,
-        slack_context_mock,
-        slack_base_context_mock,
     ):
-        with patch("status_change.status_utils.HttpHook.run"):
-            new_context = upload_context_mock_value
-            sc_context_mock.return_value = new_context
-            slack_context_mock.return_value = new_context
-            slack_base_context_mock.return_value = new_context
-            with patch("status_change.status_manager.StatusChanger.set_entity_api_data"):
-                with patch("status_change.slack_manager.SlackManager.update") as update_mock:
-                    StatusChanger(
-                        "upload_valid_uuid",
-                        "upload_valid_token",
-                        status="Reorganized",
-                        extra_options={},
-                    ).update()
-                    update_mock.assert_called_once()
-                    entity_api_mock.assert_not_called()
+        StatusChanger(
+            "upload_valid_uuid",
+            "upload_valid_token",
+            status="Reorganized",
+            extra_options={},
+        ).update()
+        self.mock_slack_update.assert_called_once()
 
-    @patch("status_change.data_ingest_board_manager.get_submission_context")
-    @patch("status_change.slack_manager.SlackManager.update")
-    @patch("status_change.status_manager.get_submission_context")
-    def test_slack_not_triggered(self, context_mock, slack_mock, ingest_board_mock):
-        with patch("status_change.status_manager.StatusChanger.set_entity_api_data"):
-            context_mock.return_value = dataset_context_mock_value
-            ingest_board_mock.return_value = {"entity_type": "dataset"}
-            StatusChanger(
-                "dataset_valid_uuid",
-                "dataset_valid_token",
-                status="Hold",
-                extra_options={},
-            ).update()
-            slack_mock.assert_not_called()
+    def test_slack_not_triggered(self):
+        with patch(
+            "status_change.status_manager.get_submission_context",
+            return_value=dataset_context_mock_value,
+        ):
+            with patch(
+                "status_change.data_ingest_board_manager.get_submission_context",
+                return_value={"entity_type": "dataset"},
+            ):
+                StatusChanger(
+                    "dataset_valid_uuid",
+                    "dataset_valid_token",
+                    status="Hold",
+                    extra_options={},
+                ).update()
+                self.mock_slack_update.assert_not_called()
 
-    @patch("status_change.data_ingest_board_manager.DataIngestBoardManager.update")
-    @patch("status_change.data_ingest_board_manager.get_submission_context")
-    @patch("status_change.status_manager.get_submission_context")
-    def test_data_ingest_board_triggered(self, sc_context_mock, dib_context_mock, dib_update_mock):
-        with patch("status_change.status_utils.HttpHook.run"):
-            sc_context_mock.return_value = upload_context_mock_value
-            dib_context_mock.return_value = upload_context_mock_value
-            with patch("status_change.status_manager.StatusChanger.set_entity_api_data"):
-                with patch("status_change.slack_manager.get_submission_context"):
-                    with patch("status_change.slack_manager.SlackManager.update"):
-                        sc = StatusChanger(
-                            "upload_valid_uuid",
-                            "upload_valid_token",
-                            status="Reorganized",
-                            extra_options={},
-                        )
-                        sc.update()
-                        dib_update_mock.assert_called_once()
+    def test_data_ingest_board_triggered(self):
+        sc = StatusChanger(
+            "upload_valid_uuid",
+            "upload_valid_token",
+            status="Reorganized",
+            extra_options={},
+        )
+        sc.update()
+        self.mock_dib_update.assert_called_once()
 
-    @patch("status_change.data_ingest_board_manager.get_submission_context")
-    @patch("status_change.data_ingest_board_manager.DataIngestBoardManager.update")
-    @patch("status_change.status_manager.get_submission_context")
-    def test_data_ingest_board_not_triggered(self, context_mock, dib_mock, ingest_board_mock):
-        with patch("status_change.status_manager.StatusChanger.set_entity_api_data"):
-            context_mock.return_value = dataset_context_mock_value
-            ingest_board_mock.return_value = {"entity_type": "dataset"}
-            StatusChanger(
-                "dataset_valid_uuid",
-                "dataset_valid_token",
-                status="Hold",
-                extra_options={},
-            ).update()
-            dib_mock.assert_not_called()
+    def test_data_ingest_board_not_triggered(self):
+        with patch(
+            "status_change.status_manager.get_submission_context",
+            return_value=dataset_context_mock_value,
+        ):
+            with patch(
+                "status_change.data_ingest_board_manager.get_submission_context",
+                return_value={"entity_type": "dataset"},
+            ):
+                StatusChanger(
+                    "dataset_valid_uuid",
+                    "dataset_valid_token",
+                    status="Hold",
+                    extra_options={},
+                ).update()
+                self.mock_dib_update.assert_not_called()
 
 
 class SlackTest(SlackMessage):
@@ -445,206 +469,156 @@ class SlackTest(SlackMessage):
         return "I am formatted"
 
 
-class TestSlack(unittest.TestCase):
-    # TODO: setUp
+class SlackTestHold(SlackMessage):
+    name = "dataset_hold"
 
-    @patch("status_change.status_utils.HttpHook.get_connection")
-    def test_slack_message_formatting(self, conn_mock):
-        conn_mock.return_value = conn_mock_hm
+    @classmethod
+    def test(cls, entity_data, token):
+        if entity_data.get("status").lower() == "hold":
+            return True
+        return False
+
+    def format(self):
+        return "HOLD"
+
+
+@patch.dict(
+    "status_change.status_utils.slack_channels",
+    {"base": "base_channel", "test_class": "test_class_channel"},
+)
+@patch.dict(
+    "status_change.status_utils.slack_channels_testing",
+    {"base": "base_channel_testing", "test_class": "test_class_channel_testing"},
+)
+class TestSlack(MockParent):
+    mock_slack_channels = {"main_class": SlackTest, "subclasses": [SlackTestHold]}
+
+    def test_slack_message_formatting(self):
         status = Statuses.DATASET_DEPRECATED
-        with patch.object(
-            SlackManager,
-            "status_to_class",
-            {status: {"main_class": SlackTest, "subclasses": []}},
-        ):
-            mgr = self.slack_manager(status, {})
-        assert mgr.message_class.format() == "I am formatted"
-
-    @patch("status_change.status_utils.get_env")
-    @patch("status_change.status_utils.HttpHook.get_connection")
-    def test_get_slack_channel(self, conn_mock, env_mock):
-        conn_mock.return_value = conn_mock_hm
-        env_mock.return_value = "prod"
         with patch.dict(
             "status_change.slack_manager.SlackManager.status_to_class",
-            {"test_status": {"main_class": SlackTest, "subclasses": []}},
+            {status: self.mock_slack_channels},
         ):
-            with patch.dict(
-                "status_change.status_utils.slack_channels", {"test_class": "test_channel"}
-            ):
-                mgr = self.slack_manager("test_status", {})
-        assert mgr.message_class.channel == "test_channel"
+            mgr = self.slack_manager(status)
+        assert mgr.message_class.format() == "I am formatted"
 
-    @patch("status_change.slack_manager.get_env")
-    @patch("status_change.status_utils.HttpHook.get_connection")
-    def test_update_with_slack_channel(self, conn_mock, env_mock):
+    def test_get_slack_channel(self):
+        with patch.dict(
+            "status_change.slack_manager.SlackManager.status_to_class",
+            {"test_status": self.mock_slack_channels},
+        ):
+            mgr = self.slack_manager("test_status")
+        assert mgr.message_class.channel == "test_class_channel"
+
+    def test_update_with_slack_channel(self):
         """
         We expect to see prod environment use value in `slack_channels`,
         and non-prod envs to replace channel value with the
         value from `slack_channels_testing`.
         """
-        conn_mock.return_value = conn_mock_hm
+        self.slack_update.stop()
         with patch.dict(
-            "status_change.status_utils.slack_channels",
-            {"base": "base_channel", "test_class": "test_channel"},
+            "status_change.slack_manager.SlackManager.status_to_class",
+            {Statuses.UPLOAD_INVALID: self.mock_slack_channels},
         ):
-            with patch.dict(
-                "status_change.status_utils.slack_channels_testing",
-                {"test_class": "base_channel"},
-            ):
-                with patch.dict(
-                    "status_change.slack_manager.SlackManager.status_to_class",
-                    {Statuses.UPLOAD_INVALID: {"main_class": SlackTest, "subclasses": []}},
-                ):
-                    for env_val, channel in {
-                        "prod": "test_channel",
-                        "dev": "base_channel",
-                    }.items():
-                        env_mock.return_value = env_val
-                        mgr = self.slack_manager(Statuses.UPLOAD_INVALID, good_upload_context)
-                        with patch(
-                            "status_change.slack_manager.post_to_slack_notify"
-                        ) as slack_mock:
-                            mgr.update()
-                            slack_mock.assert_called_once_with(
-                                "test_token", "I am formatted", channel
-                            )
+            for channel in [
+                "test_class_channel",  # prod
+                "test_class_channel_testing",  # dev
+            ]:
+                mgr = self.slack_manager(Statuses.UPLOAD_INVALID)
+                mgr.update()
+                self.mock_slack_post.assert_called_once_with(
+                    "test_token", "I am formatted", channel
+                )
+                self.mock_slack_post.reset_mock()
 
-    @patch("status_change.slack_manager.get_env")
-    @patch("status_change.status_utils.HttpHook.get_connection")
-    def test_update_with_slack_channel_not_found(self, conn_mock, env_mock):
+    def test_update_with_slack_channel_not_found(self):
         """
         We expect to see "base" channel if channel not found for status
         in all environments.
         """
-        conn_mock.return_value = conn_mock_hm
-        with patch.dict(
-            "status_change.status_utils.slack_channels",
-            {"base": "base_channel"},
-        ):
+        self.slack_update.stop()
+        original_ret_val = self.mock_slack_context.return_value.copy()
+        new_ret_val = original_ret_val | {"status": "hold"}
+
+        with patch("status_change.slack_manager.get_submission_context", return_value=new_ret_val):
             with patch.dict(
-                "status_change.status_utils.slack_channels_testing",
-                {"base": "base_channel"},
+                "status_change.slack_manager.SlackManager.status_to_class",
+                {Statuses.DATASET_HOLD: self.mock_slack_channels},
             ):
-                with patch.dict(
-                    "status_change.slack_manager.SlackManager.status_to_class",
-                    {Statuses.DATASET_HOLD: {"main_class": SlackTest, "subclasses": []}},
-                ):
-                    for env_val, channel in {
-                        "prod": "base_channel",
-                        "dev": "base_channel",
-                    }.items():
-                        env_mock.return_value = env_val
-                        mgr = self.slack_manager(Statuses.DATASET_HOLD, good_upload_context)
-                        with patch(
-                            "status_change.slack_manager.post_to_slack_notify"
-                        ) as slack_mock:
-                            mgr.update()
-                            slack_mock.assert_called_once_with(
-                                "test_token", "I am formatted", channel
-                            )
+                for channel in [
+                    "base_channel",  # prod
+                    "base_channel_testing",  # dev
+                ]:
+                    mgr = self.slack_manager(Statuses.DATASET_HOLD)
+                    mgr.update()
+                    self.mock_slack_post.assert_called_once_with("test_token", "HOLD", channel)
+                    self.mock_slack_post.reset_mock()
 
-    @patch("status_change.slack.base.get_submission_context")
-    @patch("status_change.slack_manager.get_submission_context")
-    def slack_manager(self, status, context, context_mock, slack_mock):
-        context_mock.return_value = context
-        slack_mock.return_value = context
-        with patch("status_change.slack_manager.SlackManager.update"):
-            return SlackManager(status, "test_uuid", "test_token")
+    def slack_manager(self, status):
+        return SlackManager(status, "test_uuid", "test_token")
 
-    @patch("status_change.status_utils.HttpHook.get_connection")
-    def test_slack_manager_main_class(self, conn_mock):
-        conn_mock.return_value = conn_mock_hm
-        mgr = self.slack_manager(
-            Statuses.UPLOAD_REORGANIZED, good_upload_context | {"datasets": "present"}
-        )
+    def test_slack_manager_main_class(self):
+        self.mock_slack_context.return_value.pop("priority_project_list", None)
+        self.mock_slack_msg_context.return_value.pop("priority_project_list", None)
+        mgr = self.slack_manager(Statuses.UPLOAD_REORGANIZED)
         assert type(mgr.message_class) is SlackUploadReorganized
 
-    @patch("status_change.status_utils.HttpHook.get_connection")
-    def test_slack_manager_subclass(self, conn_mock):
-        conn_mock.return_value = conn_mock_hm
-        context_copy = good_upload_context.copy()
-        context_copy.update(
-            {"priority_project_list": ["PRIORITY"], "datasets": [{"dataset_type": "test_1"}]}
-        )
-        mgr = self.slack_manager(Statuses.UPLOAD_REORGANIZED, context_copy)
+    def test_slack_manager_subclass(self):
+        context_addition = {
+            "priority_project_list": ["PRIORITY"],
+            "datasets": [{"dataset_type": "test_1"}],
+        }
+        self.mock_slack_context.return_value.update(context_addition)
+        self.mock_slack_msg_context.return_value.update(context_addition)
+        mgr = self.slack_manager(Statuses.UPLOAD_REORGANIZED)
         assert type(mgr.message_class) is SlackUploadReorganizedPriority
 
-    @patch("status_change.status_utils.HttpHook.get_connection")
-    def test_slack_manager_subclass_pass(self, conn_mock):
-        conn_mock.return_value = conn_mock_hm
-        mgr = self.slack_manager(Statuses.UPLOAD_REORGANIZED, good_upload_context)
+    def test_slack_manager_subclass_pass(self):
+        self.mock_slack_context.return_value.pop("datasets", None)
+        self.mock_slack_msg_context.return_value.pop("datasets", None)
+        mgr = self.slack_manager(Statuses.UPLOAD_REORGANIZED)
         assert type(mgr.message_class) is SlackUploadReorganizedNoDatasets
         with self.assertRaises(NotImplementedError):
             mgr.message_class.format()
+        self.slack_update.stop()
         assert mgr.update() == None
 
-    @patch("status_change.slack_manager.SlackManager.update")
-    def test_slack_manager_no_rule(self, update_mock):
+    def test_slack_manager_no_rule(self):
         mgr = SlackManager(Statuses.DATASET_DEPRECATED, "test_uuid", "test_token")
         assert not mgr.is_valid_for_status
-        update_mock.assert_not_called()
+        self.mock_slack_update.assert_not_called()
 
     @staticmethod
     def hhr_mock_side_effect(endpoint, headers, *args, **kwargs):
-        context = {
-            "uuid": "test_uuid",
-            "datasets": [
-                {
-                    "uuid": "test_dataset_uuid",
-                    "hubmap_id": "test_hubmap_id",
-                    "dataset_type": "test_type",
-                    "created_by_user_displayname": "test_user",
-                    "created_by_user_email": "test_email",
-                    "organ": "test_organ",
-                    "priority_project_list": ["test_priority_project"],
-                }
-            ],
-            "priority_project_list": ["test_priority_project"],
-        }
         if "organs" in endpoint:
-            return get_mock_response(True, json.dumps(context.get("datasets")).encode("utf-8"))
+            return get_mock_response(
+                True, json.dumps(good_upload_context.get("datasets")).encode("utf-8")
+            )
         if "file-system-abs-path" in endpoint:
             return get_mock_response(True, json.dumps({"path": "test_abs_path"}).encode("utf-8"))
-        return get_mock_response(True, json.dumps(context).encode("utf-8"))
+        return get_mock_response(True, json.dumps(good_upload_context).encode("utf-8"))
 
-    @patch("status_change.status_utils.get_entity_ingest_url")
-    @patch("status_change.status_utils.get_globus_url")
-    @patch("status_change.status_utils.get_abs_path")
-    @patch("status_change.status_utils.HttpHook.get_connection")
-    def test_reorganized_formatting(
-        self, conn_mock, abs_path_mock, globus_url_mock, ingest_url_mock
-    ):
+    @patch("status_change.slack.reorganized.get_organ", return_value="test_organ")
+    @patch("status_change.slack.reorganized.get_globus_url", return_value="test_globus_url")
+    @patch("status_change.slack.reorganized.get_abs_path", return_value="test_abs_path")
+    def test_reorganized_formatting(self, abs_path_mock, globus_url_mock, organ_mock):
+        self.entity_update.stop()
         for klass, ret_val in {
             SlackUploadReorganized: slack_upload_reorg_str,
             SlackUploadReorganizedPriority: slack_upload_reorg_priority_str,
         }.items():
             with patch("utils.ENDPOINTS", endpoints["hubmap"]):
-                conn_mock.return_value = Connection(
-                    host=f"https://entity.api.hubmapconsortium.org"
-                )
-                with patch(
-                    "status_change.status_utils.HttpHook.run",
-                    side_effect=self.hhr_mock_side_effect,
-                ):
-                    abs_path_mock.return_value = "test_abs_path"
-                    globus_url_mock.return_value = "test_globus_url"
-                    ingest_url_mock.return_value = "test_ingest_ui_url"
-                    mgr = klass("test_uuid", "test_token")
-                    formatted = mgr.format()
-                    lines = [line.strip() for line in formatted.split("\n") if line.strip()]
-                    assert lines == ret_val
+                mgr = klass("test_uuid", "test_token")
+                formatted = mgr.format()
+                lines = [line.strip() for line in formatted.split("\n") if line.strip()]
+                assert lines == ret_val
 
 
-class TestFailureCallback(unittest.TestCase):
-    @patch("utils.airflow_conf.as_dict")
-    @patch("status_change.status_utils.get_submission_context")
+class TestFailureCallback(MockParent):
     @patch("traceback.TracebackException.from_exception")
-    @patch("status_change.callbacks.base.get_auth_tok")
-    @patch("status_change.status_utils.HttpHook.get_connection")
-    def test_failure_callback(self, conn_mock, gat_mock, tbfa_mock, gsc_mock, af_conf_mock):
-        conn_mock.return_value = conn_mock_hm
-        af_conf_mock.return_value = {"connections": {"WORKFLOW_SCRATCH": "/scratch/path"}}
+    def test_failure_callback(self, tbfa_mock):
+        self.entity_update.stop()
 
         def _xcom_getter(key):
             return {"uuid": "abc123"}[key]
@@ -656,110 +630,62 @@ class TestFailureCallback(unittest.TestCase):
             def format(self):
                 return f"This is the formatted version of {self.excp_str}"
 
-        gsc_mock.return_value = upload_context_mock_value
-        gat_mock.return_value = "auth_token"
-        tbfa_mock.side_effect = lambda excp: _exception_formatter(excp)
-        dag_run_mock = MagicMock(
-            conf={"dryrun": False},
-            dag_id="test_dag_id",
-            execution_date=date.fromisoformat("2025-06-05"),
-        )
-        task_mock = MagicMock(task_id="mytaskid")
-        task_instance_mock = MagicMock()
-        task_instance_mock.xcom_pull.side_effect = _xcom_getter
-        with patch("status_change.slack_manager.SlackManager.update"):
-            with patch("status_change.data_ingest_board_manager.DataIngestBoardManager.update"):
+        with patch("status_change.status_utils.HttpHook.run") as hhr_mock:
+            with patch("status_change.callbacks.base.get_auth_tok", return_value="auth_token"):
+                tbfa_mock.side_effect = lambda excp: _exception_formatter(excp)
+                dag_run_mock = MagicMock(
+                    conf={"dryrun": False},
+                    dag_id="test_dag_id",
+                    execution_date=date.fromisoformat("2025-06-05"),
+                )
+                task_instance_mock = MagicMock()
+                task_instance_mock.xcom_pull.side_effect = _xcom_getter
+                tweaked_ctx = good_upload_context.copy() | {
+                    "task_instance": task_instance_mock,
+                    "task": MagicMock(task_id="mytaskid"),
+                    "crypt_auth_tok": "test_crypt_auth_tok",
+                    "dag_run": dag_run_mock,
+                    "exception": "FakeTestException",
+                }
                 fcb = FailureCallback(__name__)
-                tweaked_ctx = upload_context_mock_value.copy()
-                tweaked_ctx["task_instance"] = task_instance_mock
-                tweaked_ctx["task"] = task_mock
-                tweaked_ctx["crypt_auth_tok"] = "test_crypt_auth_tok"
-                tweaked_ctx["dag_run"] = dag_run_mock
-                tweaked_ctx["exception"] = "FakeTestException"
-                with patch("status_change.status_utils.HttpHook.run") as hhr_mock:
-                    hhr_mock.return_value.json.return_value = good_upload_context
-                    fcb(tweaked_ctx)
-                    assert "mytaskid" == fcb.task.task_id
-                    assert "test_dag_id" == fcb.dag_run.dag_id
-                    assert date(2025, 6, 5) == fcb.dag_run.execution_date
-                    assert __name__ == fcb.called_from
-                    assert (
-                        "This is the formatted version of FakeTestException"
-                        == fcb.formatted_exception
-                    )
-                    # mocking HttpHook.run in status_utils means there are a lot of calls,
-                    # need to find the call with the error info (i.e. the PUT call)
-                    hhr_call = None
-                    for call in hhr_mock.call_args_list:
-                        for call_tuple in call:
-                            for call_arg in call_tuple:
-                                if "error_message" in call_arg:
-                                    hhr_call = call
-                    assert hhr_call
-                    assert hhr_call[0][0] == "/entities/abc123?reindex=True"
-                    assert hhr_call[0][2]["authorization"] == "Bearer auth_token"
+                fcb(tweaked_ctx)
+                assert "mytaskid" == fcb.task.task_id
+                assert "test_dag_id" == fcb.dag_run.dag_id
+                assert date(2025, 6, 5) == fcb.dag_run.execution_date
+                assert __name__ == fcb.called_from
+                assert (
+                    "This is the formatted version of FakeTestException" == fcb.formatted_exception
+                )
+                # mocking HttpHook.run in status_utils means there are a lot of calls,
+                # need to find the call with the error info (i.e. the PUT call)
+                hhr_call = None
+                for call in hhr_mock.call_args_list:
+                    for call_tuple in call:
+                        for call_arg in call_tuple:
+                            if "error_message" in call_arg:
+                                hhr_call = call
+                assert hhr_call
+                assert hhr_call[0][0] == "/entities/abc123?reindex=True"
+                assert hhr_call[0][2]["authorization"] == "Bearer auth_token"
 
 
-class TestDataIngestBoardManager(unittest.TestCase):
-
-    def setUp(self):
-        slack_context = patch("status_change.slack_manager.get_submission_context")
-        slack_update = patch("status_change.slack_manager.SlackManager.update")
-        email_update = patch("status_change.email_manager.EmailManager.update")
-        email_context = patch(
-            "status_change.email_manager.get_submission_context",
-            return_value={"entity_type": "Upload"},
-        )
-        conn = patch(
-            "status_change.status_utils.HttpHook.get_connection",
-            return_value=Connection(host=f"https://ingest.api.hubmapconsortium.org"),
-        )
-        dib_context = patch(
-            "status_change.data_ingest_board_manager.get_submission_context",
-            return_value=upload_context_mock_value,
-        )
-        self.mock_slack_context = slack_context.start()
-        self.mock_slack_update = slack_update.start()
-        self.mock_email_update = email_update.start()
-        self.mock_email_context = email_context.start()
-        self.mock_conn = conn.start()
-        self.mock_dib_context = dib_context.start()
-        self.addCleanup(slack_context.stop)
-        self.addCleanup(slack_update.stop)
-        self.addCleanup(email_update.stop)
-        self.addCleanup(email_context.stop)
-        self.addCleanup(conn.stop)
-        self.addCleanup(dib_context.stop)
-        super().setUp()
+class TestDataIngestBoardManager(MockParent):
 
     def test_clear_status(self):
         dib = DataIngestBoardManager(Statuses.UPLOAD_VALID, "test_uuid", "test_token")
         assert dib.get_fields() == {"error_message": ""}
 
     @patch("status_change.data_ingest_board_manager.DataIngestBoardManager.upload_invalid")
-    @patch("status_change.data_ingest_board_manager.DataIngestBoardManager.update")
-    @patch("status_change.status_manager.get_submission_context")
-    @patch("status_change.status_utils.HttpHook.get_connection")
-    def test_valid_status_from_statuschanger(
-        self,
-        conn_mock,
-        sc_context_mock,
-        dib_update_mock,
-        upload_invalid_mock,
-    ):
-        conn_mock.return_value = conn_mock_hm
-        with patch("status_change.status_utils.HttpHook.run"):
-            sc_context_mock.return_value = upload_context_mock_value
-            with patch("status_change.status_manager.StatusChanger.set_entity_api_data"):
-                sc = StatusChanger(
-                    "upload_valid_uuid",
-                    "upload_valid_token",
-                    status="Invalid",
-                    extra_options={},
-                )
-                sc.update()
-                dib_update_mock.assert_called_once()
-                upload_invalid_mock.assert_called_once()
+    def test_valid_status_from_statuschanger(self, upload_invalid_mock):
+        sc = StatusChanger(
+            "upload_valid_uuid",
+            "upload_valid_token",
+            status="Invalid",
+            extra_options={},
+        )
+        sc.update()
+        self.mock_dib_update.assert_called_once()
+        upload_invalid_mock.assert_called_once()
 
     def test_valid_status_return_ext_error(self):
         # invalid status, validation output doesn't have any internal error strings
@@ -771,73 +697,75 @@ class TestDataIngestBoardManager(unittest.TestCase):
             "assigned_to_group_name": "",
         }
 
-    @patch("utils.airflow_conf.as_dict")
-    @patch("status_change.data_ingest_board_manager.get_submission_context")
-    def test_valid_status_internal_error_strs(self, dib_context_mock, af_conf_mock):
-        context_with_int_error = upload_context_mock_value.copy()
+    def test_valid_status_internal_error_strs(self):
         # invalid status but internal error in validation message
-        af_conf_mock.return_value = {"connections": {"WORKFLOW_SCRATCH": "test_path"}}
-        dib_context_mock.return_value = context_with_int_error | {
-            "validation_message": "Internal error--test"
-        }
-        dib = DataIngestBoardManager(
-            Statuses.UPLOAD_INVALID, "test_uuid", "test_token", run_id="test_run_id"
-        )
-        assert dib.get_fields() == {
-            "error_message": "Internal error. Log directory: test_path/test_run_id",
-            "assigned_to_group_name": "IEC Testing Group",
-        }
-        dib_w_msg = DataIngestBoardManager(
-            Statuses.UPLOAD_INVALID,
-            "test_uuid",
-            "test_token",
-            run_id="test_run_id",
-            msg="test message!",
-        )
-        assert dib_w_msg.get_fields() == {
-            "error_message": f"Internal error. Log directory: test_path/test_run_id | test message!",
-            "assigned_to_group_name": "IEC Testing Group",
-        }
+        with patch(
+            "status_change.data_ingest_board_manager.get_submission_context",
+            return_value=self.mock_dib_context.return_value.copy()
+            | {"validation_message": "Internal error--test"},
+        ):
+            dib = DataIngestBoardManager(
+                Statuses.UPLOAD_INVALID, "test_uuid", "test_token", run_id="test_run_id"
+            )
+            assert dib.get_fields() == {
+                "error_message": "Internal error. Log directory: test_path/test_run_id",
+                "assigned_to_group_name": "IEC Testing Group",
+            }
+            dib_w_msg = DataIngestBoardManager(
+                Statuses.UPLOAD_INVALID,
+                "test_uuid",
+                "test_token",
+                run_id="test_run_id",
+                msg="test message!",
+            )
+            assert dib_w_msg.get_fields() == {
+                "error_message": f"Internal error. Log directory: test_path/test_run_id | test message!",
+                "assigned_to_group_name": "IEC Testing Group",
+            }
 
-    @patch("utils.airflow_conf.as_dict")
-    @patch("status_change.data_ingest_board_manager.get_submission_context")
-    def test_valid_status_internal_error_status(self, dib_context_mock, af_conf_mock):
-        context_with_int_error = upload_context_mock_value.copy()
-        af_conf_mock.return_value = {"connections": {"WORKFLOW_SCRATCH": "test_path"}}
+    def test_valid_status_internal_error_status(self):
         # error status, message doesn't matter
-        dib_context_mock.return_value = context_with_int_error | {
-            "error_message": "Internal error--test",
-            "status": "error",
-        }
-        dib = DataIngestBoardManager(
-            Statuses.UPLOAD_ERROR, "test_uuid", "test_token", run_id="test_run_id"
-        )
-        assert dib.get_fields() == {
-            "error_message": "Internal error. Log directory: test_path/test_run_id",
-            "assigned_to_group_name": "IEC Testing Group",
-        }
-        dib_w_msg = DataIngestBoardManager(
-            Statuses.UPLOAD_ERROR,
-            "test_uuid",
-            "test_token",
-            run_id="test_run_id",
-            msg="test message!",
-        )
-        assert dib_w_msg.get_fields() == {
-            "error_message": f"Internal error. Log directory: test_path/test_run_id | test message!",
-            "assigned_to_group_name": "IEC Testing Group",
-        }
-        dib_context_mock.return_value = context_with_int_error | {
-            "error_message": "",
-            "status": "error",
-        }
-        dib = DataIngestBoardManager(
-            Statuses.UPLOAD_ERROR, "test_uuid", "test_token", run_id="test_run_id"
-        )
-        assert dib.get_fields() == {
-            "error_message": "Internal error. Log directory: test_path/test_run_id",
-            "assigned_to_group_name": "IEC Testing Group",
-        }
+        with patch(
+            "status_change.data_ingest_board_manager.get_submission_context",
+            return_value=self.mock_dib_context.return_value.copy()
+            | {
+                "error_message": "Internal error--test",
+                "status": "error",
+            },
+        ):
+            dib = DataIngestBoardManager(
+                Statuses.UPLOAD_ERROR, "test_uuid", "test_token", run_id="test_run_id"
+            )
+            assert dib.get_fields() == {
+                "error_message": "Internal error. Log directory: test_path/test_run_id",
+                "assigned_to_group_name": "IEC Testing Group",
+            }
+            dib_w_msg = DataIngestBoardManager(
+                Statuses.UPLOAD_ERROR,
+                "test_uuid",
+                "test_token",
+                run_id="test_run_id",
+                msg="test message!",
+            )
+            assert dib_w_msg.get_fields() == {
+                "error_message": f"Internal error. Log directory: test_path/test_run_id | test message!",
+                "assigned_to_group_name": "IEC Testing Group",
+            }
+        with patch(
+            "status_change.data_ingest_board_manager.get_submission_context",
+            return_value=self.mock_dib_context.return_value.copy()
+            | {
+                "error_message": "",
+                "status": "error",
+            },
+        ):
+            dib = DataIngestBoardManager(
+                Statuses.UPLOAD_ERROR, "test_uuid", "test_token", run_id="test_run_id"
+            )
+            assert dib.get_fields() == {
+                "error_message": "Internal error. Log directory: test_path/test_run_id",
+                "assigned_to_group_name": "IEC Testing Group",
+            }
 
     def test_status_invalid_for_manager(self):
         dib = DataIngestBoardManager(Statuses.DATASET_HOLD, "test_uuid", "test_token")
@@ -1017,6 +945,155 @@ class TestStatusUtils(unittest.TestCase):
                     )
                     print(get_globus_url(uuid, "test_token"))
                     assert get_globus_url(uuid, "test_token") == paths["dest_path"]
+
+
+class MockedEmailManager(EmailManager):
+    # This functionality is currently turned off for QA on prod;
+    # sending only to internal recipients. This mocks the correct
+    # functionality. TODO: remove after turning on ext emails.
+    def get_recipients(self):
+        if self.is_internal_error:
+            self.main_recipients = ", ".join(self.int_recipients)
+        else:
+            self.main_recipients = self.primary_contact
+            self.cc = ", ".join(self.int_recipients)
+
+
+class TestEmailManager(MockParent):
+    int_recipients = "int@test.com"
+
+    def email_manager(
+        self,
+        status: Statuses,
+        msg: str = "",
+        context: dict = good_upload_context,
+        mock: bool = False,
+    ):
+        with patch("status_change.email_manager.get_submission_context") as context_mock:
+            manager_class = MockedEmailManager if mock else EmailManager
+            context_mock.return_value = context | {"status": Statuses.valid_str(status)}
+            manager = manager_class(
+                status,
+                "test_uuid",
+                "test_token",
+                msg=msg,
+                run_id="test_run_id",
+            )
+            manager.int_recipients = [self.int_recipients]
+            return manager
+
+    def test_is_valid_for_status(self):
+        assert self.email_manager(Statuses.UPLOAD_ERROR).is_valid_for_status == True
+
+    def test_is_not_valid_for_status(self):
+        assert self.email_manager(Statuses.UPLOAD_NEW).is_valid_for_status == False
+
+    def test_get_contacts_error(self):
+        manager = self.email_manager(
+            Statuses.DATASET_ERROR, context=dataset_context_mock_value, mock=True
+        )
+        manager.get_recipients()
+        assert manager.main_recipients == self.int_recipients
+        assert manager.cc == ""
+
+    def test_get_contacts_invalid(self):
+        manager = self.email_manager(Statuses.UPLOAD_INVALID, mock=True)
+        manager.get_recipients()
+        assert manager.main_recipients == good_upload_context.get("created_by_user_email")
+        assert manager.cc == self.int_recipients
+
+    def test_get_contacts_good(self):
+        manager = self.email_manager(
+            Statuses.DATASET_QA, context=dataset_context_mock_value, mock=True
+        )
+        manager.get_recipients()
+        assert manager.main_recipients == dataset_context_mock_value.get("created_by_user_email")
+        assert manager.cc == self.int_recipients
+
+    @patch("status_change.email_manager.log_directory_path", return_value="test/log")
+    def test_get_content_error(self, log_mock):
+        manager = self.email_manager(
+            Statuses.UPLOAD_ERROR,
+            context=good_upload_context | {"error_message": "An error has occurred"},
+        )
+        expected_subj = "Internal error for Upload test_hm_id"
+        expected_msg = f"""
+        HuBMAP ID: test_hm_id<br>
+        UUID: test_uuid<br>
+        Entity type: Upload<br>
+        Status: error<br>
+        Group: test group<br>
+        Primary contact: test@user.com<br>
+        Ingest page: https://ingest.hubmapconsortium.org/Upload/test_uuid<br>
+        Log file: test/log<br>
+        <br></br>
+        Error:<br>
+            An error has occurred
+        """
+        print(f"Expected subject: {expected_subj}")
+        print(f"Actual subj: {manager.subj}")
+        print(f"Expected msg: {expected_msg}")
+        print(f"Actual msg: {manager.msg}")
+        assert manager.subj == expected_subj
+        assert manager.msg == expected_msg
+
+    def test_get_content_invalid(self):
+        error = "Directory errors: 3; Plugins skipped: True"
+        manager = self.email_manager(
+            Statuses.UPLOAD_INVALID,
+            context=good_upload_context | {"error_message": error},
+        )
+        expected_subj = f"Upload test_hm_id is invalid"
+        expected_msg = f"""
+        HuBMAP ID: test_hm_id<br>
+        Group: test group<br>
+        Ingest page: https://ingest.hubmapconsortium.org/Upload/test_uuid<br>
+        <br></br>
+        Upload is invalid:<br>
+            Directory errors: 3<br>- Plugins skipped: True
+        """
+        print(f"Expected subject: {expected_subj}")
+        print(f"Actual subj: {manager.subj}")
+        print(f"Expected msg: {expected_msg}")
+        print(f"Actual msg: {manager.msg}")
+        assert manager.subj == expected_subj
+        assert manager.msg == expected_msg
+
+    def test_get_content_good(self):
+        expected_subj = f"Dataset test_hm_dataset_id has successfully reached status qa!"
+        expected_msg = (
+            f"View ingest record: https://ingest.hubmapconsortium.org/Dataset/test_dataset_uuid"
+        )
+        manager = self.email_manager(
+            Statuses.DATASET_QA,
+            context=dataset_context_mock_value,
+        )
+        print(f"Expected subject: {expected_subj}")
+        print(f"Actual subj: {manager.subj}")
+        print(f"Expected msg: {expected_msg}")
+        print(f"Actual msg: {manager.msg}")
+        assert manager.subj == expected_subj
+        assert manager.msg == expected_msg
+
+    def test_get_content_good_addtl_msg(self):
+        expected_subj = f"Dataset test_hm_dataset_id has successfully reached status qa!"
+        expected_msg = f"View ingest record: https://ingest.hubmapconsortium.org/Dataset/test_dataset_uuid<br></br>extra msg"
+        manager = self.email_manager(
+            Statuses.DATASET_QA,
+            msg="extra msg",
+            context=dataset_context_mock_value,
+        )
+        print(f"Expected subject: {expected_subj}")
+        print(f"Actual subj: {manager.subj}")
+        print(f"Expected msg: {expected_msg}")
+        print(f"Actual msg: {manager.msg}")
+        assert manager.subj == expected_subj
+        assert manager.msg == expected_msg
+
+    def test_send(self):
+        manager = self.email_manager(EmailManager.good_statuses[0])
+        manager.update()
+        assert self.mock_email_send.called_once()
 
 
 # if __name__ == "__main__":
