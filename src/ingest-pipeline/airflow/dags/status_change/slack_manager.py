@@ -23,6 +23,7 @@ from .status_utils import (
     get_submission_context,
     post_to_slack_notify,
     slack_channels_testing,
+    split_error_counts,
 )
 
 
@@ -48,7 +49,7 @@ class SlackManager:
         del args, kwargs
         self.uuid = uuid
         self.token = token
-        self.msg = msg
+        self.addtl_msg = msg
         self.message_class = self.get_message_class(status)
         if not self.message_class:
             logging.info(
@@ -108,18 +109,32 @@ class SlackManager:
             return
         try:
             message = self.message_class.format()
-            if self.msg:
+            if self.addtl_msg:
                 message = f"""
                 {message}
 
                 Message:
-                {self.msg}
+                {self.formatted_addtl_msg()}
                 """
         except NotImplementedError:
             logging.info(
                 f"Message class {self.message_class.name} does not implement a format method; not sending Slack message."
             )
             return
+        channel = self.get_channel()
+        logging.info(f"Sending message from {self.message_class.name}...")
+        logging.info(f"Channel: {channel}")
+        logging.info(f"Message: {message}")
+        if not message:
+            raise EntityUpdateException(f"Request to send Slack message missing message text.")
+        try:
+            post_to_slack_notify(self.token, message, channel)
+        except Exception as e:
+            raise EntityUpdateException(f"No Slack message sent. Encountered error: {e}")
+
+    def get_channel(self) -> str:
+        if not self.message_class:
+            raise EntityUpdateException("Can't retrieve channel without message class.")
         try:
             env = get_env()
         except Exception as e:
@@ -139,12 +154,8 @@ class SlackManager:
             logging.info(
                 f"No channel found for message class {self.message_class.name} on {env}, using default channel."
             )
-        logging.info(f"Sending message from {self.message_class.name}...")
-        logging.info(f"Channel: {channel}")
-        logging.info(f"Message: {message}")
-        if not message:
-            raise EntityUpdateException(f"Request to send Slack message missing message text.")
-        try:
-            post_to_slack_notify(self.token, message, channel)
-        except Exception as e:
-            raise EntityUpdateException(f"No Slack message sent. Encountered error: {e}")
+        return channel
+
+    def formatted_addtl_msg(self) -> Optional[str]:
+        if self.addtl_msg:
+            return "\n".join(split_error_counts(self.addtl_msg))

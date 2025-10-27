@@ -401,3 +401,7 @@ def log_directory_path(run_id: str) -> str:
     from utils import get_tmp_dir_path
 
     return str(get_tmp_dir_path(run_id))
+
+
+def split_error_counts(error_message: str) -> list[str]:
+    return [line for line in re.split("; | \\| ", error_message)]

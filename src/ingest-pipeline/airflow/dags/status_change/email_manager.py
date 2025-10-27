@@ -1,5 +1,5 @@
 import logging
-import re
+from typing import Optional
 
 from airflow.utils.email import send_email
 
@@ -10,6 +10,7 @@ from .status_utils import (
     get_submission_context,
     is_internal_error,
     log_directory_path,
+    split_error_counts,
 )
 
 
@@ -64,8 +65,8 @@ class EmailManager:
         self.get_recipients()
         self.send_email()
 
-    def get_message_content(self):
-        if self.is_internal_error:  # error, potentially invalid
+    def get_message_content(self) -> Optional[tuple[str, str]]:
+        if self.is_internal_error:  # error status or bad content in validation_message
             subj, msg = self.internal_error_format()
         elif self.status in self.good_statuses:
             subj, msg = self.generic_good_status_format()
@@ -77,6 +78,7 @@ class EmailManager:
         self.msg = msg
         if self.addtl_msg:
             self.msg += f"<br></br>{self.addtl_msg}"
+        self.msg += "<br></br>This email address is not monitored. Please email ingest@hubmapconsortium.org with any questions about your data submission."
 
     def send_email(self):
         assert self.subj and self.msg
@@ -89,11 +91,26 @@ class EmailManager:
         )
         send_email(self.main_recipients, self.subj, self.msg, cc=self.cc)
 
+    def get_recipients(self):
+        if self.is_internal_error:
+            self.main_recipients = ", ".join(self.int_recipients)
+        else:
+            # TODO: turning off any ext emails for testing
+            # self.main_recipients = self.primary_contact
+            self.main_recipients = ", ".join(self.int_recipients)
+            self.cc = ", ".join(self.int_recipients)
+
+    #############
+    # Templates #
+    #############
+
     def generic_good_status_format(self) -> tuple[str, str]:
         subj = (
             f"{self.entity_type} {self.entity_id} has successfully reached status {self.status}!"
         )
-        msg = f"View ingest record: {get_entity_ingest_url(self.entity_data)}"
+        msg = f"""
+        View ingest record: {get_entity_ingest_url(self.entity_data)}
+        """
         return subj, msg
 
     def internal_error_format(self) -> tuple[str, str]:
@@ -109,7 +126,7 @@ class EmailManager:
         Log file: {log_directory_path(self.run_id)}<br>
         <br></br>
         Error:<br>
-            {self._parsed_error()}
+            {'<br>- '.join(split_error_counts(self.entity_data.get("error_message", "")))}
         """
         return subj, msg
 
@@ -121,20 +138,6 @@ class EmailManager:
         Ingest page: {get_entity_ingest_url(self.entity_data)}<br>
         <br></br>
         {self.entity_type} is invalid:<br>
-            {self._parsed_error()}
+            {'<br>- '.join(split_error_counts(self.entity_data.get("error_message", "")))}
         """
         return subj, msg
-
-    def get_recipients(self):
-        if self.is_internal_error:
-            self.main_recipients = ", ".join(self.int_recipients)
-        else:
-            # TODO: turning off any ext emails for testing
-            # self.main_recipients = self.primary_contact
-            self.main_recipients = ", ".join(self.int_recipients)
-            self.cc = ", ".join(self.int_recipients)
-
-    def _parsed_error(self):
-        return "<br>- ".join(
-            [line for line in re.split("; | \\| ", self.entity_data.get("error_message", ""))]
-        )
