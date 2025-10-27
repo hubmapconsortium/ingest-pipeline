@@ -1023,11 +1023,11 @@ class TestEmailManager(MockParent):
             "Primary contact: test@user.com",
             "Ingest page: https://ingest.hubmapconsortium.org/Upload/test_uuid",
             "Log file: test/log",
-            "<br></br>",
+            "",
             "Error:",
             "An error has occurred",
-            "<br></br>",
-            "<br></br>",
+            "",
+            "",
             "This email address is not monitored. Please email ingest@hubmapconsortium.org with any questions about your data submission.",
         ]
         print(f"Expected subject: {expected_subj}")
@@ -1048,12 +1048,12 @@ class TestEmailManager(MockParent):
             "HuBMAP ID: test_hm_id",
             "Group: test group",
             "Ingest page: https://ingest.hubmapconsortium.org/Upload/test_uuid",
-            "<br></br>",
+            "",
             "Upload is invalid:",
             "Directory errors: 3",
             "Plugins skipped: True",
-            "<br></br>",
-            "<br></br>",
+            "",
+            "",
             "This email address is not monitored. Please email ingest@hubmapconsortium.org with any questions about your data submission.",
         ]
         print(f"Expected subject: {expected_subj}")
@@ -1067,8 +1067,8 @@ class TestEmailManager(MockParent):
         expected_subj = f"Dataset test_hm_dataset_id has successfully reached status qa!"
         expected_msg = [
             "View ingest record: https://ingest.hubmapconsortium.org/Dataset/test_dataset_uuid",
-            "<br></br>",
-            "<br></br>",
+            "",
+            "",
             "This email address is not monitored. Please email ingest@hubmapconsortium.org with any questions about your data submission.",
         ]
         manager = self.email_manager(
@@ -1087,8 +1087,8 @@ class TestEmailManager(MockParent):
         expected_msg = [
             "View ingest record: https://ingest.hubmapconsortium.org/Dataset/test_dataset_uuid",
             "extra msg",
-            "<br></br>",
-            "<br></br>",
+            "",
+            "",
             "This email address is not monitored. Please email ingest@hubmapconsortium.org with any questions about your data submission.",
         ]
         manager = self.email_manager(
@@ -1107,6 +1107,29 @@ class TestEmailManager(MockParent):
         manager = self.email_manager(EmailManager.good_statuses[0])
         manager.update()
         assert self.mock_email_send.called_once()
+
+    def test_send_error_formatting(self):
+        manager = self.email_manager(
+            Statuses.UPLOAD_INVALID,
+            context=good_upload_context
+            | {"error_message": "Directory errors: 3; Plugins skipped: True"},
+        )
+        manager.update()
+        error_msg = """
+            HuBMAP ID: test_hm_id<br>
+            Group: test group<br>
+            Ingest page: https://ingest.hubmapconsortium.org/Upload/test_uuid<br>
+            <br>
+            Upload is invalid:<br>
+            Directory errors: 3<br>
+            Plugins skipped: True<br>
+            <br>
+            <br>
+            This email address is not monitored. Please email ingest@hubmapconsortium.org with any questions about your data submission.
+            """
+        assert self.mock_email_send.called_once_with(
+            manager.main_recipients, "Upload test_upload is invalid", error_msg, manager.cc
+        )
 
 
 # if __name__ == "__main__":
