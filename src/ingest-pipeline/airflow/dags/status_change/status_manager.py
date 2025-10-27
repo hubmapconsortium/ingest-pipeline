@@ -287,11 +287,11 @@ class StatusChanger(EntityUpdater):
                 except EntityUpdateException as e:
                     # Do not blow up for known errors
                     logging.error(
-                        f"Message not sent for {message_manager.message_class.name}. Error: {e}"
+                        f"Message not sent from manager class {type(message_manager).__name__}. Error: {e}"
                     )
             else:
                 logging.info(
-                    f"Message manager class {message_manager.message_class.name} not valid for status {self.status}, skipping."
+                    f"Message manager class {type(message_manager).__name__} not valid for status {self.status}, skipping."
                 )
 
     def validate_fields_to_change(self):
