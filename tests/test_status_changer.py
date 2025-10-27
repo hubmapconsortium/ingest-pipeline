@@ -1018,7 +1018,7 @@ class TestEmailManager(MockParent):
             "HuBMAP ID: test_hm_id",
             "UUID: test_uuid",
             "Entity type: Upload",
-            "Status: error",
+            "Status: Error",
             "Group: test group",
             "Primary contact: test@user.com",
             "Ingest page: https://ingest.hubmapconsortium.org/Upload/test_uuid",
@@ -1062,16 +1062,13 @@ class TestEmailManager(MockParent):
         assert manager.msg == expected_msg
 
     def test_get_content_good(self):
-        expected_subj = f"Dataset test_hm_dataset_id has successfully reached status qa!"
+        expected_subj = f"Upload test_hm_id has successfully reached status Valid!"
         expected_msg = [
-            "View ingest record: https://ingest.hubmapconsortium.org/Dataset/test_dataset_uuid",
+            "View ingest record: https://ingest.hubmapconsortium.org/Upload/test_uuid",
             "",
             "This email address is not monitored. Please email ingest@hubmapconsortium.org with any questions about your data submission.",
         ]
-        manager = self.email_manager(
-            Statuses.DATASET_QA,
-            context=dataset_context_mock_value,
-        )
+        manager = self.email_manager(Statuses.UPLOAD_VALID)
         print(f"Expected subject: {expected_subj}")
         print(f"Actual subj: {manager.subj}")
         print(f"Expected msg: {expected_msg}")
@@ -1080,7 +1077,7 @@ class TestEmailManager(MockParent):
         assert manager.msg == expected_msg
 
     def test_get_content_good_addtl_msg(self):
-        expected_subj = f"Dataset test_hm_dataset_id has successfully reached status qa!"
+        expected_subj = f"Dataset test_hm_dataset_id has successfully reached status QA!"
         expected_msg = [
             "View ingest record: https://ingest.hubmapconsortium.org/Dataset/test_dataset_uuid",
             "extra msg",

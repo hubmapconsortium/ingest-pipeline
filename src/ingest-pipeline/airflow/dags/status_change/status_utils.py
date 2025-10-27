@@ -55,13 +55,19 @@ class Statuses(str, Enum):
     UPLOAD_SUBMITTED = "upload_submitted"
     UPLOAD_VALID = "upload_valid"
 
-    @staticmethod
-    def get_status_str(status: Statuses):
-        return status.split("_")[1]
+    @property
+    def status_str(self):
+        return self.value.split("_")[1]
 
-    @staticmethod
-    def get_entity_type_str(status: Statuses):
-        return status.split("_")[0]
+    @property
+    def entity_type_str(self):
+        return self.value.split("_")[0]
+
+    @property
+    def titlecase(self) -> str:
+        if self == Statuses.DATASET_QA:
+            return "QA"
+        return self.status_str.title()
 
     @staticmethod
     def valid_str(status: Union[str, Statuses]) -> str:
@@ -76,14 +82,14 @@ class Statuses(str, Enum):
             if "_" in status:
                 membership = [member for member in Statuses if status == member.value]
                 if len(membership) == 1:
-                    return Statuses.get_status_str(membership[0])
+                    return membership[0].status_str
             else:
                 for entity_type in ENTITY_STATUS_MAP.keys():
                     for status_str in ENTITY_STATUS_MAP[entity_type].keys():
                         if status == status_str:
                             return status
         elif isinstance(status, Statuses):
-            return Statuses.get_status_str(status)
+            return status.status_str
         raise EntityUpdateException(f"Status {status} is not valid.")
 
 
@@ -120,6 +126,7 @@ ENTITY_STATUS_MAP = {
         "valid": Statuses.UPLOAD_VALID,
     },
 }
+
 
 slack_channels = {
     "base": "C08V3TAP3GQ",  # testing-status-change

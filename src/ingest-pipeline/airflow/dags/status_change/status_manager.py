@@ -293,7 +293,7 @@ class StatusChanger(EntityUpdater):
     def validate_fields_to_change(self):
         super().validate_fields_to_change()
         assert self.status
-        self.fields_to_change["status"] = Statuses.get_status_str(self.status)
+        self.fields_to_change["status"] = self.status.status_str
 
     def _validate_status(self, status: Union[Statuses, str, None]) -> Optional[Statuses]:
         current_status = self.entity_data.get("status", "").lower()
@@ -315,10 +315,9 @@ class StatusChanger(EntityUpdater):
                     """
                 )
         assert type(status) is Statuses
-        status_str = Statuses.get_status_str(status)
-        logging.info(f"Pending status: {status_str} ({status})")
+        logging.info(f"Pending status: {status.status_str} ({status})")
         # Can't set the same status over the existing status; keep status but set same_status = True.
-        if status_str == current_status:
+        if status.status_str == current_status:
             logging.info(
                 f"Status passed to StatusChanger is the same as the current status in Entity API."
             )
@@ -329,7 +328,7 @@ class StatusChanger(EntityUpdater):
             # Assert they are the same as current status
             try:
                 if isinstance(extra_status, str):
-                    assert extra_status.lower() == status_str
+                    assert extra_status.lower() == status.status_str
                 elif isinstance(extra_status, Statuses):
                     assert extra_status == status
             # If not, stringify for exception
@@ -337,11 +336,11 @@ class StatusChanger(EntityUpdater):
                 if type(extra_status) is str:
                     extra_status_str = extra_status.lower()
                 elif isinstance(extra_status, Statuses):
-                    extra_status_str = Statuses.get_status_str(extra_status)
+                    extra_status_str = extra_status.status_str
                 else:
                     extra_status_str = str(extra_status)
                 raise EntityUpdateException(
-                    f"Entity {self.uuid} passed multiple statuses ({status_str} and {extra_status_str})."
+                    f"Entity {self.uuid} passed multiple statuses ({status.status_str} and {extra_status_str})."
                 )
         return status
 

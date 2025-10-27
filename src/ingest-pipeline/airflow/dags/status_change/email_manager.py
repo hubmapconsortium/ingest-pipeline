@@ -21,9 +21,9 @@ class EmailManager:
     subj = ""
     msg = ""
     good_statuses = [
-        "qa",
-        "reorganized",
-        "valid",
+        Statuses.DATASET_QA,
+        Statuses.UPLOAD_REORGANIZED,
+        Statuses.UPLOAD_VALID,
     ]
 
     def __init__(
@@ -39,7 +39,7 @@ class EmailManager:
         del args, kwargs
         self.uuid = uuid
         self.token = token
-        self.status = Statuses.valid_str(status)
+        self.status = status
         self.addtl_msg = str(msg) if msg else None
         self.run_id = run_id
         self.entity_data = get_submission_context(self.token, self.uuid)
@@ -70,7 +70,10 @@ class EmailManager:
             subj, msg = self.internal_error_format()
         elif self.status in self.good_statuses:
             subj, msg = self.generic_good_status_format()
-        elif self.status == "invalid":  # actually invalid
+        elif self.status in [
+            Statuses.DATASET_INVALID,
+            Statuses.UPLOAD_INVALID,
+        ]:  # actually invalid
             subj, msg = self.get_ext_invalid_format()
         else:
             return
@@ -111,9 +114,7 @@ class EmailManager:
     #############
 
     def generic_good_status_format(self) -> tuple[str, list]:
-        subj = (
-            f"{self.entity_type} {self.entity_id} has successfully reached status {self.status}!"
-        )
+        subj = f"{self.entity_type} {self.entity_id} has successfully reached status {self.status.titlecase}!"
         msg = [f"View ingest record: {get_entity_ingest_url(self.entity_data)}"]
         return subj, msg
 
@@ -123,7 +124,7 @@ class EmailManager:
             f"{self.project.value[1]} ID: {self.entity_id}",
             f"UUID: {self.uuid}",
             f"Entity type: {self.entity_type}",
-            f"Status: {self.status}",
+            f"Status: {self.status.titlecase}",
             f"Group: {self.entity_data.get('group_name')}",
             f"Primary contact: {self.primary_contact}",
             f"Ingest page: {get_entity_ingest_url(self.entity_data)}",
