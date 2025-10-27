@@ -289,6 +289,10 @@ class StatusChanger(EntityUpdater):
                     logging.error(
                         f"Message not sent for {message_manager.message_class.name}. Error: {e}"
                     )
+            else:
+                logging.info(
+                    f"Message manager class {message_manager.message_class.name} not valid for status {self.status}, skipping."
+                )
 
     def validate_fields_to_change(self):
         super().validate_fields_to_change()

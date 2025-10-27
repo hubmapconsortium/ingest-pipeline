@@ -22,7 +22,6 @@ class EmailManager:
     msg = ""
     good_statuses = [
         Statuses.DATASET_QA,
-        Statuses.UPLOAD_REORGANIZED,
         Statuses.UPLOAD_VALID,
     ]
 
@@ -70,6 +69,8 @@ class EmailManager:
             subj, msg = self.internal_error_format()
         elif self.status in self.good_statuses:
             subj, msg = self.generic_good_status_format()
+        # elif self.status is Statuses.UPLOAD_REORGANIZED:
+        #     pass
         elif self.status in [
             Statuses.DATASET_INVALID,
             Statuses.UPLOAD_INVALID,

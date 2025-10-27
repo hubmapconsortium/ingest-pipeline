@@ -91,9 +91,6 @@ def get_dataset_lz_path(**kwargs) -> str:
 def get_dataset_uuid(**kwargs):
     return kwargs["uuid_dataset"]
 
-def get_run_id(**kwargs):
-    return kwargs.get("run_id")
-
 with HMDAG(
     "reorganize_upload",
     schedule_interval=None,
@@ -143,6 +140,7 @@ with HMDAG(
         print(f"lz path: {lz_path}")
         kwargs["ti"].xcom_push(key="lz_path", value=lz_path)
         kwargs["ti"].xcom_push(key="uuid", value=uuid)
+        kwargs["ti"].xcom_push(key="run_id", value=kwargs.get("run_id"))
 
     t_find_uuid = PythonOperator(
         task_id="find_uuid", python_callable=find_uuid, provide_context=True, op_kwargs={}
@@ -454,12 +452,15 @@ with HMDAG(
     def _get_upload_uuid(**kwargs):
         return kwargs["ti"].xcom_pull(task_ids="find_uuid", key="uuid")
 
+    def _get_run_id(**kwargs):
+        return kwargs["ti"].xcom_pull(task_ids="find_uuid", key="run_id")
+
     t_set_dataset_error = PythonOperator(
         task_id="set_dataset_error",
         python_callable=pythonop_set_dataset_state,
         provide_context=True,
         trigger_rule="all_done",
-        op_kwargs={"dataset_uuid_callable": _get_upload_uuid, "ds_state": "Error", "run_id": get_run_id},
+        op_kwargs={"dataset_uuid_callable": _get_upload_uuid, "ds_state": "Error", "run_id": _get_run_id},
     )
 
     (

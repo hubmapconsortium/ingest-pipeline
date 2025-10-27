@@ -407,6 +407,8 @@ def get_run_id(run_id):
 def log_directory_path(run_id: str) -> str:
     from utils import get_tmp_dir_path
 
+    if not run_id:
+        return ""
     return str(get_tmp_dir_path(run_id))
 
 
