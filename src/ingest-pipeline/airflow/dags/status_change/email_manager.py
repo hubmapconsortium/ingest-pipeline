@@ -80,7 +80,6 @@ class EmailManager:
         msg.extend(
             [
                 "",
-                "",
                 "This email address is not monitored. Please email ingest@hubmapconsortium.org with any questions about your data submission.",
             ]
         )
@@ -88,7 +87,7 @@ class EmailManager:
 
     def send_email(self):
         assert self.subj and self.msg
-        msg_str = "<br>".join([line.lstrip() for line in self.msg if not line == ""])
+        msg_str = "<br>".join([line.lstrip() for line in self.msg])
         logging.info(
             f"""
         Sending email
@@ -132,7 +131,7 @@ class EmailManager:
         ]
         if error_message := self.entity_data.get("error_message"):
             msg.extend(["", "Error:"])
-            msg.extend(split_error_counts(error_message))
+            msg.extend(split_error_counts(error_message, no_bullets=True))
         return subj, msg
 
     def get_ext_invalid_format(self) -> tuple[str, list]:

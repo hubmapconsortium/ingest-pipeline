@@ -403,5 +403,7 @@ def log_directory_path(run_id: str) -> str:
     return str(get_tmp_dir_path(run_id))
 
 
-def split_error_counts(error_message: str) -> list[str]:
-    return [line for line in re.split("; | \\| ", error_message)]
+def split_error_counts(error_message: str, no_bullets: bool = False) -> list[str]:
+    if no_bullets:
+        return [line for line in re.split("; | \\| ", error_message)]
+    return [f"- {line}" for line in re.split("; | \\| ", error_message)]

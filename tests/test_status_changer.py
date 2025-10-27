@@ -1027,7 +1027,6 @@ class TestEmailManager(MockParent):
             "Error:",
             "An error has occurred",
             "",
-            "",
             "This email address is not monitored. Please email ingest@hubmapconsortium.org with any questions about your data submission.",
         ]
         print(f"Expected subject: {expected_subj}")
@@ -1050,9 +1049,8 @@ class TestEmailManager(MockParent):
             "Ingest page: https://ingest.hubmapconsortium.org/Upload/test_uuid",
             "",
             "Upload is invalid:",
-            "Directory errors: 3",
-            "Plugins skipped: True",
-            "",
+            "- Directory errors: 3",
+            "- Plugins skipped: True",
             "",
             "This email address is not monitored. Please email ingest@hubmapconsortium.org with any questions about your data submission.",
         ]
@@ -1067,7 +1065,6 @@ class TestEmailManager(MockParent):
         expected_subj = f"Dataset test_hm_dataset_id has successfully reached status qa!"
         expected_msg = [
             "View ingest record: https://ingest.hubmapconsortium.org/Dataset/test_dataset_uuid",
-            "",
             "",
             "This email address is not monitored. Please email ingest@hubmapconsortium.org with any questions about your data submission.",
         ]
@@ -1087,7 +1084,6 @@ class TestEmailManager(MockParent):
         expected_msg = [
             "View ingest record: https://ingest.hubmapconsortium.org/Dataset/test_dataset_uuid",
             "extra msg",
-            "",
             "",
             "This email address is not monitored. Please email ingest@hubmapconsortium.org with any questions about your data submission.",
         ]
@@ -1121,8 +1117,8 @@ class TestEmailManager(MockParent):
             Ingest page: https://ingest.hubmapconsortium.org/Upload/test_uuid<br>
             <br>
             Upload is invalid:<br>
-            Directory errors: 3<br>
-            Plugins skipped: True<br>
+            - Directory errors: 3<br>
+            - Plugins skipped: True<br>
             <br>
             <br>
             This email address is not monitored. Please email ingest@hubmapconsortium.org with any questions about your data submission.
