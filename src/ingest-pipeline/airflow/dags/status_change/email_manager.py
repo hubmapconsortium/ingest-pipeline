@@ -79,8 +79,8 @@ class EmailManager:
             msg.append(self.addtl_msg)
         msg.extend(
             [
-                "",
-                "",
+                "<br></br>",
+                "<br></br>",
                 "This email address is not monitored. Please email ingest@hubmapconsortium.org with any questions about your data submission.",
             ]
         )
@@ -88,7 +88,7 @@ class EmailManager:
 
     def send_email(self):
         assert self.subj and self.msg
-        msg_str = "<br>".join([line.lstrip() for line in self.msg if not line == ""])
+        msg_str = "<br>".join([line.lstrip() for line in self.msg if not line == "<br></br>"])
         logging.info(
             f"""
         Sending email
@@ -131,7 +131,7 @@ class EmailManager:
             f"Log file: {log_directory_path(self.run_id)}",
         ]
         if error_message := self.entity_data.get("error_message"):
-            msg.extend(["", "Error:"])
+            msg.extend(["<br></br>", "Error:"])
             msg.extend(split_error_counts(error_message))
         return subj, msg
 
@@ -143,6 +143,6 @@ class EmailManager:
             f"Ingest page: {get_entity_ingest_url(self.entity_data)}",
         ]
         if error_message := self.entity_data.get("error_message"):
-            msg.extend(["", f"{self.entity_type} is invalid:"])
+            msg.extend(["<br></br>", f"{self.entity_type} is invalid:"])
             msg.extend(split_error_counts(error_message))
         return subj, msg
