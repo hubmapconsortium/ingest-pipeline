@@ -59,12 +59,12 @@ class SlackUploadReorganized(SlackMessage):
                 cleaned_data.append(str(val))
         return cleaned_data
 
-    def format(self) -> str:
+    def format(self):
         dataset_info, msg_data = self.get_upload_info()
-        return f"""
-        Upload {self.uuid} reorganized:
-        {self.get_combined_info(msg_data, dataset_info)}
-        """
+        return [
+            f"Upload {self.uuid} reorganized:",
+            *self.get_combined_info(msg_data, dataset_info),
+        ]
 
     def get_upload_info(self) -> Tuple[list, dict]:
         self.get_non_upload_metadata()
@@ -78,12 +78,13 @@ class SlackUploadReorganized(SlackMessage):
         }
         return dataset_info, msg_data
 
-    def get_combined_info(self, data: dict, dataset_info: list):
-        return (
-            "\n   ".join([f"{key}: {value}" for key, value in data.items()])
-            + "\n\nDatasets:\n"
-            + "\n".join(dataset_info)
-        )
+    def get_combined_info(self, data: dict, dataset_info: list) -> list:
+        return [
+            *[f"{key}: {value}" for key, value in data.items()],
+            "",
+            "Datasets:",
+            *dataset_info,
+        ]
 
 
 class SlackUploadReorganizedNoDatasets(SlackMessage):
@@ -128,7 +129,7 @@ class SlackUploadReorganizedPriority(SlackUploadReorganized):
             return False  # If no datasets, do not apply
         return bool(entity_data.get("priority_project_list"))
 
-    def format(self) -> str:
+    def format(self):
         """
         Formats data for priority project reorganization Slack message.
         Prioritizes returning a message over tracking down missing data.
@@ -137,7 +138,7 @@ class SlackUploadReorganizedPriority(SlackUploadReorganized):
         priority_projects_list = ", ".join(self.entity_data.get("priority_project_list", []))
         msg_data["priority_project_list"] = priority_projects_list
 
-        return f"""
-        Priority upload ({priority_projects_list}) reorganized:
-        {self.get_combined_info(msg_data, dataset_info)}
-        """
+        return [
+            f"Priority upload ({priority_projects_list}) reorganized:",
+            *self.get_combined_info(msg_data, dataset_info),
+        ]

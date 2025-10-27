@@ -466,7 +466,7 @@ class SlackTest(SlackMessage):
     name = "test_class"
 
     def format(self):
-        return "I am formatted"
+        return ["I am formatted"]
 
 
 class SlackTestHold(SlackMessage):
@@ -479,7 +479,7 @@ class SlackTestHold(SlackMessage):
         return False
 
     def format(self):
-        return "HOLD"
+        return ["HOLD"]
 
 
 @patch.dict(
@@ -500,7 +500,7 @@ class TestSlack(MockParent):
             {status: self.mock_slack_channels},
         ):
             mgr = self.slack_manager(status)
-        assert mgr.message_class.format() == "I am formatted"
+        assert mgr.message_class.format() == ["I am formatted"]
 
     def test_get_slack_channel(self):
         with patch.dict(
@@ -581,8 +581,7 @@ class TestSlack(MockParent):
         assert type(mgr.message_class) is SlackUploadReorganizedNoDatasets
         with self.assertRaises(NotImplementedError):
             mgr.message_class.format()
-        self.slack_update.stop()
-        assert mgr.update() == None
+        assert self.mock_slack_post.no_calls()
 
     def test_slack_manager_no_rule(self):
         mgr = SlackManager(Statuses.DATASET_DEPRECATED, "test_uuid", "test_token")
@@ -610,9 +609,7 @@ class TestSlack(MockParent):
         }.items():
             with patch("utils.ENDPOINTS", endpoints["hubmap"]):
                 mgr = klass("test_uuid", "test_token")
-                formatted = mgr.format()
-                lines = [line.strip() for line in formatted.split("\n") if line.strip()]
-                assert lines == ret_val
+                assert mgr.format() == ret_val
 
 
 class TestFailureCallback(MockParent):
@@ -1010,12 +1007,6 @@ class TestEmailManager(MockParent):
         assert manager.main_recipients == dataset_context_mock_value.get("created_by_user_email")
         assert manager.cc == self.int_recipients
 
-    @staticmethod
-    def message_as_sorted_list(msg: str) -> list[str]:
-        lines = [line.strip() for line in msg.split("\n") if line.strip()]
-        lines.sort()
-        return lines
-
     @patch("status_change.email_manager.log_directory_path", return_value="test/log")
     def test_get_content_error(self, log_mock):
         manager = self.email_manager(
@@ -1023,28 +1014,28 @@ class TestEmailManager(MockParent):
             context=good_upload_context | {"error_message": "An error has occurred"},
         )
         expected_subj = "Internal error for Upload test_hm_id"
-        expected_msg = self.message_as_sorted_list(
-            f"""
-        HuBMAP ID: test_hm_id<br>
-        UUID: test_uuid<br>
-        Entity type: Upload<br>
-        Status: error<br>
-        Group: test group<br>
-        Primary contact: test@user.com<br>
-        Ingest page: https://ingest.hubmapconsortium.org/Upload/test_uuid<br>
-        Log file: test/log<br>
-        <br></br>
-        Error:<br>
-            An error has occurred
-        <br></br>This email address is not monitored. Please email ingest@hubmapconsortium.org with any questions about your data submission.
-        """
-        )
+        expected_msg = [
+            "HuBMAP ID: test_hm_id",
+            "UUID: test_uuid",
+            "Entity type: Upload",
+            "Status: error",
+            "Group: test group",
+            "Primary contact: test@user.com",
+            "Ingest page: https://ingest.hubmapconsortium.org/Upload/test_uuid",
+            "Log file: test/log",
+            "",
+            "Error:",
+            "An error has occurred",
+            "",
+            "",
+            "This email address is not monitored. Please email ingest@hubmapconsortium.org with any questions about your data submission.",
+        ]
         print(f"Expected subject: {expected_subj}")
         print(f"Actual subj: {manager.subj}")
         print(f"Expected msg: {expected_msg}")
         print(f"Actual msg: {manager.msg}")
         assert manager.subj == expected_subj
-        assert self.message_as_sorted_list(manager.msg) == expected_msg
+        assert manager.msg == expected_msg
 
     def test_get_content_invalid(self):
         error = "Directory errors: 3; Plugins skipped: True"
@@ -1053,32 +1044,33 @@ class TestEmailManager(MockParent):
             context=good_upload_context | {"error_message": error},
         )
         expected_subj = f"Upload test_hm_id is invalid"
-        expected_msg = self.message_as_sorted_list(
-            f"""
-        HuBMAP ID: test_hm_id<br>
-        Group: test group<br>
-        Ingest page: https://ingest.hubmapconsortium.org/Upload/test_uuid<br>
-        <br></br>
-        Upload is invalid:<br>
-            Directory errors: 3<br>- Plugins skipped: True
-        <br></br>This email address is not monitored. Please email ingest@hubmapconsortium.org with any questions about your data submission.
-        """
-        )
+        expected_msg = [
+            "HuBMAP ID: test_hm_id",
+            "Group: test group",
+            "Ingest page: https://ingest.hubmapconsortium.org/Upload/test_uuid",
+            "",
+            "Upload is invalid:",
+            "Directory errors: 3",
+            "Plugins skipped: True",
+            "",
+            "",
+            "This email address is not monitored. Please email ingest@hubmapconsortium.org with any questions about your data submission.",
+        ]
         print(f"Expected subject: {expected_subj}")
         print(f"Actual subj: {manager.subj}")
         print(f"Expected msg: {expected_msg}")
         print(f"Actual msg: {manager.msg}")
         assert manager.subj == expected_subj
-        assert self.message_as_sorted_list(manager.msg) == expected_msg
+        assert manager.msg == expected_msg
 
     def test_get_content_good(self):
         expected_subj = f"Dataset test_hm_dataset_id has successfully reached status qa!"
-        expected_msg = self.message_as_sorted_list(
-            f"""
-            View ingest record: https://ingest.hubmapconsortium.org/Dataset/test_dataset_uuid
-            <br></br>This email address is not monitored. Please email ingest@hubmapconsortium.org with any questions about your data submission.
-        """
-        )
+        expected_msg = [
+            "View ingest record: https://ingest.hubmapconsortium.org/Dataset/test_dataset_uuid",
+            "",
+            "",
+            "This email address is not monitored. Please email ingest@hubmapconsortium.org with any questions about your data submission.",
+        ]
         manager = self.email_manager(
             Statuses.DATASET_QA,
             context=dataset_context_mock_value,
@@ -1088,16 +1080,17 @@ class TestEmailManager(MockParent):
         print(f"Expected msg: {expected_msg}")
         print(f"Actual msg: {manager.msg}")
         assert manager.subj == expected_subj
-        assert self.message_as_sorted_list(manager.msg) == expected_msg
+        assert manager.msg == expected_msg
 
     def test_get_content_good_addtl_msg(self):
         expected_subj = f"Dataset test_hm_dataset_id has successfully reached status qa!"
-        expected_msg = self.message_as_sorted_list(
-            f"""
-            View ingest record: https://ingest.hubmapconsortium.org/Dataset/test_dataset_uuid
-            <br></br>extra msg<br></br>This email address is not monitored. Please email ingest@hubmapconsortium.org with any questions about your data submission.
-        """
-        )
+        expected_msg = [
+            "View ingest record: https://ingest.hubmapconsortium.org/Dataset/test_dataset_uuid",
+            "extra msg",
+            "",
+            "",
+            "This email address is not monitored. Please email ingest@hubmapconsortium.org with any questions about your data submission.",
+        ]
         manager = self.email_manager(
             Statuses.DATASET_QA,
             msg="extra msg",
@@ -1108,7 +1101,7 @@ class TestEmailManager(MockParent):
         print(f"Expected msg: {expected_msg}")
         print(f"Actual msg: {manager.msg}")
         assert manager.subj == expected_subj
-        assert self.message_as_sorted_list(manager.msg) == expected_msg
+        assert manager.msg == expected_msg
 
     def test_send(self):
         manager = self.email_manager(EmailManager.good_statuses[0])

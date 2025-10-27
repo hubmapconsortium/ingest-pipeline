@@ -106,31 +106,31 @@ class SlackManager:
 
     def update(self):
         if not self.message_class:
-            return
-        try:
-            message = self.message_class.format()
-            if self.addtl_msg:
-                message = f"""
-                {message}
-
-                Message:
-                {self.formatted_addtl_msg()}
-                """
-        except NotImplementedError:
-            logging.info(
-                f"Message class {self.message_class.name} does not implement a format method; not sending Slack message."
-            )
-            return
+            raise EntityUpdateException("Can't update Slack without message class, exiting.")
+        message = self.get_message()
         channel = self.get_channel()
         logging.info(f"Sending message from {self.message_class.name}...")
         logging.info(f"Channel: {channel}")
         logging.info(f"Message: {message}")
-        if not message:
-            raise EntityUpdateException(f"Request to send Slack message missing message text.")
         try:
             post_to_slack_notify(self.token, message, channel)
         except Exception as e:
             raise EntityUpdateException(f"No Slack message sent. Encountered error: {e}")
+
+    def get_message(self) -> str:
+        if not self.message_class:
+            raise EntityUpdateException("Can't format message without message class.")
+        try:
+            message = self.message_class.format()
+            if self.addtl_msg:
+                message.extend(["", *self.formatted_addtl_msg()])
+        except NotImplementedError:
+            raise EntityUpdateException(
+                f"Message class {self.message_class.name} does not implement a format method; not sending Slack message."
+            )
+        if not message:
+            raise EntityUpdateException(f"Request to send Slack message missing message text.")
+        return "\n".join([line for line in message])
 
     def get_channel(self) -> str:
         if not self.message_class:
@@ -156,6 +156,7 @@ class SlackManager:
             )
         return channel
 
-    def formatted_addtl_msg(self) -> Optional[str]:
+    def formatted_addtl_msg(self) -> list[str]:
         if self.addtl_msg:
-            return "\n".join(split_error_counts(self.addtl_msg))
+            return split_error_counts(self.addtl_msg)
+        return []

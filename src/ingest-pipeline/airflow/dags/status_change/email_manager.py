@@ -75,21 +75,28 @@ class EmailManager:
         else:
             return
         self.subj = subj
+        if self.addtl_msg and self.addtl_msg != self.entity_data.get("error_message"):
+            msg.append(self.addtl_msg)
+        msg.extend(
+            [
+                "",
+                "",
+                "This email address is not monitored. Please email ingest@hubmapconsortium.org with any questions about your data submission.",
+            ]
+        )
         self.msg = msg
-        if self.addtl_msg:
-            self.msg += f"<br></br>{self.addtl_msg}"
-        self.msg += "<br></br>This email address is not monitored. Please email ingest@hubmapconsortium.org with any questions about your data submission."
 
     def send_email(self):
         assert self.subj and self.msg
+        msg_str = "<br>".join([line.lstrip() for line in self.msg if not line == ""])
         logging.info(
             f"""
         Sending email
             Subject: {self.subj}
-            Message: {self.msg}
+            Message: {msg_str}
             """
         )
-        send_email(self.main_recipients, self.subj, self.msg, cc=self.cc)
+        send_email(self.main_recipients, self.subj, msg_str, cc=self.cc)
 
     def get_recipients(self):
         if self.is_internal_error:
@@ -104,40 +111,38 @@ class EmailManager:
     # Templates #
     #############
 
-    def generic_good_status_format(self) -> tuple[str, str]:
+    def generic_good_status_format(self) -> tuple[str, list]:
         subj = (
             f"{self.entity_type} {self.entity_id} has successfully reached status {self.status}!"
         )
-        msg = f"""
-        View ingest record: {get_entity_ingest_url(self.entity_data)}
-        """
+        msg = [f"View ingest record: {get_entity_ingest_url(self.entity_data)}"]
         return subj, msg
 
-    def internal_error_format(self) -> tuple[str, str]:
+    def internal_error_format(self) -> tuple[str, list]:
         subj = f"Internal error for {self.entity_type} {self.entity_id}"
-        msg = f"""
-        {self.project.value[1]} ID: {self.entity_id}<br>
-        UUID: {self.uuid}<br>
-        Entity type: {self.entity_type}<br>
-        Status: {self.status}<br>
-        Group: {self.entity_data.get('group_name')}<br>
-        Primary contact: {self.primary_contact}<br>
-        Ingest page: {get_entity_ingest_url(self.entity_data)}<br>
-        Log file: {log_directory_path(self.run_id)}<br>
-        <br></br>
-        Error:<br>
-            {'<br>- '.join(split_error_counts(self.entity_data.get("error_message", "")))}
-        """
+        msg = [
+            f"{self.project.value[1]} ID: {self.entity_id}",
+            f"UUID: {self.uuid}",
+            f"Entity type: {self.entity_type}",
+            f"Status: {self.status}",
+            f"Group: {self.entity_data.get('group_name')}",
+            f"Primary contact: {self.primary_contact}",
+            f"Ingest page: {get_entity_ingest_url(self.entity_data)}",
+            f"Log file: {log_directory_path(self.run_id)}",
+        ]
+        if error_message := self.entity_data.get("error_message"):
+            msg.extend(["", "Error:"])
+            msg.extend(split_error_counts(error_message))
         return subj, msg
 
-    def get_ext_invalid_format(self) -> tuple[str, str]:
+    def get_ext_invalid_format(self) -> tuple[str, list]:
         subj = f"{self.entity_type} {self.entity_id} is invalid"
-        msg = f"""
-        {self.project.value[1]} ID: {self.entity_id}<br>
-        Group: {self.entity_data.get('group_name')}<br>
-        Ingest page: {get_entity_ingest_url(self.entity_data)}<br>
-        <br></br>
-        {self.entity_type} is invalid:<br>
-            {'<br>- '.join(split_error_counts(self.entity_data.get("error_message", "")))}
-        """
+        msg = [
+            f"{self.project.value[1]} ID: {self.entity_id}",
+            f"Group: {self.entity_data.get('group_name')}",
+            f"Ingest page: {get_entity_ingest_url(self.entity_data)}",
+        ]
+        if error_message := self.entity_data.get("error_message"):
+            msg.extend(["", f"{self.entity_type} is invalid:"])
+            msg.extend(split_error_counts(error_message))
         return subj, msg

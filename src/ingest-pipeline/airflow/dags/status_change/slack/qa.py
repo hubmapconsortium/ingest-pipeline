@@ -5,11 +5,7 @@ class SlackDatasetQA(SlackMessage):
     name = "dataset_qa"
 
     def format(self):
-        msg = f"""
-        Dataset {self.uuid} has reached QA!
-        {self.entity_links_str}
-        """
-        return msg
+        return [f"Dataset {self.uuid} has reached QA!", self.entity_links_str]
 
 
 # class SlackDatasetQADerived(SlackMessage):
