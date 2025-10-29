@@ -67,10 +67,10 @@ class EmailManager:
     def get_message_content(self) -> Optional[tuple[str, str]]:
         if self.is_internal_error:  # error status or bad content in validation_message
             subj, msg = self.internal_error_format()
-        elif self.status in self.good_statuses:
+        elif (
+            self.status in self.good_statuses or self.reorg_status_with_child_datasets()
+        ):  # good status or reorg with child datasets
             subj, msg = self.generic_good_status_format()
-        # elif self.status is Statuses.UPLOAD_REORGANIZED:
-        #     pass
         elif self.status in [
             Statuses.DATASET_INVALID,
             Statuses.UPLOAD_INVALID,
@@ -147,3 +147,12 @@ class EmailManager:
             msg.extend(["", f"{self.entity_type} is invalid:"])
             msg.extend(split_error_counts(error_message))
         return subj, msg
+
+    #########
+    # Tests #
+    #########
+
+    def reorg_status_with_child_datasets(self):
+        if self.status == Statuses.UPLOAD_REORGANIZED and self.entity_data.get("datasets"):
+            return True  # only want to send good email if reorg status AND has child datasets
+        return False

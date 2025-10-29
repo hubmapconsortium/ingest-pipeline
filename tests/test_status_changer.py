@@ -1124,6 +1124,34 @@ class TestEmailManager(MockParent):
             manager.main_recipients, "Upload test_upload is invalid", error_msg, manager.cc
         )
 
+    def test_reorg_has_child_datasets(self):
+        # reorg has datasets, return True
+        self.assertTrue(
+            self.email_manager(
+                Statuses.UPLOAD_REORGANIZED, context=good_upload_context
+            ).reorg_status_with_child_datasets()
+        )
+        # reorg has no datasets, return False
+        self.assertFalse(
+            self.email_manager(
+                Statuses.UPLOAD_REORGANIZED,
+                context=good_upload_context | {"datasets": []},
+            ).reorg_status_with_child_datasets()
+        )
+        # non-reorg has datasets, return False
+        self.assertFalse(
+            self.email_manager(
+                Statuses.UPLOAD_VALID, context=good_upload_context
+            ).reorg_status_with_child_datasets()
+        )
+        # non-reorg has no datasets, return False
+        self.assertFalse(
+            self.email_manager(
+                Statuses.UPLOAD_VALID,
+                context=good_upload_context | {"datasets": []},
+            ).reorg_status_with_child_datasets()
+        )
+
 
 # if __name__ == "__main__":
 #     suite = unittest.TestLoader().loadTestsFromTestCase(TestEntityUpdater)
