@@ -40,6 +40,7 @@ from tests.fixtures import (
 )
 from utils import pythonop_set_dataset_state
 
+from airflow.configuration import conf as airflow_conf
 from airflow.models.connection import Connection
 
 conn_mock_hm = Connection(host=f"https://ingest.api.hubmapconsortium.org")
@@ -949,6 +950,14 @@ class MockedEmailManager(EmailManager):
     # sending only to internal recipients. This mocks the correct
     # functionality. TODO: remove after turning on ext emails.
     def get_recipients(self):
+        conf_dict = airflow_conf.as_dict()
+        # Allows for setting defaults at the config level that override class defaults, e.g. for testing
+        if int_recipients := conf_dict.get("email_notifications", {}).get("int_recipients"):
+            cleaned_int_recipients = [str(address) for address in [int_recipients]]
+            self.int_recipients = cleaned_int_recipients
+        if main_recipient := conf_dict.get("email_notifications", {}).get("main"):
+            self.primary_contact = main_recipient
+
         if self.is_internal_error:
             self.main_recipients = ", ".join(self.int_recipients)
         else:
@@ -1006,6 +1015,20 @@ class TestEmailManager(MockParent):
         manager.get_recipients()
         assert manager.main_recipients == dataset_context_mock_value.get("created_by_user_email")
         assert manager.cc == self.int_recipients
+
+    def test_get_contacts_good_with_config_override(self):
+        with patch(
+            "utils.airflow_conf.as_dict",
+            return_value={
+                "email_notifications": {"int_recipients": "int@test.com", "main": "main@test.com"}
+            },
+        ):
+            manager = self.email_manager(
+                Statuses.DATASET_QA, context=dataset_context_mock_value, mock=True
+            )
+            manager.get_recipients()
+            assert manager.main_recipients == "main@test.com"
+            assert manager.cc == "int@test.com"
 
     @patch("status_change.email_manager.log_directory_path", return_value="test/log")
     def test_get_content_error(self, log_mock):
