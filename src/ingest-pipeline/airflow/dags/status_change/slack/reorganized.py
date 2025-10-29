@@ -1,3 +1,4 @@
+import logging
 from typing import Tuple
 
 from status_change.status_utils import get_abs_path, get_globus_url, get_organ
@@ -101,6 +102,9 @@ class SlackUploadReorganizedNoDatasets(SlackMessage):
     def test(cls, entity_data, token) -> bool:
         del token
         if not entity_data.get("datasets"):
+            logging.info(
+                "Reorganized upload does not have child datasets (DAG may still be running); not sending Slack message."
+            )
             return True  # If no datasets, apply this subclass
         return False
 

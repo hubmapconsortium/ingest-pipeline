@@ -154,5 +154,8 @@ class EmailManager:
 
     def reorg_status_with_child_datasets(self):
         if self.status == Statuses.UPLOAD_REORGANIZED and self.entity_data.get("datasets"):
+            logging.info(
+                "Reorganized upload does not have child datasets (DAG may still be running); not sending email."
+            )
             return True  # only want to send good email if reorg status AND has child datasets
         return False
