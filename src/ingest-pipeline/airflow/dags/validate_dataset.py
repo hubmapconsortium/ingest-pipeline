@@ -11,6 +11,7 @@ from hubmap_operators.common_operators import (
     CreateTmpDirOperator,
     SetDatasetProcessingOperator,
 )
+from status_change.callbacks.failure_callback import FailureCallback
 from status_change.status_manager import StatusChanger, Statuses
 from utils import (
     HMDAG,
@@ -51,7 +52,7 @@ default_args = {
     "retry_delay": timedelta(minutes=1),
     "xcom_push": True,
     "queue": get_queue_resource("validate_dataset"),
-    "on_failure_callback": utils.create_dataset_state_error_callback(get_dataset_uuid),
+    "on_failure_callback": FailureCallback(__name__),
 }
 
 
@@ -94,6 +95,7 @@ with HMDAG(
 
     def run_validation(**kwargs):
         lz_path, uuid = __get_lzpath_uuid(**kwargs)
+        kwargs["ti"].xcom_push(key="uuid", value=uuid)
         plugin_path = [path for path in ingest_validation_tests.__path__][0]
 
         ignore_globs = [uuid, "extras", "*metadata.tsv", "validation_report.txt"]
@@ -152,6 +154,7 @@ with HMDAG(
                 "validation_message": "",
             }
         else:
+            # TODO: should this be DATASET_INVALID?
             status = Statuses.DATASET_ERROR
             extra_fields = {
                 "validation_message": report_txt,
