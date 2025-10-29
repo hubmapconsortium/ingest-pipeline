@@ -1,6 +1,7 @@
 import logging
 from typing import Optional
 
+from airflow.configuration import conf as airflow_conf
 from airflow.utils.email import send_email
 
 from .status_utils import (
@@ -102,6 +103,14 @@ class EmailManager:
         send_email(self.main_recipients, self.subj, msg_str, cc=self.cc)
 
     def get_recipients(self):
+        conf_dict = airflow_conf.as_dict()
+        # Allows for setting defaults at the config level that override class defaults, e.g. for testing
+        if int_recipients := conf_dict.get("email_notifications", {}).get("int_recipients"):
+            cleaned_int_recipients = [str(address) for address in [int_recipients]]
+            self.int_recipients = cleaned_int_recipients
+        if main_recipient := conf_dict.get("email_notifications", {}).get("main"):
+            self.primary_contact = main_recipient
+
         if self.is_internal_error:
             self.main_recipients = ", ".join(self.int_recipients)
         else:
