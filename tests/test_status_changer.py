@@ -219,7 +219,7 @@ class TestStatusChanger(MockParent):
         status_update_mock.assert_not_called()
 
     @patch("status_change.status_manager.StatusChanger.set_entity_api_data")
-    @patch("status_change.status_manager.StatusChanger.call_message_managers")
+    @patch("status_change.status_manager.MessageSender.call_message_managers")
     def test_same_status(self, mm_mock, status_update_mock):
         same_status = StatusChanger(
             "upload_valid_uuid",
@@ -365,6 +365,7 @@ class TestStatusChanger(MockParent):
             uuid=uuid,
             message=message,
             dag_run=dag_run_mock,
+            primary_uuid=None,
         )
         sc_mock.assert_called_with(
             uuid,
@@ -374,6 +375,7 @@ class TestStatusChanger(MockParent):
             http_conn_id="entity_api_connection",
             reindex=True,
             run_id=None,
+            primary_uuid=None,
         )
         # Pass a valid ds_state and assert it was passed properly
         pythonop_set_dataset_state(
@@ -383,6 +385,7 @@ class TestStatusChanger(MockParent):
             message=message,
             ds_state="QA",
             dag_run=dag_run_mock,
+            primary_uuid=None,
         )
         sc_mock.assert_called_with(
             uuid,
@@ -392,6 +395,7 @@ class TestStatusChanger(MockParent):
             http_conn_id="entity_api_connection",
             reindex=True,
             run_id=None,
+            primary_uuid=None,
         )
 
     def test_pythonop_set_dataset_state_invalid(self):
@@ -474,7 +478,7 @@ class SlackTestHold(SlackMessage):
     name = "dataset_hold"
 
     @classmethod
-    def test(cls, entity_data, token):
+    def test(cls, entity_data, token, msg=None, primary_dataset={}):
         if entity_data.get("status").lower() == "hold":
             return True
         return False
@@ -557,7 +561,11 @@ class TestSlack(MockParent):
                     self.mock_slack_post.reset_mock()
 
     def slack_manager(self, status):
-        return SlackManager(status, "test_uuid", "test_token")
+        return SlackManager(
+            status,
+            "test_token",
+            "test_uuid",
+        )
 
     def test_slack_manager_main_class(self):
         self.mock_slack_context.return_value.pop("priority_project_list", None)
@@ -670,8 +678,8 @@ class TestFailureCallback(MockParent):
 class TestDataIngestBoardManager(MockParent):
 
     def test_clear_status(self):
-        dib = DataIngestBoardManager(Statuses.UPLOAD_VALID, "test_uuid", "test_token")
-        assert dib.get_fields() == {"error_message": ""}
+        dib = DataIngestBoardManager(Statuses.UPLOAD_VALID, "test_token", "test_uuid")
+        assert dib.get_fields() == {"error_message": "", "assigned_to_group_name": ""}
 
     @patch("status_change.data_ingest_board_manager.DataIngestBoardManager.upload_invalid")
     def test_valid_status_from_statuschanger(self, upload_invalid_mock):
@@ -717,7 +725,7 @@ class TestDataIngestBoardManager(MockParent):
                 msg="test message!",
             )
             assert dib_w_msg.get_fields() == {
-                "error_message": f"Internal error. Log directory: test_path/test_run_id | test message!",
+                "error_message": f"test message! | Internal error. Log directory: test_path/test_run_id",
                 "assigned_to_group_name": "IEC Testing Group",
             }
 
@@ -746,7 +754,7 @@ class TestDataIngestBoardManager(MockParent):
                 msg="test message!",
             )
             assert dib_w_msg.get_fields() == {
-                "error_message": f"Internal error. Log directory: test_path/test_run_id | test message!",
+                "error_message": f"test message! | Internal error. Log directory: test_path/test_run_id",
                 "assigned_to_group_name": "IEC Testing Group",
             }
         with patch(
@@ -767,7 +775,7 @@ class TestDataIngestBoardManager(MockParent):
 
     def test_status_invalid_for_manager(self):
         dib = DataIngestBoardManager(Statuses.DATASET_HOLD, "test_uuid", "test_token")
-        assert dib.get_fields() == None
+        assert dib.get_fields() == {}
         assert dib.is_valid_for_status == False
 
     def test_get_msg_ext_error(self):
@@ -980,8 +988,8 @@ class TestEmailManager(MockParent):
             context_mock.return_value = context | {"status": Statuses.valid_str(status)}
             manager = manager_class(
                 status,
-                "test_uuid",
                 "test_token",
+                "test_uuid",
                 msg=msg,
                 run_id="test_run_id",
             )

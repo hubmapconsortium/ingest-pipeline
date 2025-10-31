@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from copy import deepcopy
 from functools import cached_property
-from typing import Any, Optional, Union
+from typing import Any, Callable, Optional, Union
 
 from schema_utils import (
     localized_assert_json_matches_schema as assert_json_matches_schema,
@@ -16,6 +16,7 @@ from .status_utils import (
     ENTITY_STATUS_MAP,
     EntityUpdateException,
     Statuses,
+    get_primary_dataset,
     get_run_id,
     get_submission_context,
     put_request_to_entity_api,
@@ -212,7 +213,6 @@ Example usage with optional params:
 
 
 class StatusChanger(EntityUpdater):
-    message_classes = [DataIngestBoardManager, SlackManager, EmailManager]
     same_status = False
 
     def __init__(
@@ -228,6 +228,7 @@ class StatusChanger(EntityUpdater):
         # Additional field to support privileged field "status"
         status: Optional[Union[Statuses, str]] = None,
         message=None,
+        primary_uuid: Optional[str] = None,
         **kwargs,
     ):
         del kwargs
@@ -243,6 +244,7 @@ class StatusChanger(EntityUpdater):
         )
         self.status = self._validate_status(status)
         self.message = message
+        self.primary_uuid = primary_uuid
 
     def update(self) -> None:
         """
@@ -270,29 +272,14 @@ class StatusChanger(EntityUpdater):
             logging.info("Updating status...")
             self.validate_fields_to_change()
             self.set_entity_api_data()
-        self.call_message_managers()
-
-    def call_message_managers(self):
-        for message_type in self.message_classes:
-            message_manager = message_type(
-                self.status,
-                self.uuid,
-                self.token,
-                msg=self.message,
-                run_id=self.run_id,
-            )
-            if message_manager.is_valid_for_status:
-                try:
-                    message_manager.update()
-                except EntityUpdateException as e:
-                    # Do not blow up for known errors
-                    logging.error(
-                        f"Message not sent from manager class {type(message_manager).__name__}. Error: {e}"
-                    )
-            else:
-                logging.info(
-                    f"Message manager class {type(message_manager).__name__} not valid for status {self.status}, skipping."
-                )
+        MessageSender(
+            self.status,
+            self.token,
+            uuid=self.uuid,
+            message=self.message,
+            run_id=self.run_id,
+            primary_uuid=self.primary_uuid,
+        )
 
     def validate_fields_to_change(self):
         super().validate_fields_to_change()
@@ -357,3 +344,57 @@ class StatusChanger(EntityUpdater):
         # Slightly fragile, needs to keep pace with EntityUpdater.update()
         super().validate_fields_to_change()
         super().set_entity_api_data()
+
+
+class MessageSender:
+    # TODO: add to utils.pythonop_set_dataset_state
+    # TODO: add parent uuid kwarg to set_dataset_error in pipeline dags
+    # TODO: switch pipeline dags to use errorcallback
+    message_classes = [DataIngestBoardManager, SlackManager, EmailManager]
+
+    # TODO: test
+    def __init__(
+        self,
+        status: Statuses,
+        token: str,
+        uuid: Optional[str] = None,
+        message: Optional[str] = None,
+        run_id: Optional[str] = None,
+        primary_uuid: Optional[str] = None,
+    ):
+        self.status = status
+        self.uuid = uuid
+        self.token = token
+        self.message = message
+        self.run_id = run_id
+        self.primary_dataset = (
+            get_primary_dataset(self.token, primary_uuid) if primary_uuid else None
+        )
+        self.call_message_managers()
+
+    def call_message_managers(self):
+        for message_type in self.message_classes:
+            try:
+                message_manager = self.get_message_manager(message_type)
+                if message_manager.is_valid_for_status:
+                    message_manager.update()
+            except EntityUpdateException as e:
+                # Do not blow up for known errors
+                logging.error(
+                    f"Message not sent from manager class {type(message_type).__name__}. Error: {e}"
+                )
+            else:
+                logging.info(
+                    f"Message manager class {type(message_manager).__name__} not valid for status {self.status}, skipping."
+                )
+
+    def get_message_manager(self, message_type: Callable):
+        return message_type(
+            self.status,
+            self.token,
+            self.uuid,
+            msg=self.message,
+            run_id=self.run_id,
+            # TODO: test that this param is ingested appropriately by message classes
+            primary_dataset=self.primary_dataset,
+        )

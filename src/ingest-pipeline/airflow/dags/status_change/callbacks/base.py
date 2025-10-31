@@ -1,7 +1,7 @@
 from abc import ABC
 
 from status_change.status_utils import get_submission_context
-from utils import get_auth_tok
+from utils import get_auth_tok, get_parent_dataset_uuid
 
 
 class AirflowCallback(ABC):
@@ -35,3 +35,7 @@ class AirflowCallback(ABC):
         self.task = context.get("task")
         self.entity_data = get_submission_context(self.auth_tok, self.uuid)
         self.entity_type = self.entity_data.get("entity_type", "").lower()
+        try:
+            self.primary_uuid = get_parent_dataset_uuid(**context)
+        except:
+            self.primary_uuid = None

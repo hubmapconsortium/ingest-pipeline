@@ -205,6 +205,7 @@ with HMDAG(
         provide_context=True,
         trigger_rule="all_done",
         op_kwargs={
+            "parent_dataset_uuid_callable": get_parent_dataset_uuids_list,
             "dataset_uuid_callable": get_dataset_uuid,
             "ds_state": "Error",
             "message": "An error occurred in {}".format(pipeline_name),

@@ -25,7 +25,7 @@ Strings that should *only* occur in failure states
 "404" can appear in a real, external-facing error
 message)
 """
-internal_error_strs = ["EntityUpdateException", "Process failed", "Traceback", "Internal error"]
+INTERNAL_ERROR_STRS = ["EntityUpdateException", "Process failed", "Traceback", "Internal error"]
 
 
 class Statuses(str, Enum):
@@ -283,18 +283,6 @@ def get_ancestors(uuid: str, token: str) -> dict:
     return response.json()
 
 
-def get_primary_dataset(entity_data: dict, token: str) -> Optional[str]:
-    # Weed out multi-assay
-    dag_provenance_list = entity_data.get("ingest_metadata", {}).get("dag_provenance_list", [])
-    for dag in dag_provenance_list:
-        if ".cwl" in dag.get("name", ""):
-            # If it's been through a pipeline, then find ancestor dataset
-            ancestors = get_ancestors(entity_data.get("uuid", ""), token)
-            for ancestor in ancestors:
-                if ancestor.get("entity_type", "").lower() == "dataset":
-                    return ancestor.get("uuid")
-
-
 def put_request_to_entity_api(
     uuid: str,
     token: str,
@@ -329,7 +317,7 @@ def is_internal_error(entity_data: dict) -> bool:
     if status == "error":
         return True
     elif validation_message := entity_data.get("validation_message"):
-        for error_str in internal_error_strs:
+        for error_str in INTERNAL_ERROR_STRS:
             if error_str.lower() in validation_message.lower():
                 return True
     return False
@@ -416,3 +404,40 @@ def split_error_counts(error_message: str, no_bullets: bool = False) -> list[str
     if no_bullets:
         return [line for line in re.split("; | \\| ", error_message)]
     return [f"- {line}" for line in re.split("; | \\| ", error_message)]
+
+
+def get_primary_dataset(
+    token: str, primary_uuid: Optional[str] = None, entity_data: Optional[dict] = None
+) -> dict:
+    assert primary_uuid or entity_data
+    if primary_uuid:
+        return get_submission_context(token, primary_uuid)
+    elif entity_data:
+        ancestors = get_ancestors(entity_data.get("uuid", ""), token)
+        for ancestor in ancestors:
+            if ancestor.get("entity_type", "").lower() == "dataset":
+                return ancestor
+    return {}
+
+
+NO_UUID_ALLOWED = [Statuses.DATASET_ERROR]
+
+
+def check_uuid_for_message_classes(
+    status: Statuses, uuid: Optional[str] = None, primary_dataset: Optional[dict] = None
+) -> Optional[str]:
+    """
+    Return True if arguments passed in are valid for message manager classes.
+    Return:
+        None:
+            check_uuid(<any_status>, uuid=<uuid>, primary_dataset=None)
+            check_uuid(Statuses.DATASET_ERROR, uuid=None, primary_dataset=<dict>)
+        Error strng:
+            check_uuid(<any_status>, uuid=None, primary_dataset=None)
+            check_uuid(<any_status_except_DATASET_ERROR>, uuid=None, primary_dataset=<dict>)
+    """
+    if not uuid and not primary_dataset:
+        return "MessageSender did not receive uuid or primary_uuid, can't send messages. Exiting."
+    elif not uuid and primary_dataset:
+        if status not in NO_UUID_ALLOWED:
+            return f"No derived UUID received for primary dataset {primary_dataset.get('uuid')}. Derived dataset info required for status {status.status_str}."

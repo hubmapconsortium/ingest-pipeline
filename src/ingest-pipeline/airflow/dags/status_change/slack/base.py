@@ -15,10 +15,17 @@ class SlackMessage:
     # Name should match what's in status_utils.slack_channels
     name = "base"
 
-    def __init__(self, uuid: str, token: str, msg: Optional[str] = None):
+    def __init__(
+        self,
+        uuid: str,
+        token: str,
+        msg: Optional[str] = None,
+        primary_dataset: Optional[dict] = None,
+    ):
         self.uuid = uuid
         self.token = token
         self.msg = msg
+        self.primary_dataset = primary_dataset or {}
         self.channel = slack_channels.get(self.name, "")
         self.entity_id_str = f"{get_project().value[0]}_id"  # "hubmap_id" or "sennet_id"
         self.entity_data = get_submission_context(token, uuid)
@@ -28,18 +35,22 @@ class SlackMessage:
         return slack_channels.get(cls.name, "")
 
     @classmethod
-    def test(cls, entity_data: dict, token: str) -> bool:
+    def test(cls, entity_data: dict, token: str, primary_dataset: dict = {}) -> bool:
         """
         If there are special case subclasses for a given status, their
         test() methods will be called to determine if the subclass applies.
         Only one should return True because the subclass test loop breaks
         after first True result.
         """
-        del entity_data, token
+        del entity_data, token, primary_dataset
         return False
 
     def format(self) -> list:
         raise NotImplementedError
+
+    @property
+    def uuid_and_entity_id_str(self):
+        return f"{self.uuid} | {self.entity_data.get(self.entity_id_str)}"
 
     @property
     def ingest_ui_url(self):
@@ -50,19 +61,19 @@ class SlackMessage:
         return get_data_ingest_board_query_url(self.entity_data)
 
     @property
-    def entity_links_str(self):
+    def entity_links_str(self) -> list:
         """
         View on Ingest UI.
         View on Data Ingest Board.
         View on Globus.
         Filesystem path: /path/to/data
         """
-        return f"""
-        <{self.ingest_ui_url}|View on Ingest UI.>
-        <{self.data_ingest_board_url}|View on Data Ingest Board.>
-        <{get_globus_url(self.uuid, self.token)}|View on Globus.>
-        Filesystem path: {self.copyable_filepath}
-        """
+        return [
+            f"<{self.ingest_ui_url}|View on Ingest UI.>",
+            f"<{self.data_ingest_board_url}|View on Data Ingest Board.>",
+            f"<{get_globus_url(self.uuid, self.token)}|View on Globus.>",
+            f"Filesystem path: {self.copyable_filepath}",
+        ]
 
     @property
     def copyable_filepath(self):

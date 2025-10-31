@@ -1021,6 +1021,7 @@ def pythonop_set_dataset_state(**kwargs) -> None:
     or out of the Published state.
 
     Accepts the following via the caller's op_kwargs:
+    'parent_dataset_uuid_callable': called with **kwargs; returns parent uuid
     'dataset_uuid_callable' : called with **kwargs; returns the
                               uuid of the dataset to be modified
     'http_conn_id' : the http connection to be used.  Default is "entity_api_connection"
@@ -1038,6 +1039,11 @@ def pythonop_set_dataset_state(**kwargs) -> None:
     run_id = (
         kwargs["run_id_callable"](**kwargs) if callable(kwargs.get("run_id_callable")) else None
     )
+    parent_uuid = (
+        kwargs["parent_dataset_uuid_callable"](**kwargs)
+        if callable(kwargs.get("parent_dataset_uuid_callable"))
+        else None
+    )
     http_conn_id = kwargs.get("http_conn_id", "entity_api_connection")
     status = kwargs["ds_state"] if "ds_state" in kwargs else "Processing"
     message = kwargs.get("message", None)
@@ -1050,6 +1056,7 @@ def pythonop_set_dataset_state(**kwargs) -> None:
             http_conn_id=http_conn_id,
             reindex=reindex,
             run_id=run_id,
+            primary_uuid=parent_uuid,
         ).update()
 
 
@@ -1664,6 +1671,8 @@ def make_send_status_msg_function(
                     reindex=reindex,
                     run_id=kwargs.get("run_id"),
                     message=kwargs["ti"].xcom_pull(task_ids="run_validation", key="error_counts"),
+                    # TODO: add something like kwargs["parent_dataset_uuid_callable"](**kwargs)
+                    # primary_uuid=,
                 ).update()
             except EntityUpdateException:
                 return_status = False
