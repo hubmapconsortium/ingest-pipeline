@@ -125,8 +125,7 @@ with HMDAG(
             dataset_ignore_globs=ignore_globs,
             upload_ignore_globs="*",
             plugin_directory=plugin_path,
-            # offline=True,  # noqa E265
-            add_notes=False,
+            # offline_only=True,  # noqa E265
             extra_parameters={
                 "coreuse": get_threads_resource("scan_and_begin_processing", "run_validation")
             },

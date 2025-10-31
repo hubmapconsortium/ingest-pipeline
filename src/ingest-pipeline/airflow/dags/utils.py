@@ -1035,7 +1035,9 @@ def pythonop_set_dataset_state(**kwargs) -> None:
 
     reindex = kwargs.get("reindex", True)
     dataset_uuid = kwargs["dataset_uuid_callable"](**kwargs)
-    run_id = kwargs["get_run_id"](**kwargs) if callable(kwargs.get("get_run_id")) else None
+    run_id = (
+        kwargs["run_id_callable"](**kwargs) if callable(kwargs.get("run_id_callable")) else None
+    )
     http_conn_id = kwargs.get("http_conn_id", "entity_api_connection")
     status = kwargs["ds_state"] if "ds_state" in kwargs else "Processing"
     message = kwargs.get("message", None)
