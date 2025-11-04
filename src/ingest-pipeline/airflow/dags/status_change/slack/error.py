@@ -6,20 +6,14 @@ class SlackUploadError(SlackMessage):
     name = "upload_error"
 
     def format(self):
-        return f"""
-        Upload {self.uuid} is in Error state.
-        {self.entity_links_str}
-        """
+        return [f"Upload {self.uuid} is in Error state.", self.entity_links_str]
 
 
 class SlackDatasetError(SlackMessage):
     name = "dataset_error"
 
     def format(self):
-        return f"""
-        Dataset {self.uuid} is in Error state.
-        {self.entity_links_str}
-        """
+        return [f"Dataset {self.uuid} is in Error state.", self.entity_links_str]
 
 
 # class SlackDatasetErrorDerived(SlackMessage):

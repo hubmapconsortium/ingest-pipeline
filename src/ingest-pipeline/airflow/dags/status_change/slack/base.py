@@ -38,7 +38,7 @@ class SlackMessage:
         del entity_data, token
         return False
 
-    def format(self) -> str:
+    def format(self) -> list:
         raise NotImplementedError
 
     @property
