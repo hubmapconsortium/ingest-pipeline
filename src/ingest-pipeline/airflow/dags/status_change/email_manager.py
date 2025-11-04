@@ -4,7 +4,7 @@ from typing import Optional
 from airflow.configuration import conf as airflow_conf
 from airflow.utils.email import send_email
 
-from .status_utils import (
+from status_change.status_utils import (
     Statuses,
     get_entity_ingest_url,
     get_project,
