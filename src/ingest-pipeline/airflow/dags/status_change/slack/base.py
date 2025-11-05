@@ -20,12 +20,12 @@ class SlackMessage:
         uuid: str,
         token: str,
         msg: Optional[str] = None,
-        primary_dataset: Optional[dict] = None,
+        derived_dataset: Optional[dict] = None,
     ):
         self.uuid = uuid
         self.token = token
         self.msg = msg
-        self.primary_dataset = primary_dataset or {}
+        self.derived_dataset = derived_dataset or {}
         self.channel = slack_channels.get(self.name, "")
         self.entity_id_str = f"{get_project().value[0]}_id"  # "hubmap_id" or "sennet_id"
         self.entity_data = get_submission_context(token, uuid)
@@ -35,14 +35,20 @@ class SlackMessage:
         return slack_channels.get(cls.name, "")
 
     @classmethod
-    def test(cls, entity_data: dict, token: str, primary_dataset: dict = {}) -> bool:
+    def test(
+        cls,
+        entity_data: dict,
+        token: str,
+        handle_derived: bool = False,
+        derived_dataset: bool = False,
+    ) -> bool:
         """
         If there are special case subclasses for a given status, their
         test() methods will be called to determine if the subclass applies.
         Only one should return True because the subclass test loop breaks
         after first True result.
         """
-        del entity_data, token, primary_dataset
+        del entity_data, token, handle_derived, derived_dataset
         return False
 
     def format(self) -> list:

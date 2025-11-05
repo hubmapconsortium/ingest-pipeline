@@ -4,14 +4,15 @@ from typing import Optional
 from .slack.base import SlackMessage
 from .slack.error import (
     SlackDatasetError,
-    SlackDatasetErrorDerived,
+    SlackDatasetErrorDerivedCreated,
+    SlackDatasetErrorDerivedNotCreated,
     SlackUploadError,
 )
 from .slack.invalid import (
     SlackDatasetInvalid,
     SlackUploadInvalid,
 )
-from .slack.qa import SlackDatasetQA
+from .slack.qa import SlackDatasetQA, SlackDatasetQADerived
 from .slack.reorganized import (
     SlackUploadReorganized,
     SlackUploadReorganizedNoDatasets,
@@ -20,7 +21,6 @@ from .slack.reorganized import (
 from .status_utils import (
     EntityUpdateException,
     Statuses,
-    check_uuid_for_message_classes,
     get_env,
     get_submission_context,
     post_to_slack_notify,
@@ -41,11 +41,12 @@ class SlackManager:
 
     def __init__(
         self,
-        status: Statuses,
+        uuid: str,
         token: str,
-        uuid: Optional[str] = "",
+        status: Statuses,
         msg: str = "",
-        primary_dataset: Optional[dict] = None,
+        handle_derived: bool = False,
+        derived_dataset: Optional[dict] = None,
         *args,
         **kwargs,
     ):
@@ -53,11 +54,8 @@ class SlackManager:
         self.uuid = uuid
         self.token = token
         self.addtl_msg = msg
-        self.primary_dataset = primary_dataset or {}
-        if error_msg := check_uuid_for_message_classes(
-            status, uuid=uuid, primary_dataset=primary_dataset
-        ):
-            raise EntityUpdateException(error_msg)
+        self.handle_derived = handle_derived
+        self.derived_dataset = derived_dataset or {}
         self.message_class = self.get_message_class(status)
         if not self.message_class:
             logging.info(
@@ -73,7 +71,7 @@ class SlackManager:
     status_to_class = {
         Statuses.DATASET_ERROR: {
             "main_class": SlackDatasetError,
-            "subclasses": [SlackDatasetErrorDerived],
+            "subclasses": [SlackDatasetErrorDerivedCreated, SlackDatasetErrorDerivedNotCreated],
         },
         Statuses.DATASET_INVALID: {
             "main_class": SlackDatasetInvalid,
@@ -81,7 +79,7 @@ class SlackManager:
         },
         Statuses.DATASET_QA: {
             "main_class": SlackDatasetQA,
-            "subclasses": [],
+            "subclasses": [SlackDatasetQADerived],
         },
         Statuses.UPLOAD_ERROR: {
             "main_class": SlackUploadError,
@@ -105,10 +103,10 @@ class SlackManager:
         # Return None if no UUID (should only happen in case of Statuses.DATASET_ERROR).
         entity_data = get_submission_context(self.token, self.uuid) if self.uuid else None
         for subclass in relevant_classes.get("subclasses", []):
-            if subclass.test(entity_data, self.token, self.primary_dataset):
-                return subclass(self.uuid, self.token)
+            if subclass.test(entity_data, self.token, self.handle_derived, self.derived_dataset):
+                return subclass(self.uuid, self.token, derived_dataset=self.derived_dataset)
         if main_class := relevant_classes["main_class"]:
-            return main_class(self.uuid, self.token)
+            return main_class(self.uuid, self.token, self.derived_dataset)
 
     def update(self):
         if not self.message_class:

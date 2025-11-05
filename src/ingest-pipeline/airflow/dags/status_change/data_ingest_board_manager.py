@@ -1,10 +1,10 @@
 import logging
+import re
 from typing import Optional
 
 from .status_utils import (
     EntityUpdateException,
     Statuses,
-    check_uuid_for_message_classes,
     get_project,
     get_submission_context,
     is_internal_error,
@@ -19,6 +19,7 @@ class DataIngestBoardManager:
     """
 
     clear_only = [
+        Statuses.DATASET_QA,
         Statuses.UPLOAD_REORGANIZED,
         Statuses.UPLOAD_VALID,
     ]
@@ -26,35 +27,33 @@ class DataIngestBoardManager:
         Statuses.DATASET_QA,
         Statuses.DATASET_ERROR,
     ]
-
     assign_to_dp = [
         Statuses.DATASET_INVALID,
         Statuses.UPLOAD_INVALID,
     ]
+    error_prefix = "Derived dataset errors"
 
     def __init__(
         self,
-        status: Statuses,
+        uuid: str,
         token: str,
-        uuid: Optional[str] = None,
+        status: Statuses,
         msg: str = "",
         run_id: str = "",
-        primary_dataset: Optional[dict] = None,
+        handle_derived: bool = False,
+        derived_dataset: Optional[dict] = None,
         *args,
         **kwargs,
     ):
         del args, kwargs
-        if error_msg := check_uuid_for_message_classes(
-            status, uuid=uuid, primary_dataset=primary_dataset
-        ):
-            raise EntityUpdateException(error_msg)
         self.uuid = uuid
         self.token = token
         self.status = status
         self.msg = str(msg) if msg else ""
         self.run_id = run_id
-        self.primary_dataset = primary_dataset or {}
-        self.get_entity_data()
+        self.handle_derived = handle_derived
+        self.derived_dataset = derived_dataset or {}
+        self.entity_data = get_submission_context(self.token, self.uuid) if self.uuid else {}
         self.entity_id_str = f"{get_project().value[0]}_id"  # "hubmap_id" or "sennet_id"
         self.update_fields = self.get_fields()
         self.is_valid_for_status = bool(self.update_fields)
@@ -63,8 +62,9 @@ class DataIngestBoardManager:
         if not self.update_fields or not self.uuid:
             return
         self.update_request()
-        # TODO: test
-        if self.set_on_derived:
+        if self.handle_derived:
+            self.entity_data = self.derived_dataset
+            self.uuid = self.derived_dataset.get("uuid")
             if self.status is Statuses.DATASET_ERROR:
                 update_data = {
                     "error_message": self.dataset_error(),
@@ -72,7 +72,9 @@ class DataIngestBoardManager:
                 }
             elif self.status is Statuses.DATASET_QA:
                 update_data = {"error_message": "", "assigned_to_group_name": ""}
-                self.update_request(uuid=self.derived_uuid, update_fields=update_data)
+            else:
+                return
+            self.update_request(uuid=self.uuid, update_fields=update_data)
 
     def update_request(self, uuid=None, update_fields=None):
         uuid = uuid if uuid else self.uuid
@@ -100,15 +102,14 @@ class DataIngestBoardManager:
 
     def get_fields(self) -> dict:
         update_data = {}
-        if self.status in self.clear_only:
+        message, group_name = self.check_primary_field()
+        if message or group_name:
+            if message is not None:
+                update_data["error_message"] = message
+            if group_name is not None:
+                update_data["assigned_to_group_name"] = group_name
+        elif self.status in self.clear_only:
             update_data = {"error_message": "", "assigned_to_group_name": ""}
-        # TODO: test
-        elif self.status in self.check_primary_before_update:
-            if message := self.check_primary_field():
-                update_data = {
-                    "error_message": message,
-                    "assigned_to_group_name": self.assigned_to_group_name,
-                }
         elif func := getattr(self, self.status.value, None):
             msg = func()
             if self.msg:
@@ -123,37 +124,78 @@ class DataIngestBoardManager:
             )
         return update_data
 
-    # TODO: test
-    def check_primary_field(self) -> Optional[str]:
+    def check_primary_field(self) -> tuple[Optional[str], Optional[str]]:
+        """
+        A primary dataset's `error_message` field contains info about the failures
+        of any of its derived datasets. We want to:
+            - case DATASET_ERROR:
+                - Write the derived dataset's UUID to the primary's error_message field,
+                  set assigned_to_group_name to IEC Testing Group
+                - If no derived dataset was created, do not update primary
+            - case DATASET_QA:
+                - Remove the derived dataset's UUID from the primary's error_message field
+            - Without removing message about any other erroring UUIDs or other unrelated error messages
+        """
+        if not self.handle_derived:
+            # If a primary dataset is erroring / entering QA, we don't worry about
+            # the contents of its error_message field.
+            return None, None
+        elif not self.status in self.check_primary_before_update:
+            return None, None
         error_message = None
-        existing_error_msg = str(self.primary_dataset.get("error_message"))
-        error_prefix = "Derived dataset errors"
-        derived_entity_id = str(self.derived_entity_data.get(self.entity_id_str))
-        if Statuses.DATASET_ERROR:
-            # Not a derived dataset error, continue
-            if not self.primary_dataset:
-                return
-            if (error_prefix in existing_error_msg) and not (
-                derived_entity_id in existing_error_msg
-            ):
-                error_message = f"{existing_error_msg}, {derived_entity_id}"
+        group = None
+        derived_entity_id = self.derived_dataset.get(self.entity_id_str, "")
+        existing_error_msg = self.entity_data.get("error_message", "")
+        if self.status == Statuses.DATASET_ERROR:
+            error_message, group = self.check_primary_error(derived_entity_id, existing_error_msg)
+        elif self.status == Statuses.DATASET_QA:
+            error_message, group = self.check_primary_qa(derived_entity_id, existing_error_msg)
+        return error_message, group
+
+    def check_primary_error(
+        self, derived_entity_id: str, existing_error_msg: str
+    ) -> tuple[Optional[str], Optional[str]]:
+        # No derived dataset ID, do not touch field
+        # TODO: verify this approach
+        if not derived_entity_id:
+            return None, None
+        # Existing error message includes 'Derived dataset errors' but does not
+        # include this derived dataset ID; append ID
+        if (self.error_prefix in existing_error_msg) and not (
+            derived_entity_id in existing_error_msg
+        ):
+            error_message = f"{existing_error_msg}, {derived_entity_id}"
+        # No existing error message, create with prefix and add ID
+        elif not existing_error_msg:
+            error_message = f"{self.error_prefix}: {derived_entity_id}"
+        # Existing error message with other content; append with prefix
+        else:
+            error_message = f"{existing_error_msg} | {self.error_prefix}: {derived_entity_id}"
+        return error_message, "IEC Testing Group"
+
+    def check_primary_qa(
+        self, derived_entity_id: str, existing_error_msg: str
+    ) -> tuple[Optional[str], Optional[str]]:
+        if not derived_entity_id:
+            raise EntityUpdateException(
+                f"Missing derived dataset ID, cannot set QA message on primary dataset {self.uuid}."
+            )
+        if self.error_prefix in existing_error_msg:
+            split_existing_message = [
+                line.strip()
+                for line in re.split(": |, ", existing_error_msg)
+                if line.strip() not in [derived_entity_id, self.error_prefix]
+            ]
+            # IDs remain after removing derived dataset ID, write to error_message
+            if split_existing_message:
+                msg = f"{self.error_prefix}: {', '.join(split_existing_message)}"
+                group = None
+                return msg, group
+            # No more errors, blank error_message field
             else:
-                error_message = f"{error_prefix}: {derived_entity_id}"
-        elif Statuses.DATASET_QA:
-            # Not a derived dataset QA, continue
-            if not self.primary_dataset:
-                return
-            """
-            - Retain any info not pertaining to this uuid.
-            - Clear primary data related to this derived uuid.
-            - Clear status on derived.
-            """
-            error_message = ""
-            if existing_error_msg:
-                for id_str in [f"{derived_entity_id}, ", derived_entity_id]:
-                    if id_str in existing_error_msg:
-                        error_message = existing_error_msg.replace(id_str, "")
-        return error_message
+                return "", ""
+        else:
+            return existing_error_msg, None
 
     @property
     def internal_error(self) -> bool:
@@ -209,31 +251,3 @@ class DataIngestBoardManager:
         elif self.msg:
             return ""
         return f"Invalid status from run {self.run_id}"
-
-    #########
-    # Utils #
-    #########
-
-    def get_entity_data(self):
-        """
-        Get primary dataset info and reset self.uuid to primary uuid
-        and self.entity_data to primary entity_data. Return derived
-        dataset entity_data.
-        """
-        # If distinct parent uuid found, set derived_entity_data and reset
-        # self.uuid/self.entity_data to primary to ensure we're writing to
-        # the correct entity (derived errors set on primary, need to be
-        # unset when derived reaches QA)
-        self.entity_data = get_submission_context(self.token, self.uuid) if self.uuid else {}
-        # TODO: test
-        if self.primary_dataset:
-            if self.uuid:
-                self.set_on_derived = True
-            self.derived_entity_data = self.entity_data
-            self.derived_uuid = self.entity_data.get("uuid")
-            self.entity_data = self.primary_dataset
-            self.uuid = self.primary_dataset.get("uuid", "")
-        if not self.uuid:
-            raise EntityUpdateException(
-                "DataIngestBoardManager could not find UUID, no update will be made."
-            )

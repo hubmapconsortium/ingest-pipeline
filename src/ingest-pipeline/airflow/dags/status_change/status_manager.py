@@ -16,7 +16,6 @@ from .status_utils import (
     ENTITY_STATUS_MAP,
     EntityUpdateException,
     Statuses,
-    get_primary_dataset,
     get_run_id,
     get_submission_context,
     put_request_to_entity_api,
@@ -228,7 +227,8 @@ class StatusChanger(EntityUpdater):
         # Additional field to support privileged field "status"
         status: Optional[Union[Statuses, str]] = None,
         message=None,
-        primary_uuid: Optional[str] = None,
+        handle_derived: bool = False,
+        derived_uuid: Optional[str] = None,
         **kwargs,
     ):
         del kwargs
@@ -244,7 +244,8 @@ class StatusChanger(EntityUpdater):
         )
         self.status = self._validate_status(status)
         self.message = message
-        self.primary_uuid = primary_uuid
+        self.handle_derived = handle_derived
+        self.derived_uuid = derived_uuid
 
     def update(self) -> None:
         """
@@ -273,12 +274,13 @@ class StatusChanger(EntityUpdater):
             self.validate_fields_to_change()
             self.set_entity_api_data()
         MessageSender(
-            self.status,
+            self.uuid,
             self.token,
-            uuid=self.uuid,
+            self.status,
             message=self.message,
             run_id=self.run_id,
-            primary_uuid=self.primary_uuid,
+            handle_derived=self.handle_derived,
+            derived_uuid=self.derived_uuid,
         )
 
     def validate_fields_to_change(self):
@@ -352,23 +354,26 @@ class MessageSender:
     # TODO: switch pipeline dags to use errorcallback
     message_classes = [DataIngestBoardManager, SlackManager, EmailManager]
 
-    # TODO: test
     def __init__(
         self,
-        status: Statuses,
+        uuid: str,
         token: str,
-        uuid: Optional[str] = None,
+        status: Statuses,
         message: Optional[str] = None,
         run_id: Optional[str] = None,
-        primary_uuid: Optional[str] = None,
+        handle_derived: bool = False,
+        derived_uuid: Optional[str] = None,
     ):
         self.status = status
         self.uuid = uuid
         self.token = token
         self.message = message
         self.run_id = run_id
-        self.primary_dataset = (
-            get_primary_dataset(self.token, primary_uuid) if primary_uuid else None
+        # There may not always be a derived dataset entity created
+        # at the time of error, so just derived_uuid is insufficient.
+        self.handle_derived = handle_derived
+        self.derived_dataset = (
+            get_submission_context(self.token, derived_uuid) if derived_uuid else None
         )
         self.call_message_managers()
 
@@ -390,11 +395,11 @@ class MessageSender:
 
     def get_message_manager(self, message_type: Callable):
         return message_type(
-            self.status,
-            self.token,
             self.uuid,
+            self.token,
+            self.status,
             msg=self.message,
             run_id=self.run_id,
-            # TODO: test that this param is ingested appropriately by message classes
-            primary_dataset=self.primary_dataset,
+            handle_derived=self.handle_derived,
+            derived_dataset=self.derived_dataset,
         )

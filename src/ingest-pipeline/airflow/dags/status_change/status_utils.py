@@ -341,22 +341,12 @@ def get_entity_ingest_url(entity_data: dict) -> str:
 
 
 def get_data_ingest_board_query_url(entity_data: dict) -> str:
-    from utils import find_matching_endpoint
-
     proj = get_project().value[0]
-    env = None
-    for conn in ["ingest_api_connection", "entity_api_connection"]:
-        if host := HttpHook.get_connection(conn).host:
-            try:
-                env = find_matching_endpoint(host).lower()
-            except Exception:
-                continue
-    if not env:
-        raise Exception(f"Could not determine env.")
-    if env.lower() == "prod":
+    env = get_env()
+    if env in ["prod", None]:
         url = f"https://ingest.board.{proj}consortium.org/"
     else:
-        url = f"https://ingest-board.{env.lower()}.{proj}consortium.org/"
+        url = f"https://ingest-board.{env}.{proj}consortium.org/"
     entity_id = get_entity_id(entity_data)
     params = {"q": entity_id}
     if entity_data.get("entity_type", "").lower() == "upload":
@@ -418,26 +408,3 @@ def get_primary_dataset(
             if ancestor.get("entity_type", "").lower() == "dataset":
                 return ancestor
     return {}
-
-
-NO_UUID_ALLOWED = [Statuses.DATASET_ERROR]
-
-
-def check_uuid_for_message_classes(
-    status: Statuses, uuid: Optional[str] = None, primary_dataset: Optional[dict] = None
-) -> Optional[str]:
-    """
-    Return True if arguments passed in are valid for message manager classes.
-    Return:
-        None:
-            check_uuid(<any_status>, uuid=<uuid>, primary_dataset=None)
-            check_uuid(Statuses.DATASET_ERROR, uuid=None, primary_dataset=<dict>)
-        Error strng:
-            check_uuid(<any_status>, uuid=None, primary_dataset=None)
-            check_uuid(<any_status_except_DATASET_ERROR>, uuid=None, primary_dataset=<dict>)
-    """
-    if not uuid and not primary_dataset:
-        return "MessageSender did not receive uuid or primary_uuid, can't send messages. Exiting."
-    elif not uuid and primary_dataset:
-        if status not in NO_UUID_ALLOWED:
-            return f"No derived UUID received for primary dataset {primary_dataset.get('uuid')}. Derived dataset info required for status {status.status_str}."

@@ -9,7 +9,8 @@ from .base import SlackMessage
 class SlackUploadReorganized(SlackMessage):
     name = "upload_reorganized"
 
-    def __init__(self, uuid, token):
+    def __init__(self, uuid, token, derived_dataset=None):
+        del derived_dataset
         super().__init__(uuid, token)
         self.datasets: list[dict] = self.entity_data.get("datasets", [])
 
@@ -99,8 +100,8 @@ class SlackUploadReorganizedNoDatasets(SlackMessage):
     """
 
     @classmethod
-    def test(cls, entity_data, token, primary_dataset={}) -> bool:
-        del token, primary_dataset
+    def test(cls, entity_data, token, handle_derived=False, derived_dataset=False) -> bool:
+        del token, handle_derived, derived_dataset
         if not entity_data.get("datasets"):
             logging.info(
                 "Reorganized upload does not have child datasets (DAG may still be running); not sending Slack message."
@@ -127,8 +128,8 @@ class SlackUploadReorganizedPriority(SlackUploadReorganized):
         ]
 
     @classmethod
-    def test(cls, entity_data, token, primary_dataset={}) -> bool:
-        del token, primary_dataset
+    def test(cls, entity_data, token, handle_derived=False, derived_dataset=False) -> bool:
+        del token, handle_derived, derived_dataset
         if not entity_data.get("datasets"):
             return False  # If no datasets, do not apply
         return bool(entity_data.get("priority_project_list"))

@@ -5,9 +5,7 @@ from airflow.configuration import conf as airflow_conf
 from airflow.utils.email import send_email
 
 from .status_utils import (
-    EntityUpdateException,
     Statuses,
-    check_uuid_for_message_classes,
     get_entity_ingest_url,
     get_project,
     get_submission_context,
@@ -23,11 +21,6 @@ class EmailManager:
     cc = ""
     subj = ""
     msg = ""
-    primary_only = False
-    good_statuses = [
-        Statuses.DATASET_QA,
-        Statuses.UPLOAD_VALID,
-    ]
     footer = [
         "",
         "This email address is not monitored. Please email ingest@hubmapconsortium.org with any questions about your data submission.",
@@ -35,42 +28,42 @@ class EmailManager:
 
     def __init__(
         self,
-        status: Statuses,
+        uuid: str,
         token: str,
-        uuid: Optional[str] = None,
+        status: Statuses,
         msg: str = "",
         run_id: str = "",
-        primary_dataset: Optional[dict] = None,
+        handle_derived: bool = False,
+        derived_dataset: Optional[dict] = None,
         *args,
         **kwargs,
     ):
         del args, kwargs
-        if error_msg := check_uuid_for_message_classes(
-            status, uuid=uuid, primary_dataset=primary_dataset
-        ):
-            raise EntityUpdateException(error_msg)
         self.uuid = uuid
         self.token = token
         self.status = status
         self.addtl_msg = str(msg) if msg else None
         self.run_id = run_id
-        self.primary_dataset = primary_dataset or {}
-        self.project = get_project()
-        self.entity_id_str = f"{self.project.value[0]}_id"
-        # TODO: test
-        if self.uuid:
-            self.entity_data = get_submission_context(self.token, self.uuid)
-        else:
-            # Error in pipeline before dataset created, no derived uuid
-            self.primary_only = True
-            self.uuid = self.primary_dataset.get("uuid")
-            self.entity_data = self.primary_dataset
+        self.handle_derived = handle_derived
+        self.derived_dataset = derived_dataset or {}
+        project = get_project()
+        self.entity_id_str = f"{project.value[0]}_id"
+        self.project_name = project.value[1]
+        self.entity_data = get_submission_context(self.token, self.uuid)
         self.is_internal_error = is_internal_error(self.entity_data)
         self.entity_type = self.entity_data.get("entity_type", "").title()
         self.entity_id = self.entity_data.get(self.entity_id_str)
         self.primary_contact = self.entity_data.get("created_by_user_email", "")
         self.get_message_content()
         self.is_valid_for_status = bool(self.subj and self.msg)
+
+    @property
+    def good_statuses(self) -> list:
+        return [
+            Statuses.DATASET_QA,
+            Statuses.UPLOAD_VALID,
+            self.reorg_status_with_child_datasets(),
+        ]
 
     def update(self):
         if not (self.subj and self.msg):
@@ -88,16 +81,8 @@ class EmailManager:
 
     def get_message_content(self) -> Optional[tuple[str, str]]:
         if self.is_internal_error:  # error status or bad content in validation_message
-            # TODO: test
-            if self.primary_only:  # no uuid, only primary_dataset
-                self.subj, msg = self.internal_primary_only_error_format()
-                self.uuid = self.primary_dataset.get("uuid")
-                self.entity_data = self.primary_dataset
-            else:
-                self.subj, msg = self.internal_error_format()
-        elif (
-            self.status in self.good_statuses or self.reorg_status_with_child_datasets()
-        ):  # good status or reorg with child datasets
+            self.subj, msg = self.internal_error_format()
+        elif self.status in self.good_statuses:  # good status or reorg with child datasets
             self.subj, msg = self.generic_good_status_format()
         elif self.status in [
             Statuses.DATASET_INVALID,
@@ -108,9 +93,9 @@ class EmailManager:
             return
         if self.addtl_msg and self.addtl_msg != self.entity_data.get("error_message"):
             msg.append(self.addtl_msg)
-        if self.primary_dataset and not self.primary_only:
+        if self.handle_derived:
             msg.append(
-                f"Primary dataset: <a href='{get_entity_ingest_url(self.primary_dataset)}'>{self.primary_dataset.get(self.entity_id_str)}</a>"
+                f"Primary dataset: <a href='{get_entity_ingest_url(self.entity_data)}'>{self.entity_id}</a>"
             )
         msg.extend(self.footer)
         self.msg = msg
@@ -150,45 +135,22 @@ class EmailManager:
         msg = [f"View ingest record: {get_entity_ingest_url(self.entity_data)}"]
         return subj, msg
 
-    def internal_primary_only_error_format(self) -> tuple[str, list]:
-        # TODO: test
-        primary_entity_id = self.primary_dataset.get(self.entity_id_str)
-        subj = f"Error occurred in pipeline for primary dataset {primary_entity_id}"
-        msg = [
-            f"{self.project.value[1]} ID: {primary_entity_id}",
-            f"UUID: {self.primary_dataset.get('uuid')}",
-            f"Entity type: dataset",
-            f"Status: error",
-            f"Group: {self.primary_dataset.get('group_name')}",
-            f"Ingest page: {get_entity_ingest_url(self.primary_dataset)}",
-            f"Log file: {log_directory_path(self.run_id)}",
-        ]
-        if error_message := self.primary_dataset.get("error_message"):
-            msg.extend(["", "Error:"])
-            msg.extend(split_error_counts(error_message, no_bullets=True))
-        return subj, msg
-
     def internal_error_format(self) -> tuple[str, list]:
-        subj = f"Internal error for {self.entity_type} {self.entity_id}"
-        msg = [
-            f"{self.project.value[1]} ID: {self.entity_id}",
-            f"UUID: {self.uuid}",
-            f"Entity type: {self.entity_type}",
-            f"Status: {self.status.titlecase}",
-            f"Group: {self.entity_data.get('group_name')}",
-            f"Primary contact: {self.primary_contact}",
-            f"Ingest page: {get_entity_ingest_url(self.entity_data)}",
-            f"Log file: {log_directory_path(self.run_id)}",
-        ]
-        if error_message := self.entity_data.get("error_message"):
-            msg.extend(["", "Error:"])
-            msg.extend(split_error_counts(error_message, no_bullets=True))
+        if self.handle_derived and self.derived_dataset:  # error after derived dataset created
+            subj = f"Error occurred for derived dataset {self.uuid}"
+            msg = self.get_derived_error_message(self.derived_dataset)
+            return subj, msg
+        if self.handle_derived:  # error while processing primary before derived created
+            subj = f"Error occurred in pipeline for primary dataset {self.uuid}"
+        else:
+            subj = f"Internal error for {self.entity_type} {self.entity_id}"
+        msg = self.get_derived_error_message(self.entity_data)
         return subj, msg
 
     def get_ext_invalid_format(self) -> tuple[str, list]:
         subj = f"{self.entity_type} {self.entity_id} is invalid"
         msg = [
-            f"{self.project.value[1]} ID: {self.entity_id}",
+            f"{self.project_name} ID: {self.entity_id}",
             f"Group: {self.entity_data.get('group_name')}",
             f"Ingest page: {get_entity_ingest_url(self.entity_data)}",
         ]
@@ -197,14 +159,30 @@ class EmailManager:
             msg.extend(split_error_counts(error_message))
         return subj, msg
 
+    def get_derived_error_message(self, entity_data: dict):
+        msg = [
+            f"{self.project_name} ID: {entity_data.get(self.entity_id_str)}",
+            f"UUID: {entity_data.get('uuid')}",
+            f"Entity type: {entity_data.get('entity_type')}",
+            f"Status: Error",
+            f"Group: {entity_data.get('group_name')}",
+            f"Primary contact: {self.primary_contact}",
+            f"Ingest page: {get_entity_ingest_url(entity_data)}",
+            f"Log file: {log_directory_path(self.run_id)}",
+        ]
+        if error := self.entity_data.get("error_message"):
+            msg.extend(["", "Error:", error])
+        return msg
+
     #########
     # Tests #
     #########
 
-    def reorg_status_with_child_datasets(self):
+    def reorg_status_with_child_datasets(self) -> Optional[Statuses]:
         if self.status == Statuses.UPLOAD_REORGANIZED and self.entity_data.get("datasets"):
             logging.info(
                 "Reorganized upload does not have child datasets (DAG may still be running); not sending email."
             )
-            return True  # only want to send good email if reorg status AND has child datasets
-        return False
+            return (
+                Statuses.UPLOAD_REORGANIZED
+            )  # only want to send good email if reorg status AND has child datasets
