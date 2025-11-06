@@ -1,9 +1,6 @@
 import logging
 from typing import Optional
 
-from airflow.configuration import conf as airflow_conf
-from airflow.utils.email import send_email
-
 from status_change.status_utils import (
     Statuses,
     get_entity_ingest_url,
@@ -13,6 +10,9 @@ from status_change.status_utils import (
     log_directory_path,
     split_error_counts,
 )
+
+from airflow.configuration import conf as airflow_conf
+from airflow.utils.email import send_email
 
 
 class EmailManager:
@@ -148,14 +148,73 @@ class EmailManager:
     def get_ext_invalid_format(self) -> tuple[str, list]:
         subj = f"{self.entity_type} {self.entity_id} is invalid"
         msg = [
-            f"{self.project.value[1]} ID: {self.entity_id}",
-            f"Group: {self.entity_data.get('group_name')}",
-            f"Ingest page: {get_entity_ingest_url(self.entity_data)}",
+            f"{self.entity_type} {self.entity_id} has failed validation. The validation process starts by performing initial checks such as ensuring that files open correctly or that the dataset type is recognized. Next, metadata TSVs and directory structures are validated. If those checks pass, then certain individual file types (such as FASTQ and OME.TIFF files) are validated.",
+            "",
+            f"This upload failed at the {self.classified_errors} validation stage.",
+            "",
+            f"You can see the errors for this {self.entity_type.lower()} at the bottom of this email or on the Ingest page: {get_entity_ingest_url(self.entity_data)}",
+            "",
+            f"If you have questions about your {self.entity_type.lower()}, please schedule an appointment with Data Curator Brendan Honick: https://calendly.com/bhonick-psc/.",
         ]
-        if error_message := self.entity_data.get("error_message"):
-            msg.extend(["", f"{self.entity_type} is invalid:"])
-            msg.extend(split_error_counts(error_message))
+        if self.entity_data.get("validation_message", ""):
+            msg.extend(["", "", "", "Validation errors:", "", *self.formatted_validation_report])
         return subj, msg
+
+    ##########
+    # Format #
+    ##########
+
+    @property
+    def classified_errors(self) -> str:
+        classified_errors = []
+        error_str = self.entity_data.get("error_message", "").lower()
+        if "preflight" in error_str:
+            return "initial check"
+        classification = {
+            "directory": ["directory"],
+            "metadata": [
+                "local",
+                "spreadsheet",
+                "url",
+                "constraint",
+                "antibodies",
+                "contributors",
+                "reference",
+            ],
+            "file": ["file"],
+        }
+        for classification, error_type in classification.items():
+            for error in error_type:
+                if error in error_str:
+                    classified_errors.append(classification)
+        classified_errors = list(set(classified_errors))
+        if len(classified_errors) == 1:
+            return classified_errors[0]
+        if classified_errors:
+            classified_errors.sort()
+            return ", ".join(classified_errors[:-1]) + " and " + classified_errors[-1]
+        return ""
+
+    @property
+    def formatted_validation_report(self) -> list:
+        report = self.entity_data.get("validation_message", "")
+        list_report = [line.strip() for line in report.split("\n")]
+        formatted_list_report = []
+        incomplete_line = None
+        for line in list_report:
+            if incomplete_line:
+                line = incomplete_line + line[1:]
+                incomplete_line = None
+            if line.endswith("\\"):
+                incomplete_line = line[:-1]
+                continue
+            if line.startswith("-"):
+                formatted_list_report.append(f"     {line}")
+            elif not line:
+                continue
+            else:
+                formatted_list_report.append(line)
+        return formatted_list_report
 
     #########
     # Tests #

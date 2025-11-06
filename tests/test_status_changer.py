@@ -37,6 +37,8 @@ from tests.fixtures import (
     good_upload_context,
     slack_upload_reorg_priority_str,
     slack_upload_reorg_str,
+    validation_report,
+    validation_report_lines,
 )
 from utils import pythonop_set_dataset_state
 
@@ -475,6 +477,7 @@ class SlackTestHold(SlackMessage):
 
     @classmethod
     def test(cls, entity_data, token):
+        del token
         if entity_data.get("status").lower() == "hold":
             return True
         return False
@@ -591,6 +594,7 @@ class TestSlack(MockParent):
 
     @staticmethod
     def hhr_mock_side_effect(endpoint, headers, *args, **kwargs):
+        del headers, args, kwargs
         if "organs" in endpoint:
             return get_mock_response(
                 True, json.dumps(good_upload_context.get("datasets")).encode("utf-8")
@@ -599,18 +603,22 @@ class TestSlack(MockParent):
             return get_mock_response(True, json.dumps({"path": "test_abs_path"}).encode("utf-8"))
         return get_mock_response(True, json.dumps(good_upload_context).encode("utf-8"))
 
-    @patch("status_change.slack.reorganized.get_organ", return_value="test_organ")
-    @patch("status_change.slack.reorganized.get_globus_url", return_value="test_globus_url")
-    @patch("status_change.slack.reorganized.get_abs_path", return_value="test_abs_path")
-    def test_reorganized_formatting(self, abs_path_mock, globus_url_mock, organ_mock):
-        self.entity_update.stop()
-        for klass, ret_val in {
-            SlackUploadReorganized: slack_upload_reorg_str,
-            SlackUploadReorganizedPriority: slack_upload_reorg_priority_str,
-        }.items():
-            with patch("utils.ENDPOINTS", endpoints["hubmap"]):
-                mgr = klass("test_uuid", "test_token")
-                assert mgr.format() == ret_val
+    def test_reorganized_formatting(self):
+        with patch("status_change.slack.reorganized.get_organ", return_value="test_organ"):
+            with patch(
+                "status_change.slack.reorganized.get_globus_url", return_value="test_globus_url"
+            ):
+                with patch(
+                    "status_change.slack.reorganized.get_abs_path", return_value="test_abs_path"
+                ):
+                    self.entity_update.stop()
+                    for klass, ret_val in {
+                        SlackUploadReorganized: slack_upload_reorg_str,
+                        SlackUploadReorganizedPriority: slack_upload_reorg_priority_str,
+                    }.items():
+                        with patch("utils.ENDPOINTS", endpoints["hubmap"]):
+                            mgr = klass("test_uuid", "test_token")
+                            assert mgr.format() == ret_val
 
 
 class TestFailureCallback(MockParent):
@@ -1030,57 +1038,74 @@ class TestEmailManager(MockParent):
             assert manager.main_recipients == "main@test.com"
             assert manager.cc == "int@test.com"
 
-    @patch("status_change.email_manager.log_directory_path", return_value="test/log")
-    def test_get_content_error(self, log_mock):
-        manager = self.email_manager(
-            Statuses.UPLOAD_ERROR,
-            context=good_upload_context | {"error_message": "An error has occurred"},
-        )
-        expected_subj = "Internal error for Upload test_hm_id"
-        expected_msg = [
-            "HuBMAP ID: test_hm_id",
-            "UUID: test_uuid",
-            "Entity type: Upload",
-            "Status: Error",
-            "Group: test group",
-            "Primary contact: test@user.com",
-            "Ingest page: https://ingest.hubmapconsortium.org/Upload/test_uuid",
-            "Log file: test/log",
-            "",
-            "Error:",
-            "An error has occurred",
-            "",
-            "This email address is not monitored. Please email ingest@hubmapconsortium.org with any questions about your data submission.",
-        ]
-        print(f"Expected subject: {expected_subj}")
-        print(f"Actual subj: {manager.subj}")
-        print(f"Expected msg: {expected_msg}")
-        print(f"Actual msg: {manager.msg}")
-        assert manager.subj == expected_subj
-        assert manager.msg == expected_msg
+    def test_get_content_error(self):
+        with patch("status_change.email_manager.log_directory_path", return_value="test/log"):
+            manager = self.email_manager(
+                Statuses.UPLOAD_ERROR,
+                context=good_upload_context | {"error_message": "An error has occurred"},
+            )
+            expected_subj = "Internal error for Upload test_hm_id"
+            expected_msg = [
+                "HuBMAP ID: test_hm_id",
+                "UUID: test_uuid",
+                "Entity type: Upload",
+                "Status: Error",
+                "Group: test group",
+                "Primary contact: test@user.com",
+                "Ingest page: https://ingest.hubmapconsortium.org/Upload/test_uuid",
+                "Log file: test/log",
+                "",
+                "Error:",
+                "An error has occurred",
+                "",
+                "This email address is not monitored. Please email ingest@hubmapconsortium.org with any questions about your data submission.",
+            ]
+            print(f"Expected subject: {expected_subj}")
+            print(f"Actual subj: {manager.subj}")
+            print(f"Expected msg: {expected_msg}")
+            print(f"Actual msg: {manager.msg}")
+            assert manager.subj == expected_subj
+            assert manager.msg == expected_msg
 
     def test_get_content_invalid(self):
         error = "Directory errors: 3; Plugins skipped: True"
         manager = self.email_manager(
             Statuses.UPLOAD_INVALID,
-            context=good_upload_context | {"error_message": error},
+            context=good_upload_context
+            | {
+                "error_message": error,
+                "validation_message": "Directory Errors:\n  /hive/hubmap-dev/data/protected/IEC Testing Group/dc3f82820dca46f2bd86d8a8641afd25/RI_LA1D_AB-PAS (as histology-v2.3):\n    Required but missing:\n    - extras\\/microscope_hardware\\.json\n  /hive/hubmap-dev/data/protected/IEC Testing Group/dc3f82820dca46f2bd86d8a8641afd25/RI_LA2D_AB-PAS (as histology-v2.3):\n    Required but missing:\n    - extras\\/microscope_hardware\\.json\nFatal Errors: Skipping plugin validation due to errors in upload metadata or dir structure.\n",
+            },
         )
         expected_subj = f"Upload test_hm_id is invalid"
         expected_msg = [
-            "HuBMAP ID: test_hm_id",
-            "Group: test group",
-            "Ingest page: https://ingest.hubmapconsortium.org/Upload/test_uuid",
+            f"Upload test_hm_id has failed validation. The validation process starts by performing initial checks such as ensuring that files open correctly or that the dataset type is recognized. Next, metadata TSVs and directory structures are validated. If those checks pass, then certain individual file types (such as FASTQ and OME.TIFF files) are validated.",
             "",
-            "Upload is invalid:",
-            "- Directory errors: 3",
-            "- Plugins skipped: True",
+            f"This upload failed at the directory validation stage.",
+            "",
+            f"You can see the errors for this upload at the bottom of this email or on the Ingest page: https://ingest.hubmapconsortium.org/Upload/test_uuid",
+            "",
+            f"If you have questions about your upload, please schedule an appointment with Data Curator Brendan Honick: https://calendly.com/bhonick-psc/.",
+            "",
+            "",
+            "",
+            "Validation errors:",
+            "",
+            "Directory Errors:",
+            "/hive/hubmap-dev/data/protected/IEC Testing Group/dc3f82820dca46f2bd86d8a8641afd25/RI_LA1D_AB-PAS (as histology-v2.3):",
+            "Required but missing:",
+            "     - extras\\/microscope_hardware\\.json",
+            "/hive/hubmap-dev/data/protected/IEC Testing Group/dc3f82820dca46f2bd86d8a8641afd25/RI_LA2D_AB-PAS (as histology-v2.3):",
+            "Required but missing:",
+            "     - extras\\/microscope_hardware\\.json",
+            "Fatal Errors: Skipping plugin validation due to errors in upload metadata or dir structure.",
             "",
             "This email address is not monitored. Please email ingest@hubmapconsortium.org with any questions about your data submission.",
         ]
-        print(f"Expected subject: {expected_subj}")
-        print(f"Actual subj: {manager.subj}")
-        print(f"Expected msg: {expected_msg}")
-        print(f"Actual msg: {manager.msg}")
+        # print(f"Expected subject: {expected_subj}")
+        # print(f"Actual subj: {manager.subj}")
+        # print(f"Expected msg: {expected_msg}")
+        # print(f"Actual msg: {manager.msg}")
         assert manager.subj == expected_subj
         assert manager.msg == expected_msg
 
@@ -1174,6 +1199,36 @@ class TestEmailManager(MockParent):
                 context=good_upload_context | {"datasets": []},
             ).reorg_status_with_child_datasets()
         )
+
+    def test_ext_error_format(self):
+        mgr = self.email_manager(
+            Statuses.UPLOAD_INVALID,
+            context=good_upload_context
+            | {
+                "status": "Invalid",
+                "validation_message": validation_report,
+                "error_message": "Antibodies/Contributors Errors: 1",
+            },
+        )
+        assert mgr.formatted_validation_report == validation_report_lines
+
+    def test_classified_errors(self):
+        for classification, error_str in {
+            "initial check": "Preflight Error: test",
+            "metadata": "Antibodies/Contributors Errors: 1",
+            "directory and metadata": "Local Validation Errors: 3; Directory Errors: 1",
+            "directory, file and metadata": "Spreadsheet Validator Errors: 10; Directory Errors: 5; Data File Errors: 5",
+            "": "",
+        }.items():
+            mgr = self.email_manager(
+                Statuses.UPLOAD_INVALID,
+                context=good_upload_context
+                | {
+                    "status": "Invalid",
+                    "error_message": error_str,
+                },
+            )
+            assert mgr.classified_errors == classification
 
 
 # if __name__ == "__main__":
