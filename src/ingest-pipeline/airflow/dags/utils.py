@@ -1934,7 +1934,8 @@ def gather_calculated_metadata(**kwargs):
     # Then we gather the metadata from the mudata transformation output
     # Always have to gather the metadata from the transformation
     data_dir = kwargs["ti"].xcom_pull(task_ids="send_create_dataset")
-    output_metadata = json.load(open(f"{data_dir}/calculated_metadata.json"))
+    file_path = f"{data_dir}/calculated_metadata.json"
+    output_metadata = json.load(open(file_path)) if os.path.exists(file_path) else {}
     return {"calculated_metadata": output_metadata}
 
 
