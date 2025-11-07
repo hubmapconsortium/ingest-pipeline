@@ -1077,27 +1077,23 @@ class TestEmailManager(MockParent):
                 "validation_message": "Directory Errors:\n  /hive/hubmap-dev/data/protected/IEC Testing Group/dc3f82820dca46f2bd86d8a8641afd25/RI_LA1D_AB-PAS (as histology-v2.3):\n    Required but missing:\n    - extras\\/microscope_hardware\\.json\n  /hive/hubmap-dev/data/protected/IEC Testing Group/dc3f82820dca46f2bd86d8a8641afd25/RI_LA2D_AB-PAS (as histology-v2.3):\n    Required but missing:\n    - extras\\/microscope_hardware\\.json\nFatal Errors: Skipping plugin validation due to errors in upload metadata or dir structure.\n",
             },
         )
-        expected_subj = f"Upload test_hm_id is invalid"
+        expected_subj = f"HuBMAP Upload test_hm_id is invalid"
         expected_msg = [
-            f"Upload test_hm_id has failed validation. The validation process starts by performing initial checks such as ensuring that files open correctly or that the dataset type is recognized. Next, metadata TSVs and directory structures are validated. If those checks pass, then certain individual file types (such as FASTQ and OME.TIFF files) are validated.",
+            f"HuBMAP Upload <a href='https://ingest.hubmapconsortium.org/Upload/test_uuid'>test_hm_id</a> has failed validation.",
             "",
-            f"This upload failed at the directory validation stage.",
-            "",
-            f"You can see the errors for this upload at the bottom of this email or on the Ingest page: https://ingest.hubmapconsortium.org/Upload/test_uuid",
+            "<b>Validation Details</b>",
+            "The validation process starts by checking metadata TSVs and directory structures. If those checks pass, then certain individual file types (such as FASTQ and OME.TIFF files) are validated.",
             "",
             f"If you have questions about your upload, please schedule an appointment with Data Curator Brendan Honick: https://calendly.com/bhonick-psc/.",
             "",
-            "",
-            "",
-            "Validation errors:",
-            "",
+            "<b>Validation Errors</b>",
             "Directory Errors:",
             "/hive/hubmap-dev/data/protected/IEC Testing Group/dc3f82820dca46f2bd86d8a8641afd25/RI_LA1D_AB-PAS (as histology-v2.3):",
             "Required but missing:",
-            "     - extras\\/microscope_hardware\\.json",
+            "- extras\\/microscope_hardware\\.json",
             "/hive/hubmap-dev/data/protected/IEC Testing Group/dc3f82820dca46f2bd86d8a8641afd25/RI_LA2D_AB-PAS (as histology-v2.3):",
             "Required but missing:",
-            "     - extras\\/microscope_hardware\\.json",
+            "- extras\\/microscope_hardware\\.json",
             "Fatal Errors: Skipping plugin validation due to errors in upload metadata or dir structure.",
             "",
             "This email address is not monitored. Please email ingest@hubmapconsortium.org with any questions about your data submission.",
@@ -1212,23 +1208,23 @@ class TestEmailManager(MockParent):
         )
         assert mgr.formatted_validation_report == validation_report_lines
 
-    def test_classified_errors(self):
-        for classification, error_str in {
-            "initial check": "Preflight Error: test",
-            "metadata": "Antibodies/Contributors Errors: 1",
-            "directory and metadata": "Local Validation Errors: 3; Directory Errors: 1",
-            "directory, file and metadata": "Spreadsheet Validator Errors: 10; Directory Errors: 5; Data File Errors: 5",
-            "": "",
-        }.items():
-            mgr = self.email_manager(
-                Statuses.UPLOAD_INVALID,
-                context=good_upload_context
-                | {
-                    "status": "Invalid",
-                    "error_message": error_str,
-                },
-            )
-            assert mgr.classified_errors == classification
+    # def test_classified_errors(self):
+    #     for classification, error_str in {
+    #         "initial check": "Preflight Error: test",
+    #         "metadata": "Antibodies/Contributors Errors: 1",
+    #         "directory and metadata": "Local Validation Errors: 3; Directory Errors: 1",
+    #         "directory, file and metadata": "Spreadsheet Validator Errors: 10; Directory Errors: 5; Data File Errors: 5",
+    #         "": "",
+    #     }.items():
+    #         mgr = self.email_manager(
+    #             Statuses.UPLOAD_INVALID,
+    #             context=good_upload_context
+    #             | {
+    #                 "status": "Invalid",
+    #                 "error_message": error_str,
+    #             },
+    #         )
+    #         assert mgr.classified_errors == classification
 
 
 # if __name__ == "__main__":

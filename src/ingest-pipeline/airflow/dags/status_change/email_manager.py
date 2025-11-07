@@ -92,7 +92,7 @@ class EmailManager:
 
     def send_email(self):
         assert self.subj and self.msg
-        msg_str = "<br>".join([line.lstrip() for line in self.msg])
+        msg_str = "<br>".join(self.msg)
         logging.info(
             f"""
         Sending email
@@ -146,54 +146,53 @@ class EmailManager:
         return subj, msg
 
     def get_ext_invalid_format(self) -> tuple[str, list]:
-        subj = f"{self.entity_type} {self.entity_id} is invalid"
+        subj = f"{self.project.value[1]} {self.entity_type} {self.entity_id} is invalid"
         msg = [
-            f"{self.entity_type} {self.entity_id} has failed validation. The validation process starts by performing initial checks such as ensuring that files open correctly or that the dataset type is recognized. Next, metadata TSVs and directory structures are validated. If those checks pass, then certain individual file types (such as FASTQ and OME.TIFF files) are validated.",
+            f"{self.project.value[1]} {self.entity_type} <a href='{get_entity_ingest_url(self.entity_data)}'>{self.entity_id}</a> has failed validation.",
             "",
-            f"This upload failed at the {self.classified_errors} validation stage.",
-            "",
-            f"You can see the errors for this {self.entity_type.lower()} at the bottom of this email or on the Ingest page: {get_entity_ingest_url(self.entity_data)}",
+            "<b>Validation Details</b>",
+            "The validation process starts by checking metadata TSVs and directory structures. If those checks pass, then certain individual file types (such as FASTQ and OME.TIFF files) are validated.",
             "",
             f"If you have questions about your {self.entity_type.lower()}, please schedule an appointment with Data Curator Brendan Honick: https://calendly.com/bhonick-psc/.",
         ]
         if self.entity_data.get("validation_message", ""):
-            msg.extend(["", "", "", "Validation errors:", "", *self.formatted_validation_report])
+            msg.extend(["", "<b>Validation Errors</b>", *self.formatted_validation_report])
         return subj, msg
 
     ##########
     # Format #
     ##########
 
-    @property
-    def classified_errors(self) -> str:
-        classified_errors = []
-        error_str = self.entity_data.get("error_message", "").lower()
-        if "preflight" in error_str:
-            return "initial check"
-        classification = {
-            "directory": ["directory"],
-            "metadata": [
-                "local",
-                "spreadsheet",
-                "url",
-                "constraint",
-                "antibodies",
-                "contributors",
-                "reference",
-            ],
-            "file": ["file"],
-        }
-        for classification, error_type in classification.items():
-            for error in error_type:
-                if error in error_str:
-                    classified_errors.append(classification)
-        classified_errors = list(set(classified_errors))
-        if len(classified_errors) == 1:
-            return classified_errors[0]
-        if classified_errors:
-            classified_errors.sort()
-            return ", ".join(classified_errors[:-1]) + " and " + classified_errors[-1]
-        return ""
+    # @property
+    # def classified_errors(self) -> str:
+    #     classified_errors = []
+    #     error_str = self.entity_data.get("error_message", "").lower()
+    #     if "preflight" in error_str:
+    #         return "initial check"
+    #     classification = {
+    #         "directory": ["directory"],
+    #         "metadata": [
+    #             "local",
+    #             "spreadsheet",
+    #             "url",
+    #             "constraint",
+    #             "antibodies",
+    #             "contributors",
+    #             "reference",
+    #         ],
+    #         "file": ["file"],
+    #     }
+    #     for classification, error_type in classification.items():
+    #         for error in error_type:
+    #             if error in error_str:
+    #                 classified_errors.append(classification)
+    #     classified_errors = list(set(classified_errors))
+    #     if len(classified_errors) == 1:
+    #         return classified_errors[0]
+    #     if classified_errors:
+    #         classified_errors.sort()
+    #         return ", ".join(classified_errors[:-1]) + " and " + classified_errors[-1]
+    #     return ""
 
     @property
     def formatted_validation_report(self) -> list:
@@ -208,8 +207,6 @@ class EmailManager:
             if line.endswith("\\"):
                 incomplete_line = line[:-1]
                 continue
-            if line.startswith("-"):
-                formatted_list_report.append(f"     {line}")
             elif not line:
                 continue
             else:
