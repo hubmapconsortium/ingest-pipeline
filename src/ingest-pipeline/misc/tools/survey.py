@@ -675,7 +675,7 @@ class EntityFactory:
         if uuid not in ENTITY_CACHE:
             entity_url = ENDPOINTS[self.instance]["entity_url"]
             r = requests.get(
-                f"{entity_url}/entities/{uuid}",
+                f"{entity_url}/entities/{uuid}?exclude=direct_ancestors.files",
                 headers={
                     "Authorization": f"Bearer {self.auth_tok}",
                     "Content-Type": "application/json",
@@ -727,7 +727,7 @@ class EntityFactory:
         """Use the entity service to get the uuid corresponding to an id"""
         entity_url = ENDPOINTS[self.instance]["entity_url"]
         r = requests.get(
-            f"{entity_url}/entities/{id_or_uuid}",
+            f"{entity_url}/entities/{id_or_uuid}?exclude=direct_ancestors.files",
             headers={
                 "Authorization": f"Bearer {self.auth_tok}",
                 "Content-Type": "application/json",

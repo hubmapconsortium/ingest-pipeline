@@ -1,6 +1,7 @@
+import logging
 from typing import Tuple
 
-from status_change.status_utils import get_abs_path, get_organ
+from status_change.status_utils import get_abs_path, get_globus_url, get_organ
 
 from .base import SlackMessage
 
@@ -8,14 +9,14 @@ from .base import SlackMessage
 class SlackUploadReorganized(SlackMessage):
     name = "upload_reorganized"
 
-    def __init__(self, uuid, token, entity_data=None):
-        super().__init__(uuid, token, entity_data)
+    def __init__(self, uuid, token):
+        super().__init__(uuid, token)
         self.datasets: list[dict] = self.entity_data.get("datasets", [])
 
     @property
     def dataset_vals(self):
         return [
-            "hubmap_id",
+            self.entity_id_str,
             "created_by_user_displayname",
             "created_by_user_email",
             "dataset_type",
@@ -41,7 +42,7 @@ class SlackUploadReorganized(SlackMessage):
             uuid = dataset.get("uuid", "")
             # Organ and globus_url are derived from additional API calls.
             data.append(get_organ(uuid, self.token))
-            data.append(f"<{self.get_globus_url(uuid)}|Globus>")
+            data.append(f"<{get_globus_url(uuid, self.token)}|Globus>")
             data.append(get_abs_path(uuid, self.token, escaped=True))
             info.append(", ".join(self._clean_dataset_rows(data)))
         return info
@@ -59,18 +60,18 @@ class SlackUploadReorganized(SlackMessage):
                 cleaned_data.append(str(val))
         return cleaned_data
 
-    def format(self) -> str:
+    def format(self):
         dataset_info, msg_data = self.get_upload_info()
-        return f"""
-        Upload {self.uuid} reorganized:
-        {self.get_combined_info(msg_data, dataset_info)}
-        """
+        return [
+            f"Upload {self.uuid} reorganized:",
+            *self.get_combined_info(msg_data, dataset_info),
+        ]
 
     def get_upload_info(self) -> Tuple[list, dict]:
         self.get_non_upload_metadata()
         dataset_info = self._format_upload_reorganized_datasets()
         msg_data = {
-            "hubmap_id": f"<{self.ingest_ui_url}|{self.entity_data.get('hubmap_id')}>",
+            self.entity_id_str: f"<{self.ingest_ui_url}|{self.entity_data.get(self.entity_id_str)}>",  # entity id with link to Ingest UI
             "created_by_user_displayname": self.entity_data.get("created_by_user_displayname"),
             "created_by_user_email": self.entity_data.get("created_by_user_email"),
             "dataset_type": self.dataset_type,
@@ -78,12 +79,34 @@ class SlackUploadReorganized(SlackMessage):
         }
         return dataset_info, msg_data
 
-    def get_combined_info(self, data: dict, dataset_info: list):
-        return (
-            "\n   ".join([f"{key}: {value}" for key, value in data.items()])
-            + "\n\nDatasets:\n"
-            + "\n".join(dataset_info)
-        )
+    def get_combined_info(self, data: dict, dataset_info: list) -> list:
+        return [
+            *[f"{key}: {value}" for key, value in data.items()],
+            "",
+            "Datasets:",
+            *dataset_info,
+        ]
+
+
+class SlackUploadReorganizedNoDatasets(SlackMessage):
+    """
+    If no datasets, hold off on sending message.
+    Subclass main message class to raise NotImplementedError
+    for format().
+    NOTE: this will incorrectly return False if dataset has been
+    reorganized and child datasets created, and then the reorg
+    was undone.
+    """
+
+    @classmethod
+    def test(cls, entity_data, token) -> bool:
+        del token
+        if not entity_data.get("datasets"):
+            logging.info(
+                "Reorganized upload does not have child datasets (DAG may still be running); not sending Slack message."
+            )
+            return True  # If no datasets, apply this subclass
+        return False
 
 
 class SlackUploadReorganizedPriority(SlackUploadReorganized):
@@ -96,7 +119,7 @@ class SlackUploadReorganizedPriority(SlackUploadReorganized):
     @property
     def dataset_vals(self):
         return [
-            "hubmap_id",
+            self.entity_id_str,
             "created_by_user_displayname",
             "created_by_user_email",
             "priority_project_list",
@@ -106,9 +129,11 @@ class SlackUploadReorganizedPriority(SlackUploadReorganized):
     @classmethod
     def test(cls, entity_data, token) -> bool:
         del token
+        if not entity_data.get("datasets"):
+            return False  # If no datasets, do not apply
         return bool(entity_data.get("priority_project_list"))
 
-    def format(self) -> str:
+    def format(self):
         """
         Formats data for priority project reorganization Slack message.
         Prioritizes returning a message over tracking down missing data.
@@ -117,7 +142,7 @@ class SlackUploadReorganizedPriority(SlackUploadReorganized):
         priority_projects_list = ", ".join(self.entity_data.get("priority_project_list", []))
         msg_data["priority_project_list"] = priority_projects_list
 
-        return f"""
-        Priority upload ({priority_projects_list}) reorganized:
-        {self.get_combined_info(msg_data, dataset_info)}
-        """
+        return [
+            f"Priority upload ({priority_projects_list}) reorganized:",
+            *self.get_combined_info(msg_data, dataset_info),
+        ]

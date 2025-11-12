@@ -573,7 +573,7 @@ def create_multiassay_component(
     }
 
     response = HttpHook("GET", http_conn_id="entity_api_connection").run(
-        endpoint=f"entities/{source_uuid}",
+        endpoint=f"entities/{source_uuid}?exclude=direct_ancestors.files",
         headers=headers,
         extra_options={"check_response": False},
     )

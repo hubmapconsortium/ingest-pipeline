@@ -115,8 +115,7 @@ with HMDAG('validation_test',
             dataset_ignore_globs=ignore_globs,
             upload_ignore_globs='*',
             plugin_directory=plugin_path,
-            # offline=True,  # noqa E265
-            add_notes=False
+            # offline_only=True,  # noqa E265
         )
         # Scan reports an error result
         report = ingest_validation_tools_error_report.ErrorReport(

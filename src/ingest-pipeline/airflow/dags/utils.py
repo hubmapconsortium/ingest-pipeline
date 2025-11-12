@@ -908,7 +908,7 @@ def pythonop_send_create_dataset(**kwargs) -> str:
         source_uuids = [source_uuids]
 
     dataset_name = kwargs["dataset_name_callable"](**kwargs)
-    endpoint = f"entities/{source_uuids[0]}"
+    endpoint = f"entities/{source_uuids[0]}?exclude=direct_ancestors.files"
 
     try:
         previous_revision_path = None
@@ -1025,7 +1025,7 @@ def pythonop_set_dataset_state(**kwargs) -> None:
                               uuid of the dataset to be modified
     'http_conn_id' : the http connection to be used.  Default is "entity_api_connection"
     'ds_state' : one of 'QA', 'Processing', 'Error', 'Invalid'. Default: 'Processing'
-    'message' : update message, saved as dataset metadata element "pipeline_messsage".
+    'message' : update message, saved as dataset metadata element "pipeline_message".
                 The default is not to save any message.
     """
     if kwargs["dag_run"].conf.get("dryrun"):
@@ -1035,6 +1035,9 @@ def pythonop_set_dataset_state(**kwargs) -> None:
 
     reindex = kwargs.get("reindex", True)
     dataset_uuid = kwargs["dataset_uuid_callable"](**kwargs)
+    run_id = (
+        kwargs["run_id_callable"](**kwargs) if callable(kwargs.get("run_id_callable")) else None
+    )
     http_conn_id = kwargs.get("http_conn_id", "entity_api_connection")
     status = kwargs["ds_state"] if "ds_state" in kwargs else "Processing"
     message = kwargs.get("message", None)
@@ -1046,6 +1049,7 @@ def pythonop_set_dataset_state(**kwargs) -> None:
             fields_to_overwrite={"pipeline_message": message} if message else {},
             http_conn_id=http_conn_id,
             reindex=reindex,
+            run_id=run_id,
         ).update()
 
 
@@ -1094,7 +1098,7 @@ def pythonop_get_dataset_state(**kwargs) -> Dict:
     }
     http_hook = HttpHook(method, http_conn_id="entity_api_connection")
 
-    endpoint = f"entities/{uuid}"
+    endpoint = f"entities/{uuid}?exclude=direct_ancestors.files"
 
     try:
         response = http_hook.run(
@@ -1658,6 +1662,8 @@ def make_send_status_msg_function(
                     status=status,
                     fields_to_overwrite=extra_fields,
                     reindex=reindex,
+                    run_id=kwargs.get("run_id"),
+                    message=kwargs["ti"].xcom_pull(task_ids="run_validation", key="error_counts"),
                 ).update()
             except EntityUpdateException:
                 return_status = False
@@ -1685,6 +1691,7 @@ def map_queue_name(raw_queue_name: str) -> str:
 def create_dataset_state_error_callback(
     dataset_uuid_callable: Callable[[Any], str],
 ) -> Callable[[Mapping, Any], None]:
+    # TODO: this should be deprecated in favor of status_change.callbacks.FailureCallback
     def set_dataset_state_error(context_dict: Mapping, **kwargs) -> None:
         """
         This routine is meant to be
@@ -1927,7 +1934,8 @@ def gather_calculated_metadata(**kwargs):
     # Then we gather the metadata from the mudata transformation output
     # Always have to gather the metadata from the transformation
     data_dir = kwargs["ti"].xcom_pull(task_ids="send_create_dataset")
-    output_metadata = json.load(open(f"{data_dir}/calculated_metadata.json"))
+    file_path = f"{data_dir}/calculated_metadata.json"
+    output_metadata = json.load(open(file_path)) if os.path.exists(file_path) else {}
     return {"calculated_metadata": output_metadata}
 
 
