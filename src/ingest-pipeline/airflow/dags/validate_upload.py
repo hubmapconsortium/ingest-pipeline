@@ -145,7 +145,10 @@ with HMDAG(
         validation_file_path = Path(get_tmp_dir_path(kwargs["run_id"])) / "validation_report.txt"
         with open(validation_file_path, "w") as f:
             f.write(report.as_text())
-        kwargs["ti"].xcom_push(key="error_counts", value=report.counts)
+        kwargs["ti"].xcom_push(
+            key="report_data",
+            value={"error_counts": report.counts, "error_dict": report.as_dict()},
+        )
         kwargs["ti"].xcom_push(key="validation_file_path", value=str(validation_file_path))
 
     t_run_validation = PythonOperator(
@@ -156,11 +159,10 @@ with HMDAG(
 
     def send_status_msg(**kwargs):
         validation_file_path = Path(kwargs["ti"].xcom_pull(key="validation_file_path"))
-        error_counts = kwargs["ti"].xcom_pull(key="error_counts")
+        error_counts = kwargs["ti"].xcom_pull(key="report_data").get("counts")
         error_counts_print = (
             json.dumps(error_counts, indent=9).strip("{}").replace('"', "").replace(",", "")
         )
-        error_counts_msg = "; ".join([f"{k}: {v}" for k, v in error_counts.items()])
         with open(validation_file_path) as f:
             report_txt = f.read()
         if report_txt.startswith("No errors!"):
@@ -196,7 +198,7 @@ with HMDAG(
             status=status,
             fields_to_overwrite=extra_fields,
             run_id=kwargs.get("run_id"),
-            message=error_counts_msg,
+            messages=json.loads(kwargs["ti"].xcom_pull(key="report_data") or "{}"),
         ).update()
 
     t_send_status = PythonOperator(

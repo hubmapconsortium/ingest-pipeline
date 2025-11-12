@@ -74,16 +74,83 @@ endpoints = {
     },
 }
 
-validation_report = 'Data File Errors:\n  Recursively test all ome-tiff files for an assay-specific list of fields:\n  - \'/hive/hubmap/data/protected/Stanford University Bone Marrow TMC/f6aff8e28f2fc0ef22e71cbadc1f6f51/HUBMAP1_slide100_L/lab_processed/images/HUBMAP_H&E_Slide99_C31C1.ome.tiff\n    is not a valid OME.TIFF file: Failed to read OME XML.\'\n  - \'/hive/hubmap/data/protected/Stanford University Bone Marrow TMC/f6aff8e28f2fc0ef22e71cbadc1f6f51/HUBMAP1_slide100_R/lab_processed/images/HUBMAP_H&E_Slide99_C32C1.ome.tiff\n    is not a valid OME.TIFF file: Failed to read OME XML.\'\n  Recursively test all ome-tiff files for validity:\n  - "/hive/hubmap/data/protected/Stanford University Bone Marrow TMC/f6aff8e28f2fc0ef22e71cbadc1f6f51/HUBMAP1_slide100_L/lab_processed/images/HUBMAP_H&E_Slide99_C31C1.ome.tiff\\\n    \\ is not a valid OME.TIFF file: XMLSchemaDecodeError: attribute Color="(255, 0, 0)": invalid literal for int()\\\n    \\ with base 10: "(255, 0, 0)"\n  - "/hive/hubmap/data/protected/Stanford University Bone Marrow TMC/f6aff8e28f2fc0ef22e71cbadc1f6f51/HUBMAP1_slide100_R/lab_processed/images/HUBMAP_H&E_Slide99_C32C1.ome.tiff\\\n    \\ is not a valid OME.TIFF file: XMLSchemaDecodeError: attribute Color="(255, 0, 0)": invalid literal for int()\\\n    \\ with base 10: "(255, 0, 0)"\n'
+# validation_report = 'Data File Errors:\n  Recursively test all ome-tiff files for an assay-specific list of fields:\n  - \'/hive/hubmap/data/protected/Stanford University Bone Marrow TMC/f6aff8e28f2fc0ef22e71cbadc1f6f51/HUBMAP1_slide100_L/lab_processed/images/HUBMAP_H&E_Slide99_C31C1.ome.tiff\n    is not a valid OME.TIFF file: Failed to read OME XML.\'\n  - \'/hive/hubmap/data/protected/Stanford University Bone Marrow TMC/f6aff8e28f2fc0ef22e71cbadc1f6f51/HUBMAP1_slide100_R/lab_processed/images/HUBMAP_H&E_Slide99_C32C1.ome.tiff\n    is not a valid OME.TIFF file: Failed to read OME XML.\'\n  Recursively test all ome-tiff files for validity:\n  - "/hive/hubmap/data/protected/Stanford University Bone Marrow TMC/f6aff8e28f2fc0ef22e71cbadc1f6f51/HUBMAP1_slide100_L/lab_processed/images/HUBMAP_H&E_Slide99_C31C1.ome.tiff\\\n    \\ is not a valid OME.TIFF file: XMLSchemaDecodeError: attribute Color="(255, 0, 0)": invalid literal for int()\\\n    \\ with base 10: "(255, 0, 0)"\n  - "/hive/hubmap/data/protected/Stanford University Bone Marrow TMC/f6aff8e28f2fc0ef22e71cbadc1f6f51/HUBMAP1_slide100_R/lab_processed/images/HUBMAP_H&E_Slide99_C32C1.ome.tiff\\\n    \\ is not a valid OME.TIFF file: XMLSchemaDecodeError: attribute Color="(255, 0, 0)": invalid literal for int()\\\n    \\ with base 10: "(255, 0, 0)"\n'
 
-validation_report_lines = [
-    "Data File Errors:",
-    "Recursively test all ome-tiff files for an assay-specific list of fields:",
-    "- '/hive/hubmap/data/protected/Stanford University Bone Marrow TMC/f6aff8e28f2fc0ef22e71cbadc1f6f51/HUBMAP1_slide100_L/lab_processed/images/HUBMAP_H&E_Slide99_C31C1.ome.tiff",
-    "is not a valid OME.TIFF file: Failed to read OME XML.'",
-    "- '/hive/hubmap/data/protected/Stanford University Bone Marrow TMC/f6aff8e28f2fc0ef22e71cbadc1f6f51/HUBMAP1_slide100_R/lab_processed/images/HUBMAP_H&E_Slide99_C32C1.ome.tiff",
-    "is not a valid OME.TIFF file: Failed to read OME XML.'",
-    "Recursively test all ome-tiff files for validity:",
-    '- "/hive/hubmap/data/protected/Stanford University Bone Marrow TMC/f6aff8e28f2fc0ef22e71cbadc1f6f51/HUBMAP1_slide100_L/lab_processed/images/HUBMAP_H&E_Slide99_C31C1.ome.tiff is not a valid OME.TIFF file: XMLSchemaDecodeError: attribute Color="(255, 0, 0)": invalid literal for int() with base 10: "(255, 0, 0)"',
-    '- "/hive/hubmap/data/protected/Stanford University Bone Marrow TMC/f6aff8e28f2fc0ef22e71cbadc1f6f51/HUBMAP1_slide100_R/lab_processed/images/HUBMAP_H&E_Slide99_C32C1.ome.tiff is not a valid OME.TIFF file: XMLSchemaDecodeError: attribute Color="(255, 0, 0)": invalid literal for int() with base 10: "(255, 0, 0)"',
+validation_report_html_list = [
+    "<ul>",
+    "<li>Directory Errors:</li>",
+    "<ul>",
+    "<li>examples/dataset-examples/bad-scatacseq-data/upload/dataset-1 (as scatacseq-v0.0):</li>",
+    "<ul>",
+    "<li>Not allowed:</li>",
+    "<ul>",
+    "<li>not-the-file-you-are-looking-for.txt</li>",
+    "<li>unexpected-directory/place-holder.txt</li>",
+    "</ul>",
+    "<li>Required but missing:</li>",
+    "<ul>",
+    "<li>[^/]+\\.fastq\\.gz</li>",
+    "</ul>",
+    "</ul>",
+    "</ul>",
+    "<li>Antibodies/Contributors Errors:</li>",
+    "<ul>",
+    "<li>examples/dataset-examples/bad-scatacseq-data/upload/scatacseq-metadata.tsv:</li>",
+    "<ul>",
+    '<li>On row(s) 2, column "contributors_path", error opening or reading value ".". Expected a TSV, but found a directory: examples/dataset-examples/bad-scatacseq-data/upload.</li>',
+    "</ul>",
+    "</ul>",
+    "<li>Local Validation Errors:</li>",
+    "<ul>",
+    "<li>examples/dataset-examples/bad-scatacseq-data/upload/scatacseq-metadata.tsv (as scatacseq-v0):</li>",
+    "<ul>",
+    '<li>On row 2, column "sc_isolation_protocols_io_doi", value "" fails because it must be filled out.</li>',
+    '<li>On row 2, column "library_construction_protocols_io_doi", value "" fails because it must be filled out.</li>',
+    '<li>On row 2, column "protocols_io_doi", value "10.17504/fake" fails because it is an invalid DOI.</li>',
+    "</ul>",
+    "</ul>",
+    "</ul>",
 ]
+
+ext_error_formatted = [
+    "HuBMAP Upload <a href='https://ingest.hubmapconsortium.org/Upload/test_uuid'>test_hm_id</a> has failed validation.",
+    "",
+    "<b>Validation details</b>",
+    "The validation process starts by checking metadata TSVs and directory structures. If those checks pass, then certain individual file types (such as FASTQ and OME.TIFF files) are validated.",
+    "",
+    "<b>What to do next</b>",
+    "If you have questions about your upload, please schedule an appointment with Data Curator Brendan Honick: https://calendly.com/bhonick-psc/.",
+    "",
+    "This email address is not monitored. If you have questions, please schedule with Brendan Honick or email ingest@hubmapconsortium.org.",
+    "",
+    "The error log is included below if you would like to make updates to your submission independently; it is not required for you to do so before contacting our Data Curation Team. Please email ingest@hubmapconsortium.org if you believe you have repaired all validation errors so that we can re-validate your submission.",
+    "",
+    "If your submission has 'Spreadsheet Validator Errors,' please use the <a href='https://metadatavalidator.metadatacenter.org/'>Metadata Spreadsheet Validator</a> tool to correct them.",
+    "",
+    "<b>Validation error log</b>",
+    *validation_report_html_list,
+]
+
+validation_error_dict = {
+    "Directory Errors": {
+        "examples/dataset-examples/bad-scatacseq-data/upload/dataset-1 (as scatacseq-v0.0)": {
+            "Not allowed": [
+                "not-the-file-you-are-looking-for.txt",
+                "unexpected-directory/place-holder.txt",
+            ],
+            "Required but missing": ["[^/]+\\.fastq\\.gz"],
+        }
+    },
+    "Antibodies/Contributors Errors": {
+        "examples/dataset-examples/bad-scatacseq-data/upload/scatacseq-metadata.tsv": [
+            'On row(s) 2, column "contributors_path", error opening or reading value ".". Expected a TSV, but found a directory: examples/dataset-examples/bad-scatacseq-data/upload.'
+        ]
+    },
+    "Local Validation Errors": {
+        "examples/dataset-examples/bad-scatacseq-data/upload/scatacseq-metadata.tsv (as scatacseq-v0)": [
+            'On row 2, column "sc_isolation_protocols_io_doi", value "" fails because it must be filled out.',
+            'On row 2, column "library_construction_protocols_io_doi", value "" fails because it must be filled out.',
+            'On row 2, column "protocols_io_doi", value "10.17504/fake" fails because it is an invalid DOI.',
+        ]
+    },
+}

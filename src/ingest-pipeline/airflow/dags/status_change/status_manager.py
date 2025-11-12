@@ -227,7 +227,7 @@ class StatusChanger(EntityUpdater):
         run_id: Optional[str] = None,
         # Additional field to support privileged field "status"
         status: Optional[Union[Statuses, str]] = None,
-        message=None,
+        messages: Optional[dict] = None,
         **kwargs,
     ):
         del kwargs
@@ -242,7 +242,7 @@ class StatusChanger(EntityUpdater):
             run_id,
         )
         self.status = self._validate_status(status)
-        self.message = message
+        self.messages = messages
 
     def update(self) -> None:
         """
@@ -278,7 +278,7 @@ class StatusChanger(EntityUpdater):
                 self.status,
                 self.uuid,
                 self.token,
-                msg=self.message,
+                messages=self.messages,
                 run_id=self.run_id,
             )
             if message_manager.is_valid_for_status:
