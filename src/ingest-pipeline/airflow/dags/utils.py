@@ -1663,10 +1663,7 @@ def make_send_status_msg_function(
                     fields_to_overwrite=extra_fields,
                     reindex=reindex,
                     run_id=kwargs.get("run_id"),
-                    messages=json.loads(
-                        kwargs["ti"].xcom_pull(task_ids="run_validation", key="report_data")
-                        or "{}"
-                    ),
+                    messages=kwargs["ti"].xcom_pull(task_ids="run_validation", key="report_data"),
                 ).update()
             except EntityUpdateException:
                 return_status = False

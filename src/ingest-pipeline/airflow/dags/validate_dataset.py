@@ -130,7 +130,7 @@ with HMDAG(
             f.write(report.as_text())
         kwargs["ti"].xcom_push(
             key="report_data",
-            value={"error_counts": report.counts, "error_dict": report.as_dict()},
+            value={"error_counts": report.counts, "error_dict": report.errors},
         )
         kwargs["ti"].xcom_push(key="validation_file_path", value=str(validation_file_path))
 
@@ -184,7 +184,7 @@ with HMDAG(
             get_auth_tok(**kwargs),
             status=status,
             run_id=kwargs.get("run_id"),
-            messages=json.loads(kwargs["ti"].xcom_pull(key="report_data") or "{}"),
+            messages=kwargs["ti"].xcom_pull(key="report_data"),
         ).update()
 
     t_send_status = PythonOperator(

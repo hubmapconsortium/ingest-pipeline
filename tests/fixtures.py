@@ -125,7 +125,7 @@ ext_error_formatted = [
     "",
     "The error log is included below if you would like to make updates to your submission independently; it is not required for you to do so before contacting our Data Curation Team. Please email ingest@hubmapconsortium.org if you believe you have repaired all validation errors so that we can re-validate your submission.",
     "",
-    "If your submission has 'Spreadsheet Validator Errors,' please use the <a href='https://metadatavalidator.metadatacenter.org/'>Metadata Spreadsheet Validator</a> tool to correct them.",
+    'If your submission has "Spreadsheet Validator Errors," please use the <a href="https://metadatavalidator.metadatacenter.org/">Metadata Spreadsheet Validator</a> tool to correct them.',
     "",
     "<b>Validation error log</b>",
     *validation_report_html_list,

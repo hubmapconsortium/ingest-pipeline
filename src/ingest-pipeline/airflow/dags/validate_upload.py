@@ -147,7 +147,7 @@ with HMDAG(
             f.write(report.as_text())
         kwargs["ti"].xcom_push(
             key="report_data",
-            value={"error_counts": report.counts, "error_dict": report.as_dict()},
+            value={"error_counts": report.counts, "error_dict": report.errors},
         )
         kwargs["ti"].xcom_push(key="validation_file_path", value=str(validation_file_path))
 
@@ -159,7 +159,8 @@ with HMDAG(
 
     def send_status_msg(**kwargs):
         validation_file_path = Path(kwargs["ti"].xcom_pull(key="validation_file_path"))
-        error_counts = kwargs["ti"].xcom_pull(key="report_data").get("error_counts") or {}
+        report_data = kwargs["ti"].xcom_pull(key="report_data") or {}
+        error_counts = report_data.get("error_counts", {})
         error_counts_print = (
             json.dumps(error_counts, indent=9).strip("{}").replace('"', "").replace(",", "")
         )
@@ -198,7 +199,7 @@ with HMDAG(
             status=status,
             fields_to_overwrite=extra_fields,
             run_id=kwargs.get("run_id"),
-            messages=json.loads(kwargs["ti"].xcom_pull(key="report_data") or "{}"),
+            messages=kwargs["ti"].xcom_pull(key="report_data"),
         ).update()
 
     t_send_status = PythonOperator(
