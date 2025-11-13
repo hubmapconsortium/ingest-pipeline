@@ -61,50 +61,12 @@ def generate_phenocycler_dag(params: SequencingDagParameters) -> DAG:
         workflow_version = "1.0.0"
         workflow_description = params.workflow_description
 
-        # cwl_workflows = [
-        #     {
-        #         "workflow_path": str(get_absolute_workflow(Path("sprm", "pipeline.cwl"))),
-        #         "documentation_url": "",
-        #     },
-        #     {
-        #         "workflow_path": str(
-        #             get_absolute_workflow(Path("create-vis-symlink-archive", "pipeline.cwl"))
-        #         ),
-        #         "documentation_url": "",
-        #     },
-        #     {
-        #         "workflow_path": str(
-        #             get_absolute_workflow(Path("ome-tiff-pyramid", "pipeline.cwl"))),
-        #         "documentation_url": "",
-        #     },
-        #     {
-        #         "workflow_path": str(
-        #             get_absolute_workflow(Path("portal-containers", "ome-tiff-offsets.cwl"))
-        #         ),
-        #         "documentation_url": "",
-        #     },
-        #     {
-        #         "workflow_path": str(
-        #             get_absolute_workflow(Path("portal-containers", "sprm-to-json.cwl"))
-        #         ),
-        #         "documentation_url": "",
-        #     },
-        #     {
-        #         "workflow_path": str(
-        #             get_absolute_workflow(Path("portal-containers", "sprm-to-anndata.cwl"))
-        #         ),
-        #         "documentation_url": "",
-        #     },
-        # ]
-
         def build_dataset_name(**kwargs):
             return inner_build_dataset_name(dag.dag_id, params.pipeline_name, **kwargs)
 
         prepare_cwl_sprm = EmptyOperator(task_id="prepare_cwl_sprm")
 
         def build_cwltool_cmd_sprm(**kwargs):
-            # run_id = kwargs["run_id"]
-            # tmpdir = get_tmp_dir_path(run_id)
             tmpdir = kwargs["dag_run"].conf.get("tmp_dir")
             print("tmpdir: ", tmpdir)
             parent_data_dir = get_parent_data_dir(**kwargs)
@@ -158,24 +120,22 @@ def generate_phenocycler_dag(params: SequencingDagParameters) -> DAG:
         )
 
         def build_cwltool_cmd_create_vis_symlink_archive(**kwargs):
-            # run_id = kwargs["run_id"]
-            # tmpdir = get_tmp_dir_path(run_id)
             tmpdir = kwargs["dag_run"].conf.get("tmp_dir")
             print("tmpdir: ", tmpdir)
             parent_data_dir = get_parent_data_dir(**kwargs)
             print("parent_data_dir: ", parent_data_dir)
             data_dir = tmpdir / "cwl_out"
             print("data_dir: ", data_dir)
-            task_id_workflow = "build_cmd_small" if kwargs.get("small_branch") else "build_cmd_sprm"
 
-            workflows = kwargs["ti"].xcom_pull(key="cwl_workflows", task_ids=task_id_workflow)
+            workflows = kwargs["ti"].xcom_pull(key="cwl_workflows", task_ids="build_cmd_sprm")
 
             input_parameters = [
                 {"parameter_name": "--ometiff_dir", "value": str(data_dir / "pipeline_output")},
                 {"parameter_name": "--sprm_output", "value": str(data_dir / "sprm_outputs")},
             ]
 
-            command = get_cwl_cmd_from_workflows(workflows, 2, input_parameters, tmpdir, kwargs["ti"])
+            command = get_cwl_cmd_from_workflows(workflows, 2, input_parameters,
+                                                 tmpdir, kwargs["ti"])
 
             return join_quote_command_str(command)
 
@@ -208,8 +168,6 @@ def generate_phenocycler_dag(params: SequencingDagParameters) -> DAG:
         prepare_cwl_ome_tiff_pyramid = EmptyOperator(task_id="prepare_cwl_ome_tiff_pyramid")
 
         def build_cwltool_cwl_ome_tiff_pyramid(**kwargs):
-            # run_id = kwargs["run_id"]
-            # tmpdir = get_tmp_dir_path(run_id)
             tmpdir = kwargs["dag_run"].conf.get("tmp_dir")
             print("tmpdir: ", tmpdir)
 
@@ -217,11 +175,8 @@ def generate_phenocycler_dag(params: SequencingDagParameters) -> DAG:
             data_dir = get_parent_data_dir(**kwargs)
             print("data_dir: ", data_dir)
 
-            task_id_workflow = "build_cmd_create_vis_symlink_archive_small" if kwargs.get(
-                "small_branch") else "build_cmd_create_vis_symlink_archive"
-
             workflows = kwargs["ti"].xcom_pull(
-                key="cwl_workflows", task_ids=task_id_workflow
+                key="cwl_workflows", task_ids="build_cmd_create_vis_symlink_archive"
             )
 
             input_parameters = [
@@ -262,8 +217,6 @@ def generate_phenocycler_dag(params: SequencingDagParameters) -> DAG:
         prepare_cwl_ome_tiff_offsets = EmptyOperator(task_id="prepare_cwl_ome_tiff_offsets")
 
         def build_cwltool_cmd_ome_tiff_offsets(**kwargs):
-            # run_id = kwargs["run_id"]
-            # tmpdir = get_tmp_dir_path(run_id)
             tmpdir = kwargs["dag_run"].conf.get("tmp_dir")
             print("tmpdir: ", tmpdir)
             parent_data_dir = get_parent_data_dir(**kwargs)
@@ -271,11 +224,8 @@ def generate_phenocycler_dag(params: SequencingDagParameters) -> DAG:
             data_dir = tmpdir / "cwl_out"
             print("data_dir: ", data_dir)
 
-            task_id_workflow = "build_cwl_ome_tiff_pyramid_small" if kwargs.get(
-                "small_branch") else "build_cwl_ome_tiff_pyramid"
-
             workflows = kwargs["ti"].xcom_pull(
-                key="cwl_workflows", task_ids=task_id_workflow
+                key="cwl_workflows", task_ids="build_cwl_ome_tiff_pyramid"
             )
 
             input_parameters = [
@@ -315,19 +265,15 @@ def generate_phenocycler_dag(params: SequencingDagParameters) -> DAG:
         prepare_cwl_sprm_to_json = EmptyOperator(task_id="prepare_cwl_sprm_to_json")
 
         def build_cwltool_cmd_sprm_to_json(**kwargs):
-            # run_id = kwargs["run_id"]
-            # tmpdir = get_tmp_dir_path(run_id)
             tmpdir = kwargs["dag_run"].conf.get("tmp_dir")
             print("tmpdir: ", tmpdir)
             parent_data_dir = get_parent_data_dir(**kwargs)
             print("parent_data_dir: ", parent_data_dir)
             data_dir = tmpdir / "cwl_out"  # This stage reads input from stage 1
             print("data_dir: ", data_dir)
-            task_id_workflow = "build_cmd_ome_tiff_offsets_small" if kwargs.get(
-                "small_branch") else "build_cmd_ome_tiff_offsets"
 
             workflows = kwargs["ti"].xcom_pull(
-                key="cwl_workflows", task_ids=task_id_workflow
+                key="cwl_workflows", task_ids="build_cmd_ome_tiff_offsets"
             )
 
             input_parameters = [
@@ -367,19 +313,15 @@ def generate_phenocycler_dag(params: SequencingDagParameters) -> DAG:
         prepare_cwl_sprm_to_anndata = EmptyOperator(task_id="prepare_cwl_sprm_to_anndata")
 
         def build_cwltool_cmd_sprm_to_anndata(**kwargs):
-            # run_id = kwargs["run_id"]
-            # tmpdir = get_tmp_dir_path(run_id)
             tmpdir = kwargs["dag_run"].conf.get("tmp_dir")
             print("tmpdir: ", tmpdir)
             parent_data_dir = get_parent_data_dir(**kwargs)
             print("parent_data_dir: ", parent_data_dir)
             data_dir = tmpdir / "cwl_out"  # This stage reads input from stage 1
             print("data_dir: ", data_dir)
-            task_id_workflow = "build_cmd_sprm_to_json_small" if kwargs.get(
-                "small_branch") else "build_cmd_sprm_to_json"
 
             workflows = kwargs["ti"].xcom_pull(
-                key="cwl_workflows", task_ids=task_id_workflow
+                key="cwl_workflows", task_ids="build_cmd_sprm_to_json"
             )
 
             input_parameters = [
