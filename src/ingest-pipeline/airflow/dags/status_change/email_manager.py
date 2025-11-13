@@ -7,6 +7,7 @@ from airflow.utils.email import send_email
 from .email_templates.error import ErrorStatusEmail
 from .email_templates.good import GenericGoodStatusEmail
 from .email_templates.invalid import InvalidStatusEmail
+from .email_templates.reorganized import ReorganizedStatusEmail
 from .status_utils import (
     MessageManager,
     Statuses,
@@ -80,8 +81,11 @@ class EmailManager(MessageManager):
         if self.is_internal_error:
             self.subj, self.msg = ErrorStatusEmail(self).format()
         # good status or reorg with child datasets
-        elif self.status in self.good_statuses or self.reorg_status_with_child_datasets():
+        elif self.status in self.good_statuses:
             self.subj, self.msg = GenericGoodStatusEmail(self).format()
+        # finished reorg (has datasets)
+        elif self.reorg_status_with_child_datasets():
+            self.subj, self.msg = ReorganizedStatusEmail(self).format()
         # actually invalid
         elif self.status in [
             Statuses.DATASET_INVALID,
