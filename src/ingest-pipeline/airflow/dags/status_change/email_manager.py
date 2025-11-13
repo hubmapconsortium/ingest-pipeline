@@ -1,18 +1,17 @@
 import logging
 from typing import Optional
 
-from status_change.status_utils import (
-    MessageManager,
-    Statuses,
-    get_project,
-)
-
 from airflow.configuration import conf as airflow_conf
 from airflow.utils.email import send_email
 
 from .email_templates.error import ErrorStatusEmail
 from .email_templates.good import GenericGoodStatusEmail
 from .email_templates.invalid import InvalidStatusEmail
+from .status_utils import (
+    MessageManager,
+    Statuses,
+    get_project,
+)
 
 
 class EmailManager(MessageManager):
@@ -108,10 +107,10 @@ class EmailManager(MessageManager):
 
     def reorg_status_with_child_datasets(self):
         if self.status == Statuses.UPLOAD_REORGANIZED and self.entity_data.get("datasets"):
-            logging.info(
-                "Reorganized upload does not have child datasets (DAG may still be running); not sending email."
-            )
             return True  # only want to send good email if reorg status AND has child datasets
+        logging.info(
+            "Reorganized upload does not have child datasets (DAG may still be running); not sending email."
+        )
         return False
 
     #########
