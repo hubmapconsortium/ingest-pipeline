@@ -38,6 +38,7 @@ from status_change.status_utils import (
 from tests.fixtures import (
     dataset_context_mock_value,
     endpoints,
+    ext_error,
     good_upload_context,
     slack_upload_reorg_priority_str,
     slack_upload_reorg_str,
@@ -1045,7 +1046,7 @@ class TestEmailManager(MockParent):
             context=good_upload_context | {"error_message": "An error has occurred"},
         )
         expected_subj = "Internal error for Upload test_hm_id"
-        expected_msg = "HuBMAP ID: test_hm_id<br>UUID: test_uuid<br>Entity type: Upload<br>Status: Error<br>Group: test group<br>Primary contact: test@user.com<br>Ingest page: https://ingest.hubmapconsortium.org/Upload/test_uuid<br>Log file: test_path/test_run_id<br>"
+        expected_msg = "HuBMAP ID: test_hm_id<br>UUID: test_uuid<br>Entity type: Upload<br>Status: Error<br>Group: test group<br>Primary contact: test@user.com<br>Ingest page: https://ingest.hubmapconsortium.org/upload/test_uuid<br>Log file: test_path/test_run_id<br>"
         # print(f"Expected subject: {expected_subj}")
         # print(f"Actual subj: {manager.subj}")
         # print(f"Expected msg: {expected_msg}")
@@ -1073,7 +1074,7 @@ class TestEmailManager(MockParent):
             },
         )
         expected_subj = f"HuBMAP Upload test_hm_id is invalid"
-        expected_msg = 'HuBMAP Upload <a href="https://ingest.hubmapconsortium.org/Upload/test_uuid">test_hm_id</a> has failed validation.<br><br><b>Validation details</b><br>The validation process starts by checking metadata TSVs and directory structures. If those checks pass, then certain individual file types (such as FASTQ and OME.TIFF files) are validated.<br><br><b>What to do next</b><br>If you have questions about your upload, please schedule an appointment with Data Curator Brendan Honick: https://calendly.com/bhonick-psc/.<br><br>This email address is not monitored. If you have questions, please schedule with Brendan Honick or email ingest@hubmapconsortium.org.<br><br>The error log is included below if you would like to make updates to your submission independently; it is not required for you to do so before contacting our Data Curation Team. Please email ingest@hubmapconsortium.org if you believe you have repaired all validation errors so that we can re-validate your submission.<br><br>If your submission has "Spreadsheet Validator Errors," please use the <a href="https://metadatavalidator.metadatacenter.org/">Metadata Spreadsheet Validator</a> tool to correct them.<br><br><b>Validation error log</b><br><ul><li>Directory Errors:</li><ul><li>/hive/hubmap-dev/data/protected/IEC Testing Group/dc3f82820dca46f2bd86d8a8641afd25/RI_LA1D_AB-PAS (as histology-v2.3):</li><ul><li>Required but missing:</li><ul><li>extras\\/microscope_hardware\\.json</li></ul></ul><li>/hive/hubmap-dev/data/protected/IEC Testing Group/dc3f82820dca46f2bd86d8a8641afd25/RI_LA2D_AB-PAS (as histology-v2.3):</li><ul><li>Required but missing:</li><ul><li>extras\\/microscope_hardware\\.json</li></ul></ul></ul><li>Fatal Errors:</li><ul><li>Skipping plugin validation due to errors in upload metadata or dir structure.</li></ul></ul>'
+        expected_msg = 'HuBMAP Upload <a href="https://ingest.hubmapconsortium.org/upload/test_uuid">test_hm_id</a> has failed validation.<br><br><b>Validation details</b><br>The validation process starts by checking metadata TSVs and directory structures. If those checks pass, then certain individual file types (such as FASTQ and OME.TIFF files) are validated.<br><br><b>What to do next</b><br>If you have questions about your upload, please schedule an appointment with Data Curator Brendan Honick: https://calendly.com/bhonick-psc/.<br><br>This email address is not monitored. If you have questions, please schedule with Brendan Honick or email ingest@hubmapconsortium.org.<br><br>The error log is included below if you would like to make updates to your submission independently; it is not required for you to do so before contacting our Data Curation Team. Please email ingest@hubmapconsortium.org if you believe you have repaired all validation errors so that we can re-validate your submission.<br><br>If your submission has "Spreadsheet Validator Errors," please use the <a href="https://metadatavalidator.metadatacenter.org/">Metadata Spreadsheet Validator</a> tool to correct them.<br><br><b>Validation error log</b><br><ul><li>Directory Errors:</li><ul><li>/hive/hubmap-dev/data/protected/IEC Testing Group/dc3f82820dca46f2bd86d8a8641afd25/RI_LA1D_AB-PAS (as histology-v2.3):</li><ul><li>Required but missing:</li><ul><li>extras\\/microscope_hardware\\.json</li></ul></ul><li>/hive/hubmap-dev/data/protected/IEC Testing Group/dc3f82820dca46f2bd86d8a8641afd25/RI_LA2D_AB-PAS (as histology-v2.3):</li><ul><li>Required but missing:</li><ul><li>extras\\/microscope_hardware\\.json</li></ul></ul></ul><li>Fatal Errors:</li><ul><li>Skipping plugin validation due to errors in upload metadata or dir structure.</li></ul></ul>'
         # print(f"Expected subject: {expected_subj}")
         # print(f"Actual subj: {manager.subj}")
         # print(f"Expected msg: {expected_msg}")
@@ -1083,7 +1084,7 @@ class TestEmailManager(MockParent):
 
     def test_get_content_good(self):
         expected_subj = f"Upload test_hm_id has successfully reached status Valid!"
-        expected_msg = "View ingest record: https://ingest.hubmapconsortium.org/Upload/test_uuid<br><br>This email address is not monitored. Please email ingest@hubmapconsortium.org with any questions about your data submission.<br>"
+        expected_msg = "View ingest record: https://ingest.hubmapconsortium.org/upload/test_uuid<br><br>This email address is not monitored. Please email ingest@hubmapconsortium.org with any questions about your data submission.<br>"
         manager = self.email_manager(Statuses.UPLOAD_VALID)
         # print(f"Expected subject: {expected_subj}")
         # print(f"Actual subj: {manager.subj}")
@@ -1107,7 +1108,7 @@ class TestEmailManager(MockParent):
         error_msg = """
             HuBMAP ID: test_hm_id<br>
             Group: test group<br>
-            Ingest page: https://ingest.hubmapconsortium.org/Upload/test_uuid<br>
+            Ingest page: https://ingest.hubmapconsortium.org/upload/test_uuid<br>
             <br>
             Upload is invalid:<br>
             - Directory errors: 3<br>
@@ -1148,6 +1149,13 @@ class TestEmailManager(MockParent):
             ).reorg_status_with_child_datasets()
         )
 
+    def test_reorg_format(self):
+        mgr = self.email_manager(Statuses.UPLOAD_REORGANIZED, context=good_upload_context)
+        assert (
+            mgr.msg
+            == "View ingest record: https://ingest.hubmapconsortium.org/upload/test_uuid<br><br>Datasets:<br><ul><li><a href='https://ingest.hubmapconsortium.org/dataset/test_dataset_uuid'>test_dataset_hm_id</a>: submitted</li><li><a href='https://ingest.hubmapconsortium.org/dataset/test_dataset_uuid2'>test_dataset_hm_id2</a>: submitted</li></ul><br>This email address is not monitored. Please email ingest@hubmapconsortium.org with any questions about your data submission.<br>"
+        )
+
     def test_ext_error_format(self):
         mgr = self.email_manager(
             Statuses.UPLOAD_INVALID,
@@ -1158,10 +1166,7 @@ class TestEmailManager(MockParent):
             }
             | {"status": "Invalid"},
         )
-        assert (
-            mgr.msg
-            == 'HuBMAP Upload <a href="https://ingest.hubmapconsortium.org/Upload/test_uuid">test_hm_id</a> has failed validation.<br><br><b>Validation details</b><br>The validation process starts by checking metadata TSVs and directory structures. If those checks pass, then certain individual file types (such as FASTQ and OME.TIFF files) are validated.<br><br><b>What to do next</b><br>If you have questions about your upload, please schedule an appointment with Data Curator Brendan Honick: https://calendly.com/bhonick-psc/.<br><br>This email address is not monitored. If you have questions, please schedule with Brendan Honick or email ingest@hubmapconsortium.org.<br><br>The error log is included below if you would like to make updates to your submission independently; it is not required for you to do so before contacting our Data Curation Team. Please email ingest@hubmapconsortium.org if you believe you have repaired all validation errors so that we can re-validate your submission.<br><br>If your submission has "Spreadsheet Validator Errors," please use the <a href="https://metadatavalidator.metadatacenter.org/">Metadata Spreadsheet Validator</a> tool to correct them.<br><br><b>Validation error log</b><br><ul><li>Directory Errors:</li><ul><li>examples/dataset-examples/bad-scatacseq-data/upload/dataset-1 (as scatacseq-v0.0):</li><ul><li>Not allowed:</li><ul><li>not-the-file-you-are-looking-for.txt</li><li>unexpected-directory/place-holder.txt</li></ul><li>Required but missing:</li><ul><li>[^/]+\\.fastq\\.gz</li></ul></ul></ul><li>Antibodies/Contributors Errors:</li><ul><li>examples/dataset-examples/bad-scatacseq-data/upload/scatacseq-metadata.tsv:</li><ul><li>On row(s) 2, column "contributors_path", error opening or reading value ".". Expected a TSV, but found a directory: examples/dataset-examples/bad-scatacseq-data/upload.</li></ul></ul><li>Local Validation Errors:</li><ul><li>examples/dataset-examples/bad-scatacseq-data/upload/scatacseq-metadata.tsv (as scatacseq-v0):</li><ul><li>On row 2, column "sc_isolation_protocols_io_doi", value "" fails because it must be filled out.</li><li>On row 2, column "library_construction_protocols_io_doi", value "" fails because it must be filled out.</li><li>On row 2, column "protocols_io_doi", value "10.17504/fake" fails because it is an invalid DOI.</li></ul></ul></ul>'
-        )
+        assert mgr.msg == ext_error
 
     def test_error_formatter(self):
         manager = self.email_manager(Statuses.UPLOAD_INVALID, mock=True)

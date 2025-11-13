@@ -388,7 +388,7 @@ def get_entity_ingest_url(entity_data: dict) -> str:
     url_start = "https://ingest."
     if env not in ["prod", None]:
         url_start = f"https://ingest.{env}."
-    entity_type = entity_data.get("entity_type", "")
+    entity_type = entity_data.get("entity_type", "").lower()
     base_url = urljoin(url_start + url_end, entity_type)
     if not base_url.endswith("/"):
         base_url += "/"
