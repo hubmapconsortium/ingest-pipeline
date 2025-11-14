@@ -3,15 +3,13 @@ from typing import Optional
 
 from .status_utils import (  # get_primary_dataset,
     EntityUpdateException,
+    MessageManager,
     Statuses,
-    get_submission_context,
-    is_internal_error,
-    log_directory_path,
     put_request_to_entity_api,
 )
 
 
-class DataIngestBoardManager:
+class DataIngestBoardManager(MessageManager):
     # TODO: derived datasets are not created until pipeline steps succeed;
     # therefore there is no status change to indicate failed pipeline run.
     # Pipelines hit set_dataset_error but do not set error on primary.
@@ -33,20 +31,17 @@ class DataIngestBoardManager:
         status: Statuses,
         uuid: str,
         token: str,
-        msg: str = "",
+        messages: Optional[dict] = None,
         run_id: str = "",
         *args,
         **kwargs,
     ):
-        del args, kwargs
-        self.uuid = uuid
-        self.token = token
-        self.status = status
-        self.msg = str(msg) if msg else ""
-        self.run_id = run_id
-        self.entity_data = get_submission_context(self.token, self.uuid)
+        super().__init__(status, uuid, token, messages, run_id, args, kwargs)
         self.update_fields = self.get_fields()
-        self.is_valid_for_status = bool(self.update_fields)
+
+    @property
+    def is_valid_for_status(self):
+        return bool(self.update_fields)
 
     def update(self):
         if not self.update_fields:
@@ -73,7 +68,7 @@ class DataIngestBoardManager:
     def get_fields(self) -> Optional[dict]:
         entity = self.entity_data.get("entity_type", "").lower()
         msg_type = f"{entity}_{Statuses.valid_str(self.status)}"
-        if clear_msg := self.get_clear_message(msg_type, entity):
+        if clear_msg := self.get_clear_message(msg_type):
             return clear_msg
         func = getattr(self, msg_type, None)
         if not func:
@@ -88,7 +83,7 @@ class DataIngestBoardManager:
             update_data["assigned_to_group_name"] = ""
         return update_data
 
-    def get_clear_message(self, msg_type: str, entity: str) -> Optional[dict]:
+    def get_clear_message(self, msg_type: str) -> Optional[dict]:
         """
         Clear error messages following success.
         """
@@ -100,13 +95,8 @@ class DataIngestBoardManager:
             return {"error_message": ""}
 
     @property
-    def internal_error(self) -> bool:
-        # Error status or internal_error_str(s) found
-        return is_internal_error(self.entity_data)
-
-    @property
     def assigned_to_group_name(self) -> Optional[str]:
-        if self.internal_error:
+        if self.is_internal_error:
             return "IEC Testing Group"
         elif group_name := self.entity_data.get("group_name"):
             if self.status in self.assign_to_dp:
@@ -119,9 +109,9 @@ class DataIngestBoardManager:
     ########################
 
     def get_internal_error_msg(self) -> str:
-        prefix = f"Internal error. Log directory: {log_directory_path(self.run_id)}"
-        if self.msg:
-            error = f"{prefix} | {self.msg}"
+        prefix = f"Internal error. Log directory: {self.log_directory_path}"
+        if self.error_counts:
+            error = f"{prefix} | {self.error_counts}"
         else:
             error = prefix
         return error
@@ -137,10 +127,14 @@ class DataIngestBoardManager:
         an internal error would have put the upload into an Error
         state. But, check anyway, just in case.
         """
-        if self.internal_error:
+        if self.is_internal_error:
             error = self.get_internal_error_msg()
         else:
-            error = self.msg if self.msg else f"Invalid status from run {self.run_id}"
+            error = (
+                self.error_counts
+                if self.error_counts
+                else f"Invalid status from run {self.run_id}"
+            )
         return {"error_message": error}
 
     def dataset_error(self):
@@ -162,10 +156,14 @@ class DataIngestBoardManager:
         Derived datasets should not be invalid but check just in case
         to ensure writing error to correct entity.
         """
-        if self.internal_error:
+        if self.is_internal_error:
             error = self.get_internal_error_msg()
         else:
-            error = self.msg if self.msg else f"Invalid status from run {self.run_id}"
+            error = (
+                self.error_counts
+                if self.error_counts
+                else f"Invalid status from run {self.run_id}"
+            )
         # if self.check_is_derived:
         #     error = f"Derived dataset {self.child_uuid} is in Invalid state. {error}"
         return {"error_message": error}

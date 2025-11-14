@@ -128,6 +128,49 @@ ENTITY_STATUS_MAP = {
 }
 
 
+class MessageManager:
+
+    def __init__(
+        self,
+        status: Statuses,
+        uuid: str,
+        token: str,
+        messages: Optional[dict] = None,
+        run_id: str = "",
+        *args,
+        **kwargs,
+    ):
+        self.uuid = uuid
+        self.token = token
+        self.status = status
+        self.messages = messages if messages else {}
+        self.run_id = run_id
+        self.args = args
+        self.kwargs = kwargs
+        self.entity_data = get_submission_context(self.token, self.uuid)
+        self.is_internal_error = is_internal_error(self.entity_data)
+        self.log_directory_path = log_directory_path(self.run_id)
+
+    @property
+    def is_valid_for_status(self) -> bool:
+        raise NotImplementedError
+
+    def update(self):
+        raise NotImplementedError
+
+    @property
+    def error_counts(self) -> str:
+        if counts := self.messages.get("error_counts"):
+            return "; ".join([f"{k}: {v}" for k, v in counts.items()])
+        return ""
+
+    @property
+    def error_dict(self) -> dict:
+        if error_dict := self.messages.get("error_dict"):
+            return error_dict
+        return {}
+
+
 slack_channels = {
     "base": "C08V3TAP3GQ",  # testing-status-change
     "dataset_error": "C08V3TAP3GQ",
@@ -345,7 +388,7 @@ def get_entity_ingest_url(entity_data: dict) -> str:
     url_start = "https://ingest."
     if env not in ["prod", None]:
         url_start = f"https://ingest.{env}."
-    entity_type = entity_data.get("entity_type", "")
+    entity_type = entity_data.get("entity_type", "").lower()
     base_url = urljoin(url_start + url_end, entity_type)
     if not base_url.endswith("/"):
         base_url += "/"

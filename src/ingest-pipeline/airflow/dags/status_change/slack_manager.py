@@ -18,16 +18,16 @@ from .slack.reorganized import (
 )
 from .status_utils import (
     EntityUpdateException,
+    MessageManager,
     Statuses,
     get_env,
-    get_submission_context,
     post_to_slack_notify,
     slack_channels_testing,
     split_error_counts,
 )
 
 
-class SlackManager:
+class SlackManager(MessageManager):
     """
     Allows StatusChanger to remain agnostic about Slack requirements for different statuses
     and the nuances of their (potential) subclasses; manager handles traffic direction.
@@ -42,27 +42,23 @@ class SlackManager:
         status: Statuses,
         uuid: str,
         token: str,
-        msg: Optional[str] = None,
+        messages: Optional[dict] = None,
+        run_id: str = "",
         *args,
         **kwargs,
     ):
-        del args, kwargs
-        self.uuid = uuid
-        self.token = token
-        self.addtl_msg = msg
+        super().__init__(status, uuid, token, messages, run_id, args, kwargs)
         self.message_class = self.get_message_class(status)
         if not self.message_class:
             logging.info(
                 f"Status {status.value} does not have any Slack messaging rules; no message will be sent."
             )
-        self.is_valid_for_status = bool(self.message_class)
 
-        """
-        This is the source of truth for what classes should be used for a given status.
-        Format:
-            Statuses.STATUS: {"main_class": <class_name>, "subclasses": [<class_name>]}
-        """
-
+    """
+    This is the source of truth for what classes should be used for a given status.
+    Format:
+        Statuses.STATUS: {"main_class": <class_name>, "subclasses": [<class_name>]}
+    """
     status_to_class = {
         Statuses.DATASET_ERROR: {
             "main_class": SlackDatasetError,
@@ -92,14 +88,17 @@ class SlackManager:
         },
     }
 
+    @property
+    def is_valid_for_status(self):
+        return bool(self.message_class)
+
     def get_message_class(self, msg_type: Statuses) -> Optional[SlackMessage]:
         relevant_classes = self.status_to_class.get(msg_type)
         if not relevant_classes:
             return
         # Re-request entity data as previous message managers may have altered it
-        entity_data = get_submission_context(self.token, self.uuid)
         for subclass in relevant_classes.get("subclasses", []):
-            if subclass.test(entity_data, self.token):
+            if subclass.test(self.entity_data, self.token):
                 return subclass(self.uuid, self.token)
         if main_class := relevant_classes["main_class"]:
             return main_class(self.uuid, self.token)
@@ -122,8 +121,8 @@ class SlackManager:
             raise EntityUpdateException("Can't format message without message class.")
         try:
             message = self.message_class.format()
-            if self.addtl_msg:
-                message.extend(["", *self.formatted_addtl_msg()])
+            if self.error_counts:
+                message.extend(["", "Error Counts:", *split_error_counts(self.error_counts)])
         except NotImplementedError:
             raise EntityUpdateException(
                 f"Message class {self.message_class.name} does not implement a format method; not sending Slack message."
@@ -155,8 +154,3 @@ class SlackManager:
                 f"No channel found for message class {self.message_class.name} on {env}, using default channel."
             )
         return channel
-
-    def formatted_addtl_msg(self) -> list[str]:
-        if self.addtl_msg:
-            return split_error_counts(self.addtl_msg)
-        return []
