@@ -4,6 +4,7 @@ import argparse
 import re
 
 from airflow.configuration import conf as airflow_conf
+from airflow.exceptions import AirflowException, AirflowConfigException
 from datetime import datetime
 from pathlib import Path
 from typing import List
@@ -16,6 +17,26 @@ from utils import (
 )
 
 
+def config(section, key):
+    dct = airflow_conf.as_dict(display_sensitive=True)
+    if section in dct:
+        if key in dct[section]:
+            rslt = dct[section][key]
+        elif key.lower() in dct[section]:
+            rslt = dct[section][key.lower()]
+        elif key.upper() in dct[section]:
+            rslt = dct[section][key.upper()]
+        else:
+            raise AirflowConfigException("No config entry for [{}] {}".format(section, key))
+        # airflow config reader leaves quotes, which we want to strip
+        for qc in ['"', "'"]:
+            if rslt.startswith(qc) and rslt.endswith(qc):
+                rslt = rslt.strip(qc)
+        return rslt
+    else:
+        raise AirflowConfigException("No config section [{}]".format(section))
+
+
 class CPUGpuStatistics:
     def __get_uuids(self, single_uuid: str = None, **kwargs) -> None:
         """ Queries server to get a full list of processed datasets"""
@@ -25,8 +46,9 @@ class CPUGpuStatistics:
             uuid_list = "some"
         else:
             uuid_list.append(single_uuid)
+        fernet = Fernet(config("core", "fernet_key").encode())
+        kwargs["crypt_auth_tok"] = fernet.encrypt(airflow_conf.as_dict()["connections"]["APP_CLIENT_SECRET"].encode()).decode()
         for uuid in uuid_list:
-            kwargs["crypt_auth_tok"] = fernet.encrypt(airflow_conf.as_dict()["connections"]["APP_CLIENT_SECRET"].encode()).decode()
             soft_data = get_soft_data(uuid, **kwargs)
             ds_rslt = pythonop_get_dataset_state(
                 dataset_uuid_callable=lambda **kwargs: uuid, **kwargs
