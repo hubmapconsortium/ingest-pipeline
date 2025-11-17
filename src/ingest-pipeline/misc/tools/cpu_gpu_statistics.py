@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import List
 
 
-from cryptography import fernet
+from cryptography.fernet import Fernet
 from utils import (
     get_soft_data,
     pythonop_get_dataset_state,
