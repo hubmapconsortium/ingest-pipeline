@@ -1,13 +1,17 @@
+# pyright: reportMissingImports=false
+
 import json
 import unittest
 from datetime import date
 from functools import cached_property
+from typing import Optional
 from unittest.mock import MagicMock, patch
 
 import requests
 from status_change.callbacks.failure_callback import FailureCallback
 from status_change.data_ingest_board_manager import DataIngestBoardManager
 from status_change.email_manager import EmailManager
+from status_change.email_templates.invalid import InvalidStatusEmail
 from status_change.slack.base import SlackMessage
 from status_change.slack.reorganized import (
     SlackUploadReorganized,
@@ -34,9 +38,12 @@ from status_change.status_utils import (
 from tests.fixtures import (
     dataset_context_mock_value,
     endpoints,
+    ext_error,
     good_upload_context,
     slack_upload_reorg_priority_str,
     slack_upload_reorg_str,
+    validation_error_dict,
+    validation_report_html_list,
 )
 from utils import pythonop_set_dataset_state
 
@@ -95,29 +102,20 @@ class MockParent(unittest.TestCase):
             return_value={"connections": {"WORKFLOW_SCRATCH": "test_path"}},
         )
         self.httphook = patch("status_change.status_utils.HttpHook.run")
+        # self.scratch_base_path = patch("utils._get_scratch_base_path", return_value="test_path")
         self.entity_update = patch("status_change.status_manager.put_request_to_entity_api")
         self.status_context = patch(
-            "status_change.status_manager.get_submission_context", return_value=good_upload_context
-        )
-        self.slack_context = patch(
-            "status_change.slack_manager.get_submission_context", return_value=good_upload_context
+            "status_change.status_utils.get_submission_context", return_value=good_upload_context
         )
         self.slack_msg_context = patch(
             "status_change.slack.base.get_submission_context", return_value=good_upload_context
         )
         self.slack_update = patch("status_change.slack_manager.SlackManager.update")
         self.slack_post = patch("status_change.slack_manager.post_to_slack_notify")
-        self.dib_context = patch(
-            "status_change.data_ingest_board_manager.get_submission_context",
-            return_value=good_upload_context,
-        )
         self.dib_update = patch(
             "status_change.data_ingest_board_manager.DataIngestBoardManager.update"
         )
         self.email_send = patch("status_change.email_manager.EmailManager.send_email")
-        self.email_context = patch(
-            "status_change.email_manager.get_submission_context", return_value=good_upload_context
-        )
 
         # Mock objects
         self.mock_token = self.token.start()
@@ -128,14 +126,11 @@ class MockParent(unittest.TestCase):
         self.mock_httphook.return_value.json.return_value = good_upload_context  # GET request mock
         self.mock_entity_update = self.entity_update.start()
         self.mock_status_context = self.status_context.start()
-        self.mock_slack_context = self.slack_context.start()
         self.mock_slack_msg_context = self.slack_msg_context.start()
         self.mock_slack_update = self.slack_update.start()
         self.mock_slack_post = self.slack_post.start()
-        self.mock_dib_context = self.dib_context.start()
         self.mock_dib_update = self.dib_update.start()
         self.mock_email_send = self.email_send.start()
-        self.mock_email_context = self.email_context.start()
 
         # Stop/clean up patches after test
         self.addCleanup(self.token.stop)
@@ -145,14 +140,11 @@ class MockParent(unittest.TestCase):
         self.addCleanup(self.httphook.stop)
         self.addCleanup(self.entity_update.stop)
         self.addCleanup(self.status_context.stop)
-        self.addCleanup(self.slack_context.stop)
         self.addCleanup(self.slack_msg_context.stop)
         self.addCleanup(self.slack_update.stop)
         self.addCleanup(self.slack_post.stop)
-        self.addCleanup(self.dib_context.stop)
         self.addCleanup(self.dib_update.stop)
         self.addCleanup(self.email_send.stop)
-        self.addCleanup(self.email_context.stop)
 
         super().setUp()
 
@@ -185,7 +177,13 @@ class TestEntityUpdater(MockParent):
         validate_mock.assert_not_called()
         self.upload_entity_valid.update()
         validate_mock.assert_called_once()
-        self.mock_httphook.assert_called_once()
+        put_calls = []
+        for call in self.mock_httphook.call_args_list:
+            for call_tuple in call:
+                for call_arg in call_tuple:
+                    if call_arg == "/entities/upload_valid_uuid?reindex=True":
+                        put_calls.append(call)
+        assert len(put_calls) == 1
 
     @patch("status_change.status_manager.StatusChanger.set_entity_api_data")
     def test_should_be_statuschanger(self, status_update_mock):
@@ -283,7 +281,7 @@ class TestStatusChanger(MockParent):
 
     def test_extra_field_good(self):
         with patch(
-            "status_change.status_manager.get_submission_context",
+            "status_change.status_utils.get_submission_context",
             return_value={
                 "status": "processing",
                 "test_extra_field": False,
@@ -311,7 +309,7 @@ class TestStatusChanger(MockParent):
 
     def test_invalid_status_in_request(self):
         with patch(
-            "status_change.status_manager.get_submission_context",
+            "status_change.status_utils.get_submission_context",
             return_value={
                 "status": "processing",
                 "test_extra_field": True,
@@ -343,10 +341,10 @@ class TestStatusChanger(MockParent):
         assert with_http_conn_id.http_conn_id == "test_conn_id"
 
     def test_call_message_managers_valid_status(self):
-        self.assertFalse(self.mock_slack_context.called)
+        self.assertFalse(self.mock_status_context.called)
         self.assertEqual(self.upload_invalid.status, Statuses.UPLOAD_INVALID)
         self.upload_invalid.update()
-        self.assertTrue(self.mock_slack_context.called)
+        self.assertTrue(self.mock_status_context.called)
 
     @staticmethod
     def my_callable(**kwargs):
@@ -423,17 +421,13 @@ class TestStatusChanger(MockParent):
             "status_change.status_manager.get_submission_context",
             return_value=dataset_context_mock_value,
         ):
-            with patch(
-                "status_change.data_ingest_board_manager.get_submission_context",
-                return_value={"entity_type": "dataset"},
-            ):
-                StatusChanger(
-                    "dataset_valid_uuid",
-                    "dataset_valid_token",
-                    status="Hold",
-                    extra_options={},
-                ).update()
-                self.mock_slack_update.assert_not_called()
+            StatusChanger(
+                "dataset_valid_uuid",
+                "dataset_valid_token",
+                status="Hold",
+                extra_options={},
+            ).update()
+            self.mock_slack_update.assert_not_called()
 
     def test_data_ingest_board_triggered(self):
         sc = StatusChanger(
@@ -450,17 +444,13 @@ class TestStatusChanger(MockParent):
             "status_change.status_manager.get_submission_context",
             return_value=dataset_context_mock_value,
         ):
-            with patch(
-                "status_change.data_ingest_board_manager.get_submission_context",
-                return_value={"entity_type": "dataset"},
-            ):
-                StatusChanger(
-                    "dataset_valid_uuid",
-                    "dataset_valid_token",
-                    status="Hold",
-                    extra_options={},
-                ).update()
-                self.mock_dib_update.assert_not_called()
+            StatusChanger(
+                "dataset_valid_uuid",
+                "dataset_valid_token",
+                status="Hold",
+                extra_options={},
+            ).update()
+            self.mock_dib_update.assert_not_called()
 
 
 class SlackTest(SlackMessage):
@@ -475,6 +465,7 @@ class SlackTestHold(SlackMessage):
 
     @classmethod
     def test(cls, entity_data, token):
+        del token
         if entity_data.get("status").lower() == "hold":
             return True
         return False
@@ -539,10 +530,10 @@ class TestSlack(MockParent):
         in all environments.
         """
         self.slack_update.stop()
-        original_ret_val = self.mock_slack_context.return_value.copy()
+        original_ret_val = self.mock_status_context.return_value.copy()
         new_ret_val = original_ret_val | {"status": "hold"}
 
-        with patch("status_change.slack_manager.get_submission_context", return_value=new_ret_val):
+        with patch("status_change.status_utils.get_submission_context", return_value=new_ret_val):
             with patch.dict(
                 "status_change.slack_manager.SlackManager.status_to_class",
                 {Statuses.DATASET_HOLD: self.mock_slack_channels},
@@ -560,7 +551,7 @@ class TestSlack(MockParent):
         return SlackManager(status, "test_uuid", "test_token")
 
     def test_slack_manager_main_class(self):
-        self.mock_slack_context.return_value.pop("priority_project_list", None)
+        self.mock_status_context.return_value.pop("priority_project_list", None)
         self.mock_slack_msg_context.return_value.pop("priority_project_list", None)
         mgr = self.slack_manager(Statuses.UPLOAD_REORGANIZED)
         assert type(mgr.message_class) is SlackUploadReorganized
@@ -570,13 +561,13 @@ class TestSlack(MockParent):
             "priority_project_list": ["PRIORITY"],
             "datasets": [{"dataset_type": "test_1"}],
         }
-        self.mock_slack_context.return_value.update(context_addition)
+        self.mock_status_context.return_value.update(context_addition)
         self.mock_slack_msg_context.return_value.update(context_addition)
         mgr = self.slack_manager(Statuses.UPLOAD_REORGANIZED)
         assert type(mgr.message_class) is SlackUploadReorganizedPriority
 
     def test_slack_manager_subclass_pass(self):
-        self.mock_slack_context.return_value.pop("datasets", None)
+        self.mock_status_context.return_value.pop("datasets", None)
         self.mock_slack_msg_context.return_value.pop("datasets", None)
         mgr = self.slack_manager(Statuses.UPLOAD_REORGANIZED)
         assert type(mgr.message_class) is SlackUploadReorganizedNoDatasets
@@ -591,6 +582,7 @@ class TestSlack(MockParent):
 
     @staticmethod
     def hhr_mock_side_effect(endpoint, headers, *args, **kwargs):
+        del headers, args, kwargs
         if "organs" in endpoint:
             return get_mock_response(
                 True, json.dumps(good_upload_context.get("datasets")).encode("utf-8")
@@ -599,18 +591,22 @@ class TestSlack(MockParent):
             return get_mock_response(True, json.dumps({"path": "test_abs_path"}).encode("utf-8"))
         return get_mock_response(True, json.dumps(good_upload_context).encode("utf-8"))
 
-    @patch("status_change.slack.reorganized.get_organ", return_value="test_organ")
-    @patch("status_change.slack.reorganized.get_globus_url", return_value="test_globus_url")
-    @patch("status_change.slack.reorganized.get_abs_path", return_value="test_abs_path")
-    def test_reorganized_formatting(self, abs_path_mock, globus_url_mock, organ_mock):
-        self.entity_update.stop()
-        for klass, ret_val in {
-            SlackUploadReorganized: slack_upload_reorg_str,
-            SlackUploadReorganizedPriority: slack_upload_reorg_priority_str,
-        }.items():
-            with patch("utils.ENDPOINTS", endpoints["hubmap"]):
-                mgr = klass("test_uuid", "test_token")
-                assert mgr.format() == ret_val
+    def test_reorganized_formatting(self):
+        with patch("status_change.slack.reorganized.get_organ", return_value="test_organ"):
+            with patch(
+                "status_change.slack.reorganized.get_globus_url", return_value="test_globus_url"
+            ):
+                with patch(
+                    "status_change.slack.reorganized.get_abs_path", return_value="test_abs_path"
+                ):
+                    self.entity_update.stop()
+                    for klass, ret_val in {
+                        SlackUploadReorganized: slack_upload_reorg_str,
+                        SlackUploadReorganizedPriority: slack_upload_reorg_priority_str,
+                    }.items():
+                        with patch("utils.ENDPOINTS", endpoints["hubmap"]):
+                            mgr = klass("test_uuid", "test_token")
+                            assert mgr.format() == ret_val
 
 
 class TestFailureCallback(MockParent):
@@ -630,6 +626,10 @@ class TestFailureCallback(MockParent):
 
         with patch("status_change.status_utils.HttpHook.run") as hhr_mock:
             with patch("status_change.callbacks.base.get_auth_tok", return_value="auth_token"):
+                hhr_mock.return_value.json.return_value = {
+                    "entity_type": "upload",
+                    "status": "new",
+                }
                 tbfa_mock.side_effect = lambda excp: _exception_formatter(excp)
                 dag_run_mock = MagicMock(
                     conf={"dryrun": False},
@@ -698,8 +698,8 @@ class TestDataIngestBoardManager(MockParent):
     def test_valid_status_internal_error_strs(self):
         # invalid status but internal error in validation message
         with patch(
-            "status_change.data_ingest_board_manager.get_submission_context",
-            return_value=self.mock_dib_context.return_value.copy()
+            "status_change.status_utils.get_submission_context",
+            return_value=self.mock_status_context.return_value.copy()
             | {"validation_message": "Internal error--test"},
         ):
             dib = DataIngestBoardManager(
@@ -713,19 +713,21 @@ class TestDataIngestBoardManager(MockParent):
                 Statuses.UPLOAD_INVALID,
                 "test_uuid",
                 "test_token",
+                messages={
+                    "error_counts": {"Antibodies/Contributors Errors": "1", "Test errors": "5"}
+                },
                 run_id="test_run_id",
-                msg="test message!",
             )
             assert dib_w_msg.get_fields() == {
-                "error_message": f"Internal error. Log directory: test_path/test_run_id | test message!",
+                "error_message": "Internal error. Log directory: test_path/test_run_id | Antibodies/Contributors Errors: 1; Test errors: 5",
                 "assigned_to_group_name": "IEC Testing Group",
             }
 
     def test_valid_status_internal_error_status(self):
         # error status, message doesn't matter
         with patch(
-            "status_change.data_ingest_board_manager.get_submission_context",
-            return_value=self.mock_dib_context.return_value.copy()
+            "status_change.status_utils.get_submission_context",
+            return_value=self.mock_status_context.return_value.copy()
             | {
                 "error_message": "Internal error--test",
                 "status": "error",
@@ -743,15 +745,15 @@ class TestDataIngestBoardManager(MockParent):
                 "test_uuid",
                 "test_token",
                 run_id="test_run_id",
-                msg="test message!",
+                messages={"error_counts": {"Directory errors": "3", "Plugins skipped": "True"}},
             )
             assert dib_w_msg.get_fields() == {
-                "error_message": f"Internal error. Log directory: test_path/test_run_id | test message!",
+                "error_message": f"Internal error. Log directory: test_path/test_run_id | Directory errors: 3; Plugins skipped: True",
                 "assigned_to_group_name": "IEC Testing Group",
             }
         with patch(
-            "status_change.data_ingest_board_manager.get_submission_context",
-            return_value=self.mock_dib_context.return_value.copy()
+            "status_change.status_utils.get_submission_context",
+            return_value=self.mock_status_context.return_value.copy()
             | {
                 "error_message": "",
                 "status": "error",
@@ -771,9 +773,16 @@ class TestDataIngestBoardManager(MockParent):
         assert dib.is_valid_for_status == False
 
     def test_get_msg_ext_error(self):
-        msg = "Antibodies/Contributors Errors: 1"
-        dib = DataIngestBoardManager(Statuses.UPLOAD_INVALID, "test_uuid", "test_token", msg=msg)
-        assert dib.get_fields() == {"error_message": msg, "assigned_to_group_name": "test group"}
+        dib = DataIngestBoardManager(
+            Statuses.UPLOAD_INVALID,
+            "test_uuid",
+            "test_token",
+            messages={"error_counts": {"Antibodies/Contributors Errors": "1"}},
+        )
+        assert dib.get_fields() == {
+            "error_message": "Antibodies/Contributors Errors: 1",
+            "assigned_to_group_name": "test group",
+        }
 
 
 class TestStatusUtils(unittest.TestCase):
@@ -971,18 +980,18 @@ class TestEmailManager(MockParent):
     def email_manager(
         self,
         status: Statuses,
-        msg: str = "",
+        messages: Optional[dict] = None,
         context: dict = good_upload_context,
         mock: bool = False,
     ):
-        with patch("status_change.email_manager.get_submission_context") as context_mock:
+        with patch("status_change.status_utils.get_submission_context") as context_mock:
             manager_class = MockedEmailManager if mock else EmailManager
             context_mock.return_value = context | {"status": Statuses.valid_str(status)}
             manager = manager_class(
                 status,
                 "test_uuid",
                 "test_token",
-                msg=msg,
+                messages=messages,
                 run_id="test_run_id",
             )
             manager.int_recipients = [self.int_recipients]
@@ -1020,7 +1029,8 @@ class TestEmailManager(MockParent):
         with patch(
             "utils.airflow_conf.as_dict",
             return_value={
-                "email_notifications": {"int_recipients": "int@test.com", "main": "main@test.com"}
+                "email_notifications": {"int_recipients": "int@test.com", "main": "main@test.com"},
+                "connections": {"WORKFLOW_SCRATCH": "test_path"},
             },
         ):
             manager = self.email_manager(
@@ -1030,92 +1040,56 @@ class TestEmailManager(MockParent):
             assert manager.main_recipients == "main@test.com"
             assert manager.cc == "int@test.com"
 
-    @patch("status_change.email_manager.log_directory_path", return_value="test/log")
-    def test_get_content_error(self, log_mock):
+    def test_get_content_error(self):
         manager = self.email_manager(
             Statuses.UPLOAD_ERROR,
             context=good_upload_context | {"error_message": "An error has occurred"},
         )
         expected_subj = "Internal error for Upload test_hm_id"
-        expected_msg = [
-            "HuBMAP ID: test_hm_id",
-            "UUID: test_uuid",
-            "Entity type: Upload",
-            "Status: Error",
-            "Group: test group",
-            "Primary contact: test@user.com",
-            "Ingest page: https://ingest.hubmapconsortium.org/Upload/test_uuid",
-            "Log file: test/log",
-            "",
-            "Error:",
-            "An error has occurred",
-            "",
-            "This email address is not monitored. Please email ingest@hubmapconsortium.org with any questions about your data submission.",
-        ]
-        print(f"Expected subject: {expected_subj}")
-        print(f"Actual subj: {manager.subj}")
-        print(f"Expected msg: {expected_msg}")
-        print(f"Actual msg: {manager.msg}")
+        expected_msg = "HuBMAP ID: test_hm_id<br>UUID: test_uuid<br>Entity type: Upload<br>Status: Error<br>Group: test group<br>Primary contact: test@user.com<br>Ingest page: https://ingest.hubmapconsortium.org/upload/test_uuid<br>Log file: test_path/test_run_id<br>"
+        # print(f"Expected subject: {expected_subj}")
+        # print(f"Actual subj: {manager.subj}")
+        # print(f"Expected msg: {expected_msg}")
+        # print(f"Actual msg: {manager.msg}")
         assert manager.subj == expected_subj
         assert manager.msg == expected_msg
 
     def test_get_content_invalid(self):
-        error = "Directory errors: 3; Plugins skipped: True"
         manager = self.email_manager(
             Statuses.UPLOAD_INVALID,
-            context=good_upload_context | {"error_message": error},
+            context=good_upload_context,
+            messages={
+                "error_counts": {"Directory errors": "3", "Plugins skipped": "True"},
+                "error_dict": {
+                    "Directory Errors": {
+                        "/hive/hubmap-dev/data/protected/IEC Testing Group/dc3f82820dca46f2bd86d8a8641afd25/RI_LA1D_AB-PAS (as histology-v2.3)": {
+                            "Required but missing": ["extras\\/microscope_hardware\\.json"]
+                        },
+                        "/hive/hubmap-dev/data/protected/IEC Testing Group/dc3f82820dca46f2bd86d8a8641afd25/RI_LA2D_AB-PAS (as histology-v2.3)": {
+                            "Required but missing": ["extras\\/microscope_hardware\\.json"]
+                        },
+                    },
+                    "Fatal Errors": "Skipping plugin validation due to errors in upload metadata or dir structure.",
+                },
+            },
         )
-        expected_subj = f"Upload test_hm_id is invalid"
-        expected_msg = [
-            "HuBMAP ID: test_hm_id",
-            "Group: test group",
-            "Ingest page: https://ingest.hubmapconsortium.org/Upload/test_uuid",
-            "",
-            "Upload is invalid:",
-            "- Directory errors: 3",
-            "- Plugins skipped: True",
-            "",
-            "This email address is not monitored. Please email ingest@hubmapconsortium.org with any questions about your data submission.",
-        ]
-        print(f"Expected subject: {expected_subj}")
-        print(f"Actual subj: {manager.subj}")
-        print(f"Expected msg: {expected_msg}")
-        print(f"Actual msg: {manager.msg}")
+        expected_subj = f"HuBMAP Upload test_hm_id is invalid"
+        expected_msg = 'HuBMAP Upload <a href="https://ingest.hubmapconsortium.org/upload/test_uuid">test_hm_id</a> has failed validation.<br><br><b>Validation details</b><br>The validation process starts by checking metadata TSVs and directory structures. If those checks pass, then certain individual file types (such as FASTQ and OME.TIFF files) are validated.<br><br><b>What to do next</b><br>If you have questions about your upload, please schedule an appointment with Data Curator Brendan Honick (https://calendly.com/bhonick-psc/) or email ingest@hubmapconsortium.org. Do not respond to this email; this inbox is not monitored.<br><br>The error log is included below if you would like to make updates to your submission independently. It is not required for you to correct any errors before contacting our Data Curation Team. Please email ingest@hubmapconsortium.org if you believe you have repaired all validation errors so that we can re-validate your submission.<br><br>If your submission has "Spreadsheet Validator Errors," please use the <a href="https://metadatavalidator.metadatacenter.org/">Metadata Spreadsheet Validator</a> tool to correct them.<br><br><b>Validation error log</b><br><ul><li>Directory Errors:</li><ul><li>/hive/hubmap-dev/data/protected/IEC Testing Group/dc3f82820dca46f2bd86d8a8641afd25/RI_LA1D_AB-PAS (as histology-v2.3):</li><ul><li>Required but missing:</li><ul><li>extras\\/microscope_hardware\\.json</li></ul></ul><li>/hive/hubmap-dev/data/protected/IEC Testing Group/dc3f82820dca46f2bd86d8a8641afd25/RI_LA2D_AB-PAS (as histology-v2.3):</li><ul><li>Required but missing:</li><ul><li>extras\\/microscope_hardware\\.json</li></ul></ul></ul><li>Fatal Errors:</li><ul><li>Skipping plugin validation due to errors in upload metadata or dir structure.</li></ul></ul>'
+        # print(f"Expected subject: {expected_subj}")
+        # print(f"Actual subj: {manager.subj}")
+        # print(f"Expected msg: {expected_msg}")
+        # print(f"Actual msg: {manager.msg}")
         assert manager.subj == expected_subj
         assert manager.msg == expected_msg
 
     def test_get_content_good(self):
         expected_subj = f"Upload test_hm_id has successfully reached status Valid!"
-        expected_msg = [
-            "View ingest record: https://ingest.hubmapconsortium.org/Upload/test_uuid",
-            "",
-            "This email address is not monitored. Please email ingest@hubmapconsortium.org with any questions about your data submission.",
-        ]
+        expected_msg = "View ingest record: https://ingest.hubmapconsortium.org/upload/test_uuid<br><br>This email address is not monitored. Please email ingest@hubmapconsortium.org with any questions about your data submission.<br>"
         manager = self.email_manager(Statuses.UPLOAD_VALID)
-        print(f"Expected subject: {expected_subj}")
-        print(f"Actual subj: {manager.subj}")
-        print(f"Expected msg: {expected_msg}")
-        print(f"Actual msg: {manager.msg}")
-        assert manager.subj == expected_subj
-        assert manager.msg == expected_msg
-
-    def test_get_content_good_addtl_msg(self):
-        expected_subj = f"Dataset test_hm_dataset_id has successfully reached status QA!"
-        expected_msg = [
-            "View ingest record: https://ingest.hubmapconsortium.org/Dataset/test_dataset_uuid",
-            "extra msg",
-            "",
-            "This email address is not monitored. Please email ingest@hubmapconsortium.org with any questions about your data submission.",
-        ]
-        manager = self.email_manager(
-            Statuses.DATASET_QA,
-            msg="extra msg",
-            context=dataset_context_mock_value,
-        )
-        print(f"Expected subject: {expected_subj}")
-        print(f"Actual subj: {manager.subj}")
-        print(f"Expected msg: {expected_msg}")
-        print(f"Actual msg: {manager.msg}")
+        # print(f"Expected subject: {expected_subj}")
+        # print(f"Actual subj: {manager.subj}")
+        # print(f"Expected msg: {expected_msg}")
+        # print(f"Actual msg: {manager.msg}")
         assert manager.subj == expected_subj
         assert manager.msg == expected_msg
 
@@ -1134,7 +1108,7 @@ class TestEmailManager(MockParent):
         error_msg = """
             HuBMAP ID: test_hm_id<br>
             Group: test group<br>
-            Ingest page: https://ingest.hubmapconsortium.org/Upload/test_uuid<br>
+            Ingest page: https://ingest.hubmapconsortium.org/upload/test_uuid<br>
             <br>
             Upload is invalid:<br>
             - Directory errors: 3<br>
@@ -1175,7 +1149,45 @@ class TestEmailManager(MockParent):
             ).reorg_status_with_child_datasets()
         )
 
+    def test_reorg_format(self):
+        mgr = self.email_manager(Statuses.UPLOAD_REORGANIZED, context=good_upload_context)
+        assert (
+            mgr.msg
+            == "View ingest record: https://ingest.hubmapconsortium.org/upload/test_uuid<br><br>Datasets:<br><ul><li><a href='https://ingest.hubmapconsortium.org/dataset/test_dataset_uuid'>test_dataset_hm_id</a>: submitted</li><li><a href='https://ingest.hubmapconsortium.org/dataset/test_dataset_uuid2'>test_dataset_hm_id2</a>: submitted</li></ul><br>This email address is not monitored. Please email ingest@hubmapconsortium.org with any questions about your data submission.<br>"
+        )
 
-# if __name__ == "__main__":
-#     suite = unittest.TestLoader().loadTestsFromTestCase(TestEntityUpdater)
-#     suite.debug()
+    def test_ext_error_format(self):
+        mgr = self.email_manager(
+            Statuses.UPLOAD_INVALID,
+            context=good_upload_context,
+            messages={
+                "error_counts": "Antibodies/Contributors Errors: 1",
+                "error_dict": validation_error_dict,
+            }
+            | {"status": "Invalid"},
+        )
+        assert mgr.msg == ext_error
+
+    def test_error_formatter(self):
+        manager = self.email_manager(Statuses.UPLOAD_INVALID, mock=True)
+        template = InvalidStatusEmail(manager)
+        just_lines = template.recursive_format_dict(validation_error_dict)
+        html_format = template.recursive_format_dict(validation_error_dict, html=True)
+        assert just_lines == [
+            "Directory Errors:",
+            "examples/dataset-examples/bad-scatacseq-data/upload/dataset-1 (as scatacseq-v0.0):",
+            "Not allowed:",
+            "not-the-file-you-are-looking-for.txt",
+            "unexpected-directory/place-holder.txt",
+            "Required but missing:",
+            "[^/]+\\.fastq\\.gz",
+            "Antibodies/Contributors Errors:",
+            "examples/dataset-examples/bad-scatacseq-data/upload/scatacseq-metadata.tsv:",
+            'On row(s) 2, column "contributors_path", error opening or reading value ".". Expected a TSV, but found a directory: examples/dataset-examples/bad-scatacseq-data/upload.',
+            "Local Validation Errors:",
+            "examples/dataset-examples/bad-scatacseq-data/upload/scatacseq-metadata.tsv (as scatacseq-v0):",
+            'On row 2, column "sc_isolation_protocols_io_doi", value "" fails because it must be filled out.',
+            'On row 2, column "library_construction_protocols_io_doi", value "" fails because it must be filled out.',
+            'On row 2, column "protocols_io_doi", value "10.17504/fake" fails because it is an invalid DOI.',
+        ]
+        assert html_format == validation_report_html_list
