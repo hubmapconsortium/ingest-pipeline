@@ -97,7 +97,7 @@ resource_map:
         'queue': 'gpu000_q1'
         'threads': 6
       - 'task_re': '.*stellar'
-        'queue': 'gpu000_q1'
+        'queue': 'gpu001_q1'
         'threads': 6
       - 'task_re': '.*'
         'queue': 'general'
