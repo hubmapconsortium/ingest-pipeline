@@ -43,7 +43,7 @@ class CPUGpuStatistics:
         uuid_list = []
         self.paths = []
         if single_uuid is None:
-            uuid_list = "some"
+            uuid_list = []
         else:
             uuid_list.append(single_uuid)
         fernet = Fernet(config("core", "fernet_key").encode())
@@ -56,7 +56,7 @@ class CPUGpuStatistics:
             if soft_data:
                 if soft_data.get("primary") or soft_data.get("assaytype") == "publication":
                     if ds_rslt["creation_action"] == "Multi-Assay Split":
-                        pass
+                        print(f"No use for primary data {uuid}")
                 else:
                     self.paths.append(ds_rslt["local_directory_full_path"])
             else:
