@@ -61,7 +61,7 @@ with HMDAG(
             }
         }
         http_hook = HttpHook("POST", http_conn_id="search_api_connection")
-        endpoint = f"/portal/search"
+        endpoint = f"/v3/portal/search"
         headers = {
             "Authorization": f"Bearer "
                              f"{airflow_conf.as_dict()['connections']['APP_CLIENT_SECRET']}",
