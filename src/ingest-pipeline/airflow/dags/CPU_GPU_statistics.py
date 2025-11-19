@@ -1,4 +1,5 @@
 import pandas as pd
+import re
 
 from airflow.decorators import task
 from datetime import datetime, timedelta
@@ -16,7 +17,6 @@ from utils import (
     HMDAG,
     encrypt_tok,
     get_tmp_dir_path,
-    get_preserve_scratch_resource,
     get_auth_tok,
 )
 
@@ -83,7 +83,7 @@ with HMDAG(
             "_source": [
                 "entity_type", "creation_action", "dataset_type", "status", "uuid"
             ],
-            "size": 10000,  # Adjust if you have more than 10k datasets
+            "size": 5,  # Adjust if you have more than 10k datasets
             "query": {
                 "bool": {
                     "must": [
@@ -148,11 +148,57 @@ with HMDAG(
         },
     )
 
+    def __get_timestamp(line: str) -> datetime:
+        timestamp_format = "%Y-%m-%d %H:%M:%S"
+        timestamp_str = line[1:10]
+        print(f"Timestamp: {timestamp_str}")
+        return datetime.strptime(timestamp_str, timestamp_format)
+
+    def __calculate_usage(starting_timestamp: datetime, ending_timestamp: datetime) -> timedelta:
+        return ending_timestamp - starting_timestamp
+
     @task(task_id="calculate_statistics")
     def calculate_statistics(**kwargs):
-        for uuid in kwargs["ti"].xcom_pull(task_id="get_uuids", key="uuid_list"):
-            """Get path for uuid"""
-            return uuid
+        df = pd.read_csv(Path(get_tmp_dir_path(kwargs["run_id"]) / "datasets.csv"))
+        startjob = r"[step .+] start$"
+        endjob = r"[step .+] completed success$"
+        gpu_task = r".*gpu.*"
+        gpu = False
+        starting_timestamp = None
+        ending_timestamp = None
+        df['cpu_usage'] = None
+        df['gpu_usage'] = None
+        for index, row in df.iterrows():
+            path = Path(row["directory"] + "session.log")
+            try:
+                with open(path, "r") as session_file:
+                    for line in session_file:
+                        if re.seach(startjob, line):
+                            starting_timestamp = __get_timestamp(line)
+                            # Check if this is CPU or GPU and create a flag
+                        if re.search(gpu_task, line):
+                            gpu = True
+                        if re.seach(endjob, line) and starting_timestamp:
+                            ending_timestamp = __get_timestamp(line)
+                        if starting_timestamp and ending_timestamp:
+                            # if CPU flag, append to CPU, else append to GPU
+                            if gpu:
+                                df['gpu_usage'][index] = __calculate_usage(starting_timestamp,
+                                                                           ending_timestamp)
+                            else:
+                                df['cpu_usage'][index] = __calculate_usage(starting_timestamp,
+                                                                           ending_timestamp)
+                            starting_timestamp = None
+                            ending_timestamp = None
+                            gpu = False
+            except FileNotFoundError:
+                print(f"{path} not found")
+            except PermissionError:
+                print(f"{path} permission denied")
+            except Exception as e:
+                print(f"Error {e} in: {path}")
+        df.to_csv(Path(get_tmp_dir_path(kwargs["run_id"])) / "dataset_usage.csv")
+        return 0
 
     t_calculate_statistics = calculate_statistics()
 
