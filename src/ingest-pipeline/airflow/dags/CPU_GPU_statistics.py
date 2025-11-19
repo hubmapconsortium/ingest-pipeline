@@ -40,26 +40,27 @@ with HMDAG(
     },
 ) as dag:
 
-    def get_uuids(**kwargs):
-        query = {
-            "_source": [
-                "entity_type", "creation_action", "dataset_type", "status", "uuid"
-            ],
-            "size": 10000,  # Adjust if you have more than 10k datasets
-            "query": {
-                "bool": {
-                    "should": [
-                        {"match": {"creation_action": "Central Process"}},  # Processed datasets
-                    ],
-                    "must": [
-                        {"match": {"entity_type": "Dataset"}},
-                        {"match": {"status": "Published"}},
-                        {"match": {"status": "QA"}},
-                    ],
-                    "minimum_should_match": 1
-                }
+    query = {
+        "_source": [
+            "entity_type", "creation_action", "dataset_type", "status", "uuid"
+        ],
+        "size": 10000,  # Adjust if you have more than 10k datasets
+        "query": {
+            "bool": {
+                "must": [
+                    {"match": {"creation_action": "Central Process"}},  # Processed datasets
+                    {"match": {"entity_type": "Dataset"}},
+                ],
+                "should": [
+                    {"match": {"status": "Published"}},
+                    {"match": {"status": "QA"}},
+                ],
+                "minimum_should_match": 1
             }
         }
+    }
+
+    def get_uuids(**kwargs):
         http_hook = HttpHook("POST", http_conn_id="search_api_connection")
         # TODO: find why the connection id isn't getting the v3 portion
         endpoint = f"/v3/portal/search"
@@ -68,7 +69,7 @@ with HMDAG(
                              f"{get_auth_tok(**kwargs)}",
             "Content-Type": "application/json",
         }
-        response = http_hook.run(endpoint=endpoint, headers=headers, data=query)
+        response = http_hook.run(endpoint=endpoint, headers=headers, json=query)
         response.raise_for_status()
         data = response.json()
         print(f"Long return {data}")
