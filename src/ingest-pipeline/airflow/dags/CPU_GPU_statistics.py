@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from airflow.operators.python import PythonOperator
 from airflow.providers.http.hooks.http import HttpHook
 from airflow.configuration import conf as airflow_conf
+from typing import List, Dict
 
 from utils import (
     get_queue_resource,
@@ -46,6 +47,36 @@ with HMDAG(
         "tmp_dir_path": get_tmp_dir_path,
     },
 ) as dag:
+
+    def _get_dataset_base_paths(dataset_ids: List[str], auth_tok: str) -> Dict[str, str]:
+        """Get base paths for multiple datasets from Ingest API.
+
+        Args:
+            dataset_ids: List of dataset UUIDs to fetch base paths for
+
+        Returns:
+            Dict mapping dataset UUID to base path
+        """
+        headers = {
+            "authorization": f"Bearer {auth_tok}",
+            "content-type": "application/json",
+            "Cache-Control": "no-cache",
+            "X-Hubmap-Application": "ingest-pipeline",
+        }
+        base_paths = {}
+
+        for uuid in dataset_ids:
+            endpoint = f"datasets/{uuid}/file-system-abs-path"
+
+            http_hook = HttpHook("GET", http_conn_id="ingest_api_connection")
+            response = http_hook.run(
+                endpoint, headers=headers, extra_options={"check_response": False}
+            )
+            response.raise_for_status()
+            path_query_rslt = response.json()
+            base_paths[uuid] = path_query_rslt
+        return base_paths
+
     def get_uuids(**kwargs):
         query = {
             "_source": [
@@ -59,7 +90,7 @@ with HMDAG(
                         {"match": {"entity_type": "Dataset"}},
                     ],
                     "should": [
-                        {"match": {"status": "Published"}},
+                        {"match": {"status": "Published"}},  # Either Published or QA
                         {"match": {"status": "QA"}},
                     ],
                     "minimum_should_match": 1
@@ -91,8 +122,16 @@ with HMDAG(
         columns_to_keep = ['uuid', 'dataset_type']
         df = df[[col for col in columns_to_keep if col in df.columns]]
         print(f"Found {len(df)}")
-        uuid_list = [uuid for uuid in data]
-        kwargs["ti"].xcom_push(key="uuid_list", value=uuid_list)
+
+        # Get base paths for all datasets
+        print("   Fetching dataset base paths from Ingest API...")
+        dataset_ids = df['uuid'].tolist()
+        base_paths = _get_dataset_base_paths(dataset_ids, get_auth_tok(**kwargs))
+
+        # Add directory column to dataframe
+        df['directory'] = df['uuid'].map(base_paths).fillna('')
+        print(f"Retrieved {len(base_paths)} base paths")
+
         return 0
 
     t_get_uuids = PythonOperator(
