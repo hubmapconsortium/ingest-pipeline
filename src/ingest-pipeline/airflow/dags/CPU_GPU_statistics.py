@@ -9,6 +9,7 @@ from utils import (
     create_dataset_state_error_callback,
     get_uuid_for_error,
     HMDAG,
+    encrypt_tok,
     get_tmp_dir_path,
     get_preserve_scratch_resource,
     get_auth_tok,
@@ -37,9 +38,14 @@ with HMDAG(
         "tmp_dir_path": get_tmp_dir_path,
     },
 ) as dag:
-    pipeline_name = "CPU-GPU-statistics"
 
-    @task(task_id="get_uuids")
+    @task(task_id="get_uuids",
+          op_kwargs={
+              "crypt_auth_tok": encrypt_tok(
+                  airflow_conf.as_dict()["connections"]["APP_CLIENT_SECRET"]
+              ).decode(),
+          },
+          )
     def get_uuids(**kwargs):
         query = {
             "_source": [
