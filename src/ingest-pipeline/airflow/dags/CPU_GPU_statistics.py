@@ -1,6 +1,7 @@
 from airflow.decorators import task
 from datetime import datetime, timedelta
 
+from airflow.operators.python import PythonOperator
 from airflow.providers.http.hooks.http import HttpHook
 from airflow.configuration import conf as airflow_conf
 
@@ -39,13 +40,6 @@ with HMDAG(
     },
 ) as dag:
 
-    @task(task_id="get_uuids",
-          op_kwargs={
-              "crypt_auth_tok": encrypt_tok(
-                  airflow_conf.as_dict()["connections"]["APP_CLIENT_SECRET"]
-              ).decode(),
-          },
-          )
     def get_uuids(**kwargs):
         query = {
             "_source": [
@@ -82,15 +76,23 @@ with HMDAG(
         kwargs["ti"].xcom_push(key="uuid_list", value=uuid_list)
         return 0
 
-    get_uuids = get_uuids()
-
+    get_uuids_t = PythonOperator(
+        task_id="get_uuids",
+        python_callable=get_uuids,
+        provide_context=True,
+        op_kwargs={
+            "crypt_auth_tok": encrypt_tok(
+                airflow_conf.as_dict()["connections"]["APP_CLIENT_SECRET"]
+            ).decode(),
+        },
+    )
     @task(task_id="calculate_statistics")
     def calculate_statistics(**kwargs):
         for uuid in kwargs["ti"].xcom_pull(task_id="get_uuids", key="uuid_list"):
             """Get path for uuid"""
             return uuid
 
-    calculate_statistics = calculate_statistics()
+    calculate_statistics_t = calculate_statistics()
 
     (
         get_uuids
