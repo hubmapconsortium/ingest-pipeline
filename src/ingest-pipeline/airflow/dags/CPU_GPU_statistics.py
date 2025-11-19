@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from airflow.operators.python import PythonOperator
 from airflow.providers.http.hooks.http import HttpHook
 from airflow.configuration import conf as airflow_conf
+from pathlib import Path
 from typing import List, Dict
 
 from utils import (
@@ -131,6 +132,8 @@ with HMDAG(
         # Add directory column to dataframe
         df['directory'] = df['uuid'].map(base_paths).fillna('')
         print(f"Retrieved {len(base_paths)} base paths")
+
+        df.to_csv(Path(get_tmp_dir_path(kwargs["run_id"])) / "datasets.csv")
 
         return 0
 
