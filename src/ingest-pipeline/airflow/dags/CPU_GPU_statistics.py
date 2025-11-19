@@ -168,6 +168,8 @@ with HMDAG(
         ending_timestamp = None
         df['cpu_usage'] = None
         df['gpu_usage'] = None
+        cpu_usage = timedelta(seconds=0)
+        gpu_usage = timedelta(seconds=0)
         for index, row in df.iterrows():
             path = Path(row.directory + "/session.log")
             try:
@@ -183,11 +185,10 @@ with HMDAG(
                         if starting_timestamp and ending_timestamp:
                             # if CPU flag, append to CPU, else append to GPU
                             if gpu:
-                                df.loc[index, "gpu_usage"] = __calculate_usage(starting_timestamp,
-                                                                               ending_timestamp)
+                                 gpu_usage += __calculate_usage(starting_timestamp,
+                                                                ending_timestamp)
                             else:
-                                df.loc[index, "cpu_usage"] = __calculate_usage(starting_timestamp,
-                                                                               ending_timestamp)
+                                cpu_usage += __calculate_usage(starting_timestamp, ending_timestamp)
                             starting_timestamp = None
                             ending_timestamp = None
                             gpu = False
@@ -197,6 +198,13 @@ with HMDAG(
                 print(f"{path} permission denied")
             except Exception as e:
                 print(f"Error {e} in: {path}")
+            finally:
+                df.loc[index, "gpu_usage"] = gpu_usage
+                df.loc[index, "cpu_usage"] = cpu_usage
+                gpu_usage = timedelta(seconds=0)
+                cpu_usage = timedelta(seconds=0)
+                starting_timestamp = None
+                ending_timestamp = None
         df.to_csv(Path(get_tmp_dir_path(kwargs["run_id"])) / "dataset_usage.csv")
         return 0
 
