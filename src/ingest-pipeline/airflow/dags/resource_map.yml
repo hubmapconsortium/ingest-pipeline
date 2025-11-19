@@ -46,6 +46,20 @@ resource_map:
       - 'task_re': '.*'
         'queue': 'general'
         'threads': 6
+  - 'dag_re': 'phenocycler_low_cell_count'
+    'preserve_scratch': true
+    'lanes': 2
+    'tasks':
+      - 'task_re': '.*'
+        'queue': 'general_pheno_low'
+        'threads': 6
+  - 'dag_re': 'phenocycler_high_cell_count'
+    'preserve_scratch': true
+    'lanes': 2
+    'tasks':
+      - 'task_re': '.*'
+        'queue': 'general_pheno_high'
+        'threads': 6
   - 'dag_re': 'salmon_rnaseq_.*'
     'preserve_scratch': true
     'lanes': 2
@@ -83,7 +97,7 @@ resource_map:
         'queue': 'gpu000_q1'
         'threads': 6
       - 'task_re': '.*stellar'
-        'queue': 'gpu000_q1'
+        'queue': 'gpu001_q1'
         'threads': 6
       - 'task_re': '.*'
         'queue': 'general'
