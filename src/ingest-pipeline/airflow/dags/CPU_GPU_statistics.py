@@ -65,7 +65,7 @@ with HMDAG(
         endpoint = f"/v3/portal/search"
         headers = {
             "Authorization": f"Bearer "
-                             f"{get_auth_tok(kwargs['crypt_auth_tok'])}",
+                             f"{get_auth_tok(**kwargs)}",
             "Content-Type": "application/json",
         }
         response = http_hook.run(endpoint=endpoint, headers=headers, data=query)
@@ -86,6 +86,7 @@ with HMDAG(
             ).decode(),
         },
     )
+
     @task(task_id="calculate_statistics")
     def calculate_statistics(**kwargs):
         for uuid in kwargs["ti"].xcom_pull(task_id="get_uuids", key="uuid_list"):
