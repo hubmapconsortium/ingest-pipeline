@@ -84,6 +84,8 @@ with HMDAG(
             """Get path for uuid"""
             return uuid
 
+    calculate_statistics = calculate_statistics()
+
     (
         get_uuids
         >> calculate_statistics
