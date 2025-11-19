@@ -61,10 +61,11 @@ with HMDAG(
             }
         }
         http_hook = HttpHook("POST", http_conn_id="search_api_connection")
+        # TODO: find why the connection id isn't getting the v3 portion
         endpoint = f"/v3/portal/search"
         headers = {
             "Authorization": f"Bearer "
-                             f"{airflow_conf.as_dict()['connections']['APP_CLIENT_SECRET']}",
+                             f"{get_auth_tok(kwargs['crypt_auth_tok'])}",
             "Content-Type": "application/json",
         }
         response = http_hook.run(endpoint=endpoint, headers=headers, data=query)
