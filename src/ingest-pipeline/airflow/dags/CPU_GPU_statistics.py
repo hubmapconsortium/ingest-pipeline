@@ -150,7 +150,7 @@ with HMDAG(
 
     def __get_timestamp(line: str) -> datetime:
         timestamp_format = "%Y-%m-%d %H:%M:%S"
-        timestamp_str = line[1:10]
+        timestamp_str = line[6:25]
         print(f"Timestamp: {timestamp_str}")
         return datetime.strptime(timestamp_str, timestamp_format)
 
@@ -160,8 +160,8 @@ with HMDAG(
     @task(task_id="calculate_statistics")
     def calculate_statistics(**kwargs):
         df = pd.read_csv(Path(get_tmp_dir_path(kwargs["run_id"]) / "datasets.csv"))
-        startjob = r"[step .+] start$"
-        endjob = r"[step .+] completed success$"
+        startjob = r"\[step .+\] start$"
+        endjob = r"\[step .+\] completed success$"
         gpu_task = r".*gpu.*"
         gpu = False
         starting_timestamp = None
@@ -173,21 +173,21 @@ with HMDAG(
             try:
                 with open(path, "r") as session_file:
                     for line in session_file:
-                        if re.seach(startjob, line):
+                        if re.search(startjob, line):
                             starting_timestamp = __get_timestamp(line)
                             # Check if this is CPU or GPU and create a flag
                         if re.search(gpu_task, line):
                             gpu = True
-                        if re.seach(endjob, line) and starting_timestamp:
+                        if re.search(endjob, line) and starting_timestamp:
                             ending_timestamp = __get_timestamp(line)
                         if starting_timestamp and ending_timestamp:
                             # if CPU flag, append to CPU, else append to GPU
                             if gpu:
-                                df['gpu_usage'][index] = __calculate_usage(starting_timestamp,
-                                                                           ending_timestamp)
+                                df.loc[index, "gpu_usage"] = __calculate_usage(starting_timestamp,
+                                                                               ending_timestamp)
                             else:
-                                df['cpu_usage'][index] = __calculate_usage(starting_timestamp,
-                                                                           ending_timestamp)
+                                df.loc[index, "cpu_usage"] = __calculate_usage(starting_timestamp,
+                                                                               ending_timestamp)
                             starting_timestamp = None
                             ending_timestamp = None
                             gpu = False
