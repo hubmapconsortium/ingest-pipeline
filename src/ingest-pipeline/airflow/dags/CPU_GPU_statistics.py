@@ -95,6 +95,6 @@ with HMDAG(
     calculate_statistics_t = calculate_statistics()
 
     (
-        get_uuids
-        >> calculate_statistics
+        get_uuids_t
+        >> calculate_statistics_t
     )
