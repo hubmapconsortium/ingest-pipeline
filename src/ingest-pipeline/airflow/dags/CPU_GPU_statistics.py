@@ -75,7 +75,7 @@ with HMDAG(
             )
             response.raise_for_status()
             path_query_rslt = response.json()
-            base_paths[uuid] = path_query_rslt
+            base_paths[uuid] = path_query_rslt["path"]
         return base_paths
 
     def get_uuids(**kwargs):
@@ -169,7 +169,7 @@ with HMDAG(
         df['cpu_usage'] = None
         df['gpu_usage'] = None
         for index, row in df.iterrows():
-            path = Path(row["directory"] + "session.log")
+            path = Path(row.directory + "/session.log")
             try:
                 with open(path, "r") as session_file:
                     for line in session_file:
