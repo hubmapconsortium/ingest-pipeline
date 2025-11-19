@@ -6,9 +6,9 @@ from .base import EmailTemplate
 class GenericGoodStatusEmail(EmailTemplate):
 
     def format(self) -> tuple[str, str]:
-        subj = f"{self.data.entity_type} {self.data.entity_id} has successfully reached status {self.data.status.titlecase}!"
+        subj = f"{self.entity_type} {self.entity_id} has successfully reached status {self.status.titlecase}!"
         msg = [
-            f"View ingest record: {get_entity_ingest_url(self.data.entity_data)}",
+            f"View ingest record: {get_entity_ingest_url(self.data)}",
             *self.footer,
         ]
         return subj, self.stringify(msg)

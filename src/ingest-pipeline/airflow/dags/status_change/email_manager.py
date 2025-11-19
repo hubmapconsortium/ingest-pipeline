@@ -4,11 +4,12 @@ from typing import Optional
 from airflow.configuration import conf as airflow_conf
 from airflow.utils.email import send_email
 
-from status_change.email_templates.error import ErrorStatusEmail
-from status_change.email_templates.good import GenericGoodStatusEmail
-from status_change.email_templates.invalid import InvalidStatusEmail
-from status_change.email_templates.reorganized import ReorganizedStatusEmail
-from status_change.status_utils import (
+from .email_templates.base import EmailTemplate
+from .email_templates.error import ErrorStatusEmail
+from .email_templates.good import GenericGoodStatusEmail
+from .email_templates.invalid import InvalidStatusEmail
+from .email_templates.reorganized import ReorganizedStatusEmail
+from .status_utils import (
     MessageManager,
     Statuses,
     get_project,
@@ -39,7 +40,7 @@ class EmailManager(MessageManager):
         super().__init__(status, uuid, token, messages, run_id, args, kwargs)
         self.entity_type = self.entity_data.get("entity_type", "").title()
         self.project = get_project()
-        self.entity_id = self.entity_data.get(f"{get_project().value[0]}_id")
+        self.entity_id = self.entity_data.get(f"{get_project().value[0]}_id", "")
         self.primary_contact = self.entity_data.get("created_by_user_email", "")
         self.get_message_content()
 
@@ -79,19 +80,19 @@ class EmailManager(MessageManager):
     def get_message_content(self) -> Optional[tuple[str, str]]:
         # error status or bad content in validation_message
         if self.is_internal_error:
-            self.subj, self.msg = ErrorStatusEmail(self).format()
+            self.subj, self.msg = self.get_template(ErrorStatusEmail).format()
         # good status or reorg with child datasets
         elif self.status in self.good_statuses:
-            self.subj, self.msg = GenericGoodStatusEmail(self).format()
+            self.subj, self.msg = self.get_template(GenericGoodStatusEmail).format()
         # finished reorg (has datasets)
         elif self.reorg_status_with_child_datasets():
-            self.subj, self.msg = ReorganizedStatusEmail(self).format()
+            self.subj, self.msg = self.get_template(ReorganizedStatusEmail).format()
         # actually invalid
         elif self.status in [
             Statuses.DATASET_INVALID,
             Statuses.UPLOAD_INVALID,
         ]:
-            self.subj, self.msg = InvalidStatusEmail(self).format()
+            self.subj, self.msg = self.get_template(InvalidStatusEmail).format()
         else:
             return
 
@@ -129,3 +130,13 @@ class EmailManager(MessageManager):
             self.int_recipients = cleaned_int_recipients
         if main_recipient := conf_dict.get("email_notifications", {}).get("main"):
             self.primary_contact = main_recipient
+
+    def get_template(self, template: type[EmailTemplate]):
+        return template(
+            self.entity_data,
+            self.project,
+            self.entity_id,
+            self.log_directory_path or "",
+            self.error_counts,
+            self.error_dict,
+        )

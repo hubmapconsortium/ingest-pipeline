@@ -149,6 +149,25 @@ class EntityUpdater:
                 new_field_data[field] = value
         return new_field_data
 
+    # def _get_list(self, data: str) -> list: if not all(bracket in data for bracket in ["[", "]"]):
+    #         # TODO: log
+    #         return []
+    #     # Add double quotes but retain existing alphanumeric data
+    #     fix_opening_brackets = re.sub(r"\[([a-z]|\d)", r'["\1', data)  # `[item...`
+    #     fix_closing_brackets = re.sub(
+    #         r"([a-z]|\d|,)\]", r'\1"]', fix_opening_brackets
+    #     )  # `...item]`
+    #     fix_inner_list = re.sub(
+    #         r"([a-z]|[\d]),\b| \b", r'\1", "', fix_closing_brackets
+    #     )  # `item,` followed by `item` or ` item`
+    #     cleaned = fix_inner_list.strip().replace("'", '"')
+    #     try:
+    #         return json.loads(cleaned)
+    #     except json.JSONDecodeError:
+    #         # TODO: log
+    #         pass
+    #     return []
+
     def _send_to_status_manager(self):
         status = self.fields_to_overwrite.pop("status", None)
         if not status:
@@ -206,7 +225,7 @@ Example usage with optional params:
             reindex=True,  # optional
             run_id="<airflow_run_id>",
             status=<Statuses.STATUS_ENUM>,  # or "<status>"
-            message=<ErrorReport.counts>
+            message={"error_counts": <error_counts>, "error_dict": <error_dict>}
         ).update()
 """
 

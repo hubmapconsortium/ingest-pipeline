@@ -6,17 +6,17 @@ from .base import EmailTemplate
 class InvalidStatusEmail(EmailTemplate):
 
     def format(self) -> tuple[str, str]:
-        subj = f"{self.data.project.value[1]} {self.data.entity_type} {self.data.entity_id} is invalid"
+        subj = f"{self.project.value[1]} {self.entity_type} {self.entity_id} is invalid"
         msg = [
-            f'{self.data.project.value[1]} {self.data.entity_type} <a href="{get_entity_ingest_url(self.data.entity_data)}">{self.data.entity_id}</a> has failed validation.',
+            f'{self.project.value[1]} {self.entity_type} <a href="{get_entity_ingest_url(self.data)}">{self.entity_id}</a> has failed validation.',
             "",
             "<b>Validation details</b>",
             "The validation process starts by checking metadata TSVs and directory structures. If those checks pass, then certain individual file types (such as FASTQ and OME.TIFF files) are validated.",
             "",
             "<b>What to do next</b>",
-            f"If you have questions about your {self.data.entity_type.lower()}, please schedule an appointment with Data Curator Brendan Honick (https://calendly.com/bhonick-psc/) or email ingest@hubmapconsortium.org. Do not respond to this email; this inbox is not monitored.",
+            f"If you have questions about your {self.entity_type.lower()}, please schedule an appointment with Data Curator Brendan Honick (https://calendly.com/bhonick-psc/) or email ingest@hubmapconsortium.org. Do not respond to this email; this inbox is not monitored.",
         ]
-        if self.data.error_dict:
+        if self.error_dict:
             msg.extend(
                 [
                     "",
