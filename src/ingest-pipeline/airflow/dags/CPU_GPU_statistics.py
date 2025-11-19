@@ -1,3 +1,5 @@
+import pandas as pd
+
 from airflow.decorators import task
 from datetime import datetime, timedelta
 
@@ -14,6 +16,11 @@ from utils import (
     get_tmp_dir_path,
     get_preserve_scratch_resource,
     get_auth_tok,
+)
+
+from hubmap_operators.common_operators import (
+    CreateTmpDirOperator,
+    CleanupTmpDirOperator,
 )
 
 default_args = {
@@ -39,28 +46,26 @@ with HMDAG(
         "tmp_dir_path": get_tmp_dir_path,
     },
 ) as dag:
-
-    query = {
-        "_source": [
-            "entity_type", "creation_action", "dataset_type", "status", "uuid"
-        ],
-        "size": 10000,  # Adjust if you have more than 10k datasets
-        "query": {
-            "bool": {
-                "must": [
-                    {"match": {"creation_action": "Central Process"}},  # Processed datasets
-                    {"match": {"entity_type": "Dataset"}},
-                ],
-                "should": [
-                    {"match": {"status": "Published"}},
-                    {"match": {"status": "QA"}},
-                ],
-                "minimum_should_match": 1
+    def get_uuids(**kwargs):
+        query = {
+            "_source": [
+                "entity_type", "creation_action", "dataset_type", "status", "uuid"
+            ],
+            "size": 10000,  # Adjust if you have more than 10k datasets
+            "query": {
+                "bool": {
+                    "must": [
+                        {"match": {"creation_action": "Central Process"}},  # Processed datasets
+                        {"match": {"entity_type": "Dataset"}},
+                    ],
+                    "should": [
+                        {"match": {"status": "Published"}},
+                        {"match": {"status": "QA"}},
+                    ],
+                    "minimum_should_match": 1
+                }
             }
         }
-    }
-
-    def get_uuids(**kwargs):
         http_hook = HttpHook("POST", http_conn_id="search_api_connection")
         # TODO: find why the connection id isn't getting the v3 portion
         endpoint = f"/v3/portal/search"
@@ -73,11 +78,24 @@ with HMDAG(
         response.raise_for_status()
         data = response.json()
         print(f"Long return {data}")
+
+        df = pd.json_normalize(data, record_path=['hits', 'hits'])
+
+        # Rename columns for clarity
+        df = df.rename(columns={
+            '_id': 'uuid',
+            '_source.dataset_type': 'dataset_type',
+        })
+
+        # Keep only relevant columns
+        columns_to_keep = ['uuid', 'dataset_type']
+        df = df[[col for col in columns_to_keep if col in df.columns]]
+        print(f"Found {len(df)}")
         uuid_list = [uuid for uuid in data]
         kwargs["ti"].xcom_push(key="uuid_list", value=uuid_list)
         return 0
 
-    get_uuids_t = PythonOperator(
+    t_get_uuids = PythonOperator(
         task_id="get_uuids",
         python_callable=get_uuids,
         provide_context=True,
@@ -94,9 +112,14 @@ with HMDAG(
             """Get path for uuid"""
             return uuid
 
-    calculate_statistics_t = calculate_statistics()
+    t_calculate_statistics = calculate_statistics()
+
+    t_create_tmpdir = CreateTmpDirOperator(task_id="create_temp_dir")
+    t_cleanup_tmpdir = CleanupTmpDirOperator(task_id="cleanup_temp_dir")
 
     (
-        get_uuids_t
-        >> calculate_statistics_t
+        t_create_tmpdir
+        >> t_get_uuids
+        >> t_calculate_statistics
+        >> t_cleanup_tmpdir
     )
