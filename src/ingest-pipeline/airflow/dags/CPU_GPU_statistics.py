@@ -29,13 +29,12 @@ default_args = {
 }
 
 with HMDAG(
-    "codex_cytokit",
+    "CPU_GPU_statistics",
     schedule_interval=None,
     is_paused_upon_creation=False,
     default_args=default_args,
     user_defined_macros={
         "tmp_dir_path": get_tmp_dir_path,
-        "preserve_scratch": get_preserve_scratch_resource("codex_cytokit"),
     },
 ) as dag:
     pipeline_name = "CPU-GPU-statistics"
