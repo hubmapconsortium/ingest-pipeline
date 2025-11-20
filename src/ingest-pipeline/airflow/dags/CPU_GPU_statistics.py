@@ -151,7 +151,6 @@ with HMDAG(
     def __get_timestamp(line: str) -> datetime:
         timestamp_format = "%Y-%m-%d %H:%M:%S"
         timestamp_str = line[6:25]
-        print(f"Timestamp: {timestamp_str}")
         return datetime.strptime(timestamp_str, timestamp_format)
 
     def __calculate_usage(starting_timestamp: datetime, ending_timestamp: datetime) -> timedelta:
@@ -160,8 +159,8 @@ with HMDAG(
     @task(task_id="calculate_statistics")
     def calculate_statistics(**kwargs):
         df = pd.read_csv(Path(get_tmp_dir_path(kwargs["run_id"]) / "datasets.csv"))
-        startjob = r"\[step .+\] start$"
-        endjob = r"\[step .+\] completed success$"
+        startjob = r"\[job .+\] .+ docker \\$"
+        endjob = r"\[job .+\] completed success$"
         gpu_task = r".*gpu.*"
         gpu = False
         starting_timestamp = None
@@ -178,7 +177,7 @@ with HMDAG(
                         if re.search(startjob, line):
                             starting_timestamp = __get_timestamp(line)
                             # Check if this is CPU or GPU and create a flag
-                        if re.search(gpu_task, line):
+                        if starting_timestamp and re.search(gpu_task, line):
                             gpu = True
                         if re.search(endjob, line) and starting_timestamp:
                             ending_timestamp = __get_timestamp(line)
