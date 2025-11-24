@@ -202,19 +202,13 @@ class TestEntityUpdater(MockParent):
 class TestStatusChanger(MockParent):
     validation_msg = "Test validation message"
 
-    @patch("status_change.status_manager.StatusChanger.set_entity_api_data")
-    def test_should_be_entityupdater(self, status_update_mock):
-        without_status = StatusChanger(
-            "upload_valid_uuid",
-            "upload_valid_token",
-            fields_to_overwrite={"validation_message": self.validation_msg},
-        )
-        assert without_status.status == None
-        assert without_status.fields_to_change
-        self.mock_entity_update.assert_not_called()
-        without_status.update()
-        self.mock_entity_update.assert_called_once()
-        status_update_mock.assert_not_called()
+    def test_should_be_entityupdater(self):
+        with self.assertRaises(TypeError):
+            StatusChanger(
+                "upload_valid_uuid",
+                "upload_valid_token",
+                fields_to_overwrite={"validation_message": self.validation_msg},
+            )
 
     @patch("status_change.status_manager.StatusChanger.set_entity_api_data")
     @patch("status_change.status_manager.StatusChanger.call_message_managers")
@@ -239,7 +233,6 @@ class TestStatusChanger(MockParent):
             "upload_valid_uuid",
             "upload_valid_token",
             status="Valid",
-            extra_options={},
         )
 
     @cached_property
@@ -248,7 +241,6 @@ class TestStatusChanger(MockParent):
             "upload_valid_uuid",
             "upload_valid_token",
             status="Invalid",
-            extra_options={},
         )
 
     def test_unrecognized_status(self):
@@ -258,7 +250,6 @@ class TestStatusChanger(MockParent):
                 "invalid_status_uuid",
                 "invalid_status_token",
                 status="Published",
-                extra_options={},
             )
 
     def test_recognized_status(self):
@@ -293,7 +284,6 @@ class TestStatusChanger(MockParent):
                 "extra_options_token",
                 status="valid",
                 fields_to_overwrite={"test_extra_field": True},
-                verbose=False,
             )
             with_extra_field.update()
             self.assertIn(
@@ -320,7 +310,6 @@ class TestStatusChanger(MockParent):
                 "my_test_uuid",
                 "my_test_token",
                 status="Valid",
-                extra_options={},
                 fields_to_overwrite={"test_extra_field": False},
             )
             sc.validate_fields_to_change()
@@ -412,7 +401,6 @@ class TestStatusChanger(MockParent):
             "upload_valid_uuid",
             "upload_valid_token",
             status="Reorganized",
-            extra_options={},
         ).update()
         self.mock_slack_update.assert_called_once()
 
@@ -425,7 +413,6 @@ class TestStatusChanger(MockParent):
                 "dataset_valid_uuid",
                 "dataset_valid_token",
                 status="Hold",
-                extra_options={},
             ).update()
             self.mock_slack_update.assert_not_called()
 
@@ -434,7 +421,6 @@ class TestStatusChanger(MockParent):
             "upload_valid_uuid",
             "upload_valid_token",
             status="Reorganized",
-            extra_options={},
         )
         sc.update()
         self.mock_dib_update.assert_called_once()
@@ -448,7 +434,6 @@ class TestStatusChanger(MockParent):
                 "dataset_valid_uuid",
                 "dataset_valid_token",
                 status="Hold",
-                extra_options={},
             ).update()
             self.mock_dib_update.assert_not_called()
 
@@ -679,7 +664,6 @@ class TestDataIngestBoardManager(MockParent):
             "upload_valid_uuid",
             "upload_valid_token",
             status="Invalid",
-            extra_options={},
         )
         sc.update()
         self.mock_dib_update.assert_called_once()

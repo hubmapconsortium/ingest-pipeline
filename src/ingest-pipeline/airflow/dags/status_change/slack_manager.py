@@ -33,8 +33,6 @@ class SlackManager(MessageManager):
     and the nuances of their (potential) subclasses; manager handles traffic direction.
     The relevant message class is composed into this manager based on status and result
     of `test` for any subclasses.
-    Use:
-        msg_and_channel_dict = SlackManager(Statuses.<status>, <uuid>, <token>).update()
     """
 
     def __init__(
@@ -44,10 +42,8 @@ class SlackManager(MessageManager):
         token: str,
         messages: Optional[dict] = None,
         run_id: str = "",
-        *args,
-        **kwargs,
     ):
-        super().__init__(status, uuid, token, messages, run_id, args, kwargs)
+        super().__init__(status, uuid, token, messages, run_id)
         self.message_class = self.get_message_class(status)
         if not self.message_class:
             logging.info(

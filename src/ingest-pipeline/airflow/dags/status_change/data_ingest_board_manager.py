@@ -33,10 +33,8 @@ class DataIngestBoardManager(MessageManager):
         token: str,
         messages: Optional[dict] = None,
         run_id: str = "",
-        *args,
-        **kwargs,
     ):
-        super().__init__(status, uuid, token, messages, run_id, args, kwargs)
+        super().__init__(status, uuid, token, messages, run_id)
         self.update_fields = self.get_fields()
 
     @property
