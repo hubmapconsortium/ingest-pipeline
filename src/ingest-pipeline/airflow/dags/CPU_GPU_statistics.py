@@ -64,18 +64,24 @@ with HMDAG(
             "Cache-Control": "no-cache",
             "X-Hubmap-Application": "ingest-pipeline",
         }
+
+        batch_size = 100
         base_paths = {}
 
-        for uuid in dataset_ids:
-            endpoint = f"datasets/{uuid}/file-system-abs-path"
+        for i in range(0, len(dataset_ids), batch_size):
+            batch = dataset_ids[i:i + batch_size]
+            endpoint = f"datasets/file-system-abs-path"
 
-            http_hook = HttpHook("GET", http_conn_id="ingest_api_connection")
+            http_hook = HttpHook("POST", http_conn_id="ingest_api_connection")
             response = http_hook.run(
-                endpoint, headers=headers, extra_options={"check_response": False}
+                endpoint, headers=headers, json=batch,
             )
             response.raise_for_status()
-            path_query_rslt = response.json()
-            base_paths[uuid] = path_query_rslt["path"]
+            for item in response.json():
+                dataset_id = item["uuid"]
+                base_path = item["path"]
+                if dataset_id and base_path:
+                    base_paths[dataset_id] = base_path
         return base_paths
 
     def get_uuids(**kwargs):
