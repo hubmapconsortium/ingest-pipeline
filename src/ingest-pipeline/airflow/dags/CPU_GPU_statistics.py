@@ -159,16 +159,20 @@ with HMDAG(
         timestamp_str = line[6:25]
         return datetime.strptime(timestamp_str, timestamp_format)
 
-    def __calculate_usage(starting_timestamp: datetime, ending_timestamp: datetime) -> timedelta:
-        return ending_timestamp - starting_timestamp
+    def __calculate_usage(starting_timestamp: datetime, ending_timestamp: datetime,
+                          cpu_count: int) -> timedelta:
+        return (ending_timestamp - starting_timestamp) * cpu_count
 
     @task(task_id="calculate_statistics")
     def calculate_statistics(**kwargs):
         df = pd.read_csv(Path(get_tmp_dir_path(kwargs["run_id"]) / "datasets.csv"))
         startjob = r"\[job .+\] .+ docker \\$"
         endjob = r"\[job .+\] completed success$"
+        processes = r"[--num_concurrent_tasks \\$] | [--processes \\$]"
         gpu_task = r".*gpu.*"
         gpu = False
+        processes_marker = False
+        cpu_count = 1
         starting_timestamp = None
         ending_timestamp = None
         df['cpu_usage'] = None
@@ -185,6 +189,10 @@ with HMDAG(
                             # Check if this is CPU or GPU and create a flag
                         if starting_timestamp and re.search(gpu_task, line):
                             gpu = True
+                        if starting_timestamp and re.search(processes, line):
+                            processes_marker = True
+                        if processes_marker:
+                            cpu_count *= line
                         if re.search(endjob, line) and starting_timestamp:
                             ending_timestamp = __get_timestamp(line)
                         if starting_timestamp and ending_timestamp:
@@ -193,7 +201,8 @@ with HMDAG(
                                  gpu_usage += __calculate_usage(starting_timestamp,
                                                                 ending_timestamp)
                             else:
-                                cpu_usage += __calculate_usage(starting_timestamp, ending_timestamp)
+                                cpu_usage += __calculate_usage(starting_timestamp, ending_timestamp,
+                                                               cpu_count)
                             starting_timestamp = None
                             ending_timestamp = None
                             gpu = False
