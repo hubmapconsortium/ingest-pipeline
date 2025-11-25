@@ -161,14 +161,14 @@ with HMDAG(
 
     def __calculate_usage(starting_timestamp: datetime, ending_timestamp: datetime,
                           cpu_count: int) -> timedelta:
-        return (ending_timestamp - starting_timestamp) * cpu_count
+        return (ending_timestamp - starting_timestamp) * int(cpu_count)
 
     @task(task_id="calculate_statistics")
     def calculate_statistics(**kwargs):
         df = pd.read_csv(Path(get_tmp_dir_path(kwargs["run_id"]) / "datasets.csv"))
         startjob = r"\[job .+\] .+ docker \\$"
         endjob = r"\[job .+\] completed success$"
-        processes = r"[--num_concurrent_tasks \\$] | [--processes \\$]"
+        processes = r"--num_concurrent_tasks \\$|--processes \\$"
         gpu_task = r".*gpu.*"
         gpu = False
         processes_marker = False
@@ -189,23 +189,27 @@ with HMDAG(
                             # Check if this is CPU or GPU and create a flag
                         if starting_timestamp and re.search(gpu_task, line):
                             gpu = True
+                        if processes_marker:
+                            cpu_count *= int(line.strip("\\\n"))
+                            processes_marker = False
                         if starting_timestamp and re.search(processes, line):
                             processes_marker = True
-                        if processes_marker:
-                            cpu_count *= line
                         if re.search(endjob, line) and starting_timestamp:
                             ending_timestamp = __get_timestamp(line)
                         if starting_timestamp and ending_timestamp:
                             # if CPU flag, append to CPU, else append to GPU
                             if gpu:
                                  gpu_usage += __calculate_usage(starting_timestamp,
-                                                                ending_timestamp)
+                                                                ending_timestamp,
+                                                                1)
                             else:
                                 cpu_usage += __calculate_usage(starting_timestamp, ending_timestamp,
                                                                cpu_count)
                             starting_timestamp = None
                             ending_timestamp = None
                             gpu = False
+                            cpu_count = 1
+                            processes_marker = False
             except FileNotFoundError:
                 print(f"{path} not found")
             except PermissionError:
