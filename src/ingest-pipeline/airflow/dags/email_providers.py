@@ -1,9 +1,11 @@
-import csv
-from datetime import datetime, timedelta
+import logging
+from datetime import datetime
+from pprint import pformat
+from textwrap import dedent
+from typing import Optional
 
 import pandas as pd
-import requests
-from hubmap_operators.common_operators import (
+from hubmap_operators.common_operators import (  # type: ignore
     CleanupTmpDirOperator,
     CreateTmpDirOperator,
 )
@@ -19,8 +21,10 @@ from utils import (
 
 from airflow.operators.python import BranchPythonOperator, PythonOperator
 from airflow.providers.http.hooks.http import HttpHook
+from airflow.utils.email import send_email
 
 SEARCH_API_URL = "https://search.api.hubmapconsortium.org/v3/portal/search"
+INTERNAL_CONTACT = "gesina@psc.edu"
 
 default_args = {
     "depends_on_past": False,
@@ -47,11 +51,11 @@ with HMDAG(
 ) as dag:
 
     def get_groups(**kwargs):
-        # TODO: just email or email/name?
         """
-        Get data provider group info and push to XCOM.
+        Get data provider group contact info (group_name: contact_email) and push to XCOM.
         """
-        groups = []
+        # TODO
+        groups = {}
         kwargs["ti"].xcom_push(key="groups", value=groups)
 
     t_get_groups = PythonOperator(
@@ -72,11 +76,15 @@ with HMDAG(
         groups = kwargs["ti"].xcom_pull(key="groups")
         for group_name, group_contact in groups.items():
             data = get_datasets_by_group(group_name)
-            email_body = format_group_data(data)
-            spreadsheet = format_csv(data)
-            # collect any errors with data or send to report
-            assert group_contact, email_body
-            send_email(group_contact, email_body, attachment=spreadsheet)
+            email_body = format_group_data(data, group_name)
+            spreadsheet_path = data.to_csv(get_csv_path(group_name, **kwargs))
+            cc = data["creator_email"].tolist()
+            try:
+                assert group_contact, email_body
+                send(group_contact, email_body, attachment_path=spreadsheet_path, cc=cc)
+            except Exception as e:
+                logging.error(f"{group_name}: {e}")
+                errors[group_name] = str(e)
         kwargs["ti"].xcom_push(key="send_success", value="1" if errors else "0")
         kwargs["ti"].xcom_push(key="errors", value=errors)
 
@@ -88,13 +96,18 @@ with HMDAG(
             "next_op": "cleanup_temp_dir",
             "bail_op": "report_errors",
             # TODO: not sure about test_op
-            "test_op": "get_send_data",
+            # "test_op": "get_send_data",
         },
     )
 
     def report_errors(**kwargs):
+        """
+        Log errors cleanly and email internal contact.
+        """
         errors = kwargs["ti"].xcom_pull(key="errors")
-        # TODO: maybe email somebody here
+        logging.error(pformat(errors, sort_dicts=True))
+        # TODO: not sure if pformat will work with send_email
+        send(INTERNAL_CONTACT, "Errors in EmailProviders DAG", pformat(errors))
 
     t_report_errors = PythonOperator(
         task_id="report_errors",
@@ -105,6 +118,17 @@ with HMDAG(
     ########################
     # Supporting functions #
     ########################
+
+    def search_api_request(body: dict, **kwargs) -> dict:
+        try:
+            search_hook = HttpHook("POST", http_conn_id="search_api_connection")
+            headers = {"authorization": f"Bearer {get_auth_tok(**kwargs)}"}
+            response = search_hook.run(url=SEARCH_API_URL, headers=headers, json=body, timeout=60)
+            response.raise_for_status()
+        except Exception as e:
+            # TODO: test logging here
+            raise Exception("Error querying Search API") from e
+        return response.json()
 
     def get_datasets_by_group(group_name: str, **kwargs) -> pd.DataFrame:
         """
@@ -124,7 +148,6 @@ with HMDAG(
                 "created_timestamp",
                 "creation_action",
                 "dataset_type",
-                "direct_ancestors",  # TODO: not sure
                 "entity_type",
                 "group_name",
                 "group_uuid",  # TODO: check
@@ -194,24 +217,76 @@ with HMDAG(
         ]
 
         df = df[[col for col in columns_to_keep if col in df.columns]]
-        print(f"   Found {len(df)} published datasets in Search API")
+        print(f"   Found {len(df)} unpublished datasets in Search API")
 
         assert isinstance(df, pd.DataFrame)
         return df
 
-    def format_group_data(data: pd.DataFrame) -> str:
-        pass
+    def send(
+        contact: str,
+        email_body: str,
+        attachment_path: Optional[str] = None,
+        cc: Optional[list[str]] = None,
+    ):
+        assert contact and email_body
+        date = datetime.now().strftime("%Y-%m-%d")
+        subject = f"HuBMAP dataset status report ({date})"
+        logging.info(
+            dedent(
+                f"""
+                Sending email
+                Contact: {contact}
+                cc: {", ".join(cc) if cc else "None"}
+                Message: {email_body}
+                Attachment path: {attachment_path}
+                """
+            ).strip()
+        )
+        send_email(
+            contact,
+            subject,
+            email_body,
+            files=[attachment_path] if attachment_path else None,
+            cc=cc,
+        )
 
-    def format_csv(data: pd.DataFrame):
-        # TODO: typing?
-        pass
+    ##############
+    # Formatting #
+    ##############
 
-    def send_email(contact: str, email_body: str, attachment=None):
-        pass
+    def format_group_data(data: pd.DataFrame, group_name: str) -> str:
+        dataset_info = get_email_body_list(data)
+        body = [*get_template(data, group_name), dataset_info]
+        if len(data) > 100:
+            body.append(f"... ({len(data) - 100} more datasets, see CSV attachment)")
+        return "".join(body)
 
-    #########
-    # Utils #
-    #########
+    def get_template(data: pd.DataFrame, group_name: str) -> list[str]:
+        return [
+            f"<b>Biweekly unpublished dataset report for {group_name}</b><br>",
+            "This report is sent to the group PI and all owners of datasets in this list.<br>",
+            "<br>",
+            f"{len(data)} unpublished datasets:<br>",
+            "<ul>",
+            *get_counts(data),
+            "</ul>",
+            # TODO
+            "Instructions:",
+            "<br>",
+            "<br>",
+        ]
+
+    def create_link(row):
+        return f'<a href="{row.ingest_url}">{row.hubmap_id}</a>'
+
+    ###########
+    # Parsing #
+    ###########
+
+    def get_csv_path(group_name: str, **kwargs) -> str:
+        date = datetime.now().strftime("%Y-%m-%d")
+        group_name_formatted = group_name.replace(" - ", "_").replace(" ", "_")
+        return str(get_tmp_dir_path(kwargs["run_id"] / f"{group_name_formatted}{date}.csv"))
 
     def get_date(row, column: str) -> str:
         timestamp = pd.to_datetime(row[column], unit="ms")
@@ -222,24 +297,56 @@ with HMDAG(
             return f"https://ingest.hubmapconsortium.org/{row['entity_type']}/{row['uuid']}"
         return ""
 
-    def search_api_request(body: dict, **kwargs) -> dict:
-        headers = {"authorization": f"Bearer {kwargs.get('auth_tok')}"}
-        try:
-            response = requests.post(url=SEARCH_API_URL, headers=headers, json=body, timeout=60)
-            response.raise_for_status()
-        except Exception as e:
-            # TODO
-            raise
-        return response.json()
+    def get_email_body_list(data: pd.DataFrame) -> str:
+        subset = data[["hubmap_id", "last_modified_date", "status", "ingest_url"]].copy()
+        subset["hubmap_id"] = subset.apply(create_link, axis=1)
+        subset = subset.sort_values("last_modified_date")
+        subset = subset.rename(
+            columns={
+                "hubmap_id": "HuBMAP ID",
+                "status": "Status",
+                "last_modified_date": "Last Updated",
+            }
+        )
+        return subset.to_html(
+            columns=["HuBMAP ID", "Last Updated", "Status"],
+            index=False,
+            na_rep="",
+            justify="justify",
+            max_rows=100,
+            escape=False,
+            border=0,
+            col_space={"HuBMAP ID": 170, "Last Updated": 130},
+        ).replace("\n", "")
+
+    def get_counts(data: pd.DataFrame) -> list[str]:
+        counts = data["status"].value_counts().to_dict()
+        provider_responsible_keys = ["qa", "invalid"]
+        provider_responsible = {
+            key: value for key, value in counts.items() if key.lower() in provider_responsible_keys
+        }
+        iec_responsible = {
+            key: value
+            for key, value in counts.items()
+            if key.lower not in provider_responsible_keys
+        }
+        return [
+            "Datasets requiring action by data provider:",
+            "<ul>",
+            *[f"<li>{key}: {value}</li>" for key, value in provider_responsible.items()],
+            "</ul>",
+            "Datasets requiring action by IEC:",
+            "<ul>",
+            *[f"<li>{key}: {value}</li>" for key, value in iec_responsible.items()],
+            "</ul>",
+        ]
 
     # def search_api_request(body: dict, **kwargs) -> dict:
+    #     headers = {"authorization": f"Bearer {kwargs.get('auth_tok')}"}
     #     try:
-    #         search_hook = HttpHook("POST", http_conn_id="search_api_connection")
-    #         headers = {"authorization": f"Bearer {get_auth_tok(**kwargs)}"}
-    #         response = search_hook.run(url=SEARCH_API_URL, headers=headers, json=body, timeout=60)
+    #         response = requests.post(url=SEARCH_API_URL, headers=headers, json=body, timeout=60)
     #         response.raise_for_status()
     #     except Exception as e:
-    #         # TODO
     #         raise
     #     return response.json()
 
@@ -250,5 +357,5 @@ with HMDAG(
     t_create_tmpdir = CreateTmpDirOperator(task_id="create_temp_dir")
     t_cleanup_tmpdir = CleanupTmpDirOperator(task_id="cleanup_temp_dir")
 
-    (t_create_tmpdir >> t_get_groups >> t_get_send_data >> t_cleanup_tmpdir)
-    t_get_send_data >> t_report_errors
+    (t_create_tmpdir >> t_get_groups >> t_get_send_data >> t_cleanup_tmpdir)  # type: ignore
+    t_get_send_data >> t_report_errors >> t_cleanup_tmpdir  # type: ignore
