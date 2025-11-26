@@ -19,6 +19,7 @@ from utils import (
     get_parent_data_dir,
     get_cwl_cmd_from_workflows,
     join_quote_command_str,
+    get_dataset_uuid,
 )
 from hubmap_operators.flex_multi_dag_run import FlexMultiDagRunOperator
 from hubmap_operators.common_operators import (
@@ -221,6 +222,18 @@ with HMDAG(
     t_log_info = LogInfoOperator(task_id="log_info")
     t_create_tmpdir = CreateTmpDirOperator(task_id="create_tmpdir")
 
+    t_set_dataset_error = PythonOperator(
+        task_id="set_dataset_error",
+        python_callable=utils.pythonop_set_dataset_state,
+        provide_context=True,
+        trigger_rule="all_done",
+        op_kwargs={
+            "dataset_uuid_callable": get_dataset_uuid,
+            "ds_state": "Error",
+            "message": "An error occurred in {}".format(pipeline_name),
+        },
+    )
+
     (
         t_log_info
         >> t_create_tmpdir
@@ -237,3 +250,4 @@ with HMDAG(
         >> t_trigger_phenocyler_small
     )
     t_maybe_start_small_sprm >> t_trigger_phenocyler
+    t_maybe_keep_cwl_segmentation >> t_set_dataset_error
