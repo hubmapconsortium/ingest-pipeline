@@ -216,7 +216,7 @@ with HMDAG(
                             gpu = False
                             cpu_count = 1
                             processes_marker = False
-                        print(f"CPU usage: {cpu_usage}, GPU usage: {gpu_usage}")
+                            print(f"CPU usage: {cpu_usage}, GPU usage: {gpu_usage}")
             except FileNotFoundError:
                 print(f"{path} not found")
             except PermissionError:
