@@ -180,6 +180,7 @@ with HMDAG(
         cpu_usage = timedelta(seconds=0)
         gpu_usage = timedelta(seconds=0)
         for index, row in df.iterrows():
+            print(f"UUID: {row['uuid']}")
             path = Path(row.directory + "/session.log")
             try:
                 with open(path, "r") as session_file:
@@ -197,25 +198,25 @@ with HMDAG(
                         if re.search(endjob, line) and starting_timestamp:
                             ending_timestamp = __get_timestamp(line)
                         if starting_timestamp and ending_timestamp:
-                            print(f"Starting timestamp: {starting_timestamp}, "
-                                  f"ending timestamp: {ending_timestamp}, "
+                            print(f"Starting timestamp: {starting_timestamp}\n"
+                                  f"ending timestamp: {ending_timestamp}\n"
                                   f"Increasing time: {ending_timestamp - starting_timestamp}")
+                            print(f"CPU count: {cpu_count}")
                             # if CPU flag, append to CPU, else append to GPU
                             if gpu:
                                 gpu_usage += __calculate_usage(starting_timestamp,
                                                                ending_timestamp,
                                                                1)
-                                print(f"GPU usage: {gpu_usage}")
                             else:
                                 cpu_usage += __calculate_usage(starting_timestamp, ending_timestamp,
                                                                cpu_count)
-                                print(f"CPU count: {cpu_count}")
-                                print(f"CPU usage: {cpu_usage}")
+
                             starting_timestamp = None
                             ending_timestamp = None
                             gpu = False
                             cpu_count = 1
                             processes_marker = False
+                        print(f"CPU usage: {cpu_usage}, GPU usage: {gpu_usage}")
             except FileNotFoundError:
                 print(f"{path} not found")
             except PermissionError:
