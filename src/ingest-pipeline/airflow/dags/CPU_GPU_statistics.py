@@ -198,7 +198,8 @@ with HMDAG(
                             ending_timestamp = __get_timestamp(line)
                         if starting_timestamp and ending_timestamp:
                             print(f"Starting timestamp: {starting_timestamp}, "
-                                  f"ending timestamp: {ending_timestamp}")
+                                  f"ending timestamp: {ending_timestamp}, "
+                                  f"Increasing time: {ending_timestamp - starting_timestamp}")
                             # if CPU flag, append to CPU, else append to GPU
                             if gpu:
                                 gpu_usage += __calculate_usage(starting_timestamp,
@@ -208,8 +209,8 @@ with HMDAG(
                             else:
                                 cpu_usage += __calculate_usage(starting_timestamp, ending_timestamp,
                                                                cpu_count)
-                                print(f"CPU usage: {cpu_usage}")
                                 print(f"CPU count: {cpu_count}")
+                                print(f"CPU usage: {cpu_usage}")
                             starting_timestamp = None
                             ending_timestamp = None
                             gpu = False
@@ -228,6 +229,9 @@ with HMDAG(
                 cpu_usage = timedelta(seconds=0)
                 starting_timestamp = None
                 ending_timestamp = None
+                gpu = False
+                cpu_count = 1
+                processes_marker = False
         df.to_csv(Path(get_tmp_dir_path(kwargs["run_id"])) / "dataset_usage.csv")
         return 0
 
