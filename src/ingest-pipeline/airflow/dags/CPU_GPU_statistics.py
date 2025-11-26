@@ -197,14 +197,19 @@ with HMDAG(
                         if re.search(endjob, line) and starting_timestamp:
                             ending_timestamp = __get_timestamp(line)
                         if starting_timestamp and ending_timestamp:
+                            print(f"Starting timestamp: {starting_timestamp}, "
+                                  f"ending timestamp: {ending_timestamp}")
                             # if CPU flag, append to CPU, else append to GPU
                             if gpu:
-                                 gpu_usage += __calculate_usage(starting_timestamp,
-                                                                ending_timestamp,
-                                                                1)
+                                gpu_usage += __calculate_usage(starting_timestamp,
+                                                               ending_timestamp,
+                                                               1)
+                                print(f"GPU usage: {gpu_usage}")
                             else:
                                 cpu_usage += __calculate_usage(starting_timestamp, ending_timestamp,
                                                                cpu_count)
+                                print(f"CPU usage: {cpu_usage}")
+                                print(f"CPU count: {cpu_count}")
                             starting_timestamp = None
                             ending_timestamp = None
                             gpu = False
