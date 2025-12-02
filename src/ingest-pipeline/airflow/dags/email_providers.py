@@ -9,7 +9,8 @@ from hubmap_operators.common_operators import (  # type: ignore
     CleanupTmpDirOperator,
     CreateTmpDirOperator,
 )
-from plugins.biweekly_timetable import BiweeklyTimetable
+
+# from plugins.biweekly_timetable import BiweeklyTimetable
 from status_change.callbacks.failure_callback import FailureCallback
 from utils import (
     HMDAG,
@@ -19,7 +20,9 @@ from utils import (
     get_tmp_dir_path,
 )
 
-from airflow.operators.python import BranchPythonOperator, PythonOperator
+from airflow.decorators import task
+from airflow.operators.empty import EmptyOperator
+from airflow.operators.python import PythonOperator
 from airflow.providers.http.hooks.http import HttpHook
 from airflow.utils.email import send_email
 
@@ -43,7 +46,8 @@ with HMDAG(
     "email_providers",
     default_args=default_args,
     is_paused_upon_creation=False,
-    schedule=BiweeklyTimetable(),
+    # TODO: finish
+    # schedule=BiweeklyTimetable(),
     user_defined_macros={
         "tmp_dir_path": get_tmp_dir_path,
         "preserve_scratch": get_preserve_scratch_resource("validate_upload"),
@@ -64,6 +68,7 @@ with HMDAG(
         provide_context=True,
     )
 
+    @task.branch(task_id="get_send_data")
     def get_send_data(**kwargs):
         """
         - Get data from search API, format, and send to each group.
@@ -75,30 +80,20 @@ with HMDAG(
         errors = {}
         groups = kwargs["ti"].xcom_pull(key="groups")
         for group_name, group_contact in groups.items():
-            data = get_datasets_by_group(group_name)
-            email_body = format_group_data(data, group_name)
-            spreadsheet_path = data.to_csv(get_csv_path(group_name, **kwargs))
-            cc = data["creator_email"].tolist()
             try:
-                assert group_contact, email_body
+                data = get_datasets_by_group(group_name)
+                email_body = format_group_data(data, group_name)
+                spreadsheet_path = get_csv_path(group_name, **kwargs)
+                data.to_csv(spreadsheet_path)
+                cc = list(set(data["creator_email"].tolist()))
                 send(group_contact, email_body, attachment_path=spreadsheet_path, cc=cc)
             except Exception as e:
                 logging.error(f"{group_name}: {e}")
                 errors[group_name] = str(e)
-        kwargs["ti"].xcom_push(key="send_success", value="1" if errors else "0")
         kwargs["ti"].xcom_push(key="errors", value=errors)
-
-    t_get_send_data = BranchPythonOperator(
-        task_id="get_data",
-        python_callable=get_send_data,
-        provide_context=True,
-        op_kwargs={
-            "next_op": "cleanup_temp_dir",
-            "bail_op": "report_errors",
-            # TODO: not sure about test_op
-            # "test_op": "get_send_data",
-        },
-    )
+        if errors:
+            return "report_errors"
+        return "stop_task"
 
     def report_errors(**kwargs):
         """
@@ -141,23 +136,20 @@ with HMDAG(
 
         body = {
             "_source": [
-                "contacts",  # TODO: ?
                 "created_by_user_display_name",
                 "created_by_user_email",
-                "created_by_user_sub",  # TODO: ?
                 "created_timestamp",
                 "creation_action",
                 "dataset_type",
                 "entity_type",
                 "group_name",
                 "group_uuid",  # TODO: check
-                "hubmap_id",  # TODO: make agnostic?
+                "hubmap_id",
                 "last_modified_timestamp",
                 "status",
                 "title",
-                "uuid",
             ],
-            "size": 10000,  # Adjust if you have more than 10k datasets  # TODO: check limit
+            "size": 10000,  # Adjust if you have more than 10k datasets  # TODO: sanity check
             "query": {
                 "bool": {
                     "should": [
@@ -183,10 +175,8 @@ with HMDAG(
         df = df.rename(
             columns={
                 "_id": "uuid",
-                "_source.contacts": "contacts",
                 "_source.created_by_user_display_name": "creator",
                 "_source.created_by_user_email": "creator_email",
-                "_source.created_by_user_sub": "created_by_user_sub",
                 "_source.created_timestamp": "created_timestamp",
                 "_source.creation_action": "creation_action",
                 "_source.dataset_type": "dataset_type",
@@ -213,6 +203,7 @@ with HMDAG(
             "created_date",
             "last_modified_date",
             "creator_name",
+            "creator_email",
             "ingest_url",
         ]
 
@@ -242,6 +233,10 @@ with HMDAG(
                 """
             ).strip()
         )
+        # TODO: turn off after testing
+        logging.info("replacing contact info for testing...")
+        contact = "gesina@psc.edu"
+        cc = ["gesina@psc.edu"]
         send_email(
             contact,
             subject,
@@ -286,7 +281,7 @@ with HMDAG(
     def get_csv_path(group_name: str, **kwargs) -> str:
         date = datetime.now().strftime("%Y-%m-%d")
         group_name_formatted = group_name.replace(" - ", "_").replace(" ", "_")
-        return str(get_tmp_dir_path(kwargs["run_id"] / f"{group_name_formatted}{date}.csv"))
+        return str(get_tmp_dir_path(kwargs["run_id"] / f"{group_name_formatted}_{date}.csv"))
 
     def get_date(row, column: str) -> str:
         timestamp = pd.to_datetime(row[column], unit="ms")
@@ -341,8 +336,8 @@ with HMDAG(
             "</ul>",
         ]
 
-    # def search_api_request(body: dict, **kwargs) -> dict:
-    #     headers = {"authorization": f"Bearer {kwargs.get('auth_tok')}"}
+    # def search_api_request(body: dict, token: str) -> dict:
+    #     headers = {"authorization": f"Bearer {token}"}
     #     try:
     #         response = requests.post(url=SEARCH_API_URL, headers=headers, json=body, timeout=60)
     #         response.raise_for_status()
@@ -355,7 +350,9 @@ with HMDAG(
     ############
 
     t_create_tmpdir = CreateTmpDirOperator(task_id="create_temp_dir")
-    t_cleanup_tmpdir = CleanupTmpDirOperator(task_id="cleanup_temp_dir")
+    t_cleanup_tmpdir = CleanupTmpDirOperator(
+        task_id="cleanup_temp_dir", trigger_rule="none_failed_min_one_success"
+    )
+    t_stop_task = EmptyOperator(task_id="stop_task")
 
-    (t_create_tmpdir >> t_get_groups >> t_get_send_data >> t_cleanup_tmpdir)  # type: ignore
-    t_get_send_data >> t_report_errors >> t_cleanup_tmpdir  # type: ignore
+    (t_create_tmpdir >> t_get_groups >> t_get_send_data >> [t_report_errors, t_stop_task] >> t_cleanup_tmpdir)  # type: ignore
