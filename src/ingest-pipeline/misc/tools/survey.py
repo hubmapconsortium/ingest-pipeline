@@ -763,7 +763,7 @@ class EntityFactory:
             "direct_ancestor_uuids": direct_ancestor_uuids,
             "group_uuid": group_uuid,
             "description": description,
-            "lab_id": lab_id,
+            "lab_dataset_id": lab_id,
             "priority_project_list": priority_project_list,
         }
         if is_epic:
