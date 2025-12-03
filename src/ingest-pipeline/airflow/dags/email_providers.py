@@ -128,9 +128,9 @@ with HMDAG(
         Log errors cleanly and email internal contact.
         """
         errors = kwargs["ti"].xcom_pull(key="errors")
-        logging.error(pformat(errors, sort_dicts=True))
-        # TODO: not sure if pformat will work with send_email
-        send(INTERNAL_CONTACT, f"Errors in EmailProviders DAG:\n{pformat(errors)}")
+        formatted_errors = "<br>".join([f"{key}: {val}" for key, val in errors.items()])
+        logging.error(formatted_errors)
+        send(INTERNAL_CONTACT, f"Errors in EmailProviders DAG:\n{formatted_errors}")
 
     t_report_errors = PythonOperator(
         task_id="report_errors",
@@ -170,19 +170,19 @@ with HMDAG(
                 "dataset_type",
                 "entity_type",
                 "group_name",
-                "group_uuid",  # TODO: check
+                "group_uuid",  # TODO: ideally use this
                 "hubmap_id",
                 "last_modified_timestamp",
                 "status",
                 "title",
             ],
-            "size": 10000,  # Adjust if you have more than 10k datasets  # TODO: sanity check
+            "size": 10000,
             "query": {
                 "bool": {
                     "should": [
                         {
                             "match": {"creation_action": "Create Dataset Activity"}
-                        },  # Primary datasets  # TODO: check this
+                        },  # Primary datasets only
                     ],
                     "must": [
                         {"match": {"entity_type": "Dataset"}},
@@ -315,6 +315,7 @@ with HMDAG(
         return datetime.strftime(timestamp, "%Y-%m-%d")
 
     def get_ingest_url(row) -> str:
+        # PROD only
         if row.get("entity_type") and row.get("uuid"):
             return f"https://ingest.hubmapconsortium.org/{row['entity_type']}/{row['uuid']}"
         return ""
