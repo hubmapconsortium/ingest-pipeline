@@ -22,12 +22,10 @@ from utils import (
 )
 
 from airflow.configuration import conf as airflow_conf
-from airflow.operators.empty import EmptyOperator
 from airflow.operators.python import BranchPythonOperator, PythonOperator
 from airflow.providers.http.hooks.http import HttpHook
 from airflow.utils.email import send_email
 
-SEARCH_API_URL = "https://search.api.hubmapconsortium.org/v3/portal/search"
 INTERNAL_CONTACT = "gesina@psc.edu"
 
 default_args = {
@@ -61,7 +59,7 @@ with HMDAG(
         Get data provider group contact info (group_name: contact_email) and push to XCOM.
         """
         # TODO
-        groups = {}
+        groups = {"IEC Testing Group": "gesina@psc.edu"}
         kwargs["ti"].xcom_push(key="groups", value=groups)
 
     t_get_groups = PythonOperator(
@@ -70,35 +68,50 @@ with HMDAG(
         provide_context=True,
     )
 
-    def get_send_data(**kwargs):
+    def get_data(**kwargs):
         """
-        - Get data from search API, format, and send to each group.
+        Get data from search API by group.
+        """
+        data = {}
+        groups = kwargs["ti"].xcom_pull(key="groups")
+        for group_name in groups:
+            data[group_name] = get_datasets_by_group(group_name, **kwargs)
+        kwargs["ti"].xcom_push(key="data", value=data)
+
+    t_get_data = PythonOperator(
+        task_id="get_data",
+        python_callable=get_data,
+        provide_context=True,
+    )
+
+    def send_data(**kwargs):
+        """
+        - Format data and send to each group.
         - Push return code to XCOM:
             0: no issue getting/sending data
             1: error getting/sending data
         - Push errors dict to XCOM.
         """
-        errors = {}
         groups = kwargs["ti"].xcom_pull(key="groups")
+        data = kwargs["ti"].xcom_pull(key="data")
+        errors = {}
         for group_name, group_contact in groups.items():
             try:
-                data = get_datasets_by_group(group_name, **kwargs)
-                email_body = format_group_data(data, group_name)
+                email_body = format_group_data(data.get(group_name), group_name)
                 spreadsheet_path = get_csv_path(group_name, **kwargs)
                 data.to_csv(spreadsheet_path)
                 cc = list(set(data["creator_email"].tolist()))
                 send(group_contact, email_body, attachment_path=spreadsheet_path, cc=cc)
             except Exception as e:
-                logging.error(f"{group_name}: {e}")
+                logging.error(f"{group_name}: {str(e.__class__)}: {e}")
                 errors[group_name] = str(e)
         kwargs["ti"].xcom_push(key="errors", value=errors)
         if errors:
             return "report_errors"
-        return "stop_task"
 
-    t_get_send_data = BranchPythonOperator(
-        task_id="get_send_data",
-        python_callable=get_send_data,
+    t_send_data = BranchPythonOperator(
+        task_id="send_data",
+        python_callable=send_data,
         provide_context=True,
         op_kwargs={
             "crypt_auth_tok": encrypt_tok(
@@ -130,7 +143,7 @@ with HMDAG(
         try:
             search_hook = HttpHook("POST", http_conn_id="search_api_connection")
             headers = {"authorization": f"Bearer {get_auth_tok(**kwargs)}"}
-            response = search_hook.run(url=SEARCH_API_URL, headers=headers, json=body, timeout=60)
+            response = search_hook.run(endpoint="v3/portal/search", headers=headers, json=body)
             response.raise_for_status()
         except Exception as e:
             raise Exception(f"Error querying Search API: {e}")
@@ -292,7 +305,7 @@ with HMDAG(
     def get_csv_path(group_name: str, **kwargs) -> str:
         date = datetime.now().strftime("%Y-%m-%d")
         group_name_formatted = group_name.replace(" - ", "_").replace(" ", "_")
-        return str(get_tmp_dir_path(kwargs["run_id"] / f"{group_name_formatted}_{date}.csv"))
+        return str(get_tmp_dir_path(f"{kwargs['run_id']}/{group_name_formatted}_{date}.csv"))
 
     def get_date(row, column: str) -> str:
         timestamp = pd.to_datetime(row[column], unit="ms")
@@ -364,6 +377,5 @@ with HMDAG(
     t_cleanup_tmpdir = CleanupTmpDirOperator(
         task_id="cleanup_temp_dir", trigger_rule="none_failed_min_one_success"
     )
-    t_stop_task = EmptyOperator(task_id="stop_task")
 
-    (t_create_tmpdir >> t_get_groups >> t_get_send_data >> [t_report_errors, t_stop_task] >> t_cleanup_tmpdir)  # type: ignore
+    (t_create_tmpdir >> t_get_groups >> t_get_data >> t_send_data >> [t_report_errors] >> t_cleanup_tmpdir)  # type: ignore
