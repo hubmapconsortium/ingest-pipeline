@@ -75,13 +75,18 @@ with HMDAG(
         data = {}
         groups = kwargs["ti"].xcom_pull(key="groups")
         for group_name in groups:
-            data[group_name] = get_datasets_by_group(group_name, **kwargs)
+            data[group_name] = get_datasets_by_group(group_name, **kwargs).to_dict()
         kwargs["ti"].xcom_push(key="data", value=data)
 
     t_get_data = PythonOperator(
         task_id="get_data",
         python_callable=get_data,
         provide_context=True,
+        op_kwargs={
+            "crypt_auth_tok": encrypt_tok(
+                airflow_conf.as_dict()["connections"]["APP_CLIENT_SECRET"]  # type: ignore
+            ).decode()
+        },
     )
 
     def send_data(**kwargs):
@@ -97,10 +102,11 @@ with HMDAG(
         errors = {}
         for group_name, group_contact in groups.items():
             try:
-                email_body = format_group_data(data.get(group_name), group_name)
+                group_data = pd.DataFrame.from_dict(data)
+                email_body = format_group_data(group_data, group_name)
                 spreadsheet_path = get_csv_path(group_name, **kwargs)
                 data.to_csv(spreadsheet_path)
-                cc = list(set(data["creator_email"].tolist()))
+                cc = list(set(group_data["creator_email"].tolist()))
                 send(group_contact, email_body, attachment_path=spreadsheet_path, cc=cc)
             except Exception as e:
                 logging.error(f"{group_name}: {str(e.__class__)}: {e}")
@@ -113,11 +119,6 @@ with HMDAG(
         task_id="send_data",
         python_callable=send_data,
         provide_context=True,
-        op_kwargs={
-            "crypt_auth_tok": encrypt_tok(
-                airflow_conf.as_dict()["connections"]["APP_CLIENT_SECRET"]  # type: ignore
-            ).decode()
-        },
     )
 
     def report_errors(**kwargs):
