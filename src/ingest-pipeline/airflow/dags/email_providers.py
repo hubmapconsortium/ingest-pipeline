@@ -22,6 +22,7 @@ from utils import (
 )
 
 from airflow.configuration import conf as airflow_conf
+from airflow.operators.empty import EmptyOperator
 from airflow.operators.python import BranchPythonOperator, PythonOperator
 from airflow.providers.http.hooks.http import HttpHook
 from airflow.utils.email import send_email
@@ -102,10 +103,10 @@ with HMDAG(
         errors = {}
         for group_name, group_contact in groups.items():
             try:
-                group_data = pd.DataFrame.from_dict(data)
+                group_data = pd.DataFrame.from_dict(data.get(group_name))
                 email_body = format_group_data(group_data, group_name)
                 spreadsheet_path = get_csv_path(group_name, **kwargs)
-                data.to_csv(spreadsheet_path)
+                group_data.to_csv(spreadsheet_path)
                 cc = list(set(group_data["creator_email"].tolist()))
                 send(group_contact, email_body, attachment_path=spreadsheet_path, cc=cc)
             except Exception as e:
@@ -114,6 +115,7 @@ with HMDAG(
         kwargs["ti"].xcom_push(key="errors", value=errors)
         if errors:
             return "report_errors"
+        return "skip_task"
 
     t_send_data = BranchPythonOperator(
         task_id="send_data",
@@ -128,7 +130,7 @@ with HMDAG(
         errors = kwargs["ti"].xcom_pull(key="errors")
         logging.error(pformat(errors, sort_dicts=True))
         # TODO: not sure if pformat will work with send_email
-        send(INTERNAL_CONTACT, "Errors in EmailProviders DAG", pformat(errors))
+        send(INTERNAL_CONTACT, f"Errors in EmailProviders DAG:\n{pformat(errors)}")
 
     t_report_errors = PythonOperator(
         task_id="report_errors",
@@ -157,7 +159,7 @@ with HMDAG(
         Returns:
             DataFrame with upload/dataset information including uuid, created_by, group_name, etc.
         """
-        print(f"Fetching unpublished datasets for group {group_name} from Search API...")
+        logging.info(f"Fetching unpublished datasets for group {group_name} from Search API...")
 
         body = {
             "_source": [
@@ -233,7 +235,7 @@ with HMDAG(
         ]
 
         df = df[[col for col in columns_to_keep if col in df.columns]]
-        print(f"   Found {len(df)} unpublished datasets in Search API")
+        logging.info(f"   Found {len(df)} unpublished datasets in Search API")
 
         assert isinstance(df, pd.DataFrame)
         return df
@@ -348,7 +350,7 @@ with HMDAG(
         iec_responsible = {
             key: value
             for key, value in counts.items()
-            if key.lower not in provider_responsible_keys
+            if key.lower() not in provider_responsible_keys
         }
         return [
             "Datasets requiring action by data provider:",
@@ -378,5 +380,6 @@ with HMDAG(
     t_cleanup_tmpdir = CleanupTmpDirOperator(
         task_id="cleanup_temp_dir", trigger_rule="none_failed_min_one_success"
     )
+    t_skip_task = EmptyOperator(task_id="skip_task")
 
-    (t_create_tmpdir >> t_get_groups >> t_get_data >> t_send_data >> [t_report_errors] >> t_cleanup_tmpdir)  # type: ignore
+    (t_create_tmpdir >> t_get_groups >> t_get_data >> t_send_data >> [t_report_errors, t_skip_task] >> t_cleanup_tmpdir)  # type: ignore
