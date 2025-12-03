@@ -138,6 +138,9 @@ def create_new_uuid(row, source_entity, entity_factory, primary_entity, dryrun=F
         description = source_entity.prop_dct["description"]
     else:
         description = ""
+
+    lab_id = row.get("lab_id", "")
+
     sample_id_list = (
         (row["tissue_id"] if hasattr(row, "tissue_id") else row["parent_sample_id"])
         if not is_epic
@@ -167,6 +170,7 @@ def create_new_uuid(row, source_entity, entity_factory, primary_entity, dryrun=F
             group_uuid=group_uuid,
             description=description,
             is_epic=is_epic,
+            lab_id=lab_id,
             priority_project_list=priority_project_list,
             reindex=False,
         )
