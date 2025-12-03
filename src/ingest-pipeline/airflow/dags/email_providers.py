@@ -14,15 +14,16 @@ from hubmap_operators.common_operators import (  # type: ignore
 from status_change.callbacks.failure_callback import FailureCallback
 from utils import (
     HMDAG,
+    encrypt_tok,
     get_auth_tok,
     get_preserve_scratch_resource,
     get_queue_resource,
     get_tmp_dir_path,
 )
 
-from airflow.decorators import task
+from airflow.configuration import conf as airflow_conf
 from airflow.operators.empty import EmptyOperator
-from airflow.operators.python import PythonOperator
+from airflow.operators.python import BranchPythonOperator, PythonOperator
 from airflow.providers.http.hooks.http import HttpHook
 from airflow.utils.email import send_email
 
@@ -38,7 +39,7 @@ default_args = {
     "owner": "hubmap",
     "queue": get_queue_resource("email_providers"),
     "retries": 0,
-    "start_date": datetime(2019, 1, 1),
+    "start_date": datetime(2025, 12, 1),
     "xcom_push": True,
 }
 
@@ -48,9 +49,10 @@ with HMDAG(
     is_paused_upon_creation=False,
     # TODO: finish
     # schedule=BiweeklyTimetable(),
+    schedule_interval=None,
     user_defined_macros={
         "tmp_dir_path": get_tmp_dir_path,
-        "preserve_scratch": get_preserve_scratch_resource("validate_upload"),
+        "preserve_scratch": get_preserve_scratch_resource("email_providers"),
     },
 ) as dag:
 
@@ -68,7 +70,6 @@ with HMDAG(
         provide_context=True,
     )
 
-    @task.branch(task_id="get_send_data")
     def get_send_data(**kwargs):
         """
         - Get data from search API, format, and send to each group.
@@ -81,7 +82,7 @@ with HMDAG(
         groups = kwargs["ti"].xcom_pull(key="groups")
         for group_name, group_contact in groups.items():
             try:
-                data = get_datasets_by_group(group_name)
+                data = get_datasets_by_group(group_name, **kwargs)
                 email_body = format_group_data(data, group_name)
                 spreadsheet_path = get_csv_path(group_name, **kwargs)
                 data.to_csv(spreadsheet_path)
@@ -94,6 +95,17 @@ with HMDAG(
         if errors:
             return "report_errors"
         return "stop_task"
+
+    t_get_send_data = BranchPythonOperator(
+        task_id="get_send_data",
+        python_callable=get_send_data,
+        provide_context=True,
+        op_kwargs={
+            "crypt_auth_tok": encrypt_tok(
+                airflow_conf.as_dict()["connections"]["APP_CLIENT_SECRET"]  # type: ignore
+            ).decode()
+        },
+    )
 
     def report_errors(**kwargs):
         """
@@ -121,8 +133,7 @@ with HMDAG(
             response = search_hook.run(url=SEARCH_API_URL, headers=headers, json=body, timeout=60)
             response.raise_for_status()
         except Exception as e:
-            # TODO: test logging here
-            raise Exception("Error querying Search API") from e
+            raise Exception(f"Error querying Search API: {e}")
         return response.json()
 
     def get_datasets_by_group(group_name: str, **kwargs) -> pd.DataFrame:
@@ -234,16 +245,16 @@ with HMDAG(
             ).strip()
         )
         # TODO: turn off after testing
-        logging.info("replacing contact info for testing...")
-        contact = "gesina@psc.edu"
-        cc = ["gesina@psc.edu"]
-        send_email(
-            contact,
-            subject,
-            email_body,
-            files=[attachment_path] if attachment_path else None,
-            cc=cc,
-        )
+        # logging.info("replacing contact info for testing...")
+        # contact = "gesina@psc.edu"
+        # cc = ["gesina@psc.edu"]
+        # send_email(
+        #     contact,
+        #     subject,
+        #     email_body,
+        #     files=[attachment_path] if attachment_path else None,
+        #     cc=cc,
+        # )
 
     ##############
     # Formatting #
