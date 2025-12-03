@@ -1,6 +1,5 @@
 import logging
 from datetime import datetime
-from pprint import pformat
 from textwrap import dedent
 from typing import Optional
 
@@ -9,8 +8,7 @@ from hubmap_operators.common_operators import (  # type: ignore
     CleanupTmpDirOperator,
     CreateTmpDirOperator,
 )
-
-# from plugins.biweekly_timetable import BiweeklyTimetable
+from plugins.biweekly_timetable import BiweeklyTimetable
 from status_change.callbacks.failure_callback import FailureCallback
 from utils import (
     HMDAG,
@@ -46,9 +44,7 @@ with HMDAG(
     "email_providers",
     default_args=default_args,
     is_paused_upon_creation=False,
-    # TODO: finish
-    # schedule=BiweeklyTimetable(),
-    schedule_interval=None,
+    schedule=BiweeklyTimetable(),
     user_defined_macros={
         "tmp_dir_path": get_tmp_dir_path,
         "preserve_scratch": get_preserve_scratch_resource("email_providers"),
@@ -260,17 +256,17 @@ with HMDAG(
                 """
             ).strip()
         )
-        # TODO: turn off after testing
-        # logging.info("replacing contact info for testing...")
-        # contact = "gesina@psc.edu"
-        # cc = ["gesina@psc.edu"]
-        # send_email(
-        #     contact,
-        #     subject,
-        #     email_body,
-        #     files=[attachment_path] if attachment_path else None,
-        #     cc=cc,
-        # )
+        logging.info("replacing contact info for testing...")
+        # TODO
+        send_email(
+            # contact,
+            "gesina@psc.edu",
+            subject,
+            email_body,
+            files=[attachment_path] if attachment_path else None,
+            # cc=cc,
+            cc=["gesina@psc.edu"],
+        )
 
     ##############
     # Formatting #
