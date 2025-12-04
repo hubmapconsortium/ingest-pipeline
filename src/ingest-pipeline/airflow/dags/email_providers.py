@@ -8,8 +8,8 @@ from hubmap_operators.common_operators import (  # type: ignore
     CleanupTmpDirOperator,
     CreateTmpDirOperator,
 )
-from plugins.biweekly_timetable import BiweeklyTimetable
 from status_change.callbacks.failure_callback import FailureCallback
+from timetables.biweekly_timetable import BiweeklyTimetable  # type: ignore
 from utils import (
     HMDAG,
     encrypt_tok,
@@ -45,6 +45,7 @@ with HMDAG(
     default_args=default_args,
     is_paused_upon_creation=False,
     schedule=BiweeklyTimetable(),
+    catchup=False,
     user_defined_macros={
         "tmp_dir_path": get_tmp_dir_path,
         "preserve_scratch": get_preserve_scratch_resource("email_providers"),
