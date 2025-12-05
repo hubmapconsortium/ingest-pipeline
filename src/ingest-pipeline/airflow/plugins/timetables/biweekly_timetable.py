@@ -32,6 +32,7 @@ class BiweeklyTimetable(Timetable):
     run_interval_days = 14
     send_time = Time(16, 0, 0)  # 11am Eastern
     cutoff_time = Time(20, 0, 0)
+    target_weekdays = [WeekDay.MONDAY]
 
     def get_next_workday(self, next_start: DateTime) -> DateTime:
         holidays = (
@@ -57,7 +58,9 @@ class BiweeklyTimetable(Timetable):
         # There was a previous run on the regular schedule;
         # increment by self.run_interval_days to find next_start.
         if last_automated_data_interval is not None:
-            adjusted_last_start = self.adjust_run_to_monday(last_automated_data_interval)
+            adjusted_last_start = self.adjust_run_to_target_weekdays(
+                last_automated_data_interval, self.target_weekdays
+            )
             last_start = adjusted_last_start.start
             next_start = DateTime.combine(
                 (last_start + timedelta(days=self.run_interval_days)).date(), self.send_time
@@ -90,6 +93,12 @@ class BiweeklyTimetable(Timetable):
     def adjust_time(self, date_to_adjust: DateTime):
         return DateTime.combine(date_to_adjust.date(), self.send_time)
 
+    def adjust_run_to_target_weekdays(
+        self, run: DataInterval, target_weekdays: list[WeekDay] = [WeekDay.MONDAY]
+    ) -> DataInterval:
+        del target_weekdays
+        return self.adjust_run_to_monday(run)
+
     def adjust_run_to_monday(self, run: DataInterval):
         if run.start.day_of_week in [WeekDay.TUESDAY, WeekDay.WEDNESDAY, WeekDay.THURSDAY]:
             previous_monday = run.start.previous(WeekDay.MONDAY, keep_time=True)
@@ -101,15 +110,50 @@ class BiweeklyTimetable(Timetable):
 
     def infer_manual_data_interval(self, *, run_after: DateTime) -> DataInterval:
         """
-        Used for manually triggered runs, where run_after == when triggered.
+        Used for manually triggered runs, where run_time == when triggered.
         """
-        # Infer start to be <self.run_interval_days> before <run_after>
-        start = DateTime.combine((run_after - timedelta(self.run_interval_days)).date(), Time.min)
-        # Adjust start if inferred value is not a workday
-        start = DateTime.combine(self.get_next_workday(start), self.send_time)
-        return DataInterval(start=start, end=(start + timedelta(days=self.run_interval_days)))
+        return DataInterval(start=(run_after - timedelta(self.run_interval_days)), end=run_after)
+
+
+class TestSendTimetable(BiweeklyTimetable):
+    """
+    Just test that daily send works.
+    """
+
+    run_interval_days = 1
+
+    def adjust_run_to_target_weekdays(self, run, target_weekdays=[WeekDay.MONDAY]) -> DataInterval:
+        del target_weekdays
+        return run
+
+
+class TestTargetDayTimetable(BiweeklyTimetable):
+    """
+    Test that adjust_run_to_target_weekdays works.
+    """
+
+    run_interval_days = 1
+
+    def adjust_run_to_target_weekdays(
+        self,
+        run,
+        target_weekdays=[WeekDay.MONDAY, WeekDay.TUESDAY, WeekDay.THURSDAY],
+    ) -> DataInterval:
+        while run.start.day_of_week not in target_weekdays:
+            run = DataInterval(start=run.start.add(days=1), end=run.end.add(days=1))
+        return run
 
 
 class WorkdayTimetablePlugin(AirflowPlugin):
     name = "workday_timetable_plugin"
     timetables = [BiweeklyTimetable]
+
+
+class TestSendTimetablePlugin(AirflowPlugin):
+    name = "test_timetable_plugin"
+    timetables = [TestSendTimetable]
+
+
+class TestTargetDayTimetablePlugin(AirflowPlugin):
+    name = "test_timetable_plugin"
+    timetables = [TestTargetDayTimetable]
