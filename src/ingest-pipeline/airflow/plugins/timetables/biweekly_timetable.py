@@ -2,7 +2,7 @@ import logging
 from datetime import timedelta
 from typing import TYPE_CHECKING
 
-from pendulum import UTC, Date, DateTime, Time
+from pendulum import Date, DateTime, Time
 from pendulum.day import WeekDay
 
 from airflow.plugins_manager import AirflowPlugin
@@ -30,7 +30,8 @@ class BiweeklyTimetable(Timetable):
     """
 
     run_interval_days = 14
-    send_time = Time(16, 0, 0)
+    send_time = Time(16, 0, 0)  # 11am Eastern
+    cutoff_time = Time(20, 0, 0)
 
     def get_next_workday(self, next_start: DateTime) -> DateTime:
         holidays = (
@@ -40,7 +41,7 @@ class BiweeklyTimetable(Timetable):
         )
         # ensure next_start does not fall on weekend or holiday;
         # increment next_start by 1 day until valid day is found
-        if next_start.weekday() in (5, 6) or next_start in holidays:
+        if next_start.day_of_week in [WeekDay.SATURDAY, WeekDay.SUNDAY] or next_start in holidays:
             next_start_incremented = next_start.add(days=1)
             # must be recursive to deal with back-to-back holidays/weekend days
             new_start = self.get_next_workday(next_start_incremented)
@@ -53,65 +54,59 @@ class BiweeklyTimetable(Timetable):
         last_automated_data_interval: DataInterval | None,
         restriction: "TimeRestriction",
     ) -> DagRunInfo | None:
-        if (
-            last_automated_data_interval is not None
-        ):  # There was a previous run on the regular schedule.
-            adjusted_last_start = self.adjust_run_to_target_weekday(last_automated_data_interval)
+        # There was a previous run on the regular schedule;
+        # increment by self.run_interval_days to find next_start.
+        if last_automated_data_interval is not None:
+            adjusted_last_start = self.adjust_run_to_monday(last_automated_data_interval)
             last_start = adjusted_last_start.start
             next_start = DateTime.combine(
                 (last_start + timedelta(days=self.run_interval_days)).date(), self.send_time
             )
-        # Otherwise this is the first ever run on the regular schedule...
-        elif (earliest := restriction.earliest) is None:
-            return None  # No start_date. Don't schedule.
+        # No previous run and restriction.earliest=None; don't schedule.
+        elif restriction.earliest is None:
+            return None
+        # No previous run and catchup=False; next_start is the later of
+        # restriction.earliest and today.
         elif not restriction.catchup:
-            # If the DAG has catchup=False, today is the earliest to consider.
-            next_start = max(earliest, DateTime.combine(Date.today(), self.send_time))
-        elif earliest.time() != self.send_time:
-            # If earliest is before 16:00:00 UTC, set to 16.
-            # If earliest is between 16:00:01 and 19:00:00, send at 19:00:00.
-            # If earliest is after 19:00:01, skip to next day.
-            if earliest.time() < self.send_time:
-                next_start = DateTime.combine(earliest.date(), self.send_time)
-            elif self.send_time < earliest.time() <= Time(19, 0, 0):
-                next_start = DateTime.combine(earliest.date(), Time(19, 0, 0))
-            else:
-                next_start = DateTime.combine(earliest.date() + timedelta(days=1), self.send_time)
+            next_start = max(restriction.earliest, DateTime.combine(Date.today(), self.send_time))
+        # No previous run, restriction.earliest is set, catchup=True;
+        # next_start must be set to restriction.earliest.
         else:
-            next_start = earliest
+            next_start = restriction.earliest
+
+        # Make sure start time matches self.start_time
+        next_start = self.adjust_time(next_start)
         # Skip weekends and holidays
         next_start = self.get_next_workday(next_start)
 
+        # After the DAG's scheduled end; don't schedule.
         if restriction.latest is not None and next_start > restriction.latest:
-            return None  # Over the DAG's scheduled end; don't schedule.
+            return None
+
         return DagRunInfo.interval(
             start=next_start, end=(next_start + timedelta(days=self.run_interval_days))
         )
 
-    def adjust_run_to_target_weekday(
-        self, last_run: DataInterval, target_weekday: WeekDay = WeekDay.MONDAY
-    ):
-        if last_run.start.weekday() == target_weekday:
-            return last_run
-        elif last_run.start.weekday() in [WeekDay.TUESDAY, WeekDay.WEDNESDAY]:
-            previous_monday = last_run.start.previous(WeekDay.MONDAY, keep_time=True)
-            last_run = DataInterval(start=previous_monday, end=last_run.end)
-        else:
-            next_monday = last_run.start.next(WeekDay.MONDAY, keep_time=True)
-            last_run = DataInterval(start=next_monday, end=last_run.end)
-        return last_run
+    def adjust_time(self, date_to_adjust: DateTime):
+        return DateTime.combine(date_to_adjust.date(), self.send_time)
+
+    def adjust_run_to_monday(self, run: DataInterval):
+        if run.start.day_of_week in [WeekDay.TUESDAY, WeekDay.WEDNESDAY, WeekDay.THURSDAY]:
+            previous_monday = run.start.previous(WeekDay.MONDAY, keep_time=True)
+            run = DataInterval(start=previous_monday, end=run.end)
+        elif run.start.day_of_week is not WeekDay.MONDAY:
+            next_monday = run.start.next(WeekDay.MONDAY, keep_time=True)
+            run = DataInterval(start=next_monday, end=run.end)
+        return run
 
     def infer_manual_data_interval(self, *, run_after: DateTime) -> DataInterval:
         """
-        Used for manually triggered runs, where `run_after` == when triggered
+        Used for manually triggered runs, where run_after == when triggered.
         """
-        # Set start to <self.run_interval_days> ago at <self.send_time> o'clock.
-        start = DateTime.combine(
-            (run_after - timedelta(self.run_interval_days)).date(), self.send_time
-        ).replace(tzinfo=UTC)
-        # Retrace steps that would have happened to get actual last run datetime.
-        start = self.get_next_workday(start)
-        # Return actual last start incremented by <self.run_interval_days>.
+        # Infer start to be <self.run_interval_days> before <run_after>
+        start = DateTime.combine((run_after - timedelta(self.run_interval_days)).date(), Time.min)
+        # Adjust start if inferred value is not a workday
+        start = DateTime.combine(self.get_next_workday(start), self.send_time)
         return DataInterval(start=start, end=(start + timedelta(days=self.run_interval_days)))
 
 
