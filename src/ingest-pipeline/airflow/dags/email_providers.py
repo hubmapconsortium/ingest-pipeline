@@ -282,7 +282,7 @@ with HMDAG(
             *get_counts(data),
             "</ul>",
             # TODO
-            "Instructions:",
+            # "Instructions:",
             "<br>",
             "<br>",
         ]
