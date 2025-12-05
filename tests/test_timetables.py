@@ -2,8 +2,11 @@ import datetime
 import unittest
 from unittest.mock import patch
 
-from pendulum import Date, DateTime
-from timetables.biweekly_timetable import BiweeklyTimetable
+from pendulum import Date, DateTime, day
+from timetables.biweekly_timetable import (  # type: ignore
+    BiweeklyTimetable,
+    TestTargetDayTimetable,
+)
 
 from airflow.timetables.base import DataInterval, TimeRestriction
 
@@ -225,21 +228,51 @@ class TestBiweeklyTimetable(unittest.TestCase):
     def test_infer_manual_data_interval(self):
         """
         Creates an interval for manually triggered runs.
-        Interval will start on a workday, but not
-        necessarily a Monday (automated scheduler can figure
-        that out next time).
+        Does not adjust based on weekdays or holidays.
         """
-        # Creates interval without adjustment
-        assert self.tt.infer_manual_data_interval(
-            run_after=DateTime(2025, 12, 2, 13, 5, 49)
-        ) == DataInterval(
-            start=date_with_start_time(2025, 11, 18),
-            end=date_with_start_time(2025, 12, 2),
+        manual_run = DateTime(2025, 12, 2, 13, 5, 49)
+        assert self.tt.infer_manual_data_interval(run_after=manual_run) == DataInterval(
+            start=manual_run.add(days=-self.tt.run_interval_days), end=manual_run
         )
-        # Creates interval with adjustment because start falls on a holiday.
-        assert self.tt.infer_manual_data_interval(
-            run_after=DateTime(2026, 1, 8, 13, 5, 49)
-        ) == DataInterval(
-            start=date_with_start_time(2025, 12, 26),
-            end=date_with_start_time(2026, 1, 9),
+
+    def test_sequence_of_intervals(self):
+        restriction = TimeRestriction(earliest=DateTime(2025, 12, 1), latest=None, catchup=False)
+        # start with an off-schedule manual run on a Tuesday at wrong time
+        run_after = DateTime(2025, 12, 2, 13, 5, 49)
+        manual_interval = self.tt.infer_manual_data_interval(run_after=run_after)
+        assert manual_interval.start == run_after.add(days=-self.tt.run_interval_days)
+        assert manual_interval.end == run_after
+        assert manual_interval.start.day_of_week == day.WeekDay.TUESDAY
+        # use that DataInterval when calculating next_dagrun_info
+        next_auto_run = self.tt.next_dagrun_info(
+            last_automated_data_interval=manual_interval, restriction=restriction
+        )
+        # assert that schedule is back on track
+        assert next_auto_run.data_interval.start == date_with_start_time(2025, 12, 1)
+        assert next_auto_run.data_interval.end == date_with_start_time(2025, 12, 15)
+        assert next_auto_run.data_interval.start.day_of_week == day.WeekDay.MONDAY
+        assert next_auto_run.data_interval.end.day_of_week == day.WeekDay.MONDAY
+
+
+class TestTestTargetDayTimetable(unittest.TestCase):
+    def test_adjust_run(self):
+        tt = TestTargetDayTimetable()
+        last_run_monday = DataInterval(
+            start=date_with_start_time(2025, 11, 17),
+            end=date_with_start_time(2025, 12, 1),
+        )
+        assert tt.adjust_run_to_target_weekdays(last_run_monday).start == last_run_monday.start
+        last_run_wednesday = DataInterval(
+            start=date_with_start_time(2025, 11, 19),
+            end=date_with_start_time(2025, 12, 3),
+        )
+        assert tt.adjust_run_to_target_weekdays(last_run_wednesday).start == date_with_start_time(
+            2025, 11, 20
+        )
+        last_run_friday = DataInterval(
+            start=date_with_start_time(2025, 11, 21),
+            end=date_with_start_time(2025, 12, 5),
+        )
+        assert tt.adjust_run_to_target_weekdays(last_run_friday).start == date_with_start_time(
+            2025, 11, 24
         )
