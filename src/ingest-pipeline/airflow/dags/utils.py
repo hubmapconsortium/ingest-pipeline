@@ -1,4 +1,5 @@
 import json
+import logging
 import math
 import os
 import re
@@ -8,12 +9,14 @@ import uuid
 from abc import ABC, abstractmethod
 from collections import namedtuple
 from copy import deepcopy
+from datetime import datetime
 from functools import lru_cache
 from os import environ, fspath, walk
 from os.path import basename, dirname, exists, getsize, join, realpath, relpath, split
 from pathlib import Path
 from pprint import pprint
 from subprocess import CalledProcessError, check_output
+from textwrap import dedent
 from typing import (
     Any,
     Callable,
@@ -44,6 +47,7 @@ from airflow import DAG
 from airflow.configuration import conf as airflow_conf
 from airflow.models.baseoperator import BaseOperator
 from airflow.providers.http.hooks.http import HttpHook
+from airflow.utils.email import send_email as airflow_send_email
 
 airflow_conf.read(join(environ["AIRFLOW_HOME"], "instance", "app.cfg"))
 try:
@@ -2107,6 +2111,36 @@ def main():
     crypt_s = encrypt_tok(s)
     s2 = decrypt_tok(crypt_s)
     print("crypto test: {} -> {} -> {}".format(s, crypt_s, s2))
+
+
+def send_email(
+    contact: str,
+    subject: str,
+    email_body: str,
+    attachment_path: Optional[str] = None,
+    cc: Optional[list[str]] = None,
+):
+    assert contact and email_body
+    logging.info(
+        dedent(
+            f"""
+            Sending email
+            Contact: {contact}
+            cc: {", ".join(cc) if cc else "None"}
+            Subject: {subject}
+            Message: {email_body}
+            {("Attachment path: " + attachment_path) if attachment_path else "None"}
+            """
+        ).strip()
+    )
+    logging.info("replacing contact info for testing...")
+    airflow_send_email(
+        contact,
+        subject,
+        email_body,
+        files=[attachment_path] if attachment_path else None,
+        cc=cc,
+    )
 
 
 if __name__ == "__main__":

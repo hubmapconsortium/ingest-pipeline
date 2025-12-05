@@ -1,7 +1,5 @@
 import logging
 from datetime import datetime
-from textwrap import dedent
-from typing import Optional
 
 import pandas as pd
 from hubmap_operators.common_operators import (  # type: ignore
@@ -17,13 +15,13 @@ from utils import (
     get_preserve_scratch_resource,
     get_queue_resource,
     get_tmp_dir_path,
+    send_email,
 )
 
 from airflow.configuration import conf as airflow_conf
 from airflow.operators.empty import EmptyOperator
 from airflow.operators.python import BranchPythonOperator, PythonOperator
 from airflow.providers.http.hooks.http import HttpHook
-from airflow.utils.email import send_email
 
 INTERNAL_CONTACT = "gesina@psc.edu"
 
@@ -64,6 +62,11 @@ with HMDAG(
         task_id="get_groups",
         python_callable=get_groups,
         provide_context=True,
+        op_kwargs={
+            "crypt_auth_tok": encrypt_tok(
+                str(airflow_conf.as_dict()["connections"]["APP_CLIENT_SECRET"])
+            ).decode(),
+        },
     )
 
     def get_data(**kwargs):
@@ -82,7 +85,7 @@ with HMDAG(
         provide_context=True,
         op_kwargs={
             "crypt_auth_tok": encrypt_tok(
-                airflow_conf.as_dict()["connections"]["APP_CLIENT_SECRET"]  # type: ignore
+                str(airflow_conf.as_dict()["connections"]["APP_CLIENT_SECRET"])
             ).decode()
         },
     )
@@ -105,7 +108,14 @@ with HMDAG(
                 spreadsheet_path = get_csv_path(group_name, **kwargs)
                 group_data.to_csv(spreadsheet_path)
                 cc = list(set(group_data["creator_email"].tolist()))
-                send(group_contact, email_body, attachment_path=spreadsheet_path, cc=cc)
+                date = datetime.now().strftime("%Y-%m-%d")
+                send_email(
+                    group_contact,
+                    f"HuBMAP dataset status report ({date})",
+                    email_body,
+                    attachment_path=spreadsheet_path,
+                    cc=cc,
+                )
             except Exception as e:
                 logging.error(f"{group_name}: {str(e.__class__)}: {e}")
                 errors[group_name] = str(e)
@@ -118,6 +128,11 @@ with HMDAG(
         task_id="send_data",
         python_callable=send_data,
         provide_context=True,
+        op_kwargs={
+            "crypt_auth_tok": encrypt_tok(
+                str(airflow_conf.as_dict()["connections"]["APP_CLIENT_SECRET"])
+            ).decode(),
+        },
     )
 
     def report_errors(**kwargs):
@@ -127,12 +142,21 @@ with HMDAG(
         errors = kwargs["ti"].xcom_pull(key="errors")
         formatted_errors = "<br>".join([f"{key}: {val}" for key, val in errors.items()])
         logging.error(formatted_errors)
-        send(INTERNAL_CONTACT, f"Errors in EmailProviders DAG:\n{formatted_errors}")
+        send_email(
+            INTERNAL_CONTACT,
+            "Errors in EmailProviders DAG",
+            formatted_errors,
+        )
 
     t_report_errors = PythonOperator(
         task_id="report_errors",
         python_callable=report_errors,
         provide_context=True,
+        op_kwargs={
+            "crypt_auth_tok": encrypt_tok(
+                str(airflow_conf.as_dict()["connections"]["APP_CLIENT_SECRET"])
+            ).decode(),
+        },
     )
 
     ########################
@@ -236,38 +260,6 @@ with HMDAG(
 
         assert isinstance(df, pd.DataFrame)
         return df
-
-    def send(
-        contact: str,
-        email_body: str,
-        attachment_path: Optional[str] = None,
-        cc: Optional[list[str]] = None,
-    ):
-        assert contact and email_body
-        date = datetime.now().strftime("%Y-%m-%d")
-        subject = f"HuBMAP dataset status report ({date})"
-        logging.info(
-            dedent(
-                f"""
-                Sending email
-                Contact: {contact}
-                cc: {", ".join(cc) if cc else "None"}
-                Message: {email_body}
-                Attachment path: {attachment_path}
-                """
-            ).strip()
-        )
-        logging.info("replacing contact info for testing...")
-        # TODO
-        send_email(
-            # contact,
-            "gesina@psc.edu",
-            subject,
-            email_body,
-            files=[attachment_path] if attachment_path else None,
-            # cc=cc,
-            cc=["gesina@psc.edu"],
-        )
 
     ##############
     # Formatting #
