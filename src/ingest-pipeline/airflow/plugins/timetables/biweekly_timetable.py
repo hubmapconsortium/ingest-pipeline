@@ -1,6 +1,5 @@
-import datetime
 import logging
-from datetime import timedelta
+from datetime import timedelta, timezone
 from typing import TYPE_CHECKING
 
 from pendulum import Date, DateTime, Time
@@ -25,29 +24,35 @@ except ImportError:
 class BiweeklyTimetable(Timetable):
     """
     Runs biweekly on Mondays.
-    If Monday is a holiday, increments += 1 until it finds a non-holiday.
+    If Monday is a holiday, increments hours += 24 until it finds a non-holiday.
 
     Cribbed from https://airflow.apache.org/docs/apache-airflow/2.11.0/howto/timetable.html
     """
 
-    run_interval_days = 14
-    send_time = Time(16, 0, 0)  # 11am Eastern
-    cutoff_time = Time(20, 0, 0)
-    target_weekdays = [WeekDay.MONDAY]
+    tz: timezone = timezone.utc
+    run_interval_days: int = 14
+    send_time: Time = Time(16, 0, 0, tzinfo=tz)  # 11am Eastern
+    cutoff_time: Time = Time(20, 0, 0, tzinfo=tz)
+    target_weekdays: list[WeekDay] = [WeekDay.MONDAY]
 
     def get_next_workday(self, next_start: DateTime) -> DateTime:
+        # Holiday calendar requires tz-aware datetime
+        if not next_start.tzinfo:
+            next_start = DateTime.combine(next_start.date(), next_start.time(), tzinfo=self.tz)
         holidays = (
             holiday_calendar.holidays(start=next_start, end=next_start).to_pydatetime()
             if holiday_calendar
             else set()
         )
         # ensure next_start does not fall on weekend or holiday;
-        # increment next_start by 1 day until valid day is found
+        # increment next_start by 24 hours (hours=24 rather than days=1 prevents removal of tz)
+        # until valid day is found
         if next_start.day_of_week in [WeekDay.SATURDAY, WeekDay.SUNDAY] or next_start in holidays:
-            next_start_incremented = next_start.add(days=1)
+            next_start_incremented = next_start.add(hours=24)
             # must be recursive to deal with back-to-back holidays/weekend days
             new_start = self.get_next_workday(next_start_incremented)
             return new_start
+
         return next_start
 
     def next_dagrun_info(
@@ -72,14 +77,17 @@ class BiweeklyTimetable(Timetable):
         # No previous run and catchup=False; next_start is the later of
         # restriction.earliest and today.
         elif not restriction.catchup:
-            next_start = max(restriction.earliest, DateTime.combine(Date.today(), self.send_time))
+            next_start = max(
+                restriction.earliest,
+                DateTime.combine(Date.today(), self.send_time, tzinfo=self.tz),
+            )
         # No previous run, restriction.earliest is set, catchup=True;
         # next_start must be set to restriction.earliest.
         else:
             next_start = restriction.earliest
 
-        # Make sure start time matches self.start_time
-        next_start = self.adjust_time(next_start)
+        # Make sure start time is valid
+        next_start = self.adjust_time(next_start, catchup=bool(restriction.catchup))
         # Skip weekends and holidays
         next_start = self.get_next_workday(next_start)
 
@@ -91,10 +99,26 @@ class BiweeklyTimetable(Timetable):
             start=next_start, end=(next_start + timedelta(days=self.run_interval_days))
         )
 
-    def adjust_time(self, date_to_adjust: DateTime):
-        return DateTime.combine(
-            date_to_adjust.date(), self.send_time, tzinfo=datetime.timezone.utc
-        )
+    def adjust_time(self, date_to_adjust: DateTime, catchup: bool = False) -> DateTime:
+        if catchup == True:
+            return DateTime.combine(date_to_adjust.date(), self.send_time, tzinfo=self.tz)
+        if not date_to_adjust.tzinfo:
+            date_to_adjust = DateTime.combine(
+                date_to_adjust.date(), date_to_adjust.time(), tzinfo=self.tz
+            )
+        todays_send_time = DateTime.combine(Date.today(), self.send_time, tzinfo=self.tz)
+        if date_to_adjust.date() < DateTime.utcnow().date():
+            # date_to_adjust date has already passed, advance send_date to tomorrow
+            date = Date.today().add(days=1)
+        elif date_to_adjust.date() == DateTime.utcnow().date():
+            # but we're past the send_time for today, send tomorrow
+            if DateTime.utcnow() > todays_send_time:
+                date = Date.today().add(days=1)
+            else:
+                date = Date.today()
+        else:
+            date = date_to_adjust.date()
+        return DateTime.combine(date, self.send_time, tzinfo=self.tz)
 
     def adjust_run_to_target_weekdays(
         self, run: DataInterval, target_weekdays: list[WeekDay] = [WeekDay.MONDAY]
@@ -102,14 +126,16 @@ class BiweeklyTimetable(Timetable):
         del target_weekdays
         return self.adjust_run_to_monday(run)
 
-    def adjust_run_to_monday(self, run: DataInterval):
+    def adjust_run_to_monday(self, run: DataInterval) -> DataInterval:
+        if run.start.day_of_week is WeekDay.MONDAY:
+            return run
         if run.start.day_of_week in [WeekDay.TUESDAY, WeekDay.WEDNESDAY, WeekDay.THURSDAY]:
-            previous_monday = run.start.previous(WeekDay.MONDAY, keep_time=True)
-            run = DataInterval(start=previous_monday, end=run.end)
-        elif run.start.day_of_week is not WeekDay.MONDAY:
-            next_monday = run.start.next(WeekDay.MONDAY, keep_time=True)
-            run = DataInterval(start=next_monday, end=run.end)
-        return run
+            start = run.start.previous(WeekDay.MONDAY, keep_time=True)
+            end = run.end.add(days=-start.diff(run.start).days)
+        else:
+            start = run.start.next(WeekDay.MONDAY, keep_time=True)
+            end = run.end.add(days=start.diff(run.start).days)
+        return DataInterval(start=start, end=end)
 
     def infer_manual_data_interval(self, *, run_after: DateTime) -> DataInterval:
         """
@@ -117,11 +143,13 @@ class BiweeklyTimetable(Timetable):
         """
         return DataInterval(
             start=(
-                (run_after - timedelta(self.run_interval_days)).replace(
-                    tzinfo=datetime.timezone.utc
+                DateTime.combine(
+                    run_after - timedelta(self.run_interval_days),
+                    Time(run_after.hour, run_after.minute, run_after.second),
+                    tzinfo=self.tz,
                 )
             ),
-            end=run_after,
+            end=DateTime.combine(run_after.date(), run_after.time(), tzinfo=self.tz),
         )
 
 

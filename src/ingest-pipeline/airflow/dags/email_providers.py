@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 
 import pandas as pd
 from hubmap_operators.common_operators import (  # type: ignore
@@ -34,7 +34,7 @@ default_args = {
     "owner": "hubmap",
     "queue": get_queue_resource("email_providers"),
     "retries": 0,
-    "start_date": datetime(2025, 12, 1),
+    "start_date": datetime(2025, 12, 1, tzinfo=timezone.utc),
     "xcom_push": True,
 }
 
