@@ -2,12 +2,12 @@ import logging
 from datetime import datetime, timezone
 
 import pandas as pd
+from biweekly_timetable import BiweeklyTimetable  # type: ignore
 from hubmap_operators.common_operators import (  # type: ignore
     CleanupTmpDirOperator,
     CreateTmpDirOperator,
 )
 from status_change.callbacks.failure_callback import FailureCallback
-from timetables.biweekly_timetable import BiweeklyTimetable  # type: ignore
 from utils import (
     HMDAG,
     encrypt_tok,
