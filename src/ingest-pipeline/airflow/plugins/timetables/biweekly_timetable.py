@@ -1,3 +1,4 @@
+import datetime
 import logging
 from datetime import timedelta
 from typing import TYPE_CHECKING
@@ -91,7 +92,9 @@ class BiweeklyTimetable(Timetable):
         )
 
     def adjust_time(self, date_to_adjust: DateTime):
-        return DateTime.combine(date_to_adjust.date(), self.send_time)
+        return DateTime.combine(
+            date_to_adjust.date(), self.send_time, tzinfo=datetime.timezone.utc
+        )
 
     def adjust_run_to_target_weekdays(
         self, run: DataInterval, target_weekdays: list[WeekDay] = [WeekDay.MONDAY]
@@ -112,7 +115,14 @@ class BiweeklyTimetable(Timetable):
         """
         Used for manually triggered runs, where run_time == when triggered.
         """
-        return DataInterval(start=(run_after - timedelta(self.run_interval_days)), end=run_after)
+        return DataInterval(
+            start=(
+                (run_after - timedelta(self.run_interval_days)).replace(
+                    tzinfo=datetime.timezone.utc
+                )
+            ),
+            end=run_after,
+        )
 
 
 class TestSendTimetable(BiweeklyTimetable):
