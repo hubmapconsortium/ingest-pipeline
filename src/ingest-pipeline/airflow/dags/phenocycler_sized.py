@@ -78,13 +78,16 @@ def generate_phenocycler_dag(params: SequencingDagParameters) -> DAG:
 
             input_parameters = [
                 {"parameter_name": "--enable_manhole", "value": ""},
-                {"parameter_name": "--threadpool_limit", "value": get_threads_resource(dag.dag_id)},
+                {
+                    "parameter_name": "--threadpool_limit",
+                    "value": get_threads_resource(dag.dag_id),
+                },
                 {"parameter_name": "--image_dir", "value": str(data_dir / "pipeline_output/expr")},
                 {"parameter_name": "--mask_dir", "value": str(data_dir / "pipeline_output/mask")},
             ]
 
             command = get_cwl_cmd_from_workflows(
-                workflows, 1, input_parameters, tmpdir, kwargs["ti"]
+                workflows, 2, input_parameters, tmpdir, kwargs["ti"]
             )
 
             return join_quote_command_str(command)
@@ -134,8 +137,9 @@ def generate_phenocycler_dag(params: SequencingDagParameters) -> DAG:
                 {"parameter_name": "--sprm_output", "value": str(data_dir / "sprm_outputs")},
             ]
 
-            command = get_cwl_cmd_from_workflows(workflows, 2, input_parameters,
-                                                 tmpdir, kwargs["ti"])
+            command = get_cwl_cmd_from_workflows(
+                workflows, 3, input_parameters, tmpdir, kwargs["ti"]
+            )
 
             return join_quote_command_str(command)
 
@@ -184,7 +188,9 @@ def generate_phenocycler_dag(params: SequencingDagParameters) -> DAG:
                 {"parameter_name": "--ometiff_directory", "value": str(tmpdir / "cwl_out")},
             ]
 
-            command = get_cwl_cmd_from_workflows(workflows, 3, input_parameters, tmpdir, kwargs["ti"])
+            command = get_cwl_cmd_from_workflows(
+                workflows, 4, input_parameters, tmpdir, kwargs["ti"]
+            )
 
             return join_quote_command_str(command)
 
@@ -232,7 +238,9 @@ def generate_phenocycler_dag(params: SequencingDagParameters) -> DAG:
                 {"parameter_name": "--input_dir", "value": str(data_dir / "ometiff-pyramids")},
             ]
 
-            command = get_cwl_cmd_from_workflows(workflows, 4, input_parameters, tmpdir, kwargs["ti"])
+            command = get_cwl_cmd_from_workflows(
+                workflows, 5, input_parameters, tmpdir, kwargs["ti"]
+            )
 
             return join_quote_command_str(command)
 
@@ -280,7 +288,9 @@ def generate_phenocycler_dag(params: SequencingDagParameters) -> DAG:
                 {"parameter_name": "--input_dir", "value": str(data_dir / "sprm_outputs")},
             ]
 
-            command = get_cwl_cmd_from_workflows(workflows, 5, input_parameters, tmpdir, kwargs["ti"])
+            command = get_cwl_cmd_from_workflows(
+                workflows, 6, input_parameters, tmpdir, kwargs["ti"]
+            )
 
             return join_quote_command_str(command)
 
@@ -328,7 +338,9 @@ def generate_phenocycler_dag(params: SequencingDagParameters) -> DAG:
                 {"parameter_name": "--input_dir", "value": str(data_dir / "sprm_outputs")},
             ]
 
-            command = get_cwl_cmd_from_workflows(workflows, 6, input_parameters, tmpdir, kwargs["ti"])
+            command = get_cwl_cmd_from_workflows(
+                workflows, 7, input_parameters, tmpdir, kwargs["ti"]
+            )
 
             return join_quote_command_str(command)
 
@@ -439,33 +451,27 @@ def generate_phenocycler_dag(params: SequencingDagParameters) -> DAG:
             >> t_build_cmd_sprm
             >> t_pipeline_exec_cwl_sprm
             >> t_maybe_keep_cwl_sprm
-
             >> prepare_cwl_create_vis_symlink_archive
             >> t_build_cmd_create_vis_symlink_archive
             >> t_pipeline_exec_cwl_create_vis_symlink_archive
             >> t_maybe_keep_cwl_create_vis_symlink_archive
-
             >> prepare_cwl_ome_tiff_pyramid
             >> t_build_cmd_ome_tiff_pyramid
             >> t_pipeline_exec_cwl_ome_tiff_pyramid
             >> t_maybe_keep_cwl_ome_tiff_pyramid
-
             >> prepare_cwl_ome_tiff_offsets
             >> t_build_cmd_ome_tiff_offsets
             >> t_pipeline_exec_cwl_ome_tiff_offsets
             >> t_maybe_keep_cwl_ome_tiff_offsets
-
             >> prepare_cwl_sprm_to_json
             >> t_build_cmd_sprm_to_json
             >> t_pipeline_exec_cwl_sprm_to_json
             >> t_maybe_keep_cwl_sprm_to_json
-
             >> prepare_cwl_sprm_to_anndata
             >> t_build_cmd_sprm_to_anndata
             >> t_pipeline_exec_cwl_sprm_to_anndata
             >> t_maybe_keep_cwl_sprm_to_anndata
             >> t_maybe_create_dataset
-
             >> t_send_create_dataset
             >> t_move_data
             >> t_expand_symlinks
@@ -484,18 +490,19 @@ def generate_phenocycler_dag(params: SequencingDagParameters) -> DAG:
 
     return dag
 
+
 phenocycler_dag_params: List[SequencingDagParameters] = [
     SequencingDagParameters(
         dag_id="phenocycler_low_cell_count",
         pipeline_name="phenocycler_low_cell_count",
         assay="phenocycler_deepcell",
-        workflow_description="The Phenocycler pipeline begins with optional masking of user-specified regions defined in an optional geoJSON file describing areas of inclusino or exclusion.  It then breaks the image up into slices that can be reasonably segmented, runs cell and nuclear segmentation on those slices using DeepCell with the specified marker channels and stitches the segmentation masks back into one mask which can overlay the full expression image.  The segmentation masks and expression images are then used for cell type assignment using RIBCA, Stellar, and DeepCellTypes.  Finally, SPRM is used for spatial analysis of expression data, including computation of various measures of analyte intensity per cell, clustering based on expression and other data, marker computation per cluster, subclustering of cell types assigned by multiple methods and more."
+        workflow_description="The Phenocycler pipeline begins with optional masking of user-specified regions defined in an optional geoJSON file describing areas of inclusino or exclusion.  It then breaks the image up into slices that can be reasonably segmented, runs cell and nuclear segmentation on those slices using DeepCell with the specified marker channels and stitches the segmentation masks back into one mask which can overlay the full expression image.  The segmentation masks and expression images are then used for cell type assignment using RIBCA, Stellar, and DeepCellTypes.  Finally, SPRM is used for spatial analysis of expression data, including computation of various measures of analyte intensity per cell, clustering based on expression and other data, marker computation per cluster, subclustering of cell types assigned by multiple methods and more.",
     ),
     SequencingDagParameters(
         dag_id="phenocycler_high_cell_count",
         pipeline_name="salmon-rnaseq",
         assay="phenocycler_deepcell",
-        workflow_description="The Phenocycler pipeline begins with optional masking of user-specified regions defined in an optional geoJSON file describing areas of inclusino or exclusion.  It then breaks the image up into slices that can be reasonably segmented, runs cell and nuclear segmentation on those slices using DeepCell with the specified marker channels and stitches the segmentation masks back into one mask which can overlay the full expression image.  The segmentation masks and expression images are then used for cell type assignment using RIBCA, Stellar, and DeepCellTypes.  Finally, SPRM is used for spatial analysis of expression data, including computation of various measures of analyte intensity per cell, clustering based on expression and other data, marker computation per cluster, subclustering of cell types assigned by multiple methods and more."
+        workflow_description="The Phenocycler pipeline begins with optional masking of user-specified regions defined in an optional geoJSON file describing areas of inclusino or exclusion.  It then breaks the image up into slices that can be reasonably segmented, runs cell and nuclear segmentation on those slices using DeepCell with the specified marker channels and stitches the segmentation masks back into one mask which can overlay the full expression image.  The segmentation masks and expression images are then used for cell type assignment using RIBCA, Stellar, and DeepCellTypes.  Finally, SPRM is used for spatial analysis of expression data, including computation of various measures of analyte intensity per cell, clustering based on expression and other data, marker computation per cluster, subclustering of cell types assigned by multiple methods and more.",
     ),
 ]
 
