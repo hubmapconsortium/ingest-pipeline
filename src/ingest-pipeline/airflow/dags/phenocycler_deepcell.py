@@ -172,7 +172,7 @@ with HMDAG(
 
     t_build_cwl_stellar_pre_convert = PythonOperator(
         task_id="build_cwl_stellar_pre_convert",
-        python_callable=build_cwltool_cwl_stellar_pre_convert(),
+        python_callable=build_cwltool_cwl_stellar_pre_convert,
         provide_context=True,
     )
 
