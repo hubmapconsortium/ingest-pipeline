@@ -62,7 +62,7 @@ with HMDAG(
             "documentation_url": "",
         },
         {
-            "workflow_path": str(get_absolute_workflow(Path("stellar", "pre-convert.cwl"))),
+            "workflow_path": str(get_absolute_workflow(Path("stellar/steps", "pre-convert.cwl"))),
             "documentation_url": "",
         },
         {
