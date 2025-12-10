@@ -190,10 +190,9 @@ with HMDAG(
     t_copy_stellar_pre_convert_data = BashOperator(
         task_id="copy_stellar_pre_convert_data",
         bash_command=""" \
-        mkdir /hive/hubmap/data/projects/STELLAR_pre_convert/{{run_id}}/
+        mkdir /hive/hubmap/data/projects/STELLAR_pre_convert/{{ dag_run.conf.parent_submission_id }}/
         tmp_dir={{tmp_dir_path(run_id)}} ; \
-        echo {{ dag_run.conf.parent_submission_id }}
-        find ${tmp_dir} -name "cell_data.h5ad" -exec cp -v {} /hive/hubmap/data/projects/STELLAR_pre_convert/{{run_id}} \; ; \
+        find ${tmp_dir} -name "cell_data.h5ad" -exec cp -v {} /hive/hubmap/data/projects/STELLAR_pre_convert/{{ dag_run.conf.parent_submission_id }} \; ; \
         echo $?
         """,
     )
