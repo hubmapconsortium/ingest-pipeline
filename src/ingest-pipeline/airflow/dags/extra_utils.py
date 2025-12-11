@@ -174,6 +174,7 @@ def calculate_statistics(file_path: str) -> pd:
     startjob = r"\[job .+\] .+ docker \\$"
     endjob = r"\[job .+\] completed success$"
     processes = r"--num_concurrent_tasks \\$|--processes \\$"
+    single_line = r"^\s{4}[0-9]$"
     gpu_task = r".*gpu.*"
     gpu = False
     processes_marker = False
@@ -195,7 +196,7 @@ def calculate_statistics(file_path: str) -> pd:
                         # Check if this is CPU or GPU and create a flag
                     if starting_timestamp and re.search(gpu_task, line):
                         gpu = True
-                    if processes_marker:
+                    if processes_marker or re.search(single_line, line):
                         cpu_count *= int(line.strip("\\\n"))
                         processes_marker = False
                     if starting_timestamp and re.search(processes, line):
