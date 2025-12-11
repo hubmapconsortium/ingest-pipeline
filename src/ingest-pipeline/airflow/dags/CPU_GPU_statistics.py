@@ -139,7 +139,7 @@ with HMDAG(
         df['directory'] = df['uuid'].map(base_paths).fillna('')
         print(f"Retrieved {len(base_paths)} base paths")
 
-        df.to_csv(Path(get_tmp_dir_path(kwargs["run_id"])) / "datasets.csv")
+        df.to_csv(Path(get_tmp_dir_path(kwargs["run_id"])) / "datasets.csv", index=False)
 
         return 0
 
@@ -234,7 +234,7 @@ with HMDAG(
                 gpu = False
                 cpu_count = 1
                 processes_marker = False
-        df.to_csv(Path(get_tmp_dir_path(kwargs["run_id"])) / "dataset_usage.csv")
+        df.to_csv(Path(get_tmp_dir_path(kwargs["run_id"])) / "dataset_usage.csv", index=False)
         return 0
 
     t_calculate_statistics = calculate_statistics()
