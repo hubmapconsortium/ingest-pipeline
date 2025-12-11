@@ -182,7 +182,7 @@ with HMDAG(
         task_id="pipeline_exec_cwl_stellar_pre_convert",
         bash_command=""" \
         tmp_dir={{tmp_dir_path(run_id)}} ; \
-        {{ti.xcom_pull(task_ids='build_cwl_stellar_pre_convert')}} > $tmp_dir/session.log 2>&1 ; \
+        {{ti.xcom_pull(task_ids='build_cwl_stellar_pre_convert')}} >> $tmp_dir/session.log 2>&1 ; \
         echo $?
         """,
     )
