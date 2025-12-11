@@ -2,9 +2,9 @@ from typing import Optional
 from pathlib import Path
 
 import pandas as pd
+import utils
 
 from extra_utils import calculate_statistics
-from utils import get_statistics_base_path
 
 from status_change.status_utils import (
     MessageManager,
@@ -34,7 +34,7 @@ class StatisticsManager(MessageManager):
 
     @property
     def is_valid_for_status(self):
-        return bool(self.subj and self.msg)
+        return True if self.status in self.good_statuses else False
 
     def update(self):
         if self.status in self.good_statuses:
@@ -48,4 +48,5 @@ class StatisticsManager(MessageManager):
             statistics_path = log_directory_path(self.run_id) / "datasets.csv"
             df.to_csv(Path(statistics_path), index=False)
             df = calculate_statistics(statistics_path)
-            df.to_csv(Path(get_statistics_base_path() / "dataset_usage.csv"), mode="a", index=False)
+            df.to_csv(Path(utils.get_statistics_base_path() / "dataset_usage.csv"), mode="a",
+                      index=False)
