@@ -44,7 +44,7 @@ class StatisticsManager(MessageManager):
             print(f"Path {self.path}")
             df = pd.DataFrame({"uuid": self.uuid,
                                "dataset_type": self.dataset_type,
-                               "path": self.path})
+                               "path": self.path}, index=[0])
             statistics_path = log_directory_path(self.run_id) / "datasets.csv"
             df.to_csv(Path(statistics_path), index=False)
             df = calculate_statistics(statistics_path)
