@@ -12,6 +12,7 @@ from schema_utils import (
 from .data_ingest_board_manager import DataIngestBoardManager
 from .email_manager import EmailManager
 from .slack_manager import SlackManager
+from .statistics_manager import StatisticsManager
 from .status_utils import (
     ENTITY_STATUS_MAP,
     EntityUpdateException,
@@ -212,7 +213,7 @@ Example usage with optional params:
 
 
 class StatusChanger(EntityUpdater):
-    message_classes = [DataIngestBoardManager, SlackManager, EmailManager]
+    message_classes = [DataIngestBoardManager, SlackManager, EmailManager, StatisticsManager]
     same_status = False
 
     def __init__(
