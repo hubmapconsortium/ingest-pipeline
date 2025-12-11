@@ -39,9 +39,9 @@ class StatisticsManager(MessageManager):
     def update(self):
         if self.status in self.good_statuses:
             self.path = get_abs_path(self.uuid, self.token)
-            print("UUID {self.uuid}")
-            print("Dataset Type {self.dataset_type}")
-            print("Path {self.path}")
+            print(f"UUID {self.uuid}")
+            print(f"Dataset Type {self.dataset_type}")
+            print(f"Path {self.path}")
             df = pd.DataFrame({"uuid": self.uuid,
                                "dataset_type": self.dataset_type,
                                "path": self.path})
