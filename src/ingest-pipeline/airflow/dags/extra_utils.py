@@ -239,5 +239,4 @@ def calculate_statistics(file_path: str) -> pd:
             gpu = False
             cpu_count = 1
             processes_marker = False
-    # df.to_csv(Path(get_tmp_dir_path(kwargs["run_id"])) / "dataset_usage.csv", index=False)
     return df
