@@ -1335,9 +1335,9 @@ def pythonop_md_consistency_tests(**kwargs) -> int:
 def get_statistics_base_path() -> Path:
     dct = airflow_conf.as_dict(display_sensitive=True)["connections"]
     if "STATISTICS_PATH" in dct:
-        return Path(dct["STATISTICS_PATH"])
+        return Path(dct["STATISTICS_PATH"].strip("'").strip('"'))
     elif "statistics_path" in dct:
-        return Path(dct["statistics_path"])
+        return Path(dct["statistics_path"].strip("'").strip('"'))
     else:
         raise KeyError("STATISTICS_PATH")
 
