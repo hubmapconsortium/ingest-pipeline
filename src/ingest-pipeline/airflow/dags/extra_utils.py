@@ -225,13 +225,10 @@ def calculate_statistics(file_path: str) -> pd:
                         print(f"CPU usage: {cpu_usage}, GPU usage: {gpu_usage}")
         except FileNotFoundError:
             print(f"{path} not found")
-            return None
         except PermissionError:
             print(f"{path} permission denied")
-            return None
         except Exception as e:
             print(f"Error {e} in: {path}")
-            return None
         finally:
             df.loc[index, "gpu_usage"] = gpu_usage
             df.loc[index, "cpu_usage"] = cpu_usage

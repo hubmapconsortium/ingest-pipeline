@@ -158,10 +158,8 @@ with HMDAG(
     @task(task_id="statistics")
     def statistics(**kwargs):
         df = calculate_statistics(get_tmp_dir_path(kwargs["run_id"]) / "datasets.csv")
-        if df is not None:
-            df.to_csv(Path(get_tmp_dir_path(kwargs["run_id"])) / "dataset_usage.csv", index=False)
-            return 0
-        return 1
+        df.to_csv(Path(get_tmp_dir_path(kwargs["run_id"])) / "dataset_usage.csv", index=False)
+        return 0
 
     t_calculate_statistics = statistics()
 
