@@ -174,7 +174,7 @@ def calculate_statistics(file_path: str) -> pd:
     startjob = r"\[job .+\] .+ docker \\$"
     endjob = r"\[job .+\] completed success$"
     processes = r"--num_concurrent_tasks \\$|--processes \\$"
-    single_line = r"^\s{4}[0-9]$"
+    single_line = r"^\s{4}[0-9]+$"
     gpu_task = r".*gpu.*"
     gpu = False
     processes_marker = False
