@@ -173,7 +173,7 @@ def calculate_statistics(file_path: str) -> pd:
     df = pd.read_csv(Path(file_path))
     startjob = r"\[job .+\] .+ docker \\$"
     endjob = r"\[job .+\] completed success$"
-    processes = r"--num_concurrent_tasks \\$|--processes \\$"
+    processes = r"--num_concurrent_tasks \\$|--processes \\$|--threads \\$"
     single_line = r"^\s{4}[0-9]+$"
     gpu_task = r".*gpu.*"
     gpu = False
