@@ -207,7 +207,7 @@ def calculate_statistics(file_path: str) -> pd:
                         print(f"Starting timestamp: {starting_timestamp}")
                         print(f"ending timestamp: {ending_timestamp}")
                         print(f"Increasing time: {ending_timestamp - starting_timestamp}")
-                        # if CPU flag, append to CPU, else append to GPU
+                        # if GPU flag, append to GPU, else append to CPU
                         if gpu:
                             gpu_usage += __calculate_usage(starting_timestamp,
                                                            ending_timestamp,
