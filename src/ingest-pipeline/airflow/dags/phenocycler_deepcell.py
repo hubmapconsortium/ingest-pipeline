@@ -63,6 +63,12 @@ with HMDAG(
             "documentation_url": "",
         },
         {
+            "workflow_path": str(
+                get_absolute_workflow(Path("stellar-outofband", "steps", "pre-convert.cwl"))
+            ),
+            "documentation_url": "",
+        },
+        {
             "workflow_path": str(get_absolute_workflow(Path("sprm", "pipeline.cwl"))),
             "documentation_url": "",
         },
@@ -73,8 +79,7 @@ with HMDAG(
             "documentation_url": "",
         },
         {
-            "workflow_path": str(
-                get_absolute_workflow(Path("ome-tiff-pyramid", "pipeline.cwl"))),
+            "workflow_path": str(get_absolute_workflow(Path("ome-tiff-pyramid", "pipeline.cwl"))),
             "documentation_url": "",
         },
         {
@@ -149,9 +154,73 @@ with HMDAG(
         python_callable=utils.pythonop_maybe_keep,
         provide_context=True,
         op_kwargs={
-            "next_op": "prepare_cell_count_cmd",
+            "next_op": "prepare_stellar_pre_convert",
             "bail_op": "set_dataset_error",
             "test_op": "pipeline_exec_cwl_segmentation",
+        },
+    )
+
+    @task(task_id="prepare_stellar_pre_convert")
+    def prepare_cwl_stellar_pre_convert(**kwargs):
+        if kwargs["dag_run"].conf.get("dryrun"):
+            cwl_path = Path(cwl_workflows[1]["workflow_path"]).parent
+            return build_tag_containers(cwl_path)
+        else:
+            return "No Container build required"
+
+    prepare_stellar_pre_convert = prepare_cwl_stellar_pre_convert()
+
+    def build_cwltool_cwl_stellar_pre_convert(**kwargs):
+        run_id = kwargs["run_id"]
+        tmpdir = get_tmp_dir_path(run_id)
+        print("tmpdir: ", tmpdir)
+
+        workflows = kwargs["ti"].xcom_pull(key="cwl_workflows", task_ids="build_cwl_segmentation")
+
+        input_parameters = [
+            {"parameter_name": "--directory", "value": str(tmpdir / "cwl_out")},
+        ]
+        command = get_cwl_cmd_from_workflows(workflows, 1, input_parameters, tmpdir, kwargs["ti"])
+
+        return join_quote_command_str(command)
+
+    t_build_cwl_stellar_pre_convert = PythonOperator(
+        task_id="build_cwl_stellar_pre_convert",
+        python_callable=build_cwltool_cwl_stellar_pre_convert,
+        provide_context=True,
+    )
+
+    t_pipeline_exec_cwl_stellar_pre_convert = BashOperator(
+        task_id="pipeline_exec_cwl_stellar_pre_convert",
+        bash_command=""" \
+        tmp_dir={{tmp_dir_path(run_id)}} ; \
+        {{ti.xcom_pull(task_ids='build_cwl_stellar_pre_convert')}} >> $tmp_dir/session.log 2>&1 ; \
+        echo $?
+        """,
+    )
+
+    #  output is a single file cell_data.h5ad
+    #  copy this output to some hardcoded directory
+    t_copy_stellar_pre_convert_data = BashOperator(
+        task_id="copy_stellar_pre_convert_data",
+        bash_command=""" \
+        mkdir /hive/hubmap/data/projects/STELLAR_pre_convert/{{ dag_run.conf.parent_submission_id }}/
+        tmp_dir={{tmp_dir_path(run_id)}} ; \
+        find ${tmp_dir} -name "cell_data.h5ad" -exec cp -v {} /hive/hubmap/data/projects/STELLAR_pre_convert/{{ dag_run.conf.parent_submission_id }} \; ; \
+        echo $?
+        """,
+    )
+
+    # TODO: t_notify_user_stellar_pre_convert
+
+    t_maybe_keep_cwl_stellar_pre_convert = BranchPythonOperator(
+        task_id="maybe_keep_cwl_stellar_pre_convert",
+        python_callable=utils.pythonop_maybe_keep,
+        provide_context=True,
+        op_kwargs={
+            "next_op": "prepare_cell_count_cmd",
+            "bail_op": "set_dataset_error",
+            "test_op": "pipeline_exec_cwl_stellar_pre_convert",
         },
     )
 
@@ -194,10 +263,13 @@ with HMDAG(
             "previous_version_uuid": kwargs.get("dag_run").conf.get("previous_version_uuid"),
             "metadata": kwargs.get("dag_run").conf.get("metadata"),
             "crypt_auth_tok": kwargs["dag_run"].conf.get("crypt_auth_tok"),
-            "workflows": kwargs["ti"].xcom_pull(task_ids="build_cwl_segmentation",
-                                                key="cwl_workflows"),
+            "workflows": kwargs["ti"].xcom_pull(
+                task_ids="build_cwl_stellar_pre_convert", key="cwl_workflows"
+            ),
         }
-        print(f"Collection_type: {collection_type} with assay_type {assay_type} and payload: {payload}", )
+        print(
+            f"Collection_type: {collection_type} with assay_type {assay_type} and payload: {payload}",
+        )
         for next_dag in utils.downstream_workflow_iter(collection_type, assay_type):
             yield next_dag, payload
 
@@ -206,8 +278,7 @@ with HMDAG(
         dag=dag,
         trigger_dag_id="phenocycler_segmentation",
         python_callable=trigger_phenocycler,
-        op_kwargs={"collection_type": "small_phenocycler",
-                   "assay_type": "phenocycler"},
+        op_kwargs={"collection_type": "small_phenocycler", "assay_type": "phenocycler"},
     )
 
     t_trigger_phenocyler = FlexMultiDagRunOperator(
@@ -215,8 +286,7 @@ with HMDAG(
         dag=dag,
         trigger_dag_id="phenocycler_segmentation",
         python_callable=trigger_phenocycler,
-        op_kwargs={"collection_type": "phenocycler",
-                   "assay_type": "phenocycler"},
+        op_kwargs={"collection_type": "phenocycler", "assay_type": "phenocycler"},
     )
 
     t_log_info = LogInfoOperator(task_id="log_info")
@@ -237,16 +307,18 @@ with HMDAG(
     (
         t_log_info
         >> t_create_tmpdir
-
         >> prepare_cwl_segmentation
         >> t_build_cwl_segmentation
         >> t_pipeline_exec_cwl_segmentation
         >> t_maybe_keep_cwl_segmentation
-
+        >> prepare_stellar_pre_convert
+        >> t_build_cwl_stellar_pre_convert
+        >> t_pipeline_exec_cwl_stellar_pre_convert
+        >> t_copy_stellar_pre_convert_data
+        >> t_maybe_keep_cwl_stellar_pre_convert
         >> prepare_cell_count_cmd
         >> cell_count_cmd
         >> t_maybe_start_small_sprm
-
         >> t_trigger_phenocyler_small
     )
     t_maybe_start_small_sprm >> t_trigger_phenocyler
