@@ -23,7 +23,6 @@ from utils import (
 from airflow.configuration import conf as airflow_conf
 from airflow.decorators import task
 from airflow.operators.empty import EmptyOperator
-from airflow.operators.python import PythonOperator
 from airflow.providers.http.hooks.http import HttpHook
 
 INTERNAL_CONTACTS = ["gesina@psc.edu"]
@@ -63,9 +62,9 @@ with HMDAG(
             {
                 group_name: {
                     "uuid": uuid,
-                    "contacts": [
-                        (contact_name, contact_email)
-                    ]
+                    "contacts": {
+                        contact_name: contact_email
+                    }
                 }
             }
         """
@@ -88,8 +87,9 @@ with HMDAG(
         groups = kwargs["ti"].xcom_pull(key="groups")
         data = get_data(groups)
         errors = {}
-        for group_name, group_contacts in groups.items():
+        for group_name, group_data in groups.items():
             try:
+                primary_contacts = list(group_data.get("contacts", {}).values())
                 group_data = pd.DataFrame.from_dict(data.get(group_name, {}))
                 email_body = format_group_data(group_data, group_name)
                 spreadsheet_path = get_csv_path(group_name, "{{ run_id }}")
@@ -97,13 +97,15 @@ with HMDAG(
                 cc = list(set(group_data["creator_email"].tolist()))
                 date = datetime.now().strftime("%Y-%m-%d")
                 send_email(
-                    group_contacts,
+                    primary_contacts,
                     f"HuBMAP dataset status report ({date})",
                     email_body,
                     attachment_path=spreadsheet_path,
                     cc=cc,
                 )
-                logging.info(f"Email for {group_name} sent to primary contacts {group_contacts}.")
+                logging.info(
+                    f"Email for {group_name} sent to primary contacts {primary_contacts}."
+                )
             except Exception as e:
                 logging.error(f"{group_name}: {str(e.__class__)}: {e}")
                 errors[group_name] = str(e)
@@ -145,8 +147,10 @@ def get_data(groups: dict) -> dict:
     Get data from search API by group.
     """
     data = {}
-    for group_name in groups:
-        data[group_name] = get_datasets_by_group(group_name, get_token(airflow_conf)).to_dict()
+    for group_name, group_data in groups.items():
+        data[group_name] = get_datasets_by_group(
+            group_name, group_data["uuid"], get_token(airflow_conf)
+        ).to_dict()
     return data
 
 
@@ -160,26 +164,9 @@ def get_token(airflow_conf):
     )
 
 
-def search_api_request(body: dict, token: str) -> dict:
-    try:
-        search_hook = HttpHook("POST", http_conn_id="search_api_connection")
-        headers = {"authorization": f"Bearer {token}"}
-        response = search_hook.run(endpoint="v3/portal/search", headers=headers, json=body)
-        response.raise_for_status()
-    except Exception as e:
-        raise Exception(f"Error querying Search API: {e}")
-    return response.json()
-
-
-def get_datasets_by_group(group_name: str, token: str) -> pd.DataFrame:
-    """
-    Fetch all unpublished datasets from Search API by group_name.
-
-    Returns:
-        DataFrame with upload/dataset information including uuid, created_by, group_name, etc.
-    """
-    logging.info(f"Fetching unpublished datasets for group {group_name} from Search API...")
-
+def get_datasets_from_search_api(
+    group_field: str, group_field_val: str, token: str
+) -> pd.DataFrame:
     source_fields = [
         "created_by_user_display_name",
         "created_by_user_email",
@@ -206,7 +193,7 @@ def get_datasets_by_group(group_name: str, token: str) -> pd.DataFrame:
                 ],
                 "must": [
                     {"match": {"entity_type": "Dataset"}},
-                    {"match": {"group_name": group_name}},
+                    {"match": {group_field: group_field_val}},
                 ],
                 "must_not": [
                     {"match": {"status": "Published"}},
@@ -217,7 +204,6 @@ def get_datasets_by_group(group_name: str, token: str) -> pd.DataFrame:
 
     data = search_api_request(body, token)
     df = pd.json_normalize(data, record_path=["hits", "hits"])
-
     # Rename columns for clarity
     df = df.rename(
         columns={
@@ -225,7 +211,36 @@ def get_datasets_by_group(group_name: str, token: str) -> pd.DataFrame:
             **{f"_source.{source_field}": source_field for source_field in source_fields},
         }
     )
+    return df
 
+
+def search_api_request(body: dict, token: str) -> dict:
+    try:
+        search_hook = HttpHook("POST", http_conn_id="search_api_connection")
+        headers = {"authorization": f"Bearer {token}"}
+        response = search_hook.run(endpoint="v3/portal/search", headers=headers, json=body)
+        response.raise_for_status()
+    except Exception as e:
+        raise Exception(f"Error querying Search API: {e}")
+    return response.json()
+
+
+def get_datasets_by_group(group_name: str, group_uuid: str, token: str) -> pd.DataFrame:
+    """
+    Fetch all unpublished datasets from Search API by group_uuid.
+
+    Returns:
+        DataFrame with upload/dataset information including uuid, created_by, group_name, etc.
+    """
+    logging.info(f"Fetching unpublished datasets for group {group_name} from Search API...")
+
+    df1 = modify_df(get_datasets_from_search_api("group_uuid", group_uuid, token))
+    df2 = modify_df(get_datasets_from_search_api("group_name", group_name, token))
+    print(df1.compare(df2))
+    return df1
+
+
+def modify_df(df: pd.DataFrame) -> pd.DataFrame:
     df["ingest_url"] = df.apply(get_ingest_url, axis=1)
     df["created_date"] = df.apply(get_date, args=("created_timestamp",), axis=1)
     df["last_modified_date"] = df.apply(get_date, args=("last_modified_timestamp",), axis=1)
