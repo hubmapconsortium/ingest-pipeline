@@ -148,6 +148,18 @@ with HMDAG(
         """,
     )
 
+    t_maybe_keep_cwl_segmentation = BranchPythonOperator(
+        task_id="maybe_keep_cwl_segmentation",
+        python_callable=utils.pythonop_maybe_keep,
+        provide_context=True,
+        op_kwargs={
+            "next_op": "prepare_stellar_pre_convert",
+            "bail_op": "set_dataset_error",
+            "test_op": "pipeline_exec_cwl_segmentation",
+        },
+    )
+
+
     @task(task_id="prepare_stellar_pre_convert")
     def prepare_cwl_stellar_pre_convert(**kwargs):
         if kwargs["dag_run"].conf.get("dryrun"):
@@ -286,6 +298,7 @@ with HMDAG(
         >> prepare_cwl_segmentation
         >> t_build_cwl_segmentation
         >> t_pipeline_exec_cwl_segmentation
+        >> t_maybe_keep_cwl_segmentation
         >> prepare_stellar_pre_convert
         >> t_build_cwl_stellar_pre_convert
         >> t_pipeline_exec_cwl_stellar_pre_convert
