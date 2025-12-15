@@ -33,11 +33,15 @@ class StatisticsManager(MessageManager):
         self.dataset_type = self.entity_data.get("dataset_type", "")
 
     @property
+    def is_derived(self):
+        return True if self.entity_data.get("creation_action", "") == "Central Process" else False
+
+    @property
     def is_valid_for_status(self):
-        return True if self.status in self.good_statuses else False
+        return True if self.status in self.good_statuses and self.is_derived else False
 
     def update(self):
-        if self.status in self.good_statuses:
+        if self.status in self.good_statuses and self.is_derived:
             self.path = get_abs_path(self.uuid, self.token)
             print(f"UUID {self.uuid}")
             print(f"Dataset Type {self.dataset_type}")
