@@ -9,7 +9,6 @@ import uuid
 from abc import ABC, abstractmethod
 from collections import namedtuple
 from copy import deepcopy
-from datetime import datetime
 from functools import lru_cache
 from os import environ, fspath, walk
 from os.path import basename, dirname, exists, getsize, join, realpath, relpath, split
@@ -2114,18 +2113,18 @@ def main():
 
 
 def send_email(
-    contact: str,
+    contacts: list[str],
     subject: str,
     email_body: str,
     attachment_path: Optional[str] = None,
     cc: Optional[list[str]] = None,
 ):
-    assert contact and email_body
+    assert contacts and email_body
     logging.info(
         dedent(
             f"""
             Sending email
-            Contact: {contact}
+            Contact: {contacts}
             cc: {", ".join(cc) if cc else "None"}
             Subject: {subject}
             Message: {email_body}
@@ -2133,9 +2132,12 @@ def send_email(
             """
         ).strip()
     )
-    logging.info("replacing contact info for testing...")
+    # TODO: remove
+    logging.info(f"replacing groups info for testing...")
+    contacts = ["gesina@psc.edu"]
+    cc = ["gphillip@andrew.cmu.edu"]
     airflow_send_email(
-        contact,
+        contacts,
         subject,
         email_body,
         files=[attachment_path] if attachment_path else None,
