@@ -26,7 +26,7 @@ from airflow.operators.empty import EmptyOperator
 from airflow.operators.python import PythonOperator
 from airflow.providers.http.hooks.http import HttpHook
 
-INTERNAL_CONTACT = "gesina@psc.edu"
+INTERNAL_CONTACTS = ["gesina@psc.edu"]
 DP_PATH = "data_providers.json"
 
 
@@ -88,7 +88,7 @@ with HMDAG(
         groups = kwargs["ti"].xcom_pull(key="groups")
         data = get_data(groups)
         errors = {}
-        for group_name, group_contact in groups.items():
+        for group_name, group_contacts in groups.items():
             try:
                 group_data = pd.DataFrame.from_dict(data.get(group_name, {}))
                 email_body = format_group_data(group_data, group_name)
@@ -97,12 +97,13 @@ with HMDAG(
                 cc = list(set(group_data["creator_email"].tolist()))
                 date = datetime.now().strftime("%Y-%m-%d")
                 send_email(
-                    group_contact,
+                    group_contacts,
                     f"HuBMAP dataset status report ({date})",
                     email_body,
                     attachment_path=spreadsheet_path,
                     cc=cc,
                 )
+                logging.info(f"Email for {group_name} sent to primary contacts {group_contacts}.")
             except Exception as e:
                 logging.error(f"{group_name}: {str(e.__class__)}: {e}")
                 errors[group_name] = str(e)
@@ -120,18 +121,14 @@ with HMDAG(
         formatted_errors = "<br>".join([f"{key}: {val}" for key, val in errors.items()])
         logging.error(formatted_errors)
         send_email(
-            INTERNAL_CONTACT,
+            INTERNAL_CONTACTS,
             "Errors in EmailProviders DAG",
             formatted_errors,
         )
 
     t_create_tmpdir = CreateTmpDirOperator(task_id="create_temp_dir")
-    t_get_groups = PythonOperator(
-        task_id="get_groups", python_callable=get_groups, provide_context=True, op_kwargs={}
-    )
-    t_get_data = PythonOperator(
-        task_id="send_data", python_callable=send_data, provide_context=True, op_kwargs={}
-    )
+    t_get_groups = get_groups()
+    t_get_data = send_data()
     t_report_errors = report_errors()
     t_skip_task = EmptyOperator(task_id="skip_task")
     t_cleanup_tmpdir = CleanupTmpDirOperator(
