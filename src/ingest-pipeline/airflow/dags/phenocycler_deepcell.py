@@ -159,7 +159,6 @@ with HMDAG(
         },
     )
 
-
     @task(task_id="prepare_stellar_pre_convert")
     def prepare_cwl_stellar_pre_convert(**kwargs):
         if kwargs["dag_run"].conf.get("dryrun"):
