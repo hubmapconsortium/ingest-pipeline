@@ -1,6 +1,7 @@
 import json
 import logging
 from datetime import datetime, timezone
+from os.path import dirname, join
 from pathlib import Path
 
 import pandas as pd
@@ -26,7 +27,7 @@ from airflow.operators.empty import EmptyOperator
 from airflow.providers.http.hooks.http import HttpHook
 
 INTERNAL_CONTACTS = ["gesina@psc.edu"]
-DP_PATH = "data_providers.json"
+DP_PATH = Path(join(dirname(__file__), "data_providers.json"))
 
 
 default_args = {
@@ -52,6 +53,13 @@ with HMDAG(
         "tmp_dir_path": get_tmp_dir_path,
         "preserve_scratch": get_preserve_scratch_resource("email_providers"),
     },
+    params={
+        "token": get_auth_tok(
+            crypt_auth_tok=encrypt_tok(
+                str(airflow_conf.as_dict()["connections"]["APP_CLIENT_SECRET"])
+            ).decode()
+        )
+    },
 ) as dag:
 
     @task
@@ -68,10 +76,11 @@ with HMDAG(
                 }
             }
         """
-        if Path(DP_PATH).exists():
+        if DP_PATH.exists():
             with open(DP_PATH, "r") as f:
                 groups = json.load(f)
         else:
+            logging.error("No groups found.")
             groups = {}
         kwargs["ti"].xcom_push(key="groups", value=groups)
 
@@ -85,11 +94,11 @@ with HMDAG(
             "report_errors": error getting/sending data
         """
         groups = kwargs["ti"].xcom_pull(key="groups")
-        data = get_data(groups)
+        data = get_data(groups, kwargs.get("token", ""))
         errors = {}
-        for group_name, group_data in groups.items():
+        for group_name, group_attrs in groups.items():
             try:
-                primary_contacts = list(group_data.get("contacts", {}).values())
+                primary_contacts = list(group_attrs.get("contacts", {}).values())
                 group_data = pd.DataFrame.from_dict(data.get(group_name, {}))
                 email_body = format_group_data(group_data, group_name)
                 spreadsheet_path = get_csv_path(group_name, "{{ run_id }}")
@@ -130,7 +139,7 @@ with HMDAG(
 
     t_create_tmpdir = CreateTmpDirOperator(task_id="create_temp_dir")
     t_get_groups = get_groups()
-    t_get_data = send_data()
+    t_send_data = send_data()
     t_report_errors = report_errors()
     t_skip_task = EmptyOperator(task_id="skip_task")
     t_cleanup_tmpdir = CleanupTmpDirOperator(
@@ -142,26 +151,14 @@ with HMDAG(
 ########################
 
 
-def get_data(groups: dict) -> dict:
+def get_data(groups: dict, token: str) -> dict:
     """
     Get data from search API by group.
     """
     data = {}
     for group_name, group_data in groups.items():
-        data[group_name] = get_datasets_by_group(
-            group_name, group_data["uuid"], get_token(airflow_conf)
-        ).to_dict()
+        data[group_name] = get_datasets_by_group(group_name, group_data["uuid"], token).to_dict()
     return data
-
-
-def get_token(airflow_conf):
-    return get_auth_tok(
-        **{
-            "crypt_auth_tok": encrypt_tok(
-                str(airflow_conf.as_dict()["connections"]["APP_CLIENT_SECRET"])
-            ).decode()
-        }
-    )
 
 
 def get_datasets_from_search_api(
@@ -223,6 +220,22 @@ def search_api_request(body: dict, token: str) -> dict:
     except Exception as e:
         raise Exception(f"Error querying Search API: {e}")
     return response.json()
+
+
+# def search_api_request(body: dict, token: str) -> dict:
+#     import requests
+#
+#     try:
+#         headers = {"authorization": f"Bearer {token}"}
+#         response = requests.post(
+#             url="https://search.api.hubmapconsortium.org/v3/portal/search",
+#             headers=headers,
+#             json=body,
+#         )
+#         response.raise_for_status()
+#     except Exception as e:
+#         raise Exception(f"Error querying Search API: {e}")
+#     return response.json()
 
 
 def get_datasets_by_group(group_name: str, group_uuid: str, token: str) -> pd.DataFrame:
