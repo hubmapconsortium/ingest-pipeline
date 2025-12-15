@@ -63,7 +63,7 @@ with HMDAG(
         },
         {
             "workflow_path": str(
-                get_absolute_workflow(Path("stellar", "steps", "pre-convert.cwl"))
+                get_absolute_workflow(Path("stellar-outofband", "steps", "pre-convert.cwl"))
             ),
             "documentation_url": "",
         },

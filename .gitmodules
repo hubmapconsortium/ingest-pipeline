@@ -82,6 +82,9 @@
 [submodule "src/ingest-pipeline/airflow/dags/cwl/stellar"]
 	path = src/ingest-pipeline/airflow/dags/cwl/stellar
 	url = https://github.com/hubmapconsortium/stellar
+[submodule "src/ingest-pipeline/airflow/dags/cwl/stellar-outofband"]
+	path = src/ingest-pipeline/airflow/dags/cwl/stellar-outofband
+	url = https://github.com/hubmapconsortium/stellar
 [submodule "src/ingest-pipeline/airflow/dags/cwl/pan-organ-azimuth-annotate"]
 	path = src/ingest-pipeline/airflow/dags/cwl/pan-organ-azimuth-annotate
 	url = https://github.com/hubmapconsortium/pan-organ-azimuth-annotate
