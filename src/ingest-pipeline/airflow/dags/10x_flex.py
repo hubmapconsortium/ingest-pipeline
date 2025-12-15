@@ -48,7 +48,7 @@ default_args = {
     "retries": 1,
     "retry_delay": timedelta(minutes=1),
     "xcom_push": True,
-    "queue": get_queue_resource("rna_with_probes"),
+    "queue": get_queue_resource("10x_flex"),
     "on_failure_callback": utils.create_dataset_state_error_callback(get_uuid_for_error),
 }
 
@@ -62,24 +62,24 @@ def find_rna_metadata_file(data_dir: Path) -> Path:
 
 
 with HMDAG(
-    "rna_with_probes",
+    "10x_flex",
     schedule_interval=None,
     is_paused_upon_creation=False,
     default_args=default_args,
     user_defined_macros={
         "tmp_dir_path": get_tmp_dir_path,
-        "preserve_scratch": get_preserve_scratch_resource("rna_with_probes"),
+        "preserve_scratch": get_preserve_scratch_resource("10x_flex"),
     },
 ) as dag:
     cwl_workflows = [
         {
-            "workflow_path": str(
-                get_absolute_workflow(Path("10x-flex-pipeline", "pipeline.cwl"))
-            ),
+            "workflow_path": str(get_absolute_workflow(Path("10x-flex-pipeline", "pipeline.cwl"))),
             "documentation_url": "",
         },
         {
-            "workflow_path": str(get_absolute_workflow(Path("pan-organ-azimuth-annotate", "pipeline.cwl"))),
+            "workflow_path": str(
+                get_absolute_workflow(Path("pan-organ-azimuth-annotate", "pipeline.cwl"))
+            ),
             "documentation_url": "",
         },
         {
@@ -97,7 +97,7 @@ with HMDAG(
     ]
 
     def build_dataset_name(**kwargs):
-        return inner_build_dataset_name(dag.dag_id, "rna-probes-pipeline", **kwargs)
+        return inner_build_dataset_name(dag.dag_id, "10x-flex-pipeline", **kwargs)
 
     @task(task_id="prepare_cwl1")
     def prepare_cwl1_cmd(**kwargs):
@@ -165,7 +165,7 @@ with HMDAG(
             {
                 "parameter_name": "--secondary_analysis_matrix",
                 "value": str(tmpdir / "cwl_out/secondary_analysis.h5ad"),
-             },
+            },
             {
                 "parameter_name": "--organism",
                 "value": source_type,

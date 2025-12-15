@@ -152,3 +152,6 @@ workflow_map:
   - 'collection_type': 'generic_metadatatsv'
     'assay_type': 'phenocycler'
     'workflow': 'phenocycler_deepcell_segmentation'
+  - 'collection_type': '.*'
+    'assay_type': '10x-flex'
+    'workflow': '10x_flex'
