@@ -84,7 +84,7 @@ with HMDAG(
             groups = {}
         kwargs["ti"].xcom_push(key="groups", value=groups)
 
-    @task.branch(task_id="branch_task")
+    @task.branch(task_id="send_data")
     def send_data(**kwargs):
         """
         - Format data and send to each group.
@@ -94,7 +94,7 @@ with HMDAG(
             "report_errors": error getting/sending data
         """
         groups = kwargs["ti"].xcom_pull(key="groups")
-        data = get_data(groups, kwargs.get("token", ""))
+        data = get_data(groups, dag.params["token"])
         errors = {}
         for group_name, group_attrs in groups.items():
             try:
@@ -161,56 +161,6 @@ def get_data(groups: dict, token: str) -> dict:
     return data
 
 
-def get_datasets_from_search_api(
-    group_field: str, group_field_val: str, token: str
-) -> pd.DataFrame:
-    source_fields = [
-        "created_by_user_display_name",
-        "created_by_user_email",
-        "created_timestamp",
-        "creation_action",
-        "dataset_type",
-        "entity_type",
-        "group_name",
-        "group_uuid",
-        "hubmap_id",
-        "last_modified_timestamp",
-        "status",
-        "title",
-    ]
-    body = {
-        "_source": source_fields,
-        "size": 10000,
-        "query": {
-            "bool": {
-                "should": [
-                    {
-                        "match": {"creation_action": "Create Dataset Activity"}
-                    },  # Primary datasets only
-                ],
-                "must": [
-                    {"match": {"entity_type": "Dataset"}},
-                    {"match": {group_field: group_field_val}},
-                ],
-                "must_not": [
-                    {"match": {"status": "Published"}},
-                ],
-            }
-        },
-    }
-
-    data = search_api_request(body, token)
-    df = pd.json_normalize(data, record_path=["hits", "hits"])
-    # Rename columns for clarity
-    df = df.rename(
-        columns={
-            "_id": "uuid",
-            **{f"_source.{source_field}": source_field for source_field in source_fields},
-        }
-    )
-    return df
-
-
 def search_api_request(body: dict, token: str) -> dict:
     try:
         search_hook = HttpHook("POST", http_conn_id="search_api_connection")
@@ -247,13 +197,53 @@ def get_datasets_by_group(group_name: str, group_uuid: str, token: str) -> pd.Da
     """
     logging.info(f"Fetching unpublished datasets for group {group_name} from Search API...")
 
-    df1 = modify_df(get_datasets_from_search_api("group_uuid", group_uuid, token))
-    df2 = modify_df(get_datasets_from_search_api("group_name", group_name, token))
-    print(df1.compare(df2))
-    return df1
+    source_fields = [
+        "created_by_user_display_name",
+        "created_by_user_email",
+        "created_timestamp",
+        "creation_action",
+        "dataset_type",
+        "entity_type",
+        "group_name",
+        "group_uuid",
+        "hubmap_id",
+        "last_modified_timestamp",
+        "status",
+        "title",
+    ]
+    body = {
+        "_source": source_fields,
+        "size": 10000,
+        "query": {
+            "bool": {
+                "should": [
+                    {
+                        "match": {"creation_action": "Create Dataset Activity"}
+                    },  # Primary datasets only
+                ],
+                "must": [
+                    {"match": {"entity_type": "Dataset"}},
+                    {"match": {"group_uuid": group_uuid}},
+                ],
+                "must_not": [
+                    {"match": {"status": "Published"}},
+                ],
+            }
+        },
+    }
 
+    data = search_api_request(body, token)
+    df = pd.json_normalize(data, record_path=["hits", "hits"])
+    # Rename columns for clarity
+    df = df.rename(
+        columns={
+            "_id": "uuid",
+            **{f"_source.{source_field}": source_field for source_field in source_fields},
+        }
+    )
+    assert len(df.group_name.unique()) == 1
+    assert df.group_name.unique().item(0) == group_name
 
-def modify_df(df: pd.DataFrame) -> pd.DataFrame:
     df["ingest_url"] = df.apply(get_ingest_url, axis=1)
     df["created_date"] = df.apply(get_date, args=("created_timestamp",), axis=1)
     df["last_modified_date"] = df.apply(get_date, args=("last_modified_timestamp",), axis=1)
