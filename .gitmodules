@@ -88,3 +88,6 @@
 [submodule "src/ingest-pipeline/airflow/dags/cwl/pan-organ-azimuth-annotate"]
 	path = src/ingest-pipeline/airflow/dags/cwl/pan-organ-azimuth-annotate
 	url = https://github.com/hubmapconsortium/pan-organ-azimuth-annotate
+[submodule "src/ingest-pipeline/airflow/dags/cwl/10x-flex-pipeline"]
+	path = src/ingest-pipeline/airflow/dags/cwl/10x-flex-pipeline
+	url = https://github.com/hubmapconsortium/10x-flex-pipeline
