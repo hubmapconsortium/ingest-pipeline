@@ -1332,6 +1332,16 @@ def pythonop_md_consistency_tests(**kwargs) -> int:
         return 1
 
 
+def get_statistics_base_path() -> Path:
+    dct = airflow_conf.as_dict(display_sensitive=True)["connections"]
+    if "STATISTICS_PATH" in dct:
+        return Path(dct["STATISTICS_PATH"].strip("'").strip('"'))
+    elif "statistics_path" in dct:
+        return Path(dct["statistics_path"].strip("'").strip('"'))
+    else:
+        raise KeyError("STATISTICS_PATH")
+
+
 def _get_scratch_base_path() -> Path:
     dct = airflow_conf.as_dict(display_sensitive=True)["connections"]
     if "WORKFLOW_SCRATCH" in dct:

@@ -1,9 +1,13 @@
 import json
+import pandas as pd
+import re
+
 from typing import List, Dict
 from pathlib import Path
 from csv import DictReader
 
 from airflow.providers.http.hooks.http import HttpHook
+from datetime import datetime, timedelta
 from pprint import pprint
 from typing import Tuple
 from multi_docker_build.build_docker_images import build as docker_builder
@@ -152,3 +156,88 @@ def build_tag_containers(cwl_path: Path) -> str:
     except Exception as e:
         return f"Error adjusting docker tags: {e}"
     return f"Container built for {cwl_path}"
+
+
+def __get_timestamp(line: str) -> datetime:
+    timestamp_format = "%Y-%m-%d %H:%M:%S"
+    timestamp_str = line[6:25]
+    return datetime.strptime(timestamp_str, timestamp_format)
+
+
+def __calculate_usage(starting_timestamp: datetime, ending_timestamp: datetime,
+                      cpu_count: int) -> timedelta:
+    return (ending_timestamp - starting_timestamp) * int(cpu_count)
+
+
+def calculate_statistics(file_path: str) -> pd:
+    df = pd.read_csv(Path(file_path))
+    startjob = r"\[job .+\] .+ docker \\$"
+    endjob = r"\[job .+\] completed success$"
+    processes = r"--num_concurrent_tasks \\$|--processes \\$|--threads \\$"
+    single_line = r"^\s{4}[0-9]+$"
+    gpu_task = r".*gpu.*"
+    gpu = False
+    processes_marker = False
+    cpu_count = 1
+    starting_timestamp = None
+    ending_timestamp = None
+    df['cpu_usage'] = None
+    df['gpu_usage'] = None
+    cpu_usage = timedelta(seconds=0)
+    gpu_usage = timedelta(seconds=0)
+    for index, row in df.iterrows():
+        print(f"UUID: {row['uuid']}")
+        path = Path(row.directory + "/session.log")
+        try:
+            with open(path, "r") as session_file:
+                for line in session_file:
+                    if re.search(startjob, line):
+                        starting_timestamp = __get_timestamp(line)
+                        # Check if this is CPU or GPU and create a flag
+                    if starting_timestamp and re.search(gpu_task, line):
+                        gpu = True
+                    if processes_marker or re.search(single_line, line):
+                        cpu_count *= int(line.strip("\\\n"))
+                        processes_marker = False
+                    if starting_timestamp and re.search(processes, line):
+                        processes_marker = True
+                    if re.search(endjob, line) and starting_timestamp:
+                        ending_timestamp = __get_timestamp(line)
+                    if starting_timestamp and ending_timestamp:
+                        print(f"Starting timestamp: {starting_timestamp}")
+                        print(f"ending timestamp: {ending_timestamp}")
+                        print(f"Increasing time: {ending_timestamp - starting_timestamp}")
+                        # if GPU flag, append to GPU, else append to CPU
+                        if gpu:
+                            gpu_usage += __calculate_usage(starting_timestamp,
+                                                           ending_timestamp,
+                                                           1)
+                            print(f"GPU: {gpu}")
+                        else:
+                            cpu_usage += __calculate_usage(starting_timestamp, ending_timestamp,
+                                                           cpu_count)
+                            print(f"CPU count: {cpu_count}")
+
+                        starting_timestamp = None
+                        ending_timestamp = None
+                        gpu = False
+                        cpu_count = 1
+                        processes_marker = False
+                        print(f"CPU usage: {cpu_usage}, GPU usage: {gpu_usage}")
+        except FileNotFoundError:
+            print(f"{path} not found")
+        except PermissionError:
+            print(f"{path} permission denied")
+        except Exception as e:
+            print(f"Error {e} in: {path}")
+        finally:
+            df.loc[index, "gpu_usage"] = gpu_usage
+            df.loc[index, "cpu_usage"] = cpu_usage
+            gpu_usage = timedelta(seconds=0)
+            cpu_usage = timedelta(seconds=0)
+            starting_timestamp = None
+            ending_timestamp = None
+            gpu = False
+            cpu_count = 1
+            processes_marker = False
+    return df
