@@ -91,12 +91,16 @@ with HMDAG(
             "report_errors": error getting/sending data
         """
         groups = kwargs["ti"].xcom_pull(key="groups")
-
         token = "".join(
             e for e in decrypt_tok(dag.params["crypt_auth_tok"].encode()) if e.isalnum()
         )  # strip out non-alnum characters
-        data = get_data(groups, token)
         errors = {}
+        try:
+            data = get_data(groups, token)
+        except Exception as e:
+            logging.error(f"{str(e.__class__)}: {e}")
+            errors["Data error"] = str(e)
+            return "report_errors"
         for group_name, group_attrs in groups.items():
             try:
                 if not data.get(group_name):
@@ -212,7 +216,7 @@ def get_datasets_by_group(group_name: str, group_uuid: str, token: str) -> pd.Da
         return None
     df = pd.json_normalize(data, record_path=["hits", "hits"])
     verify_search_results(df, group_name)
-    df = modify_df(df)
+    df = modify_df(df, token)
 
     logging.info(f"   Found {len(df)} unpublished datasets in Search API")
 
