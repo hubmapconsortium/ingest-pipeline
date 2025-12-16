@@ -84,6 +84,7 @@ def generate_phenocycler_dag(params: SequencingDagParameters) -> DAG:
                 },
                 {"parameter_name": "--image_dir", "value": str(data_dir / "pipeline_output/expr")},
                 {"parameter_name": "--mask_dir", "value": str(data_dir / "pipeline_output/mask")},
+                {"parameter_name": "--min-memory", "value": ""},
             ]
 
             command = get_cwl_cmd_from_workflows(
