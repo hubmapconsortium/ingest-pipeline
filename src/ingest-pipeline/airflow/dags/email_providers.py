@@ -333,10 +333,10 @@ def get_template(data: pd.DataFrame, group_name: str) -> list[str]:
         "This report is sent to the group PI and all owners of datasets in this list.<br>",
         "<br>",
         f"{len(data)} unpublished datasets:<br>",
-        "<ul>",
-        *get_counts(data),
-        "</ul>",
         # TODO
+        # "<ul>",
+        # *get_counts(data),
+        # "</ul>",
         # "Instructions:",
         "<br>",
         "<br>",
