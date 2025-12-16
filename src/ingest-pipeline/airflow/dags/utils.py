@@ -2047,9 +2047,12 @@ def send_email(
             logging.info("Non-prod environment, not sending email. Would have sent:")
             logging.info(preview)
             return False
+    if cc:
+        # If a contact is in both lists, remove them from cc
+        cc = list(set(cc) - set(contacts))
     logging.info(preview)
     airflow_send_email(
-        contacts,
+        list(set(contacts)),
         subject,
         email_body,
         files=[attachment_path] if attachment_path else None,
