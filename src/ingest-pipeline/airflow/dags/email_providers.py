@@ -316,7 +316,7 @@ def get_ingest_url(row: pd.Series) -> str:
 # Prepare email #
 #################
 
-max_rows: int = 100
+max_rows: int = 50
 
 
 def format_group_data(data: pd.DataFrame, group_name: str) -> str:
