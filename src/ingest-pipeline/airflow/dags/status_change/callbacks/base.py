@@ -1,7 +1,7 @@
 from abc import ABC
 
 from status_change.status_utils import get_submission_context
-from utils import get_auth_tok
+from utils import decrypt_tok, get_auth_tok
 
 
 class AirflowCallback(ABC):
@@ -30,8 +30,18 @@ class AirflowCallback(ABC):
     def get_data(self, context: dict):
         self.uuid = context["task_instance"].xcom_pull(key="uuid")
         context["uuid"] = self.uuid
-        self.auth_tok = get_auth_tok(**context)
+        try:
+            self.auth_tok = get_auth_tok(**context)
+        except KeyError:
+            self.auth_tok = self.alt_get_auth_tok(**context)
         self.dag_run = context.get("dag_run")
         self.task = context.get("task")
         self.entity_data = get_submission_context(self.auth_tok, self.uuid)
         self.entity_type = self.entity_data.get("entity_type", "").lower()
+
+    def alt_get_auth_tok(self, context):
+        crypt_auth_tok = context["params"]["crypt_auth_tok"]
+        auth_tok = "".join(
+            e for e in decrypt_tok(crypt_auth_tok.encode()) if e.isalnum()
+        )  # strip out non-alnum characters
+        return auth_tok
