@@ -2042,17 +2042,15 @@ def send_email(
             """
         ).strip()
     )
-    # TODO: remove
-    logging.info(f"replacing groups info for testing...")
-    contacts = ["gesina@psc.edu"]
-    cc = ["gphillip@andrew.cmu.edu"]
-    airflow_send_email(
-        contacts,
-        subject,
-        email_body,
-        files=[attachment_path] if attachment_path else None,
-        cc=cc,
-    )
+    # TODO: turn on
+    logging.info(f"would send email here")
+    # airflow_send_email(
+    #     contacts,
+    #     subject,
+    #     email_body,
+    #     files=[attachment_path] if attachment_path else None,
+    #     cc=cc,
+    # )
 
 
 if __name__ == "__main__":
