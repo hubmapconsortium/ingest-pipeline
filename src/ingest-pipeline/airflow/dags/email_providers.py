@@ -15,6 +15,7 @@ from utils import (
     HMDAG,
     decrypt_tok,
     encrypt_tok,
+    get_preserve_scratch_resource,
     get_queue_resource,
     get_tmp_dir_path,
     send_email,
@@ -49,7 +50,7 @@ with HMDAG(
     catchup=False,
     user_defined_macros={
         "tmp_dir_path": get_tmp_dir_path,
-        # "preserve_scratch": get_preserve_scratch_resource("geomx"),
+        "preserve_scratch": get_preserve_scratch_resource("geomx"),
     },
     params={
         "crypt_auth_tok": encrypt_tok(
@@ -98,14 +99,16 @@ with HMDAG(
         errors = {}
         for group_name, group_attrs in groups.items():
             try:
+                if not data.get(group_name):
+                    continue
                 primary_contacts = list(group_attrs.get("contacts", {}).values())
                 group_data = pd.DataFrame.from_dict(data.get(group_name, {}))
-                if not group_data:
-                    continue
                 email_body = format_group_data(group_data, group_name)
-                spreadsheet_path = get_csv_path(group_name, "{{ run_id }}")
-                group_data.to_csv(spreadsheet_path)
-                cc = list(set(group_data["creator_email"].tolist()))
+                spreadsheet_path = get_csv_path(group_name, kwargs["run_id"])
+                group_data.to_csv(spreadsheet_path, index=False)
+                cc = group_data.created_by_user_email.unique().tolist()
+                if "hubmap@hubmapconsortium.org" in cc:
+                    cc.remove("hubmap@hubmapconsortium.org")
                 date = datetime.now().strftime("%Y-%m-%d")
                 send_email(
                     primary_contacts,
@@ -159,7 +162,8 @@ def get_data(groups: dict, token: str) -> dict:
     """
     data = {}
     for group_name, group_data in groups.items():
-        if group_data := get_datasets_by_group(group_name, group_data["uuid"], token):
+        group_data = get_datasets_by_group(group_name, group_data["uuid"], token)
+        if group_data is not None:
             data[group_name] = group_data.to_dict()
         else:
             data[group_name] = {}
@@ -268,7 +272,7 @@ def verify_search_results(df: pd.DataFrame, group_name: str):
 #####################
 
 
-def modify_df(df: pd.DataFrame) -> pd.DataFrame:
+def modify_df(df: pd.DataFrame, token: str) -> pd.DataFrame:
     # Rename columns for clarity
     df = df.rename(
         columns={
@@ -281,6 +285,7 @@ def modify_df(df: pd.DataFrame) -> pd.DataFrame:
     df["ingest_url"] = df.apply(get_ingest_url, axis=1)
     df["created_date"] = df.apply(get_date, args=("created_timestamp",), axis=1)
     df["last_modified_date"] = df.apply(get_date, args=("last_modified_timestamp",), axis=1)
+    df["status"] = df.apply(check_status, args=(token), axis=1)
 
     # Keep only relevant columns
     columns_to_keep = [
@@ -290,8 +295,8 @@ def modify_df(df: pd.DataFrame) -> pd.DataFrame:
         "title",
         "created_date",
         "last_modified_date",
-        "creator_name",
-        "creator_email",
+        "created_by_user_display_name",
+        "created_by_user_email",
         "ingest_url",
     ]
 
@@ -302,7 +307,7 @@ def modify_df(df: pd.DataFrame) -> pd.DataFrame:
 def get_csv_path(group_name: str, run_id: str) -> str:
     date = datetime.now().strftime("%Y-%m-%d")
     group_name_formatted = group_name.replace(" - ", "_").replace(" ", "_")
-    return str(get_tmp_dir_path(f"{run_id}/{group_name_formatted}_{date}.csv"))
+    return str(get_tmp_dir_path(run_id) / f"{group_name_formatted}_{date}.csv")
 
 
 def get_date(row: pd.Series, column: str) -> str:
@@ -315,6 +320,18 @@ def get_ingest_url(row: pd.Series) -> str:
     if row.get("entity_type") and row.get("uuid"):
         return f"https://ingest.hubmapconsortium.org/{row['entity_type']}/{row['uuid']}"
     return ""
+
+
+def check_status(row: pd.Series, token: str) -> str:
+    http_hook = HttpHook("GET", http_conn_id="entity_api_connection")
+    endpoint = f"entities/{row.get('uuid')}?exclude=direct_ancestors.files"
+    response = http_hook.run(endpoint, headers={"authorization": f"Bearer {token}"})
+    response.raise_for_status()
+    if not response.json().get("status") == row.get("status"):
+        logging.error(
+            f"Status mismatch: entity api: {response.json().get('status')}, search api: {row.get('status')}"
+        )
+    return response.json().get("status", row.get("status", ""))
 
 
 #################
