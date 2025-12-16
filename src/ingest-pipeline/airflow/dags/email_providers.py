@@ -332,6 +332,8 @@ def get_template(data: pd.DataFrame, group_name: str) -> list[str]:
         f"<b>Biweekly unpublished dataset report for {group_name}</b><br>",
         "This report is sent to the group PI(s) and all creators of datasets in this list.<br>",
         "<br>",
+        f"If you have questions, please schedule an appointment with Data Curator Brendan Honick (https://calendly.com/bhonick-psc/) or email ingest@hubmapconsortium.org. Do not respond to this email; this inbox is not monitored.<br>",
+        "<br>",
         f"{len(data)} unpublished datasets:<br>",
         # TODO
         # "<ul>",
