@@ -13,8 +13,8 @@ from hubmap_operators.common_operators import (  # type: ignore
 from status_change.callbacks.failure_callback import FailureCallback
 from utils import (
     HMDAG,
+    decrypt_tok,
     encrypt_tok,
-    get_auth_tok,
     get_preserve_scratch_resource,
     get_queue_resource,
     get_tmp_dir_path,
@@ -54,11 +54,9 @@ with HMDAG(
         "preserve_scratch": get_preserve_scratch_resource("email_providers"),
     },
     params={
-        "token": get_auth_tok(
-            crypt_auth_tok=encrypt_tok(
-                str(airflow_conf.as_dict()["connections"]["APP_CLIENT_SECRET"])
-            ).decode()
-        )
+        "crypt_auth_tok": encrypt_tok(
+            str(airflow_conf.as_dict()["connections"]["APP_CLIENT_SECRET"])
+        ).decode()
     },
 ) as dag:
 
@@ -94,7 +92,11 @@ with HMDAG(
             "report_errors": error getting/sending data
         """
         groups = kwargs["ti"].xcom_pull(key="groups")
-        data = get_data(groups, dag.params["token"])
+
+        token = "".join(
+            e for e in decrypt_tok(dag.params["crypt_auth_tok"].encode()) if e.isalnum()
+        )  # strip out non-alnum characters
+        data = get_data(groups, token)
         errors = {}
         for group_name, group_attrs in groups.items():
             try:
@@ -165,7 +167,9 @@ def search_api_request(body: dict, token: str) -> dict:
     try:
         search_hook = HttpHook("POST", http_conn_id="search_api_connection")
         headers = {"authorization": f"Bearer {token}"}
-        response = search_hook.run(endpoint="v3/portal/search", headers=headers, json=body)
+        response = search_hook.run(
+            endpoint="v3/portal/search", headers=headers, json=json.dumps(body)
+        )
         response.raise_for_status()
     except Exception as e:
         raise Exception(f"Error querying Search API: {e}")
