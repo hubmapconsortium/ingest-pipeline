@@ -98,35 +98,36 @@ with HMDAG(
         try:
             data = get_data(groups, token)
         except Exception as e:
-            logging.error(f"{str(e.__class__)}: {e}")
+            logging.error(e)
             errors["Data error"] = str(e)
-            return "report_errors"
-        for group_name, group_attrs in groups.items():
-            try:
-                if not data.get(group_name):
-                    continue
-                primary_contacts = list(group_attrs.get("contacts", {}).values())
-                group_data = pd.DataFrame.from_dict(data.get(group_name, {}))
-                email_body = format_group_data(group_data, group_name)
-                spreadsheet_path = get_csv_path(group_name, kwargs["run_id"])
-                group_data.to_csv(spreadsheet_path, index=False)
-                cc = group_data.created_by_user_email.unique().tolist()
-                if "hubmap@hubmapconsortium.org" in cc:
-                    cc.remove("hubmap@hubmapconsortium.org")
-                date = datetime.now().strftime("%Y-%m-%d")
-                send_email(
-                    primary_contacts,
-                    f"HuBMAP dataset status report ({date})",
-                    email_body,
-                    attachment_path=spreadsheet_path,
-                    cc=cc,
-                )
-                logging.info(
-                    f"Email for {group_name} sent to primary contacts {primary_contacts}."
-                )
-            except Exception as e:
-                logging.error(f"{group_name}: {str(e.__class__)}: {e}")
-                errors[group_name] = str(e)
+            data = {}
+        if data:
+            for group_name, group_attrs in groups.items():
+                try:
+                    if not data.get(group_name):
+                        continue
+                    primary_contacts = list(group_attrs.get("contacts", {}).values())
+                    group_data = pd.DataFrame.from_dict(data.get(group_name, {}))
+                    email_body = format_group_data(group_data, group_name)
+                    spreadsheet_path = get_csv_path(group_name, kwargs["run_id"])
+                    group_data.to_csv(spreadsheet_path, index=False)
+                    cc = group_data.created_by_user_email.unique().tolist()
+                    if "hubmap@hubmapconsortium.org" in cc:
+                        cc.remove("hubmap@hubmapconsortium.org")
+                    date = datetime.now().strftime("%Y-%m-%d")
+                    send_email(
+                        primary_contacts,
+                        f"HuBMAP dataset status report ({date})",
+                        email_body,
+                        attachment_path=spreadsheet_path,
+                        cc=cc,
+                    )
+                    logging.info(
+                        f"Email for {group_name} sent to primary contacts {primary_contacts}."
+                    )
+                except Exception as e:
+                    logging.error(f"{group_name}: {str(e.__class__)}: {e}")
+                    errors[group_name] = str(e)
         kwargs["ti"].xcom_push(key="errors", value=errors)
         if errors:
             return "report_errors"
@@ -216,7 +217,7 @@ def get_datasets_by_group(group_name: str, group_uuid: str, token: str) -> pd.Da
         return None
     df = pd.json_normalize(data, record_path=["hits", "hits"])
     verify_search_results(df, group_name)
-    df = modify_df(df, token)
+    df = modify_df(df)
 
     logging.info(f"   Found {len(df)} unpublished datasets in Search API")
 
@@ -276,7 +277,7 @@ def verify_search_results(df: pd.DataFrame, group_name: str):
 #####################
 
 
-def modify_df(df: pd.DataFrame, token: str) -> pd.DataFrame:
+def modify_df(df: pd.DataFrame) -> pd.DataFrame:
     # Rename columns for clarity
     df = df.rename(
         columns={
@@ -289,7 +290,6 @@ def modify_df(df: pd.DataFrame, token: str) -> pd.DataFrame:
     df["ingest_url"] = df.apply(get_ingest_url, axis=1)
     df["created_date"] = df.apply(get_date, args=("created_timestamp",), axis=1)
     df["last_modified_date"] = df.apply(get_date, args=("last_modified_timestamp",), axis=1)
-    df["status"] = df.apply(check_status, args=(token), axis=1)
 
     # Keep only relevant columns
     columns_to_keep = [
@@ -324,18 +324,6 @@ def get_ingest_url(row: pd.Series) -> str:
     if row.get("entity_type") and row.get("uuid"):
         return f"https://ingest.hubmapconsortium.org/{row['entity_type']}/{row['uuid']}"
     return ""
-
-
-def check_status(row: pd.Series, token: str) -> str:
-    http_hook = HttpHook("GET", http_conn_id="entity_api_connection")
-    endpoint = f"entities/{row.get('uuid')}?exclude=direct_ancestors.files"
-    response = http_hook.run(endpoint, headers={"authorization": f"Bearer {token}"})
-    response.raise_for_status()
-    if not response.json().get("status") == row.get("status"):
-        logging.error(
-            f"Status mismatch: entity api: {response.json().get('status')}, search api: {row.get('status')}"
-        )
-    return response.json().get("status", row.get("status", ""))
 
 
 #################
