@@ -2118,29 +2118,34 @@ def send_email(
     email_body: str,
     attachment_path: Optional[str] = None,
     cc: Optional[list[str]] = None,
-):
+    prod_only: bool = True,
+) -> bool:
     assert contacts and email_body
-    logging.info(
-        dedent(
-            f"""
-            Sending email
+    preview = dedent(
+        f"""
             Contact: {contacts}
             cc: {", ".join(cc) if cc else "None"}
             Subject: {subject}
             Message: {email_body}
             {("Attachment path: " + attachment_path) if attachment_path else "None"}
             """
-        ).strip()
+    ).strip()
+    if prod_only:
+        host_str = HttpHook.get_connection("entity_api_connection").host
+        env = find_matching_endpoint(host_str) if host_str else ""
+        if env.lower() != "prod":
+            logging.info("Non-prod environment, not sending email. Would have sent:")
+            logging.info(preview)
+            return False
+    logging.info(preview)
+    airflow_send_email(
+        contacts,
+        subject,
+        email_body,
+        files=[attachment_path] if attachment_path else None,
+        cc=cc,
     )
-    # TODO: turn on
-    logging.info(f"would send email here")
-    # airflow_send_email(
-    #     contacts,
-    #     subject,
-    #     email_body,
-    #     files=[attachment_path] if attachment_path else None,
-    #     cc=cc,
-    # )
+    return True
 
 
 if __name__ == "__main__":

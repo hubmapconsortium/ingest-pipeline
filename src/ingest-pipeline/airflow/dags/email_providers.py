@@ -115,16 +115,17 @@ with HMDAG(
                     if "hubmap@hubmapconsortium.org" in cc:
                         cc.remove("hubmap@hubmapconsortium.org")
                     date = datetime.now().strftime("%Y-%m-%d")
-                    send_email(
+                    sent = send_email(
                         primary_contacts,
                         f"HuBMAP dataset status report ({date})",
                         email_body,
                         attachment_path=spreadsheet_path,
                         cc=cc,
                     )
-                    logging.info(
-                        f"Email for {group_name} sent to primary contacts {primary_contacts}."
-                    )
+                    if sent:
+                        logging.info(
+                            f"Email for {group_name} sent to primary contacts {primary_contacts}."
+                        )
                 except Exception as e:
                     logging.error(f"{group_name}: {str(e.__class__)}: {e}")
                     errors[group_name] = str(e)
@@ -184,22 +185,6 @@ def search_api_request(body: dict, token: str) -> dict:
     except Exception as e:
         raise Exception(f"Error querying Search API: {e}")
     return response.json()
-
-
-# def search_api_request(body: dict, token: str) -> dict:
-#     import requests
-#
-#     try:
-#         headers = {"authorization": f"Bearer {token}"}
-#         response = requests.post(
-#             url="https://search.api.hubmapconsortium.org/v3/portal/search",
-#             headers=headers,
-#             json=body,
-#         )
-#         response.raise_for_status()
-#     except Exception as e:
-#         raise Exception(f"Error querying Search API: {e}")
-#     return response.json()
 
 
 def get_datasets_by_group(group_name: str, group_uuid: str, token: str) -> pd.DataFrame | None:
@@ -393,16 +378,26 @@ def get_counts(data: pd.DataFrame) -> list[str]:
     iec_responsible = {
         key: value for key, value in counts.items() if key.lower() not in provider_responsible_keys
     }
-    return [
-        "Datasets requiring action by data provider:",
-        "<ul>",
-        *[f"<li>{key}: {value}</li>" for key, value in provider_responsible.items()],
-        "</ul>",
-        "Datasets requiring action by IEC:",
-        "<ul>",
-        *[f"<li>{key}: {value}</li>" for key, value in iec_responsible.items()],
-        "</ul>",
-    ]
+    message = []
+    if provider_responsible:
+        message.extend(
+            [
+                "Datasets requiring action by data provider:",
+                "<ul>",
+                *[f"<li>{key}: {value}</li>" for key, value in provider_responsible.items()],
+                "</ul>",
+            ]
+        )
+    if iec_responsible:
+        message.extend(
+            [
+                "Datasets requiring action by IEC:",
+                "<ul>",
+                *[f"<li>{key}: {value}</li>" for key, value in iec_responsible.items()],
+                "</ul>",
+            ]
+        )
+    return message
 
 
 ############
