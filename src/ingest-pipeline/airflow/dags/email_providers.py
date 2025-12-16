@@ -15,7 +15,6 @@ from utils import (
     HMDAG,
     decrypt_tok,
     encrypt_tok,
-    get_preserve_scratch_resource,
     get_queue_resource,
     get_tmp_dir_path,
     send_email,
@@ -34,7 +33,6 @@ default_args = {
     "depends_on_past": False,
     "email": ["gesina@psc.edu"],
     "email_on_failure": False,
-    "email_on_retry": False,
     "on_failure_callback": FailureCallback(__name__),
     "owner": "hubmap",
     "queue": get_queue_resource("email_providers"),
@@ -49,10 +47,6 @@ with HMDAG(
     is_paused_upon_creation=False,
     schedule=BiweeklyTimetable(),
     catchup=False,
-    user_defined_macros={
-        "tmp_dir_path": get_tmp_dir_path,
-        "preserve_scratch": get_preserve_scratch_resource("email_providers"),
-    },
     params={
         "crypt_auth_tok": encrypt_tok(
             str(airflow_conf.as_dict()["connections"]["APP_CLIENT_SECRET"])
@@ -148,9 +142,9 @@ with HMDAG(
         task_id="cleanup_temp_dir", trigger_rule="none_failed_min_one_success"
     )
 
-########################
-# Supporting functions #
-########################
+##############
+# Search API #
+##############
 
 
 def get_data(groups: dict, token: str) -> dict:
@@ -201,53 +195,79 @@ def get_datasets_by_group(group_name: str, group_uuid: str, token: str) -> pd.Da
     """
     logging.info(f"Fetching unpublished datasets for group {group_name} from Search API...")
 
-    source_fields = [
-        "created_by_user_display_name",
-        "created_by_user_email",
-        "created_timestamp",
-        "creation_action",
-        "dataset_type",
-        "entity_type",
-        "group_name",
-        "group_uuid",
-        "hubmap_id",
-        "last_modified_timestamp",
-        "status",
-        "title",
-    ]
-    body = {
-        "_source": source_fields,
+    data = search_api_request(get_search_body(group_uuid), token)
+    df = pd.json_normalize(data, record_path=["hits", "hits"])
+    df = modify_df(df)
+    verify_search_results(df, group_name)
+
+    logging.info(f"   Found {len(df)} unpublished datasets in Search API")
+
+    return df
+
+
+search_fields: list[str] = [
+    "created_by_user_display_name",
+    "created_by_user_email",
+    "created_timestamp",
+    "creation_action",
+    "dataset_type",
+    "entity_type",
+    "group_name",
+    "group_uuid",
+    "hubmap_id",
+    "last_modified_timestamp",
+    "status",
+    "title",
+]
+
+
+def get_search_body(group_uuid: str) -> dict:
+    return {
+        "_source": search_fields,
         "size": 10000,
         "query": {
             "bool": {
-                "should": [
-                    {
-                        "match": {"creation_action": "Create Dataset Activity"}
-                    },  # Primary datasets only
-                ],
                 "must": [
-                    {"match": {"entity_type": "Dataset"}},
-                    {"match": {"group_uuid": group_uuid}},
+                    {
+                        "term": {"creation_action.keyword": {"value": "Create Dataset Activity"}}
+                    },  # Primary datasets only
+                    {"term": {"entity_type.keyword": {"value": "Dataset"}}},
+                    {"term": {"group_uuid.keyword": {"value": group_uuid}}},
                 ],
                 "must_not": [
-                    {"match": {"status": "Published"}},
+                    {"term": {"status.keyword": {"value": "Published"}}},
                 ],
             }
         },
     }
 
-    data = search_api_request(body, token)
-    df = pd.json_normalize(data, record_path=["hits", "hits"])
+
+def verify_search_results(df: pd.DataFrame, group_name: str):
+    # Verify that results are for the correct group
+    unique_groups_found = df.group_name.unique()
+    assert (
+        len(unique_groups_found) == 1
+    ), f"Not all results are for {group_name}. Groups in results: {', '.join(unique_groups_found)}."
+    assert (
+        unique_groups_found.item(0) == group_name
+    ), f"Results do not match {group_name}. Group in results: {unique_groups_found.item(0)}."
+
+
+#####################
+# Prepare DataFrame #
+#####################
+
+
+def modify_df(df: pd.DataFrame) -> pd.DataFrame:
     # Rename columns for clarity
     df = df.rename(
         columns={
             "_id": "uuid",
-            **{f"_source.{source_field}": source_field for source_field in source_fields},
+            **{f"_source.{source_field}": source_field for source_field in search_fields},
         }
     )
-    assert len(df.group_name.unique()) == 1
-    assert df.group_name.unique().item(0) == group_name
 
+    # Create/modify fields
     df["ingest_url"] = df.apply(get_ingest_url, axis=1)
     df["created_date"] = df.apply(get_date, args=("created_timestamp",), axis=1)
     df["last_modified_date"] = df.apply(get_date, args=("last_modified_timestamp",), axis=1)
@@ -266,22 +286,39 @@ def get_datasets_by_group(group_name: str, group_uuid: str, token: str) -> pd.Da
     ]
 
     df = df[[col for col in columns_to_keep if col in df.columns]]
-    logging.info(f"   Found {len(df)} unpublished datasets in Search API")
-
-    assert isinstance(df, pd.DataFrame)
     return df
 
 
-##############
-# Formatting #
-##############
+def get_csv_path(group_name: str, run_id: str) -> str:
+    date = datetime.now().strftime("%Y-%m-%d")
+    group_name_formatted = group_name.replace(" - ", "_").replace(" ", "_")
+    return str(get_tmp_dir_path(f"{run_id}/{group_name_formatted}_{date}.csv"))
+
+
+def get_date(row: pd.Series, column: str) -> str:
+    timestamp = pd.to_datetime(row[column], unit="ms")
+    return datetime.strftime(timestamp, "%Y-%m-%d")
+
+
+def get_ingest_url(row: pd.Series) -> str:
+    # PROD only
+    if row.get("entity_type") and row.get("uuid"):
+        return f"https://ingest.hubmapconsortium.org/{row['entity_type']}/{row['uuid']}"
+    return ""
+
+
+#################
+# Prepare email #
+#################
+
+max_rows: int = 100
 
 
 def format_group_data(data: pd.DataFrame, group_name: str) -> str:
     dataset_info = get_email_body_list(data)
     body = [*get_template(data, group_name), dataset_info]
-    if len(data) > 100:
-        body.append(f"... ({len(data) - 100} more datasets, see CSV attachment)")
+    if len(data) > max_rows:
+        body.append(f"... ({len(data) - max_rows} more datasets, see CSV attachment)")
     return "".join(body)
 
 
@@ -301,31 +338,8 @@ def get_template(data: pd.DataFrame, group_name: str) -> list[str]:
     ]
 
 
-def create_link(row):
+def create_link(row: pd.Series) -> str:
     return f'<a href="{row.ingest_url}">{row.hubmap_id}</a>'
-
-
-###########
-# Parsing #
-###########
-
-
-def get_csv_path(group_name: str, run_id: str) -> str:
-    date = datetime.now().strftime("%Y-%m-%d")
-    group_name_formatted = group_name.replace(" - ", "_").replace(" ", "_")
-    return str(get_tmp_dir_path(f"{run_id}/{group_name_formatted}_{date}.csv"))
-
-
-def get_date(row, column: str) -> str:
-    timestamp = pd.to_datetime(row[column], unit="ms")
-    return datetime.strftime(timestamp, "%Y-%m-%d")
-
-
-def get_ingest_url(row) -> str:
-    # PROD only
-    if row.get("entity_type") and row.get("uuid"):
-        return f"https://ingest.hubmapconsortium.org/{row['entity_type']}/{row['uuid']}"
-    return ""
 
 
 def get_email_body_list(data: pd.DataFrame) -> str:
