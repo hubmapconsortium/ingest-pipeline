@@ -330,7 +330,7 @@ def format_group_data(data: pd.DataFrame, group_name: str) -> str:
 def get_template(data: pd.DataFrame, group_name: str) -> list[str]:
     return [
         f"<b>Biweekly unpublished dataset report for {group_name}</b><br>",
-        "This report is sent to the group PI and all owners of datasets in this list.<br>",
+        "This report is sent to the group PI(s) and all creators of datasets in this list.<br>",
         "<br>",
         f"{len(data)} unpublished datasets:<br>",
         # TODO
@@ -338,7 +338,7 @@ def get_template(data: pd.DataFrame, group_name: str) -> list[str]:
         # *get_counts(data),
         # "</ul>",
         # "Instructions:",
-        "<br>",
+        # "<br>",
         "<br>",
     ]
 
