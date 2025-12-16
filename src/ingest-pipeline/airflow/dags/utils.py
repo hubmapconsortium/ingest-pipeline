@@ -2130,6 +2130,7 @@ def send_email(
             {("Attachment path: " + attachment_path) if attachment_path else "None"}
             """
     ).strip()
+    contacts = list(set(contacts))
     if prod_only:
         host_str = HttpHook.get_connection("entity_api_connection").host
         env = find_matching_endpoint(host_str) if host_str else ""
@@ -2142,7 +2143,7 @@ def send_email(
         cc = list(set(cc) - set(contacts))
     logging.info(preview)
     airflow_send_email(
-        list(set(contacts)),
+        contacts,
         subject,
         email_body,
         files=[attachment_path] if attachment_path else None,
