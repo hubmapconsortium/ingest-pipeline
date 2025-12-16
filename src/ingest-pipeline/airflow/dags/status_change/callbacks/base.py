@@ -45,7 +45,7 @@ class AirflowCallback(ABC):
         self.entity_data = get_submission_context(self.auth_tok, self.uuid)
         self.entity_type = self.entity_data.get("entity_type", "").lower()
 
-    def alt_get_auth_tok(self, context):
+    def alt_get_auth_tok(self, **context):
         crypt_auth_tok = context["params"]["crypt_auth_tok"]
         auth_tok = "".join(
             e for e in decrypt_tok(crypt_auth_tok.encode()) if e.isalnum()
