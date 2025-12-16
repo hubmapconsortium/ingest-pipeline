@@ -47,6 +47,10 @@ with HMDAG(
     is_paused_upon_creation=False,
     schedule=BiweeklyTimetable(),
     catchup=False,
+    user_defined_macros={
+        "tmp_dir_path": get_tmp_dir_path,
+        # "preserve_scratch": get_preserve_scratch_resource("geomx"),
+    },
     params={
         "crypt_auth_tok": encrypt_tok(
             str(airflow_conf.as_dict()["connections"]["APP_CLIENT_SECRET"])
@@ -96,6 +100,8 @@ with HMDAG(
             try:
                 primary_contacts = list(group_attrs.get("contacts", {}).values())
                 group_data = pd.DataFrame.from_dict(data.get(group_name, {}))
+                if not group_data:
+                    continue
                 email_body = format_group_data(group_data, group_name)
                 spreadsheet_path = get_csv_path(group_name, "{{ run_id }}")
                 group_data.to_csv(spreadsheet_path)
@@ -153,7 +159,10 @@ def get_data(groups: dict, token: str) -> dict:
     """
     data = {}
     for group_name, group_data in groups.items():
-        data[group_name] = get_datasets_by_group(group_name, group_data["uuid"], token).to_dict()
+        if group_data := get_datasets_by_group(group_name, group_data["uuid"], token):
+            data[group_name] = group_data.to_dict()
+        else:
+            data[group_name] = {}
     return data
 
 
@@ -161,9 +170,7 @@ def search_api_request(body: dict, token: str) -> dict:
     try:
         search_hook = HttpHook("POST", http_conn_id="search_api_connection")
         headers = {"authorization": f"Bearer {token}"}
-        response = search_hook.run(
-            endpoint="v3/portal/search", headers=headers, json=json.dumps(body)
-        )
+        response = search_hook.run(endpoint="v3/portal/search", headers=headers, json=body)
         response.raise_for_status()
     except Exception as e:
         raise Exception(f"Error querying Search API: {e}")
@@ -186,7 +193,7 @@ def search_api_request(body: dict, token: str) -> dict:
 #     return response.json()
 
 
-def get_datasets_by_group(group_name: str, group_uuid: str, token: str) -> pd.DataFrame:
+def get_datasets_by_group(group_name: str, group_uuid: str, token: str) -> pd.DataFrame | None:
     """
     Fetch all unpublished datasets from Search API by group_uuid.
 
@@ -196,9 +203,12 @@ def get_datasets_by_group(group_name: str, group_uuid: str, token: str) -> pd.Da
     logging.info(f"Fetching unpublished datasets for group {group_name} from Search API...")
 
     data = search_api_request(get_search_body(group_uuid), token)
+    if not data["hits"]["hits"]:
+        logging.info(f"No unpublished datasets found for {group_name}.")
+        return None
     df = pd.json_normalize(data, record_path=["hits", "hits"])
-    df = modify_df(df)
     verify_search_results(df, group_name)
+    df = modify_df(df)
 
     logging.info(f"   Found {len(df)} unpublished datasets in Search API")
 
@@ -244,13 +254,13 @@ def get_search_body(group_uuid: str) -> dict:
 
 def verify_search_results(df: pd.DataFrame, group_name: str):
     # Verify that results are for the correct group
-    unique_groups_found = df.group_name.unique()
+    unique_groups_found = df["_source.group_name"].unique()
     assert (
         len(unique_groups_found) == 1
     ), f"Not all results are for {group_name}. Groups in results: {', '.join(unique_groups_found)}."
     assert (
-        unique_groups_found.item(0) == group_name
-    ), f"Results do not match {group_name}. Group in results: {unique_groups_found.item(0)}."
+        unique_groups_found[0] == group_name
+    ), f"Results do not match {group_name}. Group in results: {unique_groups_found[0]}."
 
 
 #####################
