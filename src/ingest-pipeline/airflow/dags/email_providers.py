@@ -146,6 +146,7 @@ with HMDAG(
             INTERNAL_CONTACTS,
             "Errors in EmailProviders DAG",
             formatted_errors,
+            # prod_only=False
         )
 
     t_create_tmpdir = CreateTmpDirOperator(task_id="create_temp_dir")
@@ -198,13 +199,13 @@ def get_datasets_by_group(group_name: str, group_uuid: str, token: str) -> pd.Da
 
     data = search_api_request(get_search_body(group_uuid), token)
     if not data["hits"]["hits"]:
-        logging.info(f"No unpublished datasets found for {group_name}.")
+        logging.info(f"   No unpublished datasets found for {group_name}.")
         return None
     df = pd.json_normalize(data, record_path=["hits", "hits"])
     verify_search_results(df, group_name)
     df = modify_df(df)
 
-    logging.info(f"   Found {len(df)} unpublished datasets in Search API")
+    logging.info(f"   Found {len(df)} unpublished datasets in Search API for {group_name}.")
 
     return df
 
