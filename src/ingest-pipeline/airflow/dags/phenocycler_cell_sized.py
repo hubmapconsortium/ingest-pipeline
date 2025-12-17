@@ -21,7 +21,6 @@ from utils import (
     get_uuid_for_error,
     HMDAG,
     get_preserve_scratch_resource,
-    get_absolute_workflow,
     get_parent_data_dir,
     get_threads_resource,
     get_cwl_cmd_from_workflows,
