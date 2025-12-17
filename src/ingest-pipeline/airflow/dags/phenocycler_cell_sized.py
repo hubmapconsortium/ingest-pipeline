@@ -21,7 +21,6 @@ from utils import (
     get_uuid_for_error,
     HMDAG,
     get_preserve_scratch_resource,
-    get_absolute_workflow,
     get_parent_data_dir,
     get_threads_resource,
     get_cwl_cmd_from_workflows,
@@ -84,7 +83,7 @@ def generate_phenocycler_dag(params: SequencingDagParameters) -> DAG:
                 },
                 {"parameter_name": "--image_dir", "value": str(data_dir / "pipeline_output/expr")},
                 {"parameter_name": "--mask_dir", "value": str(data_dir / "pipeline_output/mask")},
-                {"parameter_name": "--min-memory", "value": ""},
+                {"parameter_name": "--min_memory", "value": ""},
             ]
 
             command = get_cwl_cmd_from_workflows(
