@@ -2019,5 +2019,13 @@ def main():
     print("crypto test: {} -> {} -> {}".format(s, crypt_s, s2))
 
 
+def post_to_slack_notify(token: str, message: str, channel: str):
+    http_hook = HttpHook("POST", http_conn_id="ingest_api_connection")
+    payload = json.dumps({"message": message, "channel": channel})
+    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+    response = http_hook.run("/notify", payload, headers)
+    response.raise_for_status()
+
+
 if __name__ == "__main__":
     main()

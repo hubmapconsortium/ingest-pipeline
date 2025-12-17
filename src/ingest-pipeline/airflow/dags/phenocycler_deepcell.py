@@ -1,33 +1,38 @@
 import re
-import utils
-
-from airflow.decorators import task
-from airflow.operators.bash import BashOperator
-from airflow.operators.empty import EmptyOperator
-from airflow.operators.python import PythonOperator, BranchPythonOperator
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from utils import (
-    get_queue_resource,
-    get_uuid_for_error,
-    HMDAG,
-    get_tmp_dir_path,
-    get_preserve_scratch_resource,
-    get_absolute_workflow,
-    build_dataset_name as inner_build_dataset_name,
-    get_parent_data_dir,
-    get_cwl_cmd_from_workflows,
-    join_quote_command_str,
-    get_dataset_uuid,
+from extra_utils import build_tag_containers
+from hubmap_operators.common_operators import (
+    CreateTmpDirOperator,
+    LogInfoOperator,
 )
 from hubmap_operators.flex_multi_dag_run import FlexMultiDagRunOperator
-from hubmap_operators.common_operators import (
-    LogInfoOperator,
-    CreateTmpDirOperator,
+from status_change.callbacks.failure_callback import FailureCallback
+from utils import (
+    HMDAG,
+)
+from utils import build_dataset_name as inner_build_dataset_name
+from utils import (
+    downstream_workflow_iter,
+    get_absolute_workflow,
+    get_auth_tok,
+    get_cwl_cmd_from_workflows,
+    get_dataset_uuid,
+    get_parent_data_dir,
+    get_preserve_scratch_resource,
+    get_queue_resource,
+    get_tmp_dir_path,
+    get_uuid_for_error,
+    join_quote_command_str,
+    post_to_slack_notify,
+    pythonop_maybe_keep,
+    pythonop_set_dataset_state,
 )
 
-from extra_utils import build_tag_containers
+from airflow.decorators import task
+from airflow.operators.bash import BashOperator
+from airflow.operators.python import BranchPythonOperator, PythonOperator
 
 default_args = {
     "owner": "hubmap",
@@ -40,7 +45,7 @@ default_args = {
     "retry_delay": timedelta(minutes=1),
     "xcom_push": True,
     "queue": get_queue_resource("phenocycler_deepcell"),
-    "on_failure_callback": utils.create_dataset_state_error_callback(get_uuid_for_error),
+    "on_failure_callback": FailureCallback(__name__, get_uuid_for_error),
 }
 
 with HMDAG(
@@ -151,7 +156,7 @@ with HMDAG(
 
     t_maybe_keep_cwl_segmentation = BranchPythonOperator(
         task_id="maybe_keep_cwl_segmentation",
-        python_callable=utils.pythonop_maybe_keep,
+        python_callable=pythonop_maybe_keep,
         provide_context=True,
         op_kwargs={
             "next_op": "prepare_stellar_pre_convert",
@@ -211,30 +216,38 @@ with HMDAG(
         """,
     )
 
-    # TODO: t_notify_user_stellar_pre_convert
-
     t_maybe_keep_cwl_stellar_pre_convert = BranchPythonOperator(
         task_id="maybe_keep_cwl_stellar_pre_convert",
-        python_callable=utils.pythonop_maybe_keep,
+        python_callable=pythonop_maybe_keep,
         provide_context=True,
         op_kwargs={
-            "next_op": "prepare_cell_count_cmd",
+            "next_op": "notify_user_stellar_pre_convert",
             "bail_op": "set_dataset_error",
             "test_op": "pipeline_exec_cwl_stellar_pre_convert",
         },
     )
 
-    prepare_cell_count_cmd = EmptyOperator(task_id="prepare_cell_count_cmd")
+    @task
+    def notify_user_stellar_pre_convert(**kwargs):
+        message = f"STELLAR pre-convert step succeeded in run {kwargs['run_id']}."
+        token = get_auth_tok(**kwargs)
+        post_to_slack_notify(token, message, "C07P2P1D5LP")
+
+    t_notify_user_stellar_pre_convert = notify_user_stellar_pre_convert()
 
     @task(task_id="cell_count_cmd")
     def build_cell_count_cmd(**kwargs):
         tmpdir = get_tmp_dir_path(kwargs["run_id"])
         print("tmpdir: ", tmpdir)
         pattern = r"\: (\d+),$"
+        num_cells_re = None
         with open(Path(tmpdir, "session.log"), "r") as f:
             for line in f:
                 if "num_cells" in line:
-                    num_cells = re.search(pattern, line).group(1)
+                    num_cells_re = re.search(pattern, line)
+        if not num_cells_re:
+            raise Exception("'num_cells' not found in session.log file")
+        num_cells = num_cells_re.group(1)
         print("num_cells: ", num_cells)
         kwargs["ti"].xcom_push(key="small_sprm", value=1 if int(num_cells) > 200000 else 0)
         return 0
@@ -243,7 +256,7 @@ with HMDAG(
 
     t_maybe_start_small_sprm = BranchPythonOperator(
         task_id="maybe_start_small",
-        python_callable=utils.pythonop_maybe_keep,
+        python_callable=pythonop_maybe_keep,
         provide_context=True,
         op_kwargs={
             "next_op": "trigger_phenocycler_small",
@@ -254,14 +267,14 @@ with HMDAG(
     )
 
     def trigger_phenocycler(**kwargs):
-        collection_type = kwargs.get("collection_type")
-        assay_type = kwargs.get("assay_type")
+        collection_type = kwargs.get("collection_type", "")
+        assay_type = kwargs.get("assay_type", "")
         payload = {
-            "tmp_dir": get_tmp_dir_path(kwargs.get("run_id")),
-            "parent_submission_id": kwargs.get("dag_run").conf.get("parent_submission_id"),
-            "parent_lz_path": kwargs.get("dag_run").conf.get("parent_lz_path"),
-            "previous_version_uuid": kwargs.get("dag_run").conf.get("previous_version_uuid"),
-            "metadata": kwargs.get("dag_run").conf.get("metadata"),
+            "tmp_dir": get_tmp_dir_path(kwargs["run_id"]),
+            "parent_submission_id": kwargs["dag_run"].conf.get("parent_submission_id"),
+            "parent_lz_path": kwargs["dag_run"].conf.get("parent_lz_path"),
+            "previous_version_uuid": kwargs["dag_run"].conf.get("previous_version_uuid"),
+            "metadata": kwargs["dag_run"].conf.get("metadata"),
             "crypt_auth_tok": kwargs["dag_run"].conf.get("crypt_auth_tok"),
             "workflows": kwargs["ti"].xcom_pull(
                 task_ids="build_cwl_stellar_pre_convert", key="cwl_workflows"
@@ -270,7 +283,7 @@ with HMDAG(
         print(
             f"Collection_type: {collection_type} with assay_type {assay_type} and payload: {payload}",
         )
-        for next_dag in utils.downstream_workflow_iter(collection_type, assay_type):
+        for next_dag in downstream_workflow_iter(collection_type, assay_type):
             yield next_dag, payload
 
     t_trigger_phenocyler_small = FlexMultiDagRunOperator(
@@ -294,7 +307,7 @@ with HMDAG(
 
     t_set_dataset_error = PythonOperator(
         task_id="set_dataset_error",
-        python_callable=utils.pythonop_set_dataset_state,
+        python_callable=pythonop_set_dataset_state,
         provide_context=True,
         trigger_rule="all_done",
         op_kwargs={
@@ -316,7 +329,7 @@ with HMDAG(
         >> t_pipeline_exec_cwl_stellar_pre_convert
         >> t_copy_stellar_pre_convert_data
         >> t_maybe_keep_cwl_stellar_pre_convert
-        >> prepare_cell_count_cmd
+        >> t_notify_user_stellar_pre_convert
         >> cell_count_cmd
         >> t_maybe_start_small_sprm
         >> t_trigger_phenocyler_small
