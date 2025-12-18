@@ -5,12 +5,13 @@ from os.path import dirname, join
 from pathlib import Path
 
 import pandas as pd
-from biweekly_timetable import BiweeklyTimetable  # type: ignore
-from hubmap_operators.common_operators import (  # type: ignore
+from hubmap_operators.common_operators import (
     CleanupTmpDirOperator,
     CreateTmpDirOperator,
 )
 from status_change.callbacks.failure_callback import FailureCallback
+from status_change.status_utils import Statuses
+from timetables.biweekly_timetable import BiweeklyTimetable
 from utils import (
     HMDAG,
     decrypt_tok,
@@ -328,21 +329,72 @@ def format_group_data(data: pd.DataFrame, group_name: str) -> str:
 
 
 def get_template(data: pd.DataFrame, group_name: str) -> list[str]:
-    return [
+    # Default template
+    template = [
         f"<b>Biweekly unpublished dataset report for {group_name}</b><br>",
         "This report is sent to the group PI(s) and all creators of datasets in this list.<br>",
         "<br>",
         f"If you have questions, please schedule an appointment with Data Curator Brendan Honick (https://calendly.com/bhonick-psc/) or email ingest@hubmapconsortium.org. Do not respond to this email; this inbox is not monitored.<br>",
         "<br>",
-        f"{len(data)} unpublished datasets:<br>",
-        # TODO
-        # "<ul>",
-        # *get_counts(data),
-        # "</ul>",
-        # "Instructions:",
-        # "<br>",
+        f"There are {len(data)} unpublished datasets belonging to {group_name}.<br>",
         "<br>",
+        "<b>Counts by status:</b>",
+        *get_counts(data),
     ]
+    # If counts exist for new, invalid, or qa: add instructions
+    template.extend(add_instructions(data))
+    # Footer
+    template.append(
+        "Please consult our <a href='https://docs.google.com/document/d/13zBbp_BNCVPZPj71Q5dGLoNJ_TDRyEpPck2mGQbkLYg/edit?usp=sharing'>guide to HuBMAP entity statuses</a> if you would like to learn more about the different dataset statuses.<br>"
+    )
+    return template
+
+
+def add_instructions(data: pd.DataFrame) -> list[str]:
+    template = []
+    qa = get_counts(data, [Statuses.DATASET_QA])
+    invalid = get_counts(data, [Statuses.DATASET_INVALID])
+    new = get_counts(data, [Statuses.DATASET_NEW])
+    if any([qa, invalid, new]):
+        template.extend(
+            [
+                "<br>",
+                "<b>What you can do to move datasets forward:</b><br>",
+                "Some dataset statuses indicate the need for intervention by the data provider. Below are some brief instructions by status.<br>",
+                "<br>",
+                "<ul>",
+            ]
+        )
+        if qa:
+            template.extend(
+                [
+                    qa[0],
+                    "The dataset has been validated and is ready for site approval.<br>",
+                    "<br>",
+                ]
+            )
+        if invalid:
+            template.extend(
+                [
+                    invalid[0],
+                    "The dataset cannot be validated due a metadata or directory issue. View the errors on the dataset's ingest page and correct them. Help is available by scheduling with Data Curator Brendan Honick (https://calendly.com/bhonick-psc/).<br>",
+                    "<br>",
+                ]
+            )
+        if new:
+            template.extend(
+                [
+                    new[0],
+                    'This status is an artifact of prior status handling. Go to the dataset ingest page and press "Submit."<br>',
+                ]
+            )
+        template.extend(
+            [
+                "</ul>",
+                "<br>",
+            ]
+        )
+    return template
 
 
 def create_link(row: pd.Series) -> str:
@@ -365,42 +417,24 @@ def get_email_body_list(data: pd.DataFrame) -> str:
         index=False,
         na_rep="",
         justify="justify",
-        max_rows=100,
+        max_rows=max_rows,
         escape=False,
         border=0,
         col_space={"HuBMAP ID": 170, "Last Updated": 130},
     ).replace("\n", "")
 
 
-def get_counts(data: pd.DataFrame) -> list[str]:
+def get_counts(
+    data: pd.DataFrame,
+    statuses: list[Statuses] = [],
+) -> list[str]:
     counts = data["status"].value_counts().to_dict()
-    provider_responsible_keys = ["qa", "invalid"]
-    provider_responsible = {
-        key: value for key, value in counts.items() if key.lower() in provider_responsible_keys
-    }
-    iec_responsible = {
-        key: value for key, value in counts.items() if key.lower() not in provider_responsible_keys
-    }
-    message = []
-    if provider_responsible:
-        message.extend(
-            [
-                "Datasets requiring action by data provider:",
-                "<ul>",
-                *[f"<li>{key}: {value}</li>" for key, value in provider_responsible.items()],
-                "</ul>",
-            ]
-        )
-    if iec_responsible:
-        message.extend(
-            [
-                "Datasets requiring action by IEC:",
-                "<ul>",
-                *[f"<li>{key}: {value}</li>" for key, value in iec_responsible.items()],
-                "</ul>",
-            ]
-        )
-    return message
+    if statuses:
+        str_statuses = [status.status_str for status in statuses]
+        counts = {key: value for key, value in counts.items() if key.lower() in str_statuses}
+    count_list = [f"<li>{key}: {value}</li>" for key, value in counts.items()]
+    count_list.sort()
+    return count_list
 
 
 ############
