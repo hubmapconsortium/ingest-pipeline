@@ -28,6 +28,12 @@ from airflow.operators.empty import EmptyOperator
 from airflow.providers.http.hooks.http import HttpHook
 
 INTERNAL_CONTACTS = ["gesina@psc.edu"]
+"""
+data_providers.json lists all sites who have contributed datasets
+as of 2025-12, with the exception of components that no longer have
+funding and that no other component has taken over (RTI Broad and
+California Institute of Technology TMC).
+"""
 DP_PATH = Path(join(dirname(__file__), "data_providers.json"))
 
 
@@ -70,6 +76,11 @@ with HMDAG(
                     "uuid": uuid,
                     "contacts": {
                         contact_name: contact_email
+                    },
+                    "subcomponent": {  # optional
+                        "subcomponent_name": {
+                            "uuid": uuid
+                        }
                     }
                 }
             }
@@ -169,10 +180,18 @@ def get_data(groups: dict, token: str) -> dict:
     Get data from search API by group.
     """
     data = {}
-    for group_name, group_data in groups.items():
-        group_data = get_datasets_by_group(group_name, group_data["uuid"], token)
+    for group_name, group_info in groups.items():
+        group_data = get_datasets_by_group(group_name, group_info["uuid"], token)
         if group_data is not None:
             data[group_name] = group_data.to_dict()
+            if subcomponent := group_info.get("subcomponent"):
+                for subcomponent_name, subcomponent_info in subcomponent.items():
+                    if subcomponent_data := get_datasets_by_group(
+                        subcomponent_name,
+                        subcomponent_info["uuid"],
+                        token,
+                    ):
+                        data[group_name].update(subcomponent_data.to_dict())
         else:
             data[group_name] = {}
     return data
@@ -197,7 +216,6 @@ def get_datasets_by_group(group_name: str, group_uuid: str, token: str) -> pd.Da
         DataFrame with upload/dataset information including uuid, created_by, group_name, etc.
     """
     logging.info(f"Fetching unpublished datasets for group {group_name} from Search API...")
-
     data = search_api_request(get_search_body(group_uuid), token)
     if not data["hits"]["hits"]:
         logging.info(f"   No unpublished datasets found for {group_name}.")
@@ -228,7 +246,7 @@ search_fields: list[str] = [
 
 
 def get_search_body(group_uuid: str) -> dict:
-    return {
+    query = {
         "_source": search_fields,
         "size": 10000,
         "query": {
@@ -246,6 +264,12 @@ def get_search_body(group_uuid: str) -> dict:
             }
         },
     }
+    # TODO: not sure how to filter by organ cleanly for UCSD
+    # if must := restriction.get("must"):
+    #     query["bool"]["must"].extend(must)
+    # if must_not := restriction.get("must_not"):
+    #     query["bool"]["must_not"].extend(must_not)
+    return query
 
 
 def verify_search_results(df: pd.DataFrame, group_name: str):
