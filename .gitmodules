@@ -31,7 +31,6 @@
 [submodule "src/ingest-pipeline/airflow/dags/cwl/sprm"]
 	path = src/ingest-pipeline/airflow/dags/cwl/sprm
 	url = https://github.com/hubmapconsortium/sprm
-	branch = release
 [submodule "src/ingest-pipeline/submodules/manual-data-ingest"]
 	path = src/ingest-pipeline/submodules/manual-data-ingest
 	url = https://github.com/hubmapconsortium/manual-data-ingest.git
