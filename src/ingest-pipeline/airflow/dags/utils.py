@@ -1233,6 +1233,46 @@ def _generate_slices(id_to_slice: str) -> Iterable[str]:
         yield id_to_slice
 
 
+def pythonop_build_dataset_lists(**kwargs) -> None:
+    """
+    Given a list of uuids in dag_run.conf["uuids"], add 3 lists of uuids
+    to dag_run.conf:
+    - "primary_datasets", containing uuids of primary datasets
+    - "processed_datasets", containing uuids of processed datasets
+    - "component_datasets", containing uuids of component datasets
+    """
+    kwargs["dag_run"].conf["primary_datasets"] = []
+    kwargs["dag_run"].conf["processed_datasets"] = []
+    kwargs["dag_run"].conf["component_datasets"] = []
+
+    for uuid in kwargs["dag_run"].conf["uuids"]:
+        soft_data = get_soft_data(uuid, **kwargs)
+        ds_rslt = pythonop_get_dataset_state(
+            dataset_uuid_callable=lambda **kwargs: uuid, **kwargs
+        )
+
+        # If we got nothing back from soft_data, then let's try to determine using entity_api
+        if soft_data:
+            if soft_data.get("primary") or soft_data.get("assaytype") == "publication":
+                if ds_rslt["creation_action"] == "Multi-Assay Split":
+                    kwargs["dag_run"].conf["component_datasets"].append(uuid)
+                else:
+                    kwargs["dag_run"].conf["primary_datasets"].append(uuid)
+            else:
+                kwargs["dag_run"].conf["processed_datasets"].append(uuid)
+        else:
+            print(f"No matching soft data returned for {uuid}")
+            if ds_rslt.get("dataset_info"):
+                # dataset_info should only be populated for processed_datasets
+                print(ds_rslt.get("dataset_info"))
+                kwargs["dag_run"].conf["processed_datasets"].append(uuid)
+            else:
+                if ds_rslt["creation_action"] == "Multi-Assay Split":
+                    kwargs["dag_run"].conf["component_datasets"].append(uuid)
+                else:
+                    kwargs["dag_run"].conf["primary_datasets"].append(uuid)
+
+
 def assert_id_known(id_to_check: str, **kwargs) -> None:
     """
     Is the given id string known to the uuid database?  Id strings with suffixes like
