@@ -34,6 +34,8 @@ from airflow.decorators import task
 from airflow.operators.bash import BashOperator
 from airflow.operators.python import BranchPythonOperator, PythonOperator
 
+SLACK_NOTIFY_CHANNEL = "C07P2P1D5LP"
+
 default_args = {
     "owner": "hubmap",
     "depends_on_past": False,
@@ -231,7 +233,7 @@ with HMDAG(
     def notify_user_stellar_pre_convert(**kwargs):
         message = f"STELLAR pre-convert step succeeded in run {kwargs['run_id']}."
         token = get_auth_tok(**kwargs)
-        post_to_slack_notify(token, message, "C07P2P1D5LP")
+        post_to_slack_notify(token, message, SLACK_NOTIFY_CHANNEL)
 
     t_notify_user_stellar_pre_convert = notify_user_stellar_pre_convert()
 
