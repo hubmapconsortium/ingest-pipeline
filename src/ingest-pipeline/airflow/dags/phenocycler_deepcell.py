@@ -1,4 +1,5 @@
 import re
+import urllib.parse
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -30,6 +31,7 @@ from utils import (
     pythonop_set_dataset_state,
 )
 
+from airflow.configuration import conf as airflow_conf
 from airflow.decorators import task
 from airflow.operators.bash import BashOperator
 from airflow.operators.python import BranchPythonOperator, PythonOperator
@@ -231,9 +233,13 @@ with HMDAG(
 
     @task
     def notify_user_stellar_pre_convert(**kwargs):
-        message = f"STELLAR pre-convert step succeeded in run {kwargs['run_id']}."
-        token = get_auth_tok(**kwargs)
-        post_to_slack_notify(token, message, SLACK_NOTIFY_CHANNEL)
+        run_id = kwargs["run_id"]
+        conf = airflow_conf.as_dict().get("webserver", {})
+        run_url = f"{conf.get('base_url', '')}:{conf.get('web_server_port', '')}/dags/phenocycler_deepcell_segmentation/grid?dag_run_id={urllib.parse.quote(run_id)}"
+        message = f"STELLAR pre-convert step succeeded in run <{run_url}|{run_id}>."
+        if kwargs["dag_run"].conf.get("dryrun"):
+            message = "[dryrun] " + message
+        post_to_slack_notify(get_auth_tok(**kwargs), message, SLACK_NOTIFY_CHANNEL)
 
     t_notify_user_stellar_pre_convert = notify_user_stellar_pre_convert()
 
