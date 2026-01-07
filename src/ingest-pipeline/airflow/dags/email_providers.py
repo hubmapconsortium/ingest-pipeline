@@ -246,7 +246,7 @@ search_fields: list[str] = [
 
 
 def get_search_body(group_uuid: str) -> dict:
-    query = {
+    return {
         "_source": search_fields,
         "size": 10000,
         "query": {
@@ -264,12 +264,6 @@ def get_search_body(group_uuid: str) -> dict:
             }
         },
     }
-    # TODO: not sure how to filter by organ cleanly for UCSD
-    # if must := restriction.get("must"):
-    #     query["bool"]["must"].extend(must)
-    # if must_not := restriction.get("must_not"):
-    #     query["bool"]["must_not"].extend(must_not)
-    return query
 
 
 def verify_search_results(df: pd.DataFrame, group_name: str):
@@ -375,49 +369,47 @@ def get_template(data: pd.DataFrame, group_name: str) -> list[str]:
 
 
 def add_instructions(data: pd.DataFrame) -> list[str]:
-    template = []
     qa = get_counts(data, [Statuses.DATASET_QA])
     invalid = get_counts(data, [Statuses.DATASET_INVALID])
     new = get_counts(data, [Statuses.DATASET_NEW])
-    if any([qa, invalid, new]):
+    if not any([qa, invalid, new]):
+        return []
+    template = [
+        "<br>",
+        "<b>What you can do to move datasets forward:</b><br>",
+        "Some dataset statuses indicate the need for intervention by the data provider. Below are some brief instructions by status.<br>",
+        "<br>",
+        "<ul>",
+    ]
+    if qa:
         template.extend(
             [
-                "<br>",
-                "<b>What you can do to move datasets forward:</b><br>",
-                "Some dataset statuses indicate the need for intervention by the data provider. Below are some brief instructions by status.<br>",
-                "<br>",
-                "<ul>",
-            ]
-        )
-        if qa:
-            template.extend(
-                [
-                    qa[0],
-                    "The dataset has been validated and is ready for site approval.<br>",
-                    "<br>",
-                ]
-            )
-        if invalid:
-            template.extend(
-                [
-                    invalid[0],
-                    "The dataset cannot be validated due a metadata or directory issue. View the errors on the dataset's ingest page and correct them. Help is available by scheduling with Data Curator Brendan Honick (https://calendly.com/bhonick-psc/).<br>",
-                    "<br>",
-                ]
-            )
-        if new:
-            template.extend(
-                [
-                    new[0],
-                    'This status is an artifact of prior status handling. Go to the dataset ingest page and press "Submit."<br>',
-                ]
-            )
-        template.extend(
-            [
-                "</ul>",
+                f"QA: {qa[0]} datasets",
+                "The dataset has been validated and is ready for site approval.<br>",
                 "<br>",
             ]
         )
+    if invalid:
+        template.extend(
+            [
+                f"Invalid: {invalid[0]} datasets",
+                "The dataset cannot be validated due a metadata or directory issue. View the errors on the dataset's ingest page and correct them. Help is available by scheduling with Data Curator Brendan Honick (https://calendly.com/bhonick-psc/).<br>",
+                "<br>",
+            ]
+        )
+    if new:
+        template.extend(
+            [
+                f"New: {new[0]} datasets",
+                'This status is an artifact of prior status handling. Go to the dataset ingest page and press "Submit."<br>',
+            ]
+        )
+    template.extend(
+        [
+            "</ul>",
+            "<br>",
+        ]
+    )
     return template
 
 
