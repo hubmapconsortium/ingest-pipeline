@@ -30,13 +30,13 @@ default_args = {
 }
 
 with HMDAG(
-    "rebuild_files_entries",
+    "build_files_json",
     schedule_interval=None,
     is_paused_upon_creation=False,
     default_args=default_args,
     user_defined_macros={
         "tmp_dir_path": get_tmp_dir_path,
-        "preserve_scratch": get_preserve_scratch_resource("rebuild_files_entries"),
+        "preserve_scratch": get_preserve_scratch_resource("build_files_json"),
     },
 ) as dag:
 
@@ -49,7 +49,7 @@ with HMDAG(
         task_id="build_dataset_lists",
         python_callable=build_dataset_lists,
         provide_context=True,
-        queue=get_queue_resource("rebuild_metadata"),
+        queue=get_queue_resource("build_files_json"),
         op_kwargs={
             "crypt_auth_tok": encrypt_tok(
                 airflow_conf.as_dict()["connections"]["APP_CLIENT_SECRET"]
@@ -82,7 +82,7 @@ with HMDAG(
     t_emit_files_json = PythonOperator(
         task_id="emit_files_json",
         python_callable=emit_files_json,
-        queue=get_queue_resource("rebuild_metadata"),
+        queue=get_queue_resource("build_files_json"),
         provide_context=True,
     )
 
