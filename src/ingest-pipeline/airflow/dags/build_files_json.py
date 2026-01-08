@@ -13,6 +13,8 @@ from utils import (
     get_tmp_dir_path,
     encrypt_tok,
     pythonop_build_dataset_lists,
+    get_file_metadata_dict,
+    find_pipeline_manifests,
 )
 
 
@@ -60,8 +62,19 @@ with HMDAG(
         # Only processed datasets have files: information
         uuid_list = kwargs["dag_run"].conf.get("processed_datasets", [])
         rslt = {}
+        pipeline_file_manifests = find_pipeline_manifests(kwargs["dag_run"].conf["cwl_workflows"])
         for uuid in uuid_list:
-            rslt[uuid] = "stuff"
+            def uuid_callable(**kwargs):
+                return uuid
+            ds_state = pythonop_get_dataset_state(dataset_uuid_callable=uuid_callable)
+            lz_path = ds_state["local_directory_full_path"]
+            file_metadata_dict = get_file_metadata_dict(
+                lz_path,
+                ".",  # not used since max_in_line_files is < 0
+                pipeline_file_manifests,
+                max_in_line_files = -1
+            )
+            rslt[uuid] = file_metadata_dict
         json_file_path = Path(get_tmp_dir_path(kwargs["run_id"])) / "uuid_files.json"
         with open(json_file_path, "w") as f:
             json.dump(rslt, f)

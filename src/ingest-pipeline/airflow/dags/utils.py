@@ -772,14 +772,16 @@ def get_file_metadata_dict(
     This routine returns file metadata, either directly as JSON in the form
     {'files': [{...}, {...}, ...]} with the list returned by get_file_metadata() or the form
     {'files_info_alt_path': path} where path is the path of a unique file in alt_file_dir
-    relative to the WORKFLOW_SCRATCH config parameter
+    relative to the WORKFLOW_SCRATCH config parameter.  Setting max_in_line_files to a
+    value less than zero will cause the file info to be returned in-line regardless of
+    length.
     """
     if not pipeline_file_manifests:
         matcher = DummyFileMatcher()
     else:
         matcher = PipelineFileMatcher.create_from_files(pipeline_file_manifests)
     file_info = get_file_metadata(root_dir, matcher)
-    if len(file_info) > max_in_line_files:
+    if max_in_line_files >= 0 and len(file_info) > max_in_line_files:
         assert_json_matches_schema(file_info, "file_info_schema.yml")
         fpath = join(alt_file_dir, "{}.json".format(uuid.uuid4()))
         with open(fpath, "w") as f:
