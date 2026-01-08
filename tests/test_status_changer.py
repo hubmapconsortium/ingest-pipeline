@@ -111,7 +111,7 @@ class MockParent(unittest.TestCase):
             "status_change.slack.base.get_submission_context", return_value=good_upload_context
         )
         self.slack_update = patch("status_change.slack_manager.SlackManager.update")
-        self.slack_post = patch("status_change.slack_manager.post_to_slack_notify")
+        self.slack_post = patch("utils.post_to_slack_notify")
         self.dib_update = patch(
             "status_change.data_ingest_board_manager.DataIngestBoardManager.update"
         )

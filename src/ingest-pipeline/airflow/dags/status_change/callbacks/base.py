@@ -1,4 +1,5 @@
 from abc import ABC
+from typing import Callable
 
 from status_change.status_utils import get_submission_context
 from utils import get_auth_tok
@@ -16,8 +17,9 @@ class AirflowCallback(ABC):
         )
     """
 
-    def __init__(self, module_name: str):
+    def __init__(self, module_name: str, dataset_uuid_callable: Callable | None = None):
         self.called_from = module_name
+        self.dataset_uuid_callable = dataset_uuid_callable
 
     def __call__(self, context: dict):
         """
@@ -28,7 +30,11 @@ class AirflowCallback(ABC):
         raise NotImplementedError
 
     def get_data(self, context: dict):
-        self.uuid = context["task_instance"].xcom_pull(key="uuid")
+
+        if self.dataset_uuid_callable:
+            self.uuid = self.dataset_uuid_callable(**context)
+        else:
+            self.uuid = context["task_instance"].xcom_pull(key="uuid")
         context["uuid"] = self.uuid
         self.auth_tok = get_auth_tok(**context)
         self.dag_run = context.get("dag_run")

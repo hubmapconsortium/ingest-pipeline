@@ -309,14 +309,6 @@ def get_organ(uuid: str, token: str) -> str:
         return ""
 
 
-def post_to_slack_notify(token: str, message: str, channel: str):
-    http_hook = HttpHook("POST", http_conn_id="ingest_api_connection")
-    payload = json.dumps({"message": message, "channel": channel})
-    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
-    response = http_hook.run("/notify", payload, headers)
-    response.raise_for_status()
-
-
 def get_ancestors(uuid: str, token: str) -> dict:
     endpoint = f"/ancestors/{uuid}"
     headers = get_headers(token)

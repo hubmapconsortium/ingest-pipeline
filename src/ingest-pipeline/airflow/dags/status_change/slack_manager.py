@@ -21,7 +21,6 @@ from .status_utils import (
     MessageManager,
     Statuses,
     get_env,
-    post_to_slack_notify,
     slack_channels_testing,
     split_error_counts,
 )
@@ -104,6 +103,8 @@ class SlackManager(MessageManager):
             return main_class(self.uuid, self.token)
 
     def update(self):
+        from utils import post_to_slack_notify
+
         if not self.message_class:
             raise EntityUpdateException("Can't update Slack without message class, exiting.")
         message = self.get_message()
