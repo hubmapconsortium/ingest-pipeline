@@ -34,6 +34,7 @@ from utils import (
 from airflow.configuration import conf as airflow_conf
 from airflow.decorators import task
 from airflow.operators.bash import BashOperator
+from airflow.operators.empty import EmptyOperator
 from airflow.operators.python import BranchPythonOperator, PythonOperator
 
 SLACK_NOTIFY_CHANNEL = "C07P2P1D5LP"
@@ -243,6 +244,8 @@ with HMDAG(
 
     t_notify_user_stellar_pre_convert = notify_user_stellar_pre_convert()
 
+    prepare_cell_count_cmd = EmptyOperator(task_id="prepare_cell_count_cmd")
+
     @task(task_id="cell_count_cmd")
     def build_cell_count_cmd(**kwargs):
         tmpdir = get_tmp_dir_path(kwargs["run_id"])
@@ -338,6 +341,7 @@ with HMDAG(
         >> t_copy_stellar_pre_convert_data
         >> t_maybe_keep_cwl_stellar_pre_convert
         >> t_notify_user_stellar_pre_convert
+        >> prepare_cell_count_cmd
         >> cell_count_cmd
         >> t_maybe_start_small_sprm
         >> t_trigger_phenocyler_small
