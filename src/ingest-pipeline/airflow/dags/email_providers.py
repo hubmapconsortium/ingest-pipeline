@@ -384,7 +384,7 @@ def add_instructions(data: pd.DataFrame) -> list[str]:
     if qa:
         template.extend(
             [
-                f"QA: {qa[0]} datasets",
+                qa[0],
                 "The dataset has been validated and is ready for site approval.<br>",
                 "<br>",
             ]
@@ -392,7 +392,7 @@ def add_instructions(data: pd.DataFrame) -> list[str]:
     if invalid:
         template.extend(
             [
-                f"Invalid: {invalid[0]} datasets",
+                invalid[0],
                 "The dataset cannot be validated due a metadata or directory issue. View the errors on the dataset's ingest page and correct them. Help is available by scheduling with Data Curator Brendan Honick (https://calendly.com/bhonick-psc/).<br>",
                 "<br>",
             ]
@@ -400,7 +400,7 @@ def add_instructions(data: pd.DataFrame) -> list[str]:
     if new:
         template.extend(
             [
-                f"New: {new[0]} datasets",
+                new[0],
                 'This status is an artifact of prior status handling. Go to the dataset ingest page and press "Submit."<br>',
             ]
         )
