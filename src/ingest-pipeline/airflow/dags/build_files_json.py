@@ -7,6 +7,11 @@ from airflow.configuration import conf as airflow_conf
 from datetime import datetime
 from airflow import DAG
 
+from hubmap_operators.common_operators import (
+    CreateTmpDirOperator,
+    LogInfoOperator,
+)
+
 from utils import (
     HMDAG,
     get_queue_resource,
@@ -87,4 +92,11 @@ with HMDAG(
         provide_context=True,
     )
 
-    t_build_dataset_lists >> t_emit_files_json
+    t_log_info = LogInfoOperator(task_id="log_info")
+    t_create_tmpdir = CreateTmpDirOperator(task_id="create_tmpdir")
+
+    t_log_info
+    >> t_create_tmpdir
+    >> t_build_dataset_lists
+    >> t_emit_files_json
+
