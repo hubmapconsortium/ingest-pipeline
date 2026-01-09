@@ -76,7 +76,8 @@ with HMDAG(
             print(f"processing {uuid}")
             def uuid_callable(**kwargs):
                 return uuid
-            ds_state = pythonop_get_dataset_state(dataset_uuid_callable=uuid_callable)
+            ds_state = pythonop_get_dataset_state(dataset_uuid_callable=uuid_callable,
+                                                  **kwargs)
             lz_path = ds_state["local_directory_full_path"]
             file_metadata_dict = get_file_metadata_dict(
                 lz_path,
