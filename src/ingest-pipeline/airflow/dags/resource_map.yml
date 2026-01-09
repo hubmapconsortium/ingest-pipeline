@@ -9,6 +9,13 @@ resource_map:
       - 'task_re': '.*'
         'queue': 'general'
         'threads': 1
+  - 'dag_re': 'build_files_json'
+    'preserve_scratch': true
+    'lanes': 2
+    'tasks':
+      - 'task_re': '.*'
+        'queue': 'general'
+        'threads': 1
   - 'dag_re': 'gen_pub_ancillary'
     'preserve_scratch': true
     'lanes': 2
