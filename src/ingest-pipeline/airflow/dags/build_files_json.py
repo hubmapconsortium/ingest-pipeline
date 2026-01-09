@@ -97,12 +97,10 @@ with HMDAG(
         queue=get_queue_resource("build_files_json"),
         provide_context=True,
         op_kwargs={
-            'crypt_auth_tok': (
-                utils.encrypt_tok(airflow_conf.as_dict()
-                                  ['connections']['APP_CLIENT_SECRET'])
-                .decode()
-            ),
-        }        
+            "crypt_auth_tok": encrypt_tok(
+                airflow_conf.as_dict()["connections"]["APP_CLIENT_SECRET"]
+            ).decode(),
+        },
     )
 
     t_log_info = LogInfoOperator(task_id="log_info")
