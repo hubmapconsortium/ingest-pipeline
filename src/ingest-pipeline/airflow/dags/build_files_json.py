@@ -71,7 +71,7 @@ with HMDAG(
         #uuid_list = kwargs["dag_run"].conf.get("processed_datasets", [])
         uuid_list = kwargs["dag_run"].conf.get("primary_datasets", [])
         rslt = {}
-        print(f"####raw workflows: {kwargs["dag_run"].conf["cwl_workflows"]}")
+        print(f"####raw workflows: {kwargs['dag_run'].conf['cwl_workflows']}")
         pipeline_file_manifests = find_pipeline_manifests(kwargs["dag_run"].conf["cwl_workflows"])
         print(f"####pipeline_file_manifests: {pipeline_file_manifests}")
         for uuid in uuid_list:
