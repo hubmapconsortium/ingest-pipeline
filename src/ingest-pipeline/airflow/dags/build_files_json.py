@@ -66,16 +66,11 @@ with HMDAG(
     )
 
     def emit_files_json(**kwargs):
-
         # Only processed datasets have files: information
-        #uuid_list = kwargs["dag_run"].conf.get("processed_datasets", [])
-        uuid_list = kwargs["dag_run"].conf.get("primary_datasets", [])
+        uuid_list = kwargs["dag_run"].conf.get("processed_datasets", [])
         rslt = {}
-        print(f"####raw workflows: {kwargs['dag_run'].conf['cwl_workflows']}")
         pipeline_file_manifests = find_pipeline_manifests(kwargs["dag_run"].conf["cwl_workflows"])
-        print(f"####pipeline_file_manifests: {pipeline_file_manifests}")
         for uuid in uuid_list:
-            print(f"processing {uuid}")
             def uuid_callable(**kwargs):
                 return uuid
             ds_state = pythonop_get_dataset_state(dataset_uuid_callable=uuid_callable,
