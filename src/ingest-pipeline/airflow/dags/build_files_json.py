@@ -95,8 +95,9 @@ with HMDAG(
     t_log_info = LogInfoOperator(task_id="log_info")
     t_create_tmpdir = CreateTmpDirOperator(task_id="create_tmpdir")
 
-    t_log_info
-    >> t_create_tmpdir
-    >> t_build_dataset_lists
-    >> t_emit_files_json
+    (t_log_info
+     >> t_create_tmpdir
+     >> t_build_dataset_lists
+     >> t_emit_files_json
+     )
 
