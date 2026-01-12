@@ -13,15 +13,14 @@ with patch(
             add_instructions,
             format_group_data,
             get_counts,
-            get_email_body_list,
             get_template,
+            list_datasets_by_status,
             modify_df,
         )
 
 from status_change.status_utils import Statuses
 from tests.fixtures import (
     df,
-    dp_email_body_list,
     dp_instructions,
     footer,
     formatted_group_data,
@@ -59,9 +58,13 @@ class TestEmailProvidersDAG(unittest.TestCase):
         instructions = add_instructions(self.modified_df)
         assert instructions == dp_instructions
 
-    def test_get_email_body_list(self):
-        email_body_list = get_email_body_list(self.modified_df)
-        assert email_body_list == dp_email_body_list
+    def test_list_datasets_by_status(self):
+        dataset_list = list_datasets_by_status(self.modified_df, "QA")
+        assert len(dataset_list) == 8
+        assert (
+            dataset_list[0]
+            == '<a href="https://ingest.hubmapconsortium.org/Dataset/c267d79eff73b466c729b9e5c0e030fd">HBM878.KZGH.246</a>'
+        )
 
     def test_get_template(self):
         instructions = add_instructions(self.modified_df)

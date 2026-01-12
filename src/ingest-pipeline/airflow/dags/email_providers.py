@@ -335,14 +335,11 @@ def get_ingest_url(row: pd.Series) -> str:
 # Prepare email #
 #################
 
-max_rows: int = 50
+max_rows: int = 20
 
 
 def format_group_data(data: pd.DataFrame, group_name: str) -> str:
-    dataset_info = get_email_body_list(data)
-    body = [*get_template(data, group_name), dataset_info]
-    if len(data) > max_rows:
-        body.append(f"... ({len(data) - max_rows} more datasets, see CSV attachment)")
+    body = get_template(data, group_name)
     return "".join(body)
 
 
@@ -354,16 +351,30 @@ def get_template(data: pd.DataFrame, group_name: str) -> list[str]:
         "<br>",
         f"If you have questions, please schedule an appointment with Data Curator Brendan Honick (https://calendly.com/bhonick-psc/) or email ingest@hubmapconsortium.org. Do not respond to this email; this inbox is not monitored.<br>",
         "<br>",
-        f"There are {len(data)} unpublished datasets belonging to {group_name}.<br>",
-        "<br>",
-        "<b>Counts by status:</b>",
-        *get_counts(data),
+        f"<b>Unpublished datasets:</b> {len(data)}<br>",
+        "You can see more details about all datasets in the attached CSV file.<br>",
+        # "<br>",
+        # "<b>Counts by status:</b>",
+        # *get_counts(data),
     ]
     # If counts exist for new, invalid, or qa: add instructions
-    template.extend(add_instructions(data))
+    instructions = add_instructions(data)
+    template.extend(instructions)
+    # Include counts of statuses without instructions, if present
+    other_counts = get_counts(
+        data, exclude=[Statuses.DATASET_QA, Statuses.DATASET_INVALID, Statuses.DATASET_NEW]
+    )
+    if other_counts:
+        if instructions:
+            template.append("<b><mark>Counts of datasets with other statuses</mark></b>:")
+        else:
+            template.append("<b>Datasets by status:</b>")
+        template.extend(["<ul>", *other_counts, "</ul>"])
     # Footer
-    template.append(
-        "Please consult our <a href='https://docs.google.com/document/d/13zBbp_BNCVPZPj71Q5dGLoNJ_TDRyEpPck2mGQbkLYg/edit?usp=sharing'>guide to HuBMAP entity statuses</a> if you would like to learn more about the different dataset statuses.<br>"
+    template.extend(
+        [
+            "Please consult our <a href='https://docs.google.com/document/d/13zBbp_BNCVPZPj71Q5dGLoNJ_TDRyEpPck2mGQbkLYg/edit?usp=sharing'>guide to HuBMAP entity statuses</a> if you would like to learn more about the different dataset statuses.<br>",
+        ]
     )
     return template
 
@@ -378,14 +389,16 @@ def add_instructions(data: pd.DataFrame) -> list[str]:
         "<br>",
         "<b>What you can do to move datasets forward:</b><br>",
         "Some dataset statuses indicate the need for intervention by the data provider. Below are some brief instructions by status.<br>",
-        "<br>",
         "<ul>",
     ]
     if qa:
         template.extend(
             [
                 qa[0],
-                "The dataset has been validated and is ready for site approval.<br>",
+                "The dataset has been validated and is ready for site approval. <mark>ADD INSTRUCTION HERE.</mark><br>",
+                "<ul>",
+                *[f"<li>{dataset}</li>" for dataset in list_datasets_by_status(data, "QA")],
+                "</ul>",
                 "<br>",
             ]
         )
@@ -393,7 +406,10 @@ def add_instructions(data: pd.DataFrame) -> list[str]:
         template.extend(
             [
                 invalid[0],
-                "The dataset cannot be validated due a metadata or directory issue. View the errors on the dataset's ingest page and correct them. Help is available by scheduling with Data Curator Brendan Honick (https://calendly.com/bhonick-psc/).<br>",
+                "The dataset cannot be validated due a metadata or directory issue. View the errors on the dataset ingest page and correct them. Help is available by scheduling with Data Curator Brendan Honick (https://calendly.com/bhonick-psc/).<br>",
+                "<ul>",
+                *[f"<li>{dataset}</li>" for dataset in list_datasets_by_status(data, "Invalid")],
+                "</ul>",
                 "<br>",
             ]
         )
@@ -402,6 +418,9 @@ def add_instructions(data: pd.DataFrame) -> list[str]:
             [
                 new[0],
                 'This status is an artifact of prior status handling. Go to the dataset ingest page and press "Submit."<br>',
+                "<ul>",
+                *[f"<li>{dataset}</li>" for dataset in list_datasets_by_status(data, "New")],
+                "</ul>",
             ]
         )
     template.extend(
@@ -417,37 +436,31 @@ def create_link(row: pd.Series) -> str:
     return f'<a href="{row.ingest_url}">{row.hubmap_id}</a>'
 
 
-def get_email_body_list(data: pd.DataFrame) -> str:
+def list_datasets_by_status(data: pd.DataFrame, status: str) -> list[str]:
     subset = data[["hubmap_id", "last_modified_date", "status", "ingest_url"]].copy()
     subset["hubmap_id"] = subset.apply(create_link, axis=1)
     subset = subset.sort_values("last_modified_date")
-    subset = subset.rename(
-        columns={
-            "hubmap_id": "HuBMAP ID",
-            "status": "Status",
-            "last_modified_date": "Last Updated",
-        }
-    )
-    return subset.to_html(
-        columns=["HuBMAP ID", "Last Updated", "Status"],
-        index=False,
-        na_rep="",
-        justify="justify",
-        max_rows=max_rows,
-        escape=False,
-        border=0,
-        col_space={"HuBMAP ID": 170, "Last Updated": 130},
-    ).replace("\n", "")
+    subset = subset.rename(columns={"hubmap_id": "HuBMAP ID"})
+    filtered = subset.loc[subset["status"] == status]
+    id_list = [val["HuBMAP ID"] for val in filtered.to_dict(orient="index").values()]
+    if len(id_list) > max_rows:
+        full_len = len(id_list)
+        id_list = id_list[0:max_rows]
+        id_list.append(f"...{full_len - max_rows} more datasets, see CSV attachment")
+    return id_list
 
 
 def get_counts(
     data: pd.DataFrame,
-    statuses: list[Statuses] = [],
+    include: list[Statuses] = [],
+    exclude: list[Statuses] = [],
 ) -> list[str]:
     counts = data["status"].value_counts().to_dict()
-    if statuses:
-        str_statuses = [status.status_str for status in statuses]
-        counts = {key: value for key, value in counts.items() if key.lower() in str_statuses}
+    if include:
+        str_include = [status.status_str for status in include]
+        counts = {key: value for key, value in counts.items() if key.lower() in str_include}
+    str_exclude = [status.status_str for status in exclude]
+    counts = {key: value for key, value in counts.items() if key.lower() not in str_exclude}
     count_list = [f"<li>{key}: {value}</li>" for key, value in counts.items()]
     count_list.sort()
     return count_list
