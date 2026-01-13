@@ -8,6 +8,7 @@ from typing import Any, Optional, Union
 from schema_utils import (
     localized_assert_json_matches_schema as assert_json_matches_schema,
 )
+from utils import get_submission_context
 
 from .data_ingest_board_manager import DataIngestBoardManager
 from .email_manager import EmailManager
@@ -18,7 +19,6 @@ from .status_utils import (
     EntityUpdateException,
     Statuses,
     get_run_id,
-    get_submission_context,
     put_request_to_entity_api,
 )
 

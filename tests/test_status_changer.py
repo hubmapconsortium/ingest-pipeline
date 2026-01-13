@@ -105,13 +105,13 @@ class MockParent(unittest.TestCase):
         # self.scratch_base_path = patch("utils._get_scratch_base_path", return_value="test_path")
         self.entity_update = patch("status_change.status_manager.put_request_to_entity_api")
         self.status_context = patch(
-            "status_change.status_utils.get_submission_context", return_value=good_upload_context
+            "status_change.status_manager.get_submission_context", return_value=good_upload_context
         )
         self.slack_msg_context = patch(
             "status_change.slack.base.get_submission_context", return_value=good_upload_context
         )
         self.slack_update = patch("status_change.slack_manager.SlackManager.update")
-        self.slack_post = patch("utils.post_to_slack_notify")
+        self.slack_post = patch("status_change.slack_manager.post_to_slack_notify")
         self.dib_update = patch(
             "status_change.data_ingest_board_manager.DataIngestBoardManager.update"
         )
@@ -263,6 +263,7 @@ class TestStatusChanger(MockParent):
 
     def test_recognized_status(self):
         self.upload_valid.validate_fields_to_change()
+        assert self.upload_valid.status
         self.assertEqual(
             self.upload_valid.fields_to_change["status"],
             Statuses.valid_str(self.upload_valid.status),
@@ -281,7 +282,7 @@ class TestStatusChanger(MockParent):
 
     def test_extra_field_good(self):
         with patch(
-            "status_change.status_utils.get_submission_context",
+            "status_change.status_manager.get_submission_context",
             return_value={
                 "status": "processing",
                 "test_extra_field": False,
@@ -309,7 +310,7 @@ class TestStatusChanger(MockParent):
 
     def test_invalid_status_in_request(self):
         with patch(
-            "status_change.status_utils.get_submission_context",
+            "status_change.status_manager.get_submission_context",
             return_value={
                 "status": "processing",
                 "test_extra_field": True,
@@ -350,7 +351,7 @@ class TestStatusChanger(MockParent):
     def my_callable(**kwargs):
         return kwargs["uuid"]
 
-    @patch("utils.StatusChanger")
+    @patch("status_change.status_manager.StatusChanger")
     def test_pythonop_set_dataset_state_valid(self, sc_mock):
         uuid = "test_uuid"
         token = "test_token"
@@ -466,7 +467,7 @@ class SlackTestHold(SlackMessage):
     @classmethod
     def test(cls, entity_data, token):
         del token
-        if entity_data.get("status").lower() == "hold":
+        if entity_data.get("status", "").lower() == "hold":
             return True
         return False
 
@@ -492,6 +493,7 @@ class TestSlack(MockParent):
             {status: self.mock_slack_channels},
         ):
             mgr = self.slack_manager(status)
+        assert mgr.message_class
         assert mgr.message_class.format() == ["I am formatted"]
 
     def test_get_slack_channel(self):
@@ -500,6 +502,7 @@ class TestSlack(MockParent):
             {"test_status": self.mock_slack_channels},
         ):
             mgr = self.slack_manager("test_status")
+        assert mgr.message_class
         assert mgr.message_class.channel == "test_class_channel"
 
     def test_update_with_slack_channel(self):
@@ -533,7 +536,10 @@ class TestSlack(MockParent):
         original_ret_val = self.mock_status_context.return_value.copy()
         new_ret_val = original_ret_val | {"status": "hold"}
 
-        with patch("status_change.status_utils.get_submission_context", return_value=new_ret_val):
+        with patch(
+            "status_change.status_utils.get_submission_context",
+            return_value=new_ret_val,
+        ):
             with patch.dict(
                 "status_change.slack_manager.SlackManager.status_to_class",
                 {Statuses.DATASET_HOLD: self.mock_slack_channels},
@@ -647,7 +653,9 @@ class TestFailureCallback(MockParent):
                 }
                 fcb = FailureCallback(__name__)
                 fcb(tweaked_ctx)
+                assert fcb.task
                 assert "mytaskid" == fcb.task.task_id
+                assert fcb.dag_run
                 assert "test_dag_id" == fcb.dag_run.dag_id
                 assert date(2025, 6, 5) == fcb.dag_run.execution_date
                 assert __name__ == fcb.called_from

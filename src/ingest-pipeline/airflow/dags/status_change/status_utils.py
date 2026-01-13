@@ -5,11 +5,10 @@ import logging
 import re
 import traceback
 from enum import Enum
-from typing import Any, Optional, Union
+from typing import Optional, Union
 from urllib.parse import urlencode, urljoin
 
-from requests import codes
-from requests.exceptions import HTTPError
+from utils import find_matching_endpoint, get_submission_context, get_tmp_dir_path
 
 from airflow.models import DagRun
 from airflow.providers.http.hooks.http import HttpHook
@@ -140,6 +139,7 @@ class MessageManager:
         *args,
         **kwargs,
     ):
+
         self.uuid = uuid
         self.token = token
         self.status = status
@@ -240,30 +240,6 @@ def get_headers(token: str) -> dict:
     }
 
 
-# This is simplified from pythonop_get_dataset_state in utils
-def get_submission_context(token: str, uuid: str) -> dict[str, Any]:
-    """
-    uuid can also be a HuBMAP/SenNet ID.
-    """
-    headers = get_headers(token)
-    http_hook = HttpHook("GET", http_conn_id="entity_api_connection")
-
-    endpoint = f"entities/{uuid}?exclude=direct_ancestors.files"
-
-    try:
-        response = http_hook.run(
-            endpoint, headers=headers, extra_options={"check_response": False}
-        )
-        response.raise_for_status()
-        return response.json()
-    except HTTPError as e:
-        print(f"ERROR: {e}")
-        if e.response.status_code == codes.unauthorized:
-            raise RuntimeError("entity database authorization was rejected?")
-        print("benign error")
-        return {}
-
-
 def formatted_exception(exception):
     """
     traceback logic from
@@ -347,7 +323,6 @@ def put_request_to_entity_api(
 
 
 def get_env() -> Optional[str]:
-    from utils import find_matching_endpoint
 
     host = None
     for conn in ["ingest_api_connection", "entity_api_connection"]:
@@ -388,7 +363,6 @@ def get_entity_ingest_url(entity_data: dict) -> str:
 
 
 def get_data_ingest_board_query_url(entity_data: dict) -> str:
-    from utils import find_matching_endpoint
 
     proj = get_project().value[0]
     env = None
@@ -440,7 +414,6 @@ def get_run_id(run_id):
 
 
 def log_directory_path(run_id: str) -> str:
-    from utils import get_tmp_dir_path
 
     if not run_id:
         return ""

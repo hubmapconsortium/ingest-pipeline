@@ -1,8 +1,7 @@
 from abc import ABC
 from typing import Callable
 
-from status_change.status_utils import get_submission_context
-from utils import get_auth_tok
+from utils import get_auth_tok, get_submission_context
 
 
 class AirflowCallback(ABC):

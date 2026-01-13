@@ -17,14 +17,10 @@ from subprocess import CalledProcessError, check_output
 from typing import (
     Any,
     Callable,
-    Dict,
     Iterable,
-    List,
     Mapping,
     Optional,
     Pattern,
-    Tuple,
-    TypeVar,
     Union,
 )
 
@@ -34,32 +30,23 @@ from cryptography.fernet import Fernet
 from requests import codes
 from requests.exceptions import HTTPError
 from schema_utils import (
-    JSONType,
-)
-from schema_utils import (
     localized_assert_json_matches_schema as assert_json_matches_schema,
 )
-from status_change.status_manager import EntityUpdateException, StatusChanger
 
 from airflow import DAG
 from airflow.configuration import conf as airflow_conf
 from airflow.models.baseoperator import BaseOperator
+from airflow.models.operator import Operator
 from airflow.providers.http.hooks.http import HttpHook
 
 airflow_conf.read(join(environ["AIRFLOW_HOME"], "instance", "app.cfg"))
 try:
-    sys.path.append(airflow_conf.as_dict()["connections"]["SRC_PATH"].strip("'").strip('"'))
+    sys.path.append(str(airflow_conf.as_dict()["connections"]["SRC_PATH"]).strip("'").strip('"'))
     from misc.tools.survey import ENDPOINTS
 
     sys.path.pop()
 except Exception:
     ENDPOINTS = {}
-
-
-# Some functions accept a `str` or `List[str]` and return that same type
-StrOrListStr = TypeVar("StrOrListStr", str, List[str])
-
-PathStrOrList = Union[str, Path, Iterable[Union[str, Path]]]
 
 # Some constants
 PIPELINE_BASE_DIR = Path(__file__).resolve().parent / "cwl"
@@ -102,21 +89,21 @@ FILE_TYPE_MATCHERS = [
     (r"(^.*\.fastq$)|(^.*\.fastq.gz$)", "fastq"),
     (r"(^.*\.yml$)|(^.*\.yaml$)", "yaml"),
 ]
-COMPILED_TYPE_MATCHERS: Optional[List[Tuple[Pattern, str]]] = None
+COMPILED_TYPE_MATCHERS: Optional[list[tuple[Pattern, str]]] = None
 
 """
 Lazy construction: a list of tuples (collection_type_regex, assay_type_regex, workflow)
 """
 WORKFLOW_MAP_FILENAME = "workflow_map.yml"  # Expected to be found in this same dir
 WORKFLOW_MAP_SCHEMA = "workflow_map_schema.yml"
-COMPILED_WORKFLOW_MAP: Optional[List[Tuple[Pattern, Pattern, str]]] = None
+COMPILED_WORKFLOW_MAP: Optional[list[tuple[Pattern, Pattern, str]]] = None
 
 """
 Lazy construction; a list of tuples (dag_id_reges, task_id_regex, {key:value})
 """
 RESOURCE_MAP_FILENAME = "resource_map.yml"  # Expected to be found in this same dir
 RESOURCE_MAP_SCHEMA = "resource_map_schema.yml"
-COMPILED_RESOURCE_MAP: Optional[List[Tuple[Pattern, int, Dict[str, Any]]]] = None
+COMPILED_RESOURCE_MAP: Optional[list[tuple[Pattern, dict, list[tuple[Pattern, dict]]]]] = None
 
 
 # Parameters used to generate scRNA and scATAC analysis DAGs; these
@@ -127,7 +114,7 @@ SequencingDagParameters = namedtuple(
 )
 
 # TODO: rethink this, now that it's getting more and more unwieldy
-ManifestMatch = Tuple[
+ManifestMatch = tuple[
     bool,
     Optional[str],
     Optional[str],
@@ -149,7 +136,7 @@ class FileMatcher(ABC):
 
 class PipelineFileMatcher(FileMatcher):
     # (file/directory regex, description template, EDAM ontology term, is_qa_qc, is_data_product)
-    matchers: List[Tuple[Pattern, str, str, bool, bool]]
+    matchers: list[tuple[Pattern, str, str, bool, bool]]
 
     def __init__(self):
         self.matchers = []
@@ -157,7 +144,7 @@ class PipelineFileMatcher(FileMatcher):
     @classmethod
     def read_manifest(
         cls, pipeline_file_manifest: Path
-    ) -> Iterable[Tuple[Pattern, str, str, bool, bool]]:
+    ) -> Iterable[tuple[Pattern, str, str, bool, bool]]:
         with open(pipeline_file_manifest) as f:
             manifest = json.load(f)
             assert_json_matches_schema(manifest, "pipeline_file_manifest.yml")
@@ -224,7 +211,7 @@ class HMDAG(DAG):
             kwargs["max_active_runs"] = get_lanes_resource(dag_id)
         super().__init__(dag_id, **kwargs)
 
-    def add_task(self, task: BaseOperator):
+    def add_task(self, task: Operator):
         """
         Provide "queue".  This overwrites existing data on the fly
         unless the queue specified in the resource table is None.
@@ -235,6 +222,7 @@ class HMDAG(DAG):
         default value.  One would have to monkeypatch BaseOperator
         to respect a queue specified on the task definition line.
         """
+        assert isinstance(Operator, BaseOperator)
         res_queue = get_queue_resource(self.dag_id, task.task_id)
         if res_queue is not None:
             try:
@@ -244,7 +232,7 @@ class HMDAG(DAG):
         super().add_task(task)
 
 
-def find_pipeline_manifests(cwl_files: Union[List[Path], List[Dict], str]) -> List[Path]:
+def find_pipeline_manifests(cwl_files: Union[list[Path], list[dict], str]) -> list[Path]:
     """
     Constructs manifest paths from CWL files (strip '.cwl', append
     '-manifest.json'), and check whether each manifest exists. Return
@@ -265,13 +253,13 @@ def find_pipeline_manifests(cwl_files: Union[List[Path], List[Dict], str]) -> Li
 
 
 def get_cwl_cmd_from_workflows(
-    workflows: List[Dict],
+    workflows: list[dict],
     workflow_index: int,
-    input_param_vals: List,
+    input_param_vals: list,
     tmp_dir: Path,
     ti,
-    cwl_param_vals: Optional[List[Dict]] = None,
-) -> List:
+    cwl_param_vals: Optional[list[dict]] = None,
+) -> list:
     """
     :param workflows: Iterable of workflow dictionaries
     :param workflow_index: index of workflow to build
@@ -285,7 +273,7 @@ def get_cwl_cmd_from_workflows(
     workflow["input_parameters"] = input_param_vals
 
     # Get the cwl invocation
-    command = [*get_cwltool_base_cmd(tmp_dir)]
+    command: list[str | Path] = [*get_cwltool_base_cmd(tmp_dir)]
 
     # Rather than setting outdir, cycle through cwl_param vals and see whether its present
     # if not, then we set it to the default value.
@@ -324,7 +312,7 @@ def get_absolute_workflow(workflow: Path) -> Path:
     return PIPELINE_BASE_DIR / workflow
 
 
-def get_absolute_workflows(*workflows: Path) -> List[Path]:
+def get_absolute_workflows(*workflows: Path) -> list[Path]:
     """
     :param workflows: iterable of `Path`s to CWL files, absolute
       or relative
@@ -335,7 +323,7 @@ def get_absolute_workflows(*workflows: Path) -> List[Path]:
     return [get_absolute_workflow(workflow) for workflow in workflows]
 
 
-def get_named_absolute_workflows(**workflow_kwargs: Path) -> Dict[str, Path]:
+def get_named_absolute_workflows(**workflow_kwargs: Path) -> dict[str, Path]:
     # The type hint for **workflow_kwargs looks a little odd, but
     # apparently this is how you specify that all values are of that
     # type -- the keys of that dict are necessarily strings
@@ -354,12 +342,14 @@ def build_dataset_name(dag_id: str, pipeline_str: str, **kwargs) -> str:
     return f"{dag_id}__{parent_submission_str}__{pipeline_str}"
 
 
-def get_parent_dataset_uuids_list(**kwargs) -> List[str]:
+def get_parent_dataset_uuids_list(**kwargs) -> list[str]:
     uuid_list = kwargs["dag_run"].conf["parent_submission_id"]
     if kwargs["dag"].dag_id == "azimuth_annotations":
+        uuid_list_item = uuid_list[0]
         uuid_list = pythonop_get_dataset_state(
-            dataset_uuid_callable=lambda **kwargs: uuid_list[0], **kwargs
+            dataset_uuid_callable=lambda **kwargs: uuid_list_item, **kwargs
         ).get("parent_dataset_uuid_list")
+    assert uuid_list is not None
     if not isinstance(uuid_list, list):
         uuid_list = [uuid_list]
     return uuid_list
@@ -391,7 +381,7 @@ def get_dataset_type_organ_based(**kwargs) -> str:
     return f"{ds_rslt['dataset_type']} [{pipeline_shorthand}]"
 
 
-def get_dataset_type_previous_version(**kwargs) -> List[str]:
+def get_dataset_type_previous_version(**kwargs) -> list[str]:
     dataset_uuid = get_previous_revision_uuid(**kwargs)
     if dataset_uuid is None:
         dataset_uuid = kwargs["dag_run"].conf.get("parent_submission_id", [None])[0]
@@ -425,7 +415,7 @@ def get_dataname_previous_version(**kwargs) -> str:
     return ds_rslt["dataset_info"]
 
 
-def get_assay_previous_version(**kwargs) -> tuple:
+def get_assay_previous_version(**kwargs) -> tuple | None:
     """Returns information based on previous run to indicate how the re-annotation should process:
     position 1: Assay indicator for pipeline decision
     position 2: Matrix file
@@ -452,7 +442,7 @@ def get_assay_previous_version(**kwargs) -> tuple:
         return "snareseq", "mudata_raw.h5mu", "secondary_analysis.h5mu", 1
 
 
-def get_parent_dataset_paths_list(**kwargs) -> List[Path]:
+def get_parent_dataset_paths_list(**kwargs) -> list[Path]:
     path_list = kwargs["dag_run"].conf["parent_lz_path"]
     if not isinstance(path_list, list):
         path_list = [path_list]
@@ -465,7 +455,7 @@ def get_parent_dataset_path(**kwargs) -> Path:
     return path_set.pop()
 
 
-def get_parent_data_dirs_list(**kwargs) -> List[Path]:
+def get_parent_data_dirs_list(**kwargs) -> list[Path]:
     """
     Build the absolute paths to the data, including the data_path offsets from
     the parent datasets' metadata
@@ -508,16 +498,13 @@ def get_uuid_for_error(**kwargs) -> Optional[str]:
     return rslt
 
 
-def get_git_commits(file_list: StrOrListStr) -> StrOrListStr:
+def get_git_commits(file_list: str | list[str]) -> list[str]:
     """
     Given a list of file paths, return a list of the current short commit hashes of those files
     """
     rslt = []
-    if isinstance(file_list, str):  # sadly, a str is an Iterable[str]
+    if isinstance(file_list, str):
         file_list = [file_list]
-        unroll = True
-    else:
-        unroll = False
     for fname in file_list:
         log_command = [piece.format(fname=fname) for piece in GIT_LOG_COMMAND]
         try:
@@ -531,10 +518,7 @@ def get_git_commits(file_list: StrOrListStr) -> StrOrListStr:
             line = line.encode("utf-8")
         hashval = line.split()[0].strip().decode("utf-8")
         rslt.append(hashval)
-    if unroll:
-        return rslt[0]
-    else:
-        return rslt
+    return rslt
 
 
 def _convert_git_to_proper_url(raw_url: str) -> str:
@@ -549,16 +533,13 @@ def _convert_git_to_proper_url(raw_url: str) -> str:
         return raw_url
 
 
-def get_git_origins(file_list: StrOrListStr) -> StrOrListStr:
+def get_git_origins(file_list: str | list[str]) -> list[str]:
     """
     Given a list of file paths, return a list of the git origins of those files
     """
     rslt = []
-    if isinstance(file_list, str):  # sadly, a str is an Iterable[str]
+    if isinstance(file_list, str):
         file_list = [file_list]
-        unroll = True
-    else:
-        unroll = False
     for fname in file_list:
         command = [piece.format(fname=fname) for piece in GIT_ORIGIN_COMMAND]
         try:
@@ -573,23 +554,17 @@ def get_git_origins(file_list: StrOrListStr) -> StrOrListStr:
         url = line.split()[0].strip().decode("utf-8")
         url = _convert_git_to_proper_url(url)
         rslt.append(url)
-    if unroll:
-        return rslt[0]
-    else:
-        return rslt
+    return rslt
 
 
-def get_git_root_paths(file_list: Iterable[str]) -> Union[str, List[str]]:
+def get_git_root_paths(file_list: str | list[str]) -> list[str]:
     """
     Given a list of file paths, return a list of the root directories of the git
     working trees of the files.
     """
     rslt = []
-    if isinstance(file_list, str):  # sadly, a str is an Iterable[str]
+    if isinstance(file_list, str):
         file_list = [file_list]
-        unroll = True
-    else:
-        unroll = False
     for fname in file_list:
         command = [piece.format(fname=fname) for piece in GIT_ROOT_COMMAND]
         try:
@@ -601,24 +576,21 @@ def get_git_root_paths(file_list: Iterable[str]) -> Union[str, List[str]]:
             print(f"Exception {e}")
             root_path = dirname(fname).encode("utf-8")
         rslt.append(root_path.strip().decode("utf-8"))
-    if unroll:
-        return rslt[0]
-    else:
-        return rslt
+    return rslt
 
 
-def get_git_provenance_dict(file_list: PathStrOrList) -> Mapping[str, str]:
+def get_git_provenance_dict(file_list: str | Path | Iterable[str | Path]) -> Mapping[str, str]:
     """
     Given a list of file paths, return a list of dicts of the form:
 
       [{<file base name>:<file commit hash>}, ...]
     """
-    if isinstance(file_list, (str, Path)):  # sadly, a str is an Iterable[str]
+    if isinstance(file_list, (str, Path)):
         file_list = [file_list]
-    return {basename(fname): get_git_commits(realpath(fname)) for fname in file_list}
+    return {basename(fname): get_git_commits(realpath(fname))[0] for fname in file_list}
 
 
-def get_git_provenance_list(file_list: Iterable[str]) -> List[Mapping[str, Any]]:
+def get_git_provenance_list(file_list: Iterable[str]) -> list[Mapping[str, Any]]:
     """
     Given a list of file paths, return a list of dicts of the form:
 
@@ -628,7 +600,7 @@ def get_git_provenance_list(file_list: Iterable[str]) -> List[Mapping[str, Any]]
       'documentation': <optional file documentation url>
       },...]
     """
-    if isinstance(file_list, str):  # sadly, a str is an Iterable[str]
+    if isinstance(file_list, str):
         file_list = [file_list]
 
     result = []
@@ -641,7 +613,7 @@ def get_git_provenance_list(file_list: Iterable[str]) -> List[Mapping[str, Any]]
 
         root = get_git_root_paths(fname)
         dag_prov_entry = {
-            "name": relpath(fname, root),
+            "name": relpath(fname, root[0]),
             "hash": get_git_commits(realpath(fname)),
             "origin": get_git_origins(realpath(fname)),
             "version": get_pipeline_version(realpath(fname)),
@@ -658,7 +630,7 @@ def get_git_provenance_list(file_list: Iterable[str]) -> List[Mapping[str, Any]]
     return result
 
 
-def get_pipeline_version(path: str) -> str:
+def get_pipeline_version(str_path: str) -> str:
     """
     Given a cwl file path, return the pipeline version
     First try to get the GIT version tag
@@ -667,16 +639,16 @@ def get_pipeline_version(path: str) -> str:
     """
     pipeline_version = ""
 
-    path = Path(path)
+    path = Path(str_path)
 
     try:
         parent_dir = path.parent
         pipeline_version = check_output(GIT_VERSION_TAG_COMMAND, cwd=parent_dir)
-        pipeline_version = pipeline_version.strip().decode("utf-8")
     except CalledProcessError as e:
         # Git will fail if this is not running from a git repo
         print(e.output)
-
+    if isinstance(pipeline_version, bytes):
+        pipeline_version = pipeline_version.strip().decode("utf-8")
     # If no tag found, check the cwl file
     if path.suffix != ".cwl":
         return pipeline_version
@@ -709,7 +681,7 @@ def _get_file_type(path: Path) -> str:
     return "unknown"
 
 
-def get_file_metadata(root_dir: str, matcher: FileMatcher) -> List[Mapping[str, Any]]:
+def get_file_metadata(root_dir: str, matcher: FileMatcher) -> list[Mapping[str, Any]]:
     """
     Given a root directory, return a list of the form:
 
@@ -765,7 +737,7 @@ def get_file_metadata(root_dir: str, matcher: FileMatcher) -> List[Mapping[str, 
 def get_file_metadata_dict(
     root_dir: str,
     alt_file_dir: str,
-    pipeline_file_manifests: List[Path],
+    pipeline_file_manifests: list[Path],
     max_in_line_files: int = MAX_IN_LINE_FILES,
 ) -> Mapping[str, Any]:
     """
@@ -1028,6 +1000,8 @@ def pythonop_set_dataset_state(**kwargs) -> None:
     'message' : update message, saved as dataset metadata element "pipeline_message".
                 The default is not to save any message.
     """
+    from status_change.status_manager import StatusChanger
+
     if kwargs["dag_run"].conf.get("dryrun"):
         return
     for arg in ["dataset_uuid_callable"]:
@@ -1053,7 +1027,7 @@ def pythonop_set_dataset_state(**kwargs) -> None:
         ).update()
 
 
-def restructure_entity_metadata(raw_metadata: JSONType) -> JSONType:
+def restructure_entity_metadata(raw_metadata: dict) -> dict:
     """
     When a dataset is initially ingested, the associated metadata is parsed and
     associated with the database representation of the dataset.  The same metadata
@@ -1076,7 +1050,7 @@ def restructure_entity_metadata(raw_metadata: JSONType) -> JSONType:
     return md
 
 
-def pythonop_get_dataset_state(**kwargs) -> Dict:
+def pythonop_get_dataset_state(**kwargs) -> dict:
     """
     Gets the status JSON structure for a dataset.  Works for Uploads
     and Publications as well as Datasets.
@@ -1334,10 +1308,9 @@ def pythonop_md_consistency_tests(**kwargs) -> int:
 
 def get_statistics_base_path() -> Path:
     dct = airflow_conf.as_dict(display_sensitive=True)["connections"]
-    if "STATISTICS_PATH" in dct:
-        return Path(dct["STATISTICS_PATH"].strip("'").strip('"'))
-    elif "statistics_path" in dct:
-        return Path(dct["statistics_path"].strip("'").strip('"'))
+    statistics_path = dct.get("statistics_path") or dct.get("STATISTICS_PATH", "")
+    if statistics_path:
+        return Path(str(statistics_path).strip("'").strip('"'))
     else:
         raise KeyError("STATISTICS_PATH")
 
@@ -1352,7 +1325,9 @@ def _get_scratch_base_path() -> Path:
         scratch_path = dct["workflow_scratch"]
     else:
         raise KeyError("WORKFLOW_SCRATCH")  # preserve original code behavior
-    scratch_path = scratch_path.strip("'").strip('"')  # remove quotes that may be on the string
+    scratch_path = (
+        str(scratch_path).strip("'").strip('"')
+    )  # remove quotes that may be on the string
     return Path(scratch_path)
 
 
@@ -1379,7 +1354,7 @@ def get_cwltool_bin_path() -> Path:
     return cwltool_dir
 
 
-def get_cwltool_base_cmd(tmpdir: Path) -> List[str]:
+def get_cwltool_base_cmd(tmpdir: Path) -> list[str]:
     return [
         "env",
         "TMPDIR={}".format(tmpdir),
@@ -1401,8 +1376,8 @@ def get_cwltool_base_cmd(tmpdir: Path) -> List[str]:
     ]
 
 
-def build_provenance_function(cwl_workflows: Callable[..., List[Dict]]) -> Callable[..., List]:
-    def build_provenance(**kwargs) -> List:
+def build_provenance_function(cwl_workflows: Callable[..., list[str]]) -> Callable[..., list]:
+    def build_provenance(**kwargs) -> list[str]:
         # Get the previous revisions metadata
         dataset_uuid = get_previous_revision_uuid(**kwargs)
         if dataset_uuid is None:
@@ -1433,8 +1408,8 @@ def build_provenance_function(cwl_workflows: Callable[..., List[Dict]]) -> Calla
 
 def make_send_status_msg_function(
     dag_file: str,
-    retcode_ops: List[str],
-    cwl_workflows: Union[List[Path], Callable[..., List[Dict]]],
+    retcode_ops: list[str],
+    cwl_workflows: Union[list[Path], Callable[..., list[dict]]],
     uuid_src_task_id: str = "send_create_dataset",
     dataset_uuid_fun: Optional[Callable[..., str]] = None,
     dataset_lz_path_fun: Optional[Callable[..., str]] = None,
@@ -1483,6 +1458,8 @@ def make_send_status_msg_function(
     no file metadata will be included.  Note that file metadata may also be excluded
     based on the return value of 'dataset_lz_path_fun' above.
     """
+
+    from status_change.status_manager import EntityUpdateException, StatusChanger
 
     # Does the string represent a "true" value, or an int that is 1
     def __is_true(val):
@@ -1572,13 +1549,16 @@ def make_send_status_msg_function(
                 md.update(
                     get_file_metadata_dict(
                         ds_dir,
-                        get_tmp_dir_path(kwargs["run_id"]),
+                        str(get_tmp_dir_path(kwargs["run_id"])),
                         manifest_files,
                     ),
                 )
 
             # Refactoring metadata structure
             contacts = []
+            antibodies = md["metadata"].pop("antibodies", [])
+            contributors = md["metadata"].pop("contributors", [])
+            calculated_metadata = md["metadata"].pop("calculated_metadata", {})
             if metadata_fun:
                 # Always override the value if files_info_alt_path is set, or if md["files"] is empty
                 files_info_alt_path = md["metadata"].pop("files_info_alt_path", [])
@@ -1592,9 +1572,6 @@ def make_send_status_msg_function(
                     "collectiontype": md["metadata"].pop("collectiontype", None)
                 }
                 # md["thumbnail_file_abs_path"] = thumbnail_file_abs_path
-                antibodies = md["metadata"].pop("antibodies", [])
-                contributors = md["metadata"].pop("contributors", [])
-                calculated_metadata = md["metadata"].pop("calculated_metadata", {})
                 md["metadata"] = md["metadata"].pop("metadata", {})
                 for contrib in contributors:
                     if "is_contact" in contrib:
@@ -1689,9 +1666,10 @@ def map_queue_name(raw_queue_name: str) -> str:
     provided queue name.  This allows job separation under Celery.
     """
     conf_dict = airflow_conf.as_dict()
-    if "QUEUE_NAME_TEMPLATE" in conf_dict.get("connections", {}):
-        template = conf_dict["connections"]["QUEUE_NAME_TEMPLATE"]
-        template = template.strip("'").strip('"')  # remove quotes that may be on the config string
+    if queue_name_template := conf_dict.get("connections", {}).get("QUEUE_NAME_TEMPLATE"):
+        template = (
+            str(queue_name_template).strip("'").strip('"')
+        )  # remove quotes that may be on the config string
         rslt = template.format(raw_queue_name)
         return rslt
     else:
@@ -1700,7 +1678,7 @@ def map_queue_name(raw_queue_name: str) -> str:
 
 def create_dataset_state_error_callback(
     dataset_uuid_callable: Callable[[Any], str],
-) -> Callable[[Mapping, Any], None]:
+) -> Callable[[Mapping], None]:
     # TODO: this should be deprecated in favor of status_change.callbacks.FailureCallback
     def set_dataset_state_error(context_dict: Mapping, **kwargs) -> None:
         """
@@ -1726,7 +1704,7 @@ def create_dataset_state_error_callback(
     return set_dataset_state_error
 
 
-def _get_workflow_map() -> List[Tuple[Pattern, Pattern, str]]:
+def _get_workflow_map() -> list[tuple[Pattern, Pattern, str]]:
     """
     Lazy compilation of workflow map
     """
@@ -1745,7 +1723,7 @@ def _get_workflow_map() -> List[Tuple[Pattern, Pattern, str]]:
     return COMPILED_WORKFLOW_MAP
 
 
-def _get_resource_map() -> List[Tuple[Pattern, Pattern, Dict[str, str]]]:
+def _get_resource_map() -> list[tuple[Pattern, dict, list[tuple[Pattern, dict]]]]:
     """
     Lazy compilation of resource map
     """
@@ -1770,7 +1748,7 @@ def _get_resource_map() -> List[Tuple[Pattern, Pattern, Dict[str, str]]]:
     return COMPILED_RESOURCE_MAP
 
 
-def _lookup_resource_record(dag_id: str, task_id: Optional[str] = None) -> Tuple[int, Dict]:
+def _lookup_resource_record(dag_id: str, task_id: Optional[str] = None) -> dict:
     """
     Look up the resource map entry for the given dag_id and task_id. The first
     match is returned.  If the task_id is None, the first record matching only
@@ -1779,7 +1757,7 @@ def _lookup_resource_record(dag_id: str, task_id: Optional[str] = None) -> Tuple
     """
     for dag_re, dag_dict, task_list in _get_resource_map():
         if dag_re.match(dag_id):
-            rslt = dag_dict.copy()
+            rslt = dag_dict.copy() or {}
             if task_id is not None:
                 for task_re, task_dict in task_list:
                     if task_re.match(task_id):
@@ -1840,17 +1818,21 @@ def get_threads_resource(dag_id: str, task_id: Optional[str] = None) -> int:
     assert any(
         ["threads" in rec, "coreuse" in rec]
     ), 'schema should guarantee "threads" or "coreuse" is present?'
-    if rec.get("coreuse"):
+    if coreuse := rec.get("coreuse"):
+        cpu_count = os.cpu_count()
+        assert isinstance(cpu_count, int)
         return (
-            math.ceil(os.cpu_count() * (int(rec.get("coreuse")) / 100))
-            if int(rec.get("coreuse")) > 0
-            else math.ceil(os.cpu_count() / 4)
+            math.ceil(cpu_count * (int(coreuse) / 100))
+            if int(coreuse) > 0
+            else math.ceil(cpu_count / 4)
         )
     else:
-        return int(rec.get("threads"))
+        threads = rec.get("threads")
+        assert threads
+        return int(threads)
 
 
-def downstream_workflow_iter(collectiontype: str, assay_type: StrOrListStr) -> Iterable[str]:
+def downstream_workflow_iter(collectiontype: str, assay_type: str | list[str]) -> Iterable[str]:
     """
     Returns an iterator over zero or more workflow names matching the given
     collectiontype and assay_type.  Each workflow name is expected to correspond to
@@ -1869,17 +1851,17 @@ def downstream_workflow_iter(collectiontype: str, assay_type: StrOrListStr) -> I
 
 def encrypt_tok(cleartext_tok: str) -> bytes:
     key = airflow_conf.as_dict(display_sensitive=True)["core"]["fernet_key"]
-    fernet = Fernet(key.encode())
+    fernet = Fernet(str(key).encode())
     return fernet.encrypt(cleartext_tok.encode())
 
 
 def decrypt_tok(crypt_tok: bytes) -> str:
     key = airflow_conf.as_dict(display_sensitive=True)["core"]["fernet_key"]
-    fernet = Fernet(key.encode())
+    fernet = Fernet(str(key).encode())
     return fernet.decrypt(crypt_tok).decode()
 
 
-def join_quote_command_str(pieces: List[Any]):
+def join_quote_command_str(pieces: list[Any]):
     command_str = " ".join(shlex.quote(str(piece)) for piece in pieces)
     print("final command_str:", command_str)
     return command_str
@@ -1936,6 +1918,7 @@ def get_soft_data(dataset_uuid, **kwargs) -> Optional[dict]:
 
 def get_soft_data_assaytype(dataset_uuid, **kwargs) -> str:
     soft_data = get_soft_data(dataset_uuid, **kwargs)
+    assert soft_data, f"Could not find soft data for {dataset_uuid}"
     assert "assaytype" in soft_data, f"Could not find matching assaytype for {dataset_uuid}"
     return soft_data["assaytype"]
 
@@ -1959,7 +1942,7 @@ def search_api_reindex(uuid, **kwargs):
     }
 
     try:
-        response = search_hook.run(endpoint=f"reindex/{uuid}", headers=headers, extra_options=[])
+        response = search_hook.run(endpoint=f"reindex/{uuid}", headers=headers, extra_options={})
         response.raise_for_status()
     except HTTPError as e:
         print(f"Redinex for {uuid} failed. ERROR: {e}")
@@ -2024,6 +2007,34 @@ def main():
     crypt_s = encrypt_tok(s)
     s2 = decrypt_tok(crypt_s)
     print("crypto test: {} -> {} -> {}".format(s, crypt_s, s2))
+
+
+# Similar to pythonop_get_dataset_state, but takes uuid/hubmap_id directly
+def get_submission_context(token: str, uuid: str) -> dict[str, Any]:
+    """
+    uuid can also be a HuBMAP/SenNet ID.
+    """
+    headers = {
+        "authorization": f"Bearer {token}",
+        "content-type": "application/json",
+        f"X-Hubmap-Application": "ingest-pipeline",
+    }
+    http_hook = HttpHook("GET", http_conn_id="entity_api_connection")
+
+    endpoint = f"entities/{uuid}?exclude=direct_ancestors.files"
+
+    try:
+        response = http_hook.run(
+            endpoint, headers=headers, extra_options={"check_response": False}
+        )
+        response.raise_for_status()
+        return response.json()
+    except HTTPError as e:
+        print(f"ERROR: {e}")
+        if e.response.status_code == codes.unauthorized:
+            raise RuntimeError("entity database authorization was rejected?")
+        print("benign error")
+        return {}
 
 
 if __name__ == "__main__":

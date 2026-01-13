@@ -6,9 +6,9 @@ from status_change.status_utils import (
     get_entity_ingest_url,
     get_globus_url,
     get_project,
-    get_submission_context,
     slack_channels,
 )
+from utils import get_submission_context
 
 
 class SlackMessage:

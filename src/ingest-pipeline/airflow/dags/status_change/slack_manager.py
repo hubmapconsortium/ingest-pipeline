@@ -1,6 +1,8 @@
 import logging
 from typing import Optional
 
+from utils import post_to_slack_notify
+
 from .slack.base import SlackMessage
 from .slack.error import (  # SlackDatasetErrorDerived,; SlackDatasetErrorPrimary,
     SlackDatasetError,
@@ -103,7 +105,6 @@ class SlackManager(MessageManager):
             return main_class(self.uuid, self.token)
 
     def update(self):
-        from utils import post_to_slack_notify
 
         if not self.message_class:
             raise EntityUpdateException("Can't update Slack without message class, exiting.")
