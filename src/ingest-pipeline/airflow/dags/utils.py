@@ -772,14 +772,16 @@ def get_file_metadata_dict(
     This routine returns file metadata, either directly as JSON in the form
     {'files': [{...}, {...}, ...]} with the list returned by get_file_metadata() or the form
     {'files_info_alt_path': path} where path is the path of a unique file in alt_file_dir
-    relative to the WORKFLOW_SCRATCH config parameter
+    relative to the WORKFLOW_SCRATCH config parameter.  Setting max_in_line_files to a
+    value less than zero will cause the file info to be returned in-line regardless of
+    length.
     """
     if not pipeline_file_manifests:
         matcher = DummyFileMatcher()
     else:
         matcher = PipelineFileMatcher.create_from_files(pipeline_file_manifests)
     file_info = get_file_metadata(root_dir, matcher)
-    if len(file_info) > max_in_line_files:
+    if max_in_line_files >= 0 and len(file_info) > max_in_line_files:
         assert_json_matches_schema(file_info, "file_info_schema.yml")
         fpath = join(alt_file_dir, "{}.json".format(uuid.uuid4()))
         with open(fpath, "w") as f:
@@ -1231,6 +1233,46 @@ def _generate_slices(id_to_slice: str) -> Iterable[str]:
             yield f"{base}-{idx}"
     else:
         yield id_to_slice
+
+
+def pythonop_build_dataset_lists(**kwargs) -> None:
+    """
+    Given a list of uuids in dag_run.conf["uuids"], add 3 lists of uuids
+    to dag_run.conf:
+    - "primary_datasets", containing uuids of primary datasets
+    - "processed_datasets", containing uuids of processed datasets
+    - "component_datasets", containing uuids of component datasets
+    """
+    kwargs["dag_run"].conf["primary_datasets"] = []
+    kwargs["dag_run"].conf["processed_datasets"] = []
+    kwargs["dag_run"].conf["component_datasets"] = []
+
+    for uuid in kwargs["dag_run"].conf["uuids"]:
+        soft_data = get_soft_data(uuid, **kwargs)
+        ds_rslt = pythonop_get_dataset_state(
+            dataset_uuid_callable=lambda **kwargs: uuid, **kwargs
+        )
+
+        # If we got nothing back from soft_data, then let's try to determine using entity_api
+        if soft_data:
+            if soft_data.get("primary") or soft_data.get("assaytype") == "publication":
+                if ds_rslt["creation_action"] == "Multi-Assay Split":
+                    kwargs["dag_run"].conf["component_datasets"].append(uuid)
+                else:
+                    kwargs["dag_run"].conf["primary_datasets"].append(uuid)
+            else:
+                kwargs["dag_run"].conf["processed_datasets"].append(uuid)
+        else:
+            print(f"No matching soft data returned for {uuid}")
+            if ds_rslt.get("dataset_info"):
+                # dataset_info should only be populated for processed_datasets
+                print(ds_rslt.get("dataset_info"))
+                kwargs["dag_run"].conf["processed_datasets"].append(uuid)
+            else:
+                if ds_rslt["creation_action"] == "Multi-Assay Split":
+                    kwargs["dag_run"].conf["component_datasets"].append(uuid)
+                else:
+                    kwargs["dag_run"].conf["primary_datasets"].append(uuid)
 
 
 def assert_id_known(id_to_check: str, **kwargs) -> None:

@@ -13,6 +13,7 @@ from utils import (
     get_tmp_dir_path,
     encrypt_tok,
     pythonop_get_dataset_state,
+    pythonop_build_dataset_lists
 )
 
 
@@ -38,43 +39,9 @@ with DAG(
     },
 ) as dag:
 
-    def build_dataset_lists(**kwargs):
-        kwargs["dag_run"].conf["primary_datasets"] = []
-        kwargs["dag_run"].conf["processed_datasets"] = []
-        kwargs["dag_run"].conf["component_datasets"] = []
-
-        print("dag_run conf follows:")
-        pprint(kwargs["dag_run"].conf)
-        for uuid in kwargs["dag_run"].conf["uuids"]:
-            soft_data = get_soft_data(uuid, **kwargs)
-            ds_rslt = pythonop_get_dataset_state(
-                dataset_uuid_callable=lambda **kwargs: uuid, **kwargs
-            )
-
-            # If we got nothing back from soft_data, then let's try to determine using entity_api
-            if soft_data:
-                if soft_data.get("primary") or soft_data.get("assaytype") == "publication":
-                    if ds_rslt["creation_action"] == "Multi-Assay Split":
-                        kwargs["dag_run"].conf["component_datasets"].append(uuid)
-                    else:
-                        kwargs["dag_run"].conf["primary_datasets"].append(uuid)
-                else:
-                    kwargs["dag_run"].conf["processed_datasets"].append(uuid)
-            else:
-                print(f"No matching soft data returned for {uuid}")
-                if ds_rslt.get("dataset_info"):
-                    # dataset_info should only be populated for processed_datasets
-                    print(ds_rslt.get("dataset_info"))
-                    kwargs["dag_run"].conf["processed_datasets"].append(uuid)
-                else:
-                    if ds_rslt["creation_action"] == "Multi-Assay Split":
-                        kwargs["dag_run"].conf["component_datasets"].append(uuid)
-                    else:
-                        kwargs["dag_run"].conf["primary_datasets"].append(uuid)
-
     t_build_dataset_lists = PythonOperator(
         task_id="build_dataset_lists",
-        python_callable=build_dataset_lists,
+        python_callable=pythonop_build_dataset_lists,
         provide_context=True,
         queue=get_queue_resource("rebuild_metadata"),
         op_kwargs={
