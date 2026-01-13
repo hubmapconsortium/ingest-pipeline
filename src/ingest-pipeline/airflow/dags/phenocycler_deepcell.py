@@ -16,6 +16,7 @@ from utils import (
 from utils import build_dataset_name as inner_build_dataset_name
 from utils import (
     downstream_workflow_iter,
+    env_appropriate_slack_channel,
     get_absolute_workflow,
     get_auth_tok,
     get_cwl_cmd_from_workflows,
@@ -249,7 +250,9 @@ with HMDAG(
         message = f"STELLAR pre-convert step succeeded in run <{run_url}|{run_id}>. Primary dataset ID: {primary_id}."
         if kwargs["dag_run"].conf.get("dryrun"):
             message = "[dryrun] " + message
-        post_to_slack_notify(get_auth_tok(**kwargs), message, SLACK_NOTIFY_CHANNEL)
+        post_to_slack_notify(
+            get_auth_tok(**kwargs), message, env_appropriate_slack_channel(SLACK_NOTIFY_CHANNEL)
+        )
 
     t_notify_user_stellar_pre_convert = notify_user_stellar_pre_convert()
 

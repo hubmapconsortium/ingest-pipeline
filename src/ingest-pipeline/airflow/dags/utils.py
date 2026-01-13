@@ -2017,6 +2017,18 @@ def post_to_slack_notify(token: str, message: str, channel: str):
     response.raise_for_status()
 
 
+def env_appropriate_slack_channel(prod_channel: str):
+    default = "C0A8ES4M9RU"  # test-notifications
+    entity_host = HttpHook.get_connection("entity_api_connection").host or ""
+    try:
+        env = find_matching_endpoint(entity_host) or ""
+    except AssertionError:
+        env = "dev"
+    if env.lower() == "prod":
+        return prod_channel
+    return default
+
+
 def main():
     """
     This provides some unit tests.  To run it, you will need to define the
