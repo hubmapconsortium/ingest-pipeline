@@ -99,8 +99,8 @@ class SlackUploadReorganizedNoDatasets(SlackMessage):
     """
 
     @classmethod
-    def test(cls, entity_data, token) -> bool:
-        del token
+    def test(cls, entity_data, token, derived) -> bool:
+        del token, derived
         if not entity_data.get("datasets"):
             logging.info(
                 "Reorganized upload does not have child datasets (DAG may still be running); not sending Slack message."
@@ -127,8 +127,8 @@ class SlackUploadReorganizedPriority(SlackUploadReorganized):
         ]
 
     @classmethod
-    def test(cls, entity_data, token) -> bool:
-        del token
+    def test(cls, entity_data, token, derived) -> bool:
+        del token, derived
         if not entity_data.get("datasets"):
             return False  # If no datasets, do not apply
         return bool(entity_data.get("priority_project_list"))

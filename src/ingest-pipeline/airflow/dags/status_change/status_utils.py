@@ -136,6 +136,7 @@ class MessageManager:
         token: str,
         messages: Optional[dict] = None,
         run_id: str = "",
+        derived: bool = False,
         *args,
         **kwargs,
     ):
@@ -144,6 +145,7 @@ class MessageManager:
         self.status = status
         self.messages = messages if messages else {}
         self.run_id = run_id
+        self.derived = derived
         self.args = args
         self.kwargs = kwargs
         self.entity_data = get_submission_context(self.token, self.uuid)
@@ -173,8 +175,11 @@ class MessageManager:
 slack_channels = {
     "base": "C08V3TAP3GQ",  # testing-status-change
     "dataset_error": "C08V3TAP3GQ",
+    "dataset_error_derived": "C08V3TAP3GQ",
     "dataset_invalid": "C08V3TAP3GQ",
+    "dataset_new_derived": "C08V3TAP3GQ",
     "dataset_qa": "C099KMKJT26",  # dataset-qa-notifications
+    "dataset_qa_derived": "C08V3TAP3GQ",
     "upload_error": "C08V3TAP3GQ",
     "upload_invalid": "C08V3TAP3GQ",
     "upload_reorganized": "C08V3TAP3GQ",
@@ -297,16 +302,11 @@ def get_ancestors(uuid: str, token: str) -> dict:
     return response.json()
 
 
-def get_primary_dataset(entity_data: dict, token: str) -> Optional[str]:
-    # Weed out multi-assay
-    dag_provenance_list = entity_data.get("ingest_metadata", {}).get("dag_provenance_list", [])
-    for dag in dag_provenance_list:
-        if ".cwl" in dag.get("name", ""):
-            # If it's been through a pipeline, then find ancestor dataset
-            ancestors = get_ancestors(entity_data.get("uuid", ""), token)
-            for ancestor in ancestors:
-                if ancestor.get("entity_type", "").lower() == "dataset":
-                    return ancestor.get("uuid")
+def get_primary_dataset(entity_data: dict, token: str) -> str | None:
+    ancestors = get_ancestors(entity_data.get("uuid", ""), token)
+    for ancestor in ancestors:
+        if ancestor.get("entity_type", "").lower() == "dataset":
+            return ancestor.get("uuid")
 
 
 def put_request_to_entity_api(
