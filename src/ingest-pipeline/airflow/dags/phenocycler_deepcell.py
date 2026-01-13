@@ -21,12 +21,14 @@ from utils import (
     get_cwl_cmd_from_workflows,
     get_dataset_uuid,
     get_parent_data_dir,
+    get_parent_dataset_uuid,
     get_preserve_scratch_resource,
     get_queue_resource,
     get_tmp_dir_path,
     get_uuid_for_error,
     join_quote_command_str,
     post_to_slack_notify,
+    pythonop_get_dataset_state,
     pythonop_maybe_keep,
     pythonop_set_dataset_state,
 )
@@ -236,8 +238,15 @@ with HMDAG(
     def notify_user_stellar_pre_convert(**kwargs):
         run_id = kwargs["run_id"]
         conf = airflow_conf.as_dict().get("webserver", {})
-        run_url = f"{conf.get('base_url', '')}:{conf.get('web_server_port', '')}/dags/phenocycler_deepcell_segmentation/grid?dag_run_id={urllib.parse.quote(run_id)}"
-        message = f"STELLAR pre-convert step succeeded in run <{run_url}|{run_id}>."
+        # ensure base_url uses https
+        base_url = (
+            urllib.parse.urlparse(str(conf.get("base_url", "")))._replace(scheme="https").geturl()
+        )
+        run_url = f"{base_url}:{conf.get('web_server_port', '')}/dags/phenocycler_deepcell_segmentation/grid?dag_run_id={urllib.parse.quote(run_id)}"
+        primary_id = pythonop_get_dataset_state(
+            dataset_uuid_callable=get_parent_dataset_uuid, **kwargs
+        ).get("hubmap_id")
+        message = f"STELLAR pre-convert step succeeded in run <{run_url}|{run_id}>. Primary dataset ID: {primary_id}."
         if kwargs["dag_run"].conf.get("dryrun"):
             message = "[dryrun] " + message
         post_to_slack_notify(get_auth_tok(**kwargs), message, SLACK_NOTIFY_CHANNEL)
