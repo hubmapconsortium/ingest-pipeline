@@ -30,7 +30,6 @@ from utils import (
     get_uuid_for_error,
     join_quote_command_str,
     post_to_slack_notify,
-    pythonop_get_dataset_state,
     pythonop_maybe_keep,
     pythonop_set_dataset_state,
 )
