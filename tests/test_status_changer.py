@@ -105,7 +105,7 @@ class MockParent(unittest.TestCase):
         # self.scratch_base_path = patch("utils._get_scratch_base_path", return_value="test_path")
         self.entity_update = patch("status_change.status_manager.put_request_to_entity_api")
         self.status_context = patch(
-            "status_change.status_manager.get_submission_context", return_value=good_upload_context
+            "status_change.status_utils.get_submission_context", return_value=good_upload_context
         )
         self.slack_msg_context = patch(
             "status_change.slack.base.get_submission_context", return_value=good_upload_context

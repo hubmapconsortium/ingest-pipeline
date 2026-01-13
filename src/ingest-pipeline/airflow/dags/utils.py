@@ -2019,7 +2019,7 @@ def post_to_slack_notify(token: str, message: str, channel: str):
     response.raise_for_status()
 
 
-def env_appropriate_slack_channel(prod_channel: str):
+def env_appropriate_slack_channel(prod_channel: str) -> str:
     default = "C0A8ES4M9RU"  # test-notifications
     entity_host = HttpHook.get_connection("entity_api_connection").host or ""
     try:
