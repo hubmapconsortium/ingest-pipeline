@@ -1,9 +1,6 @@
 import logging
 from typing import Optional
 
-from airflow.configuration import conf as airflow_conf
-from airflow.utils.email import send_email
-
 from status_change.email_templates.error import ErrorStatusEmail
 from status_change.email_templates.good import GenericGoodStatusEmail
 from status_change.email_templates.invalid import InvalidStatusEmail
@@ -13,6 +10,9 @@ from status_change.status_utils import (
     Statuses,
     get_project,
 )
+
+from airflow.configuration import conf as airflow_conf
+from airflow.utils.email import send_email
 
 
 class EmailManager(MessageManager):
@@ -100,8 +100,7 @@ class EmailManager(MessageManager):
         if self.is_internal_error:
             self.main_recipients = ", ".join(self.int_recipients)
         else:
-            # TODO: turning off any ext emails for testing
-            # self.main_recipients = self.primary_contact
+            self.main_recipients = self.primary_contact
             self.main_recipients = ", ".join(self.int_recipients)
             self.cc = ", ".join(self.int_recipients)
 

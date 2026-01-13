@@ -77,12 +77,13 @@ class FailureCallback(AirflowCallback):
             logging.info(e)
             return
         self.get_data(context)
-        if not self.uuid:
-            # Not sure if this should blow up
+        if self.uuid:
+            self.set_status()
+        else:
             logging.info(f"No uuid sent with context, can't update status. Context:")
             logging.info(pformat(context))
-            return
-        self.set_status()
+            logging.error("Cause of failure:")
+            logging.error(self.formatted_exception)
 
     def get_data(self, context):
         super().get_data(context)
