@@ -2031,6 +2031,35 @@ def env_appropriate_slack_channel(prod_channel: str):
     return default
 
 
+# This is simplified from pythonop_get_dataset_state in utils
+def get_submission_context(token: str, uuid: str, headers: dict | None = None) -> dict[str, Any]:
+    """
+    uuid can also be a HuBMAP/SenNet ID.
+    """
+    if not headers:
+        headers = {
+            "authorization": f"Bearer {token}",
+            "content-type": "application/json",
+            f"X-Hubmap-Application": "ingest-pipeline",
+        }
+    http_hook = HttpHook("GET", http_conn_id="entity_api_connection")
+
+    endpoint = f"entities/{uuid}?exclude=direct_ancestors.files"
+
+    try:
+        response = http_hook.run(
+            endpoint, headers=headers, extra_options={"check_response": False}
+        )
+        response.raise_for_status()
+        return response.json()
+    except HTTPError as e:
+        print(f"ERROR: {e}")
+        if e.response.status_code == codes.unauthorized:
+            raise RuntimeError("entity database authorization was rejected?")
+        print("benign error")
+        return {}
+
+
 def main():
     """
     This provides some unit tests.  To run it, you will need to define the
@@ -2080,35 +2109,6 @@ def main():
     crypt_s = encrypt_tok(s)
     s2 = decrypt_tok(crypt_s)
     print("crypto test: {} -> {} -> {}".format(s, crypt_s, s2))
-
-
-# This is simplified from pythonop_get_dataset_state in utils
-def get_submission_context(token: str, uuid: str, headers: dict | None = None) -> dict[str, Any]:
-    """
-    uuid can also be a HuBMAP/SenNet ID.
-    """
-    if not headers:
-        headers = {
-            "authorization": f"Bearer {token}",
-            "content-type": "application/json",
-            f"X-Hubmap-Application": "ingest-pipeline",
-        }
-    http_hook = HttpHook("GET", http_conn_id="entity_api_connection")
-
-    endpoint = f"entities/{uuid}?exclude=direct_ancestors.files"
-
-    try:
-        response = http_hook.run(
-            endpoint, headers=headers, extra_options={"check_response": False}
-        )
-        response.raise_for_status()
-        return response.json()
-    except HTTPError as e:
-        print(f"ERROR: {e}")
-        if e.response.status_code == codes.unauthorized:
-            raise RuntimeError("entity database authorization was rejected?")
-        print("benign error")
-        return {}
 
 
 if __name__ == "__main__":
