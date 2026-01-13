@@ -25,6 +25,7 @@ from utils import (
     get_parent_dataset_uuid,
     get_preserve_scratch_resource,
     get_queue_resource,
+    get_submission_context,
     get_tmp_dir_path,
     get_uuid_for_error,
     join_quote_command_str,
@@ -244,8 +245,8 @@ with HMDAG(
             urllib.parse.urlparse(str(conf.get("base_url", "")))._replace(scheme="https").geturl()
         )
         run_url = f"{base_url}:{conf.get('web_server_port', '')}/dags/phenocycler_deepcell_segmentation/grid?dag_run_id={urllib.parse.quote(run_id)}"
-        primary_id = pythonop_get_dataset_state(
-            dataset_uuid_callable=get_parent_dataset_uuid, **kwargs
+        primary_id = get_submission_context(
+            get_auth_tok(**kwargs), get_parent_dataset_uuid(**kwargs)
         ).get("hubmap_id")
         message = f"STELLAR pre-convert step succeeded in run <{run_url}|{run_id}>. Primary dataset ID: {primary_id}."
         if kwargs["dag_run"].conf.get("dryrun"):
