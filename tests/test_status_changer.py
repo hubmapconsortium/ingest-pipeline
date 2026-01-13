@@ -13,6 +13,14 @@ from status_change.data_ingest_board_manager import DataIngestBoardManager
 from status_change.email_manager import EmailManager
 from status_change.email_templates.invalid import InvalidStatusEmail
 from status_change.slack.base import SlackMessage
+from status_change.slack.error import (
+    SlackDatasetError,
+    SlackDatasetErrorDerived,
+    SlackUploadError,
+)
+from status_change.slack.invalid import SlackDatasetInvalid, SlackUploadInvalid
+from status_change.slack.new import SlackDatasetNew, SlackDatasetNewDerived
+from status_change.slack.qa import SlackDatasetQA, SlackDatasetQADerived
 from status_change.slack.reorganized import (
     SlackUploadReorganized,
     SlackUploadReorganizedNoDatasets,
@@ -102,6 +110,7 @@ class MockParent(unittest.TestCase):
             return_value={"connections": {"WORKFLOW_SCRATCH": "test_path"}},
         )
         self.httphook = patch("status_change.status_utils.HttpHook.run")
+        self.get_ancestors = patch("status_change.status_utils.get_ancestors")
         # self.scratch_base_path = patch("utils._get_scratch_base_path", return_value="test_path")
         self.entity_update = patch("status_change.status_manager.put_request_to_entity_api")
         self.status_context = patch(
@@ -124,6 +133,7 @@ class MockParent(unittest.TestCase):
         self.mock_conf = self.conf.start()
         self.mock_httphook = self.httphook.start()
         self.mock_httphook.return_value.json.return_value = good_upload_context  # GET request mock
+        self.mock_get_ancestors = self.get_ancestors.start()
         self.mock_entity_update = self.entity_update.start()
         self.mock_status_context = self.status_context.start()
         self.mock_slack_msg_context = self.slack_msg_context.start()
@@ -138,6 +148,7 @@ class MockParent(unittest.TestCase):
         self.addCleanup(self.env.stop)
         self.addCleanup(self.conf.stop)
         self.addCleanup(self.httphook.stop)
+        self.addCleanup(self.get_ancestors.stop)
         self.addCleanup(self.entity_update.stop)
         self.addCleanup(self.status_context.stop)
         self.addCleanup(self.slack_msg_context.stop)
@@ -465,8 +476,8 @@ class SlackTestHold(SlackMessage):
     name = "dataset_hold"
 
     @classmethod
-    def test(cls, entity_data, token):
-        del token
+    def test(cls, entity_data, token, derived):
+        del token, derived
         if str(entity_data.get("status")).lower() == "hold":
             return True
         return False
@@ -550,8 +561,8 @@ class TestSlack(MockParent):
                     self.mock_slack_post.assert_called_once_with("test_token", "HOLD", channel)
                     self.mock_slack_post.reset_mock()
 
-    def slack_manager(self, status):
-        return SlackManager(status, "test_uuid", "test_token")
+    def slack_manager(self, status, **kwargs):
+        return SlackManager(status, "test_uuid", "test_token", **kwargs)
 
     def test_slack_manager_main_class(self):
         self.mock_status_context.return_value.pop("priority_project_list", None)
@@ -610,6 +621,74 @@ class TestSlack(MockParent):
                         with patch("utils.ENDPOINTS", endpoints["hubmap"]):
                             mgr = klass("test_uuid", "test_token")
                             assert mgr.format() == ret_val
+
+    def test_error_classes(self):
+        upload_mgr = self.slack_manager(Statuses.UPLOAD_ERROR)
+        assert type(upload_mgr.message_class) is SlackUploadError
+        dataset_mgr = self.slack_manager(Statuses.DATASET_ERROR)
+        assert type(dataset_mgr.message_class) is SlackDatasetError
+        derived_dataset_mgr = self.slack_manager(Statuses.DATASET_ERROR, **{"derived": True})
+        assert type(derived_dataset_mgr.message_class) is SlackDatasetErrorDerived
+
+    def test_invalid_classes(self):
+        upload_mgr = self.slack_manager(Statuses.UPLOAD_INVALID)
+        assert type(upload_mgr.message_class) is SlackUploadInvalid
+        dataset_mgr = self.slack_manager(Statuses.DATASET_INVALID)
+        assert type(dataset_mgr.message_class) is SlackDatasetInvalid
+
+    def test_new_classes(self):
+        dataset_mgr = self.slack_manager(Statuses.DATASET_NEW)
+        assert type(dataset_mgr.message_class) is SlackDatasetNew
+        with self.assertRaises(NotImplementedError):
+            dataset_mgr.message_class.format()
+        derived_dataset_mgr = self.slack_manager(Statuses.DATASET_NEW, **{"derived": True})
+        assert type(derived_dataset_mgr.message_class) is SlackDatasetNewDerived
+
+    def test_qa_classes(self):
+        dataset_mgr = self.slack_manager(Statuses.DATASET_QA)
+        assert type(dataset_mgr.message_class) is SlackDatasetQA
+        derived_dataset_mgr = self.slack_manager(Statuses.DATASET_QA, **{"derived": True})
+        assert type(derived_dataset_mgr.message_class) is SlackDatasetQADerived
+
+    def test_reorganized_no_datasets(self):
+        self.status_context.stop()
+        self.slack_msg_context.stop()
+        # add priority key to make sure SlackUploadReorganizedPriority doesn't trigger
+        additions = good_upload_context | {
+            "priority_project_list": ["PRIORITY"],
+        }
+        additions.pop("datasets")
+        with patch("status_change.status_utils.get_submission_context", return_value=additions):
+            no_datasets_upload_reorg_mgr = self.slack_manager(Statuses.UPLOAD_REORGANIZED)
+        assert type(no_datasets_upload_reorg_mgr.message_class) is SlackUploadReorganizedNoDatasets
+        with self.assertRaises(NotImplementedError):
+            no_datasets_upload_reorg_mgr.message_class.format()
+        self.mock_status_context.reset_mock()
+        self.mock_slack_msg_context.reset_mock()
+
+    def test_reorganized_priority(self):
+        self.status_context.stop()
+        self.slack_msg_context.stop()
+        additions = good_upload_context | {
+            "datasets": [{"dataset_type": "test_1"}],
+            "priority_project_list": ["PRIORITY"],
+        }
+        with patch("status_change.status_utils.get_submission_context", return_value=additions):
+            priority_reorg_dataset_mgr = self.slack_manager(Statuses.UPLOAD_REORGANIZED)
+        assert type(priority_reorg_dataset_mgr.message_class) is SlackUploadReorganizedPriority
+        self.mock_status_context.reset_mock()
+        self.mock_slack_msg_context.reset_mock()
+
+    def test_reorganized(self):
+        self.status_context.stop()
+        self.slack_msg_context.stop()
+        additions = good_upload_context | {"datasets": [{"dataset_type": "test_1"}]}
+        additions.pop("priority_project_list")
+        with patch("status_change.status_utils.get_submission_context", return_value=additions):
+            upload_mgr = self.slack_manager(Statuses.UPLOAD_REORGANIZED)
+        assert type(upload_mgr.message_class) is SlackUploadReorganized
+        self.mock_status_context.reset_mock()
+        self.mock_slack_msg_context.reset_mock()
 
 
 class TestFailureCallback(MockParent):

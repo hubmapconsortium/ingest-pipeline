@@ -1,10 +1,9 @@
-from typing import Optional
-
 from status_change.status_utils import (
     get_abs_path,
     get_data_ingest_board_query_url,
     get_entity_ingest_url,
     get_globus_url,
+    get_primary_dataset,
     get_project,
     get_submission_context,
     slack_channels,
@@ -15,7 +14,7 @@ class SlackMessage:
     # Name should match what's in status_utils.slack_channels
     name = "base"
 
-    def __init__(self, uuid: str, token: str, msg: Optional[str] = None):
+    def __init__(self, uuid: str, token: str, msg: str | None = None):
         self.uuid = uuid
         self.token = token
         self.msg = msg
@@ -28,14 +27,14 @@ class SlackMessage:
         return slack_channels.get(cls.name, "")
 
     @classmethod
-    def test(cls, entity_data: dict, token: str) -> bool:
+    def test(cls, entity_data: dict, token: str, derived: bool) -> bool:
         """
         If there are special case subclasses for a given status, their
         test() methods will be called to determine if the subclass applies.
         Only one should return True because the subclass test loop breaks
         after first True result.
         """
-        del entity_data, token
+        del entity_data, token, derived
         return False
 
     def format(self) -> list:
@@ -67,3 +66,9 @@ class SlackMessage:
     @property
     def copyable_filepath(self):
         return get_abs_path(self.uuid, self.token, escaped=True)
+
+    @property
+    def primary_dataset_info(self) -> dict | None:
+        primary_dataset_uuid = get_primary_dataset(self.entity_data, self.token)
+        if primary_dataset_uuid:
+            return get_submission_context(self.token, primary_dataset_uuid)
