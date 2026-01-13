@@ -39,7 +39,6 @@ from schema_utils import (
 from schema_utils import (
     localized_assert_json_matches_schema as assert_json_matches_schema,
 )
-from status_change.status_manager import EntityUpdateException, StatusChanger
 
 from airflow import DAG
 from airflow.configuration import conf as airflow_conf
@@ -1030,6 +1029,8 @@ def pythonop_set_dataset_state(**kwargs) -> None:
     'message' : update message, saved as dataset metadata element "pipeline_message".
                 The default is not to save any message.
     """
+    from status_change.status_manager import StatusChanger
+
     if kwargs["dag_run"].conf.get("dryrun"):
         return
     for arg in ["dataset_uuid_callable"]:
@@ -1525,6 +1526,7 @@ def make_send_status_msg_function(
     no file metadata will be included.  Note that file metadata may also be excluded
     based on the return value of 'dataset_lz_path_fun' above.
     """
+    from status_change.status_manager import EntityUpdateException, StatusChanger
 
     # Does the string represent a "true" value, or an int that is 1
     def __is_true(val):
@@ -2015,6 +2017,47 @@ def post_to_slack_notify(token: str, message: str, channel: str):
     headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
     response = http_hook.run("/notify", payload, headers)
     response.raise_for_status()
+
+
+def env_appropriate_slack_channel(prod_channel: str) -> str:
+    default = "C0A8ES4M9RU"  # test-notifications
+    entity_host = HttpHook.get_connection("entity_api_connection").host or ""
+    try:
+        env = find_matching_endpoint(entity_host) or ""
+    except AssertionError:
+        env = "dev"
+    if env.lower() == "prod":
+        return prod_channel
+    return default
+
+
+# This is simplified from pythonop_get_dataset_state in utils
+def get_submission_context(token: str, uuid: str, headers: dict | None = None) -> dict[str, Any]:
+    """
+    uuid can also be a HuBMAP/SenNet ID.
+    """
+    if not headers:
+        headers = {
+            "authorization": f"Bearer {token}",
+            "content-type": "application/json",
+            f"X-Hubmap-Application": "ingest-pipeline",
+        }
+    http_hook = HttpHook("GET", http_conn_id="entity_api_connection")
+
+    endpoint = f"entities/{uuid}?exclude=direct_ancestors.files"
+
+    try:
+        response = http_hook.run(
+            endpoint, headers=headers, extra_options={"check_response": False}
+        )
+        response.raise_for_status()
+        return response.json()
+    except HTTPError as e:
+        print(f"ERROR: {e}")
+        if e.response.status_code == codes.unauthorized:
+            raise RuntimeError("entity database authorization was rejected?")
+        print("benign error")
+        return {}
 
 
 def main():

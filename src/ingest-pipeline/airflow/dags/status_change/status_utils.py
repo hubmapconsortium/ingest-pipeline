@@ -8,8 +8,7 @@ from enum import Enum
 from typing import Any, Optional, Union
 from urllib.parse import urlencode, urljoin
 
-from requests import codes
-from requests.exceptions import HTTPError
+from utils import get_submission_context as base_get_submission_context
 
 from airflow.models import DagRun
 from airflow.providers.http.hooks.http import HttpHook
@@ -240,28 +239,8 @@ def get_headers(token: str) -> dict:
     }
 
 
-# This is simplified from pythonop_get_dataset_state in utils
 def get_submission_context(token: str, uuid: str) -> dict[str, Any]:
-    """
-    uuid can also be a HuBMAP/SenNet ID.
-    """
-    headers = get_headers(token)
-    http_hook = HttpHook("GET", http_conn_id="entity_api_connection")
-
-    endpoint = f"entities/{uuid}?exclude=direct_ancestors.files"
-
-    try:
-        response = http_hook.run(
-            endpoint, headers=headers, extra_options={"check_response": False}
-        )
-        response.raise_for_status()
-        return response.json()
-    except HTTPError as e:
-        print(f"ERROR: {e}")
-        if e.response.status_code == codes.unauthorized:
-            raise RuntimeError("entity database authorization was rejected?")
-        print("benign error")
-        return {}
+    return base_get_submission_context(token, uuid, get_headers(token))
 
 
 def formatted_exception(exception):

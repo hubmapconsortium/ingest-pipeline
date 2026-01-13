@@ -263,6 +263,7 @@ class TestStatusChanger(MockParent):
 
     def test_recognized_status(self):
         self.upload_valid.validate_fields_to_change()
+        assert self.upload_valid.status
         self.assertEqual(
             self.upload_valid.fields_to_change["status"],
             Statuses.valid_str(self.upload_valid.status),
@@ -350,7 +351,7 @@ class TestStatusChanger(MockParent):
     def my_callable(**kwargs):
         return kwargs["uuid"]
 
-    @patch("utils.StatusChanger")
+    @patch("status_change.status_manager.StatusChanger")
     def test_pythonop_set_dataset_state_valid(self, sc_mock):
         uuid = "test_uuid"
         token = "test_token"
@@ -466,7 +467,7 @@ class SlackTestHold(SlackMessage):
     @classmethod
     def test(cls, entity_data, token):
         del token
-        if entity_data.get("status").lower() == "hold":
+        if str(entity_data.get("status")).lower() == "hold":
             return True
         return False
 
@@ -492,6 +493,7 @@ class TestSlack(MockParent):
             {status: self.mock_slack_channels},
         ):
             mgr = self.slack_manager(status)
+        assert mgr.message_class
         assert mgr.message_class.format() == ["I am formatted"]
 
     def test_get_slack_channel(self):
@@ -500,6 +502,7 @@ class TestSlack(MockParent):
             {"test_status": self.mock_slack_channels},
         ):
             mgr = self.slack_manager("test_status")
+        assert mgr.message_class
         assert mgr.message_class.channel == "test_class_channel"
 
     def test_update_with_slack_channel(self):
@@ -647,7 +650,9 @@ class TestFailureCallback(MockParent):
                 }
                 fcb = FailureCallback(__name__)
                 fcb(tweaked_ctx)
+                assert fcb.task
                 assert "mytaskid" == fcb.task.task_id
+                assert fcb.dag_run
                 assert "test_dag_id" == fcb.dag_run.dag_id
                 assert date(2025, 6, 5) == fcb.dag_run.execution_date
                 assert __name__ == fcb.called_from
