@@ -89,7 +89,9 @@ with HMDAG(
         if ds_rslt["entity_type"] != "Upload":
             raise AirflowException(f"{uuid} is not an Upload")
         if ds_rslt["status"] not in ["New", "Submitted", "Invalid", "Error"]:
-            raise AirflowException(f"status of Upload {uuid} is not New, Submitted, Invalid, or Error")
+            raise AirflowException(
+                f"status of Upload {uuid} is not New, Submitted, Invalid, or Error"
+            )
 
     t_find_uuid = PythonOperator(
         task_id="find_uuid",
@@ -193,13 +195,15 @@ with HMDAG(
                 ------------
                 """
             )
+        messages = kwargs["ti"].xcom_pull(key="report_data") or {} | {
+            "run_id": kwargs.get("run_id")
+        }
         StatusChanger(
             kwargs["ti"].xcom_pull(key="uuid"),
             get_auth_tok(**kwargs),
             status=status,
             fields_to_overwrite=extra_fields,
-            run_id=kwargs.get("run_id"),
-            messages=kwargs["ti"].xcom_pull(key="report_data"),
+            messages=messages,
         ).update()
 
     t_send_status = PythonOperator(

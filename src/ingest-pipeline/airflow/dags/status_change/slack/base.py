@@ -14,10 +14,17 @@ class SlackMessage:
     # Name should match what's in status_utils.slack_channels
     name = "base"
 
-    def __init__(self, uuid: str, token: str, msg: str | None = None):
+    def __init__(
+        self,
+        uuid: str,
+        token: str,
+        run_id: str | None = None,
+        pipeline_name: str | None = None,
+    ):
         self.uuid = uuid
         self.token = token
-        self.msg = msg
+        self.run_id = run_id
+        self.pipeline_name = pipeline_name
         self.channel = slack_channels.get(self.name, "")
         self.entity_id_str = f"{get_project().value[0]}_id"  # "hubmap_id" or "sennet_id"
         self.entity_data = get_submission_context(token, uuid)
@@ -27,14 +34,21 @@ class SlackMessage:
         return slack_channels.get(cls.name, "")
 
     @classmethod
-    def test(cls, entity_data: dict, token: str, derived: bool) -> bool:
+    def test(cls, entity_data: dict, token: str, **kwargs) -> bool:
         """
         If there are special case subclasses for a given status, their
         test() methods will be called to determine if the subclass applies.
         Only one should return True because the subclass test loop breaks
         after first True result.
+
+        entity_data - metadata from Entity API
+        token - Globus token
+        expected kwargs:
+            derived: bool - is this a derived dataset
+            pipeline_name: str - name of triggering pipeline;
+                                 only used for processing pipelines
         """
-        del entity_data, token, derived
+        del entity_data, token, kwargs
         return False
 
     def format(self) -> list:

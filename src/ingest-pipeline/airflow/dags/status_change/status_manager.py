@@ -17,7 +17,6 @@ from .status_utils import (
     ENTITY_STATUS_MAP,
     EntityUpdateException,
     Statuses,
-    get_run_id,
     get_submission_context,
     put_request_to_entity_api,
 )
@@ -35,7 +34,6 @@ class EntityUpdater:
         fields_to_append_to: Optional[dict] = None,
         delimiter: str = "|",
         reindex: bool = True,
-        run_id: Optional[str] = None,
     ):
         self.uuid = uuid
         self.token = token
@@ -44,7 +42,6 @@ class EntityUpdater:
         self.fields_to_append_to = fields_to_append_to if fields_to_append_to else {}
         self.delimiter = delimiter
         self.reindex = reindex
-        self.run_id = get_run_id(run_id)
         self.entity_type = self.get_entity_type()
         self.fields_to_change = self.get_fields_to_change()
 
@@ -162,7 +159,6 @@ class EntityUpdater:
             fields_to_append_to=self.fields_to_append_to,
             delimiter=self.delimiter,
             reindex=self.reindex,
-            run_id=self.run_id,
             status=status,
         ).update()
 
@@ -205,10 +201,9 @@ Example usage with optional params:
             fields_to_append_to={"ingest_task": "test"},  # optional
             delimiter=",",  # optional
             reindex=True,  # optional
-            run_id="<airflow_run_id>",
             status=<Statuses.STATUS_ENUM>,  # or "<status>"
-            message=<ErrorReport.counts>
-        ).update()
+            messages={"error_counts": {<ErrorReport.counts>}, "pipeline_name": "<name>", "run_id": "<id>", "derived": bool}  # optional
+    ).update()
 """
 
 
@@ -225,9 +220,9 @@ class StatusChanger(EntityUpdater):
         fields_to_append_to: Optional[dict] = None,
         delimiter: str = "|",
         reindex: bool = True,
-        run_id: Optional[str] = None,
         # Additional field to support privileged field "status"
         status: Optional[Union[Statuses, str]] = None,
+        # Additional field to pass data to messaging classes
         messages: Optional[dict] = None,
         **kwargs,
     ):
@@ -240,7 +235,6 @@ class StatusChanger(EntityUpdater):
             fields_to_append_to,
             delimiter,
             reindex,
-            run_id,
         )
         self.status = self._validate_status(status)
         self.messages = messages
@@ -280,7 +274,6 @@ class StatusChanger(EntityUpdater):
                 self.uuid,
                 self.token,
                 messages=self.messages,
-                run_id=self.run_id,
             )
             if message_manager.is_valid_for_status:
                 try:

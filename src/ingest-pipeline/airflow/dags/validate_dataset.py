@@ -179,12 +179,14 @@ with HMDAG(
                 ------------
                 """
             )
+        messages = kwargs["ti"].xcom_pull(key="report_data") or {} | {
+            "run_id": kwargs.get("run_id")
+        }
         StatusChanger(
             uuid,
             get_auth_tok(**kwargs),
             status=status,
-            run_id=kwargs.get("run_id"),
-            messages=kwargs["ti"].xcom_pull(key="report_data"),
+            messages=messages,
         ).update()
 
     t_send_status = PythonOperator(

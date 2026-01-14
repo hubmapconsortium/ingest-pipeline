@@ -16,6 +16,7 @@ from status_change.slack.base import SlackMessage
 from status_change.slack.error import (
     SlackDatasetError,
     SlackDatasetErrorDerived,
+    SlackDatasetErrorPrimaryPipeline,
     SlackUploadError,
 )
 from status_change.slack.invalid import SlackDatasetInvalid, SlackUploadInvalid
@@ -383,7 +384,7 @@ class TestStatusChanger(MockParent):
             fields_to_overwrite={"pipeline_message": message},
             http_conn_id="entity_api_connection",
             reindex=True,
-            run_id=None,
+            messages={"run_id": None, "pipeline_name": None},
         )
         # Pass a valid ds_state and assert it was passed properly
         pythonop_set_dataset_state(
@@ -401,7 +402,7 @@ class TestStatusChanger(MockParent):
             fields_to_overwrite={"pipeline_message": message},
             http_conn_id="entity_api_connection",
             reindex=True,
-            run_id=None,
+            messages={"run_id": None, "pipeline_name": None},
         )
 
     def test_pythonop_set_dataset_state_invalid(self):
@@ -476,8 +477,8 @@ class SlackTestHold(SlackMessage):
     name = "dataset_hold"
 
     @classmethod
-    def test(cls, entity_data, token, derived):
-        del token, derived
+    def test(cls, entity_data, token, **kwargs):
+        del token, kwargs
         if str(entity_data.get("status")).lower() == "hold":
             return True
         return False
@@ -627,8 +628,14 @@ class TestSlack(MockParent):
         assert type(upload_mgr.message_class) is SlackUploadError
         dataset_mgr = self.slack_manager(Statuses.DATASET_ERROR)
         assert type(dataset_mgr.message_class) is SlackDatasetError
-        derived_dataset_mgr = self.slack_manager(Statuses.DATASET_ERROR, **{"derived": True})
+        derived_dataset_mgr = self.slack_manager(
+            Statuses.DATASET_ERROR, **{"messages": {"derived": True}}
+        )
         assert type(derived_dataset_mgr.message_class) is SlackDatasetErrorDerived
+        primary_dataset_mgr = self.slack_manager(
+            Statuses.DATASET_ERROR, **{"messages": {"pipeline_name": "test_pipeline"}}
+        )
+        assert type(primary_dataset_mgr.message_class) is SlackDatasetErrorPrimaryPipeline
 
     def test_invalid_classes(self):
         upload_mgr = self.slack_manager(Statuses.UPLOAD_INVALID)
@@ -641,13 +648,17 @@ class TestSlack(MockParent):
         assert type(dataset_mgr.message_class) is SlackDatasetNew
         with self.assertRaises(NotImplementedError):
             dataset_mgr.message_class.format()
-        derived_dataset_mgr = self.slack_manager(Statuses.DATASET_NEW, **{"derived": True})
+        derived_dataset_mgr = self.slack_manager(
+            Statuses.DATASET_NEW, **{"messages": {"derived": True}}
+        )
         assert type(derived_dataset_mgr.message_class) is SlackDatasetNewDerived
 
     def test_qa_classes(self):
         dataset_mgr = self.slack_manager(Statuses.DATASET_QA)
         assert type(dataset_mgr.message_class) is SlackDatasetQA
-        derived_dataset_mgr = self.slack_manager(Statuses.DATASET_QA, **{"derived": True})
+        derived_dataset_mgr = self.slack_manager(
+            Statuses.DATASET_QA, **{"messages": {"derived": True}}
+        )
         assert type(derived_dataset_mgr.message_class) is SlackDatasetQADerived
 
     def test_reorganized_no_datasets(self):
@@ -772,7 +783,7 @@ class TestDataIngestBoardManager(MockParent):
     def test_valid_status_return_ext_error(self):
         # invalid status, validation output doesn't have any internal error strings
         dib = DataIngestBoardManager(
-            Statuses.UPLOAD_INVALID, "test_uuid", "test_token", run_id="test_run_id"
+            Statuses.UPLOAD_INVALID, "test_uuid", "test_token", messages={"run_id": "test_run_id"}
         )
         assert dib.get_fields() == {
             "error_message": f"Invalid status from run test_run_id",
@@ -787,7 +798,10 @@ class TestDataIngestBoardManager(MockParent):
             | {"validation_message": "Internal error--test"},
         ):
             dib = DataIngestBoardManager(
-                Statuses.UPLOAD_INVALID, "test_uuid", "test_token", run_id="test_run_id"
+                Statuses.UPLOAD_INVALID,
+                "test_uuid",
+                "test_token",
+                messages={"run_id": "test_run_id"},
             )
             assert dib.get_fields() == {
                 "error_message": "Internal error. Log directory: test_path/test_run_id",
@@ -798,9 +812,9 @@ class TestDataIngestBoardManager(MockParent):
                 "test_uuid",
                 "test_token",
                 messages={
-                    "error_counts": {"Antibodies/Contributors Errors": "1", "Test errors": "5"}
+                    "error_counts": {"Antibodies/Contributors Errors": "1", "Test errors": "5"},
+                    "run_id": "test_run_id",
                 },
-                run_id="test_run_id",
             )
             assert dib_w_msg.get_fields() == {
                 "error_message": "Internal error. Log directory: test_path/test_run_id | Antibodies/Contributors Errors: 1; Test errors: 5",
@@ -818,7 +832,10 @@ class TestDataIngestBoardManager(MockParent):
             },
         ):
             dib = DataIngestBoardManager(
-                Statuses.UPLOAD_ERROR, "test_uuid", "test_token", run_id="test_run_id"
+                Statuses.UPLOAD_ERROR,
+                "test_uuid",
+                "test_token",
+                messages={"run_id": "test_run_id"},
             )
             assert dib.get_fields() == {
                 "error_message": "Internal error. Log directory: test_path/test_run_id",
@@ -828,8 +845,10 @@ class TestDataIngestBoardManager(MockParent):
                 Statuses.UPLOAD_ERROR,
                 "test_uuid",
                 "test_token",
-                run_id="test_run_id",
-                messages={"error_counts": {"Directory errors": "3", "Plugins skipped": "True"}},
+                messages={
+                    "error_counts": {"Directory errors": "3", "Plugins skipped": "True"},
+                    "run_id": "test_run_id",
+                },
             )
             assert dib_w_msg.get_fields() == {
                 "error_message": f"Internal error. Log directory: test_path/test_run_id | Directory errors: 3; Plugins skipped: True",
@@ -844,7 +863,10 @@ class TestDataIngestBoardManager(MockParent):
             },
         ):
             dib = DataIngestBoardManager(
-                Statuses.UPLOAD_ERROR, "test_uuid", "test_token", run_id="test_run_id"
+                Statuses.UPLOAD_ERROR,
+                "test_uuid",
+                "test_token",
+                messages={"run_id": "test_run_id"},
             )
             assert dib.get_fields() == {
                 "error_message": "Internal error. Log directory: test_path/test_run_id",
@@ -1075,8 +1097,7 @@ class TestEmailManager(MockParent):
                 status,
                 "test_uuid",
                 "test_token",
-                messages=messages,
-                run_id="test_run_id",
+                messages=messages or {} | {"run_id": "test_run_id"},
             )
             manager.int_recipients = [self.int_recipients]
             return manager
