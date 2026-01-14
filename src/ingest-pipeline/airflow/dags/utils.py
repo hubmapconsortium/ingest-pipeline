@@ -893,7 +893,7 @@ def pythonop_send_create_dataset(**kwargs) -> str:
     'derived_dataset_uuid' : uuid for the created dataset
     'group_uuid' : group uuid for the created dataset
     """
-    from status_change.slack_manager import SlackManager
+    from status_change.status_manager import call_message_managers
 
     for arg in ["parent_dataset_uuid_callable", "http_conn_id"]:
         assert arg in kwargs, "missing required argument {}".format(arg)
@@ -1008,11 +1008,12 @@ def pythonop_send_create_dataset(**kwargs) -> str:
         abs_path = response_json["path"]
 
         # Send confirmation message that derived dataset has been created
-        SlackManager(
+        call_message_managers(
             response_json.get("status"),
             uuid,
             get_auth_tok(**kwargs),
             messages={"derived": True, "run_id": kwargs.get("run_id", "")},
+            message_classes=["SlackManager"],
         ).update()
 
     except HTTPError as e:
