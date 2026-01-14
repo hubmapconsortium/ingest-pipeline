@@ -14,8 +14,8 @@ class SlackDatasetQADerived(SlackMessage):
     name = "dataset_qa_derived"
 
     @classmethod
-    def test(cls, entity_data, token, derived):
-        if derived and entity_data.get("uuid"):
+    def test(cls, entity_data, token, **kwargs):
+        if kwargs.get("derived") and entity_data.get("uuid"):
             return True
         elif get_primary_dataset(entity_data, token):
             return True

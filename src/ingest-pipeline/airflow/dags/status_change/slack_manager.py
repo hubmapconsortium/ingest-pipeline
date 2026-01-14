@@ -7,6 +7,7 @@ from .slack.base import SlackMessage
 from .slack.error import (
     SlackDatasetError,
     SlackDatasetErrorDerived,
+    SlackDatasetErrorPrimaryPipeline,
     SlackUploadError,
 )
 from .slack.invalid import (
@@ -45,12 +46,10 @@ class SlackManager(MessageManager):
         uuid: str,
         token: str,
         messages: Optional[dict] = None,
-        run_id: str = "",
-        derived: bool = False,
         *args,
         **kwargs,
     ):
-        super().__init__(status, uuid, token, messages, run_id, derived, *args, **kwargs)
+        super().__init__(status, uuid, token, messages, *args, **kwargs)
         self.message_class = self.get_message_class(status)
         if not self.message_class:
             logging.info(
@@ -66,7 +65,7 @@ class SlackManager(MessageManager):
         Statuses.DATASET_ERROR: {
             "main_class": SlackDatasetError,
             "subclasses": [],
-            "subclasses": [SlackDatasetErrorDerived],
+            "subclasses": [SlackDatasetErrorDerived, SlackDatasetErrorPrimaryPipeline],
         },
         Statuses.DATASET_INVALID: {
             "main_class": SlackDatasetInvalid,
@@ -103,11 +102,18 @@ class SlackManager(MessageManager):
         if not relevant_classes:
             return
         # Re-request entity data as previous message managers may have altered it
+        class_args = [self.uuid, self.token]
+        class_kwargs = {"run_id": self.run_id, "pipeline_name": self.pipeline_name}
         for subclass in relevant_classes.get("subclasses", []):
-            if subclass.test(self.entity_data, self.token, self.derived):
-                return subclass(self.uuid, self.token)
+            if subclass.test(
+                self.entity_data,
+                self.token,
+                derived=self.derived,
+                pipeline_name=self.pipeline_name,
+            ):
+                return subclass(*class_args, **class_kwargs)
         if main_class := relevant_classes["main_class"]:
-            return main_class(self.uuid, self.token)
+            return main_class(*class_args, **class_kwargs)
 
     def update(self):
         from utils import post_to_slack_notify
