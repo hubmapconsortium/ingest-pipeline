@@ -166,8 +166,8 @@ class MessageManager:
         return self.messages.get("error_dict", {})
 
     @property
-    def pipeline_name(self) -> str:
-        return self.messages.get("pipeline_name", "")
+    def processing_pipeline(self) -> str:
+        return self.messages.get("processing_pipeline", "")
 
     @property
     def run_id(self) -> str:
@@ -182,6 +182,7 @@ slack_channels = {
     "base": "C08V3TAP3GQ",  # testing-status-change
     "dataset_error": "C08V3TAP3GQ",
     "dataset_error_derived": "C08V3TAP3GQ",
+    "dataset_error_primary_pipeline": "C08V3TAP3GQ",
     "dataset_invalid": "C08V3TAP3GQ",
     "dataset_new_derived": "C08V3TAP3GQ",
     "dataset_qa": "C099KMKJT26",  # dataset-qa-notifications
