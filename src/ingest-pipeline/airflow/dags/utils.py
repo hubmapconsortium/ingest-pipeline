@@ -1250,9 +1250,7 @@ def pythonop_build_dataset_lists(**kwargs) -> None:
 
     for uuid in kwargs["dag_run"].conf["uuids"]:
         soft_data = get_soft_data(uuid, **kwargs)
-        ds_rslt = pythonop_get_dataset_state(
-            dataset_uuid_callable=lambda **kwargs: uuid, **kwargs
-        )
+        ds_rslt = pythonop_get_dataset_state(dataset_uuid_callable=lambda **kwargs: uuid, **kwargs)
 
         # If we got nothing back from soft_data, then let's try to determine using entity_api
         if soft_data:
@@ -1707,7 +1705,7 @@ def make_send_status_msg_function(
             }
             return_status = False
         if status:
-            if kwargs["dag"].dag_id == "multiassay_component_metadata":
+            if kwargs["dag"].dag_id in ["multiassay_component_metadata", "reorganize_multiassay"]:
                 status = None
             try:
                 StatusChanger(
