@@ -314,6 +314,8 @@ def copy_shared_data(kid_path, source_entity, non_global_files, dryrun):
 
 def copy_data_path(kid_path, source_data_path, dryrun):
     for elt in source_data_path.glob("*"):
+        if elt.name.endswith("-metadata.tsv"):
+            continue
         dst_file = kid_path / elt.name
         if dryrun:
             if dst_file.exists() and dst_file.is_dir():
