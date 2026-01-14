@@ -42,18 +42,18 @@ class SlackManager(MessageManager):
 
     def __init__(
         self,
-        status: Statuses,
-        uuid: str,
-        token: str,
-        messages: Optional[dict] = None,
+        status,
+        uuid,
+        token,
+        messages=None,
         *args,
         **kwargs,
     ):
         super().__init__(status, uuid, token, messages, *args, **kwargs)
-        self.message_class = self.get_message_class(status)
+        self.message_class = self.get_message_class(self.status)
         if not self.message_class:
             logging.info(
-                f"Status {status.value} does not have any Slack messaging rules; no message will be sent."
+                f"Status {self.status.value} does not have any Slack messaging rules; no message will be sent."
             )
 
     """

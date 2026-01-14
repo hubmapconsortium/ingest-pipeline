@@ -5,7 +5,7 @@ import unittest
 from datetime import date
 from functools import cached_property
 from typing import Optional
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, PropertyMock, patch
 
 import requests
 from status_change.callbacks.failure_callback import FailureCallback
@@ -33,6 +33,7 @@ from status_change.status_manager import (
     EntityUpdater,
     StatusChanger,
     Statuses,
+    call_message_managers,
 )
 from status_change.status_utils import (
     get_data_ingest_board_query_url,
@@ -229,7 +230,7 @@ class TestStatusChanger(MockParent):
         status_update_mock.assert_not_called()
 
     @patch("status_change.status_manager.StatusChanger.set_entity_api_data")
-    @patch("status_change.status_manager.StatusChanger.call_message_managers")
+    @patch("status_change.status_manager.call_message_managers")
     def test_same_status(self, mm_mock, status_update_mock):
         same_status = StatusChanger(
             "upload_valid_uuid",
@@ -465,6 +466,92 @@ class TestStatusChanger(MockParent):
             ).update()
             self.mock_dib_update.assert_not_called()
 
+    def test_pass_message_managers(self):
+        with patch(
+            "status_change.status_manager.SlackManager.get_message_class",
+            new_callable=PropertyMock,
+        ) as mock_slack_mgr:
+            with patch(
+                "status_change.status_manager.DataIngestBoardManager.is_valid_for_status",
+                new_callable=PropertyMock,
+            ) as mock_dib_mgr:
+                with patch(
+                    "status_change.status_manager.EmailManager.is_valid_for_status",
+                    new_callable=PropertyMock,
+                ) as mock_email_mgr:
+                    with patch(
+                        "status_change.status_manager.StatisticsManager.is_valid_for_status",
+                        new_callable=PropertyMock,
+                    ) as mock_stats_mgr:
+                        call_message_managers(
+                            Statuses.DATASET_HOLD,
+                            "test_uuid",
+                            "test_tok",
+                            messages={"processing_pipeline": "test_pipeline"},
+                            message_classes=[SlackManager, DataIngestBoardManager],
+                        )
+                        mock_slack_mgr.assert_called_once()
+                        mock_dib_mgr.assert_called_once()
+                        mock_email_mgr.assert_not_called()
+                        mock_stats_mgr.assert_not_called()
+
+    def test_pass_message_managers_as_strs(self):
+        with patch(
+            "status_change.status_manager.SlackManager.get_message_class",
+            new_callable=PropertyMock,
+        ) as mock_slack_mgr:
+            with patch(
+                "status_change.status_manager.DataIngestBoardManager.is_valid_for_status",
+                new_callable=PropertyMock,
+            ) as mock_dib_mgr:
+                with patch(
+                    "status_change.status_manager.EmailManager.is_valid_for_status",
+                    new_callable=PropertyMock,
+                ) as mock_email_mgr:
+                    with patch(
+                        "status_change.status_manager.StatisticsManager.is_valid_for_status",
+                        new_callable=PropertyMock,
+                    ) as mock_stats_mgr:
+                        call_message_managers(
+                            Statuses.DATASET_HOLD,
+                            "test_uuid",
+                            "test_tok",
+                            messages={"processing_pipeline": "test_pipeline"},
+                            message_classes=["SlackManager", "DataIngestBoardManager"],
+                        )
+                        mock_slack_mgr.assert_called_once()
+                        mock_dib_mgr.assert_called_once()
+                        mock_email_mgr.assert_not_called()
+                        mock_stats_mgr.assert_not_called()
+
+    def test_pass_no_message_managers(self):
+        with patch(
+            "status_change.status_manager.SlackManager.get_message_class",
+            new_callable=PropertyMock,
+        ) as mock_slack_mgr:
+            with patch(
+                "status_change.status_manager.DataIngestBoardManager.is_valid_for_status",
+                new_callable=PropertyMock,
+            ) as mock_dib_mgr:
+                with patch(
+                    "status_change.status_manager.EmailManager.is_valid_for_status",
+                    new_callable=PropertyMock,
+                ) as mock_email_mgr:
+                    with patch(
+                        "status_change.status_manager.StatisticsManager.is_valid_for_status",
+                        new_callable=PropertyMock,
+                    ) as mock_stats_mgr:
+                        call_message_managers(
+                            Statuses.DATASET_HOLD,
+                            "test_uuid",
+                            "test_tok",
+                            messages={"processing_pipeline": "test_pipeline"},
+                        )
+                        mock_slack_mgr.assert_called_once()
+                        mock_dib_mgr.assert_called_once()
+                        mock_email_mgr.assert_called_once()
+                        mock_stats_mgr.assert_called_once()
+
 
 class SlackTest(SlackMessage):
     name = "test_class"
@@ -509,13 +596,16 @@ class TestSlack(MockParent):
         assert mgr.message_class.format() == ["I am formatted"]
 
     def test_get_slack_channel(self):
-        with patch.dict(
-            "status_change.slack_manager.SlackManager.status_to_class",
-            {"test_status": self.mock_slack_channels},
+        with patch(
+            "status_change.status_utils.MessageManager.get_status", return_value="test_status"
         ):
-            mgr = self.slack_manager("test_status")
-        assert mgr.message_class
-        assert mgr.message_class.channel == "test_class_channel"
+            with patch.dict(
+                "status_change.slack_manager.SlackManager.status_to_class",
+                {"test_status": self.mock_slack_channels},
+            ):
+                mgr = self.slack_manager("test_status")
+            assert mgr.message_class
+            assert mgr.message_class.channel == "test_class_channel"
 
     def test_update_with_slack_channel(self):
         """

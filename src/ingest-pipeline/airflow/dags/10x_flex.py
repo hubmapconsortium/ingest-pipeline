@@ -19,6 +19,7 @@ import utils
 from utils import (
     get_absolute_workflow,
     get_dataset_uuid,
+    get_parent_dataset_uuid,
     get_parent_dataset_uuids_list,
     get_parent_data_dir,
     build_dataset_name as inner_build_dataset_name,
@@ -360,6 +361,7 @@ with HMDAG(
             "dataset_uuid_callable": get_dataset_uuid,
             "ds_state": "Error",
             "message": f"An error occurred in 10x-flex-pipeline",
+            "parent_dataset_uuid_callable": get_parent_dataset_uuid,
             "pipeline_name": "10x-flex-pipeline"
         },
     )

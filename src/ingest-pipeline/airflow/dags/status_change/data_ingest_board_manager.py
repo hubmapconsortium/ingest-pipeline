@@ -32,11 +32,10 @@ class DataIngestBoardManager(MessageManager):
         uuid: str,
         token: str,
         messages: Optional[dict] = None,
-        run_id: str = "",
         *args,
         **kwargs,
     ):
-        super().__init__(status, uuid, token, messages, run_id, args, kwargs)
+        super().__init__(status, uuid, token, messages, *args, **kwargs)
         self.update_fields = self.get_fields()
 
     @property
@@ -66,10 +65,11 @@ class DataIngestBoardManager(MessageManager):
         return response
 
     def get_fields(self) -> Optional[dict]:
-        entity = self.entity_data.get("entity_type", "").lower()
-        msg_type = f"{entity}_{Statuses.valid_str(self.status)}"
+        msg_type = self.status.value
+        # Check if status just needs to be cleared first
         if clear_msg := self.get_clear_message(msg_type):
             return clear_msg
+        # Find matching function (format <entity_type>_<status>)
         func = getattr(self, msg_type, None)
         if not func:
             logging.info(
@@ -77,6 +77,7 @@ class DataIngestBoardManager(MessageManager):
             )
             return
         update_data = func()
+        # Add or clear assigned_to_group_name
         if self.assigned_to_group_name:
             update_data["assigned_to_group_name"] = self.assigned_to_group_name
         else:
