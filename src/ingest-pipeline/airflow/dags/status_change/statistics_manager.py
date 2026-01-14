@@ -28,7 +28,7 @@ class StatisticsManager(MessageManager):
         *args,
         **kwargs,
     ):
-        super().__init__(status, uuid, token, messages, args, kwargs)
+        super().__init__(status, uuid, token, messages, *args, **kwargs)
         self.dataset_type = self.entity_data.get("dataset_type", "")
 
     @property
