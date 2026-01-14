@@ -135,8 +135,6 @@ class MessageManager:
         uuid: str,
         token: str,
         messages: Optional[dict] = None,
-        run_id: str = "",
-        derived: bool = False,
         *args,
         **kwargs,
     ):
@@ -144,8 +142,6 @@ class MessageManager:
         self.token = token
         self.status = status
         self.messages = messages if messages else {}
-        self.run_id = run_id
-        self.derived = derived
         self.args = args
         self.kwargs = kwargs
         self.entity_data = get_submission_context(self.token, self.uuid)
@@ -167,9 +163,19 @@ class MessageManager:
 
     @property
     def error_dict(self) -> dict:
-        if error_dict := self.messages.get("error_dict"):
-            return error_dict
-        return {}
+        return self.messages.get("error_dict", {})
+
+    @property
+    def pipeline_name(self) -> str:
+        return self.messages.get("pipeline_name", "")
+
+    @property
+    def run_id(self) -> str:
+        return self.messages.get("run_id", "")
+
+    @property
+    def derived(self) -> bool:
+        return self.messages.get("derived", False)
 
 
 slack_channels = {
@@ -303,6 +309,7 @@ def get_ancestors(uuid: str, token: str) -> dict:
 
 
 def get_primary_dataset(entity_data: dict, token: str) -> str | None:
+    # TODO: is a dataset ancestor sufficient, or do we need to add additional checks?
     ancestors = get_ancestors(entity_data.get("uuid", ""), token)
     for ancestor in ancestors:
         if ancestor.get("entity_type", "").lower() == "dataset":

@@ -1012,8 +1012,7 @@ def pythonop_send_create_dataset(**kwargs) -> str:
             response_json.get("status"),
             uuid,
             get_auth_tok(**kwargs),
-            run_id=kwargs.get("run_id", ""),
-            derived=True,
+            messages={"derived": True, "run_id": kwargs.get("run_id", "")},
         ).update()
 
     except HTTPError as e:
@@ -1041,6 +1040,7 @@ def pythonop_set_dataset_state(**kwargs) -> None:
     'ds_state' : one of 'QA', 'Processing', 'Error', 'Invalid'. Default: 'Processing'
     'message' : update message, saved as dataset metadata element "pipeline_message".
                 The default is not to save any message.
+    'pipeline_name' : name of pipeline
     """
     from status_change.status_manager import StatusChanger
 
@@ -1056,7 +1056,7 @@ def pythonop_set_dataset_state(**kwargs) -> None:
     )
     http_conn_id = kwargs.get("http_conn_id", "entity_api_connection")
     status = kwargs["ds_state"] if "ds_state" in kwargs else "Processing"
-    message = kwargs.get("message", None)
+    message = kwargs.get("message")
     if dataset_uuid is not None:
         StatusChanger(
             dataset_uuid,
@@ -1065,7 +1065,7 @@ def pythonop_set_dataset_state(**kwargs) -> None:
             fields_to_overwrite={"pipeline_message": message} if message else {},
             http_conn_id=http_conn_id,
             reindex=reindex,
-            run_id=run_id,
+            messages={"run_id": run_id, "pipeline_name": kwargs.get("pipeline_name")},
         ).update()
 
 
@@ -1721,14 +1721,16 @@ def make_send_status_msg_function(
             if kwargs["dag"].dag_id in ["multiassay_component_metadata", "reorganize_multiassay"]:
                 status = None
             try:
+                messages = kwargs["ti"].xcom_pull(
+                    task_ids="run_validation", key="report_data"
+                ) or {} | {"run_id": kwargs.get("run_id")}
                 StatusChanger(
                     dataset_uuid,
                     get_auth_tok(**kwargs),
                     status=status,
                     fields_to_overwrite=extra_fields,
                     reindex=reindex,
-                    run_id=kwargs.get("run_id"),
-                    messages=kwargs["ti"].xcom_pull(task_ids="run_validation", key="report_data"),
+                    messages=messages,
                 ).update()
             except EntityUpdateException:
                 return_status = False
