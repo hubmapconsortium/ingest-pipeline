@@ -1065,7 +1065,7 @@ def pythonop_set_dataset_state(**kwargs) -> None:
             fields_to_overwrite={"pipeline_message": message} if message else {},
             http_conn_id=http_conn_id,
             reindex=reindex,
-            messages={"run_id": run_id, "pipeline_name": kwargs.get("pipeline_name")},
+            messages={"run_id": run_id, "processing_pipeline": kwargs.get("pipeline_name")},
         ).update()
 
 

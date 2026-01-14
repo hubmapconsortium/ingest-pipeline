@@ -61,7 +61,7 @@ class FailureCallback(AirflowCallback):
             self.auth_tok,
             status="error",
             fields_to_overwrite=data,
-            messages={"run_id": self.dag_run, "dag": self.called_from},
+            messages={"run_id": self.dag_run},
         ).update()
 
     def __call__(self, context):

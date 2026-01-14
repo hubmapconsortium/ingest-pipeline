@@ -19,12 +19,12 @@ class SlackMessage:
         uuid: str,
         token: str,
         run_id: str | None = None,
-        pipeline_name: str | None = None,
+        processing_pipeline: str | None = None,
     ):
         self.uuid = uuid
         self.token = token
         self.run_id = run_id
-        self.pipeline_name = pipeline_name
+        self.processing_pipeline = processing_pipeline
         self.channel = slack_channels.get(self.name, "")
         self.entity_id_str = f"{get_project().value[0]}_id"  # "hubmap_id" or "sennet_id"
         self.entity_data = get_submission_context(token, uuid)
@@ -45,7 +45,7 @@ class SlackMessage:
         token - Globus token
         expected kwargs:
             derived: bool - is this a derived dataset
-            pipeline_name: str - name of triggering pipeline;
+            processing_pipeline: str - name of triggering pipeline;
                                  only used for processing pipelines
         """
         del entity_data, token, kwargs

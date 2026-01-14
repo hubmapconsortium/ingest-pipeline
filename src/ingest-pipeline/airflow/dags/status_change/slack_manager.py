@@ -98,19 +98,16 @@ class SlackManager(MessageManager):
         return bool(self.message_class)
 
     def get_message_class(self, msg_type: Statuses) -> Optional[SlackMessage]:
-        relevant_classes = self.status_to_class.get(msg_type)
-        if not relevant_classes:
+        if not (relevant_classes := self.status_to_class.get(msg_type)):
             return
-        # Re-request entity data as previous message managers may have altered it
         class_args = [self.uuid, self.token]
-        class_kwargs = {"run_id": self.run_id, "pipeline_name": self.pipeline_name}
+        class_kwargs = {"run_id": self.run_id, "processing_pipeline": self.processing_pipeline}
+        test_kwargs = {
+            "derived": self.derived,
+            "processing_pipeline": self.processing_pipeline,
+        }
         for subclass in relevant_classes.get("subclasses", []):
-            if subclass.test(
-                self.entity_data,
-                self.token,
-                derived=self.derived,
-                pipeline_name=self.pipeline_name,
-            ):
+            if subclass.test(self.entity_data, self.token, **test_kwargs):
                 return subclass(*class_args, **class_kwargs)
         if main_class := relevant_classes["main_class"]:
             return main_class(*class_args, **class_kwargs)

@@ -202,7 +202,12 @@ Example usage with optional params:
             delimiter=",",  # optional
             reindex=True,  # optional
             status=<Statuses.STATUS_ENUM>,  # or "<status>"
-            messages={"error_counts": {<ErrorReport.counts>}, "pipeline_name": "<name>", "run_id": "<id>", "derived": bool}  # optional
+            messages={
+                "error_counts": {<ErrorReport.counts>},
+                "processing_pipeline": "<name>",
+                "run_id": "<id>",
+                "derived": bool
+            }  # optional
     ).update()
 """
 

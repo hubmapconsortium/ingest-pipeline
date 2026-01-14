@@ -384,7 +384,7 @@ class TestStatusChanger(MockParent):
             fields_to_overwrite={"pipeline_message": message},
             http_conn_id="entity_api_connection",
             reindex=True,
-            messages={"run_id": None, "pipeline_name": None},
+            messages={"run_id": None, "processing_pipeline": None},
         )
         # Pass a valid ds_state and assert it was passed properly
         pythonop_set_dataset_state(
@@ -402,7 +402,7 @@ class TestStatusChanger(MockParent):
             fields_to_overwrite={"pipeline_message": message},
             http_conn_id="entity_api_connection",
             reindex=True,
-            messages={"run_id": None, "pipeline_name": None},
+            messages={"run_id": None, "processing_pipeline": None},
         )
 
     def test_pythonop_set_dataset_state_invalid(self):
@@ -633,7 +633,7 @@ class TestSlack(MockParent):
         )
         assert type(derived_dataset_mgr.message_class) is SlackDatasetErrorDerived
         primary_dataset_mgr = self.slack_manager(
-            Statuses.DATASET_ERROR, **{"messages": {"pipeline_name": "test_pipeline"}}
+            Statuses.DATASET_ERROR, **{"messages": {"processing_pipeline": "test_pipeline"}}
         )
         assert type(primary_dataset_mgr.message_class) is SlackDatasetErrorPrimaryPipeline
 
