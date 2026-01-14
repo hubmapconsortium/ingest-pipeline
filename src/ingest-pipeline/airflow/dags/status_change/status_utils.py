@@ -194,7 +194,19 @@ class MessageManager:
 
     @property
     def derived(self) -> bool:
+        if not self.entity_data.get("entity_type", "").lower() == "dataset":
+            return False
         return self.messages.get("derived", False)
+
+    @property
+    def is_primary(self) -> bool:
+        if not self.entity_data.get("entity_type", "").lower() == "dataset":
+            return False
+        if self.derived or get_primary_dataset(self.entity_data, self.token):
+            return False
+        if self.processing_pipeline:
+            return True
+        return False
 
 
 slack_channels = {

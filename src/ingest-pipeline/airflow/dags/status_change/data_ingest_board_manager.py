@@ -1,19 +1,18 @@
 import logging
 from typing import Optional
 
-from .status_utils import (  # get_primary_dataset,
+from utils import get_submission_context
+
+from .status_utils import (
     EntityUpdateException,
     MessageManager,
     Statuses,
+    get_primary_dataset,
     put_request_to_entity_api,
 )
 
 
 class DataIngestBoardManager(MessageManager):
-    # TODO: derived datasets are not created until pipeline steps succeed;
-    # therefore there is no status change to indicate failed pipeline run.
-    # Pipelines hit set_dataset_error but do not set error on primary.
-    # Perhaps add EntityUpdater call *somewhere* in set_dataset_error?
     """
     Handle updating metadata fields tied to Data Ingest Board.
     """
@@ -64,6 +63,10 @@ class DataIngestBoardManager(MessageManager):
         logging.info(f"""Response: {response}""")
         return response
 
+    ################
+    # Prepare data #
+    ################
+
     def get_fields(self) -> Optional[dict]:
         msg_type = self.status.value
         # Check if status just needs to be cleared first
@@ -87,12 +90,25 @@ class DataIngestBoardManager(MessageManager):
     def get_clear_message(self, msg_type: str) -> Optional[dict]:
         """
         Clear error messages following success.
+        If this is a derived dataset:
+            - clear derived dataset error_message
+            - locate primary dataset
+            - make sure erroring derived dataset uuid is part of primary error_message
+            - reset uuid to primary
+            - clear primary error message
+        Else:
+            - clear error message
         """
+        clear_message = {"error_message": ""}
         if msg_type in self.clear_only:
-            # if entity == "dataset":
-            #     # Derived datasets need to write to primary dataset error_message;
-            #     # set self.uuid to primary if uuid passed in is for a derived dataset.
-            #     self.check_is_derived
+            if self.derived:
+                # Clear message on derived dataset
+                self.update_fields = clear_message
+                self.update()
+                # Try to clear message on primary
+                if not (primary_uuid := self.overwrite_primary()):
+                    return
+                self.uuid = primary_uuid
             return {"error_message": ""}
 
     @property
@@ -103,11 +119,9 @@ class DataIngestBoardManager(MessageManager):
             if self.status in self.assign_to_dp:
                 return group_name
 
-    ########################
-    #
-    # Status-based messages
-    #
-    ########################
+    #########################
+    # Status-based messages #
+    #########################
 
     def get_internal_error_msg(self) -> str:
         prefix = f"Internal error. Log directory: {self.log_directory_path}"
@@ -140,23 +154,27 @@ class DataIngestBoardManager(MessageManager):
 
     def dataset_error(self):
         """
-        Derived datasets need to write to primary dataset's error_message field;
-        handle any errant primary datasets set to Error as well.
+        If this is a derived dataset:
+            - locate primary dataset
+            - reset uuid to primary
+            - return error message
+            * No use setting error on derived, does not appear on Data Ingest Board.
+        If this is a primary dataset that failed during processing:
+            - report as pipeline failure
+        Else:
+            - return internal error message
         """
-        # if self.check_is_derived:
-        #     msg = (
-        #         self.msg
-        #         if self.msg
-        #         else f"Derived dataset {self.child_uuid} is in Error state."
-        #     )
-        # else:
-        return {"error_message": self.get_internal_error_msg()}
+        if self.derived:
+            if primary_uuid := self.overwrite_primary(check_existing=False):
+                derived_uuid = self.uuid
+                self.uuid = primary_uuid
+                return {"error_message": f"Derived dataset {derived_uuid} is in Error state."}
+        elif self.is_primary:
+            return {"error_message": f"Pipeline failure: {self.processing_pipeline}."}
+        else:
+            return {"error_message": self.get_internal_error_msg()}
 
     def dataset_invalid(self):
-        """
-        Derived datasets should not be invalid but check just in case
-        to ensure writing error to correct entity.
-        """
         if self.is_internal_error:
             error = self.get_internal_error_msg()
         else:
@@ -165,27 +183,27 @@ class DataIngestBoardManager(MessageManager):
                 if self.error_counts
                 else f"Invalid status from run {self.run_id}"
             )
-        # if self.check_is_derived:
-        #     error = f"Derived dataset {self.child_uuid} is in Invalid state. {error}"
         return {"error_message": error}
 
-    ###########
-    #
-    # Utils
-    #
-    ###########
+    #########
+    # Utils #
+    #########
 
-    # @property
-    # def child_uuid(self) -> Optional[str]:
-    #     """
-    #     Check if dataset is descendant of another dataset.
-    #     If so, set self.uuid to primary and return child uuid.
-    #     """
-    #     if primary_uuid := get_primary_dataset(self.entity_data, self.token):
-    #         child_uuid = self.uuid
-    #         self.uuid = primary_uuid
-    #         return child_uuid
-    #
-    # @property
-    # def check_is_derived(self) -> bool:
-    #     return bool(self.child_uuid)
+    def overwrite_primary(self, check_existing: bool = True) -> str | None:
+        assert self.derived
+        # Derived datasets need to write to primary dataset error_message
+        derived_uuid = self.uuid
+        primary_uuid = get_primary_dataset(self.entity_data, self.token)
+        # Make sure we have primary uuid
+        if not primary_uuid:
+            raise EntityUpdateException(
+                f"Primary dataset uuid not found for derived dataset {derived_uuid}, will not clear error_message."
+            )
+        primary_data = get_submission_context(self.token, primary_uuid)
+        if check_existing:
+            # Make sure primary's error_message is appropriate to clear
+            if not derived_uuid in primary_data.get("error_message", ""):
+                return
+        logging.info(f"Existing error message for primary dataset {self.uuid}:")
+        logging.info(primary_data.get("error_message"))
+        return primary_uuid
