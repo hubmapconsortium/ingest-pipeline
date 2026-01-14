@@ -62,6 +62,6 @@ class SlackDatasetErrorPrimaryPipeline(SlackMessage):
     def test(cls, entity_data, token, **kwargs):
         if kwargs.get("derived") or get_primary_dataset(entity_data, token):
             return False
-        if kwargs.get("pipeline_name"):
+        if kwargs.get("processing_pipeline"):
             return True
         return False
