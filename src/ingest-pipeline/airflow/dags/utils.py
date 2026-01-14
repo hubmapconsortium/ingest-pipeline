@@ -1036,13 +1036,15 @@ def pythonop_set_dataset_state(**kwargs) -> None:
     Accepts the following via the caller's op_kwargs:
     'dataset_uuid_callable' : called with **kwargs; returns the
                               uuid of the dataset to be modified
+    'parent_dataset_uuid_callable' : called with **kwargs; returns the
+                              uuid of the parent dataset
     'http_conn_id' : the http connection to be used.  Default is "entity_api_connection"
     'ds_state' : one of 'QA', 'Processing', 'Error', 'Invalid'. Default: 'Processing'
     'message' : update message, saved as dataset metadata element "pipeline_message".
                 The default is not to save any message.
     'pipeline_name' : name of pipeline
     """
-    from status_change.status_manager import StatusChanger
+    from status_change.status_manager import StatusChanger, call_message_managers
 
     if kwargs["dag_run"].conf.get("dryrun"):
         return
@@ -1067,6 +1069,14 @@ def pythonop_set_dataset_state(**kwargs) -> None:
             reindex=reindex,
             messages={"run_id": run_id, "processing_pipeline": kwargs.get("pipeline_name")},
         ).update()
+    elif kwargs.get("parent_dataset_uuid_callable") and kwargs.get("pipeline_name"):
+        call_message_managers(
+            str(status),
+            kwargs["parent_dataset_uuid_callable"](**kwargs),
+            get_auth_tok(**kwargs),
+            messages={"processing_pipeline": kwargs.get("pipeline_name")},
+            message_classes=["SlackManager", "DataIngestBoardManager"],
+        )
 
 
 def restructure_entity_metadata(raw_metadata: JSONType) -> JSONType:

@@ -22,6 +22,7 @@ from hubmap_operators.common_operators import (
 
 from utils import (
     assert_json_matches_schema,
+    get_parent_dataset_uuid,
     get_tmp_dir_path,
     get_auth_tok,
     get_dataset_uuid,
@@ -241,6 +242,7 @@ with HMDAG(
             "dataset_uuid_callable": get_dataset_uuid,
             "ds_state": "Error",
             "message": "An error occurred in {}".format(pipeline_name),
+            "parent_dataset_uuid_callable": get_parent_dataset_uuid,
             "pipeline_name": pipeline_name
         },
     )
