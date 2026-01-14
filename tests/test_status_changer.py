@@ -5,7 +5,7 @@ import unittest
 from datetime import date
 from functools import cached_property
 from typing import Optional
-from unittest.mock import MagicMock, PropertyMock, patch
+from unittest.mock import MagicMock, PropertyMock, call, patch
 
 import requests
 from status_change.callbacks.failure_callback import FailureCallback
@@ -47,6 +47,7 @@ from status_change.status_utils import (
 )
 from tests.fixtures import (
     dataset_context_mock_value,
+    dataset_context_mock_value_with_error,
     endpoints,
     ext_error,
     good_upload_context,
@@ -716,16 +717,21 @@ class TestSlack(MockParent):
     def test_error_classes(self):
         upload_mgr = self.slack_manager(Statuses.UPLOAD_ERROR)
         assert type(upload_mgr.message_class) is SlackUploadError
-        dataset_mgr = self.slack_manager(Statuses.DATASET_ERROR)
-        assert type(dataset_mgr.message_class) is SlackDatasetError
-        derived_dataset_mgr = self.slack_manager(
-            Statuses.DATASET_ERROR, **{"messages": {"derived": True}}
-        )
-        assert type(derived_dataset_mgr.message_class) is SlackDatasetErrorDerived
-        primary_dataset_mgr = self.slack_manager(
-            Statuses.DATASET_ERROR, **{"messages": {"processing_pipeline": "test_pipeline"}}
-        )
-        assert type(primary_dataset_mgr.message_class) is SlackDatasetErrorPrimaryPipeline
+        self.status_context.stop()
+        with patch(
+            "status_change.status_utils.get_submission_context",
+            return_value=dataset_context_mock_value,
+        ):
+            dataset_mgr = self.slack_manager(Statuses.DATASET_ERROR)
+            assert type(dataset_mgr.message_class) is SlackDatasetError
+            derived_dataset_mgr = self.slack_manager(
+                Statuses.DATASET_ERROR, **{"messages": {"derived": True}}
+            )
+            assert type(derived_dataset_mgr.message_class) is SlackDatasetErrorDerived
+            primary_dataset_mgr = self.slack_manager(
+                Statuses.DATASET_ERROR, **{"messages": {"processing_pipeline": "test_pipeline"}}
+            )
+            assert type(primary_dataset_mgr.message_class) is SlackDatasetErrorPrimaryPipeline
 
     def test_invalid_classes(self):
         upload_mgr = self.slack_manager(Statuses.UPLOAD_INVALID)
@@ -734,22 +740,32 @@ class TestSlack(MockParent):
         assert type(dataset_mgr.message_class) is SlackDatasetInvalid
 
     def test_new_classes(self):
-        dataset_mgr = self.slack_manager(Statuses.DATASET_NEW)
-        assert type(dataset_mgr.message_class) is SlackDatasetNew
-        with self.assertRaises(NotImplementedError):
-            dataset_mgr.message_class.format()
-        derived_dataset_mgr = self.slack_manager(
-            Statuses.DATASET_NEW, **{"messages": {"derived": True}}
-        )
-        assert type(derived_dataset_mgr.message_class) is SlackDatasetNewDerived
+        self.status_context.stop()
+        with patch(
+            "status_change.status_utils.get_submission_context",
+            return_value=dataset_context_mock_value,
+        ):
+            dataset_mgr = self.slack_manager(Statuses.DATASET_NEW)
+            assert type(dataset_mgr.message_class) is SlackDatasetNew
+            with self.assertRaises(NotImplementedError):
+                dataset_mgr.message_class.format()
+            derived_dataset_mgr = self.slack_manager(
+                Statuses.DATASET_NEW, **{"messages": {"derived": True}}
+            )
+            assert type(derived_dataset_mgr.message_class) is SlackDatasetNewDerived
 
     def test_qa_classes(self):
-        dataset_mgr = self.slack_manager(Statuses.DATASET_QA)
-        assert type(dataset_mgr.message_class) is SlackDatasetQA
-        derived_dataset_mgr = self.slack_manager(
-            Statuses.DATASET_QA, **{"messages": {"derived": True}}
-        )
-        assert type(derived_dataset_mgr.message_class) is SlackDatasetQADerived
+        self.status_context.stop()
+        with patch(
+            "status_change.status_utils.get_submission_context",
+            return_value=dataset_context_mock_value,
+        ):
+            dataset_mgr = self.slack_manager(Statuses.DATASET_QA)
+            assert type(dataset_mgr.message_class) is SlackDatasetQA
+            derived_dataset_mgr = self.slack_manager(
+                Statuses.DATASET_QA, **{"messages": {"derived": True}}
+            )
+            assert type(derived_dataset_mgr.message_class) is SlackDatasetQADerived
 
     def test_reorganized_no_datasets(self):
         self.status_context.stop()
@@ -979,6 +995,109 @@ class TestDataIngestBoardManager(MockParent):
             "error_message": "Antibodies/Contributors Errors: 1",
             "assigned_to_group_name": "test group",
         }
+
+    @patch("status_change.data_ingest_board_manager.put_request_to_entity_api")
+    def test_clear_derived(self, mock_update):
+        self.status_context.stop()
+        self.dib_update.stop()
+        with patch(
+            "status_change.data_ingest_board_manager.get_primary_dataset", return_value="test_uuid"
+        ):
+            with patch(
+                "status_change.status_utils.get_submission_context",
+                return_value=dataset_context_mock_value,
+            ):
+                with patch(
+                    "status_change.data_ingest_board_manager.get_submission_context",
+                    return_value=dataset_context_mock_value_with_error,
+                ):
+                    DataIngestBoardManager(
+                        Statuses.DATASET_QA,
+                        "test_derived",
+                        "test_token",
+                        messages={"derived": True},
+                    ).update()
+                    mock_update.assert_has_calls(
+                        [
+                            call("test_derived", "test_token", {"error_message": ""}),
+                            call("test_uuid", "test_token", {"error_message": ""}),
+                        ],
+                        any_order=True,
+                    )
+
+    @patch("status_change.data_ingest_board_manager.put_request_to_entity_api")
+    def test_dont_clear_derived(self, mock_update):
+        self.status_context.stop()
+        self.dib_update.stop()
+        with patch(
+            "status_change.data_ingest_board_manager.get_primary_dataset", return_value="test_uuid"
+        ):
+            with patch(
+                "status_change.status_utils.get_submission_context",
+                return_value=dataset_context_mock_value,
+            ):
+                with patch(
+                    "status_change.data_ingest_board_manager.get_submission_context",
+                    return_value=dataset_context_mock_value,
+                ):
+                    DataIngestBoardManager(
+                        Statuses.DATASET_QA,
+                        "test_derived",
+                        "test_token",
+                        messages={"derived": True},
+                    ).update()
+                    mock_update.assert_called_once()
+
+    @patch("status_change.data_ingest_board_manager.put_request_to_entity_api")
+    def test_dataset_error_derived(self, mock_update):
+        self.status_context.stop()
+        self.dib_update.stop()
+        with patch(
+            "status_change.data_ingest_board_manager.get_primary_dataset", return_value="test_uuid"
+        ):
+            with patch(
+                "status_change.status_utils.get_submission_context",
+                return_value=dataset_context_mock_value,
+            ):
+                with patch(
+                    "status_change.data_ingest_board_manager.get_submission_context",
+                    return_value=dataset_context_mock_value_with_error,
+                ):
+                    DataIngestBoardManager(
+                        Statuses.DATASET_ERROR,
+                        "test_derived",
+                        "test_token",
+                        messages={"derived": True},
+                    ).update()
+                    mock_update.assert_called_once()
+                    mock_update.assert_called_with(
+                        "test_uuid",
+                        "test_token",
+                        {
+                            "error_message": "Derived dataset test_derived is in Error state.",
+                            "assigned_to_group_name": "",
+                        },
+                    )
+
+    def test_dataset_error_primary_not_found(self):
+        self.status_context.stop()
+        self.dib_update.stop()
+        with patch("status_change.data_ingest_board_manager.get_primary_dataset", return_value=""):
+            with patch(
+                "status_change.status_utils.get_submission_context",
+                return_value=dataset_context_mock_value,
+            ):
+                with patch(
+                    "status_change.data_ingest_board_manager.get_submission_context",
+                    return_value=dataset_context_mock_value,
+                ):
+                    with self.assertRaises(EntityUpdateException):
+                        DataIngestBoardManager(
+                            Statuses.DATASET_ERROR,
+                            "test_derived",
+                            "test_token",
+                            messages={"derived": True},
+                        ).update()
 
 
 class TestStatusUtils(unittest.TestCase):
