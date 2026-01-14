@@ -1,9 +1,6 @@
 import logging
 from typing import Optional
 
-from airflow.configuration import conf as airflow_conf
-from airflow.utils.email import send_email
-
 from status_change.email_templates.error import ErrorStatusEmail
 from status_change.email_templates.good import GenericGoodStatusEmail
 from status_change.email_templates.invalid import InvalidStatusEmail
@@ -13,6 +10,9 @@ from status_change.status_utils import (
     Statuses,
     get_project,
 )
+
+from airflow.configuration import conf as airflow_conf
+from airflow.utils.email import send_email
 
 
 class EmailManager(MessageManager):
@@ -28,15 +28,14 @@ class EmailManager(MessageManager):
 
     def __init__(
         self,
-        status: Statuses,
-        uuid: str,
-        token: str,
-        messages: Optional[dict] = None,
-        run_id: str = "",
+        status,
+        uuid,
+        token,
+        messages=None,
         *args,
         **kwargs,
     ):
-        super().__init__(status, uuid, token, messages, run_id, args, kwargs)
+        super().__init__(status, uuid, token, messages, *args, **kwargs)
         self.entity_type = self.entity_data.get("entity_type", "").title()
         self.project = get_project()
         self.entity_id = self.entity_data.get(f"{get_project().value[0]}_id")

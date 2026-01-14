@@ -17,6 +17,7 @@ from hubmap_operators.common_operators import (
 )
 from utils import (
     SequencingDagParameters,
+    get_parent_dataset_uuid,
     get_queue_resource,
     get_uuid_for_error,
     HMDAG,
@@ -436,6 +437,7 @@ def generate_phenocycler_dag(params: SequencingDagParameters) -> DAG:
                 "dataset_uuid_callable": get_dataset_uuid,
                 "ds_state": "Error",
                 "message": "An error occurred in {}".format(params.pipeline_name),
+                "parent_dataset_uuid_callable": get_parent_dataset_uuid,
                 "pipeline_name": params.pipeline_name
             },
         )

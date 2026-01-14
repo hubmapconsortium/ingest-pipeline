@@ -21,15 +21,14 @@ class StatisticsManager(MessageManager):
 
     def __init__(
         self,
-        status: Statuses,
-        uuid: str,
-        token: str,
-        messages: Optional[dict] = None,
-        run_id: str = "",
+        status,
+        uuid,
+        token,
+        messages=None,
         *args,
         **kwargs,
     ):
-        super().__init__(status, uuid, token, messages, run_id, args, kwargs)
+        super().__init__(status, uuid, token, messages, args, kwargs)
         self.dataset_type = self.entity_data.get("dataset_type", "")
 
     @property

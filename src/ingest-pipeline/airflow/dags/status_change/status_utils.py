@@ -127,11 +127,27 @@ ENTITY_STATUS_MAP = {
 }
 
 
+def get_status_enum(entity_type: str, status: Statuses | str, uuid: str) -> Statuses:
+    if type(status) is str:
+        try:
+            status = ENTITY_STATUS_MAP[entity_type.lower()][status.lower()]
+        except KeyError:
+            raise EntityUpdateException(
+                f"""
+                Could not retrieve status for {uuid}.
+                Check that status is valid for entity type.
+                Status not changed.
+                """
+            )
+    assert type(status) is Statuses
+    return status
+
+
 class MessageManager:
 
     def __init__(
         self,
-        status: Statuses,
+        status: Statuses | str,
         uuid: str,
         token: str,
         messages: Optional[dict] = None,
@@ -140,11 +156,11 @@ class MessageManager:
     ):
         self.uuid = uuid
         self.token = token
-        self.status = status
         self.messages = messages if messages else {}
         self.args = args
         self.kwargs = kwargs
         self.entity_data = get_submission_context(self.token, self.uuid)
+        self.status = self.get_status(status)
         self.is_internal_error = is_internal_error(self.entity_data)
         self.log_directory_path = log_directory_path(self.run_id)
 
@@ -154,6 +170,9 @@ class MessageManager:
 
     def update(self):
         raise NotImplementedError
+
+    def get_status(self, status: Statuses | str) -> Statuses:
+        return get_status_enum(self.entity_data.get("entity_type", ""), status, self.uuid)
 
     @property
     def error_counts(self) -> str:
