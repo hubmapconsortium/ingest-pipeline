@@ -438,3 +438,14 @@ def split_error_counts(error_message: str, no_bullets: bool = False) -> list[str
     if no_bullets:
         return [line for line in re.split("; | \\| ", error_message)]
     return [f"- {line}" for line in re.split("; | \\| ", error_message)]
+
+
+def get_is_derived(entity_data: dict, token: str, **kwargs) -> bool:
+    """
+    Primarily for use by SlackMessage subclasses.
+    """
+    if kwargs.get("derived") and entity_data.get("uuid"):
+        return True
+    elif get_primary_dataset(entity_data, token):
+        return True
+    return False

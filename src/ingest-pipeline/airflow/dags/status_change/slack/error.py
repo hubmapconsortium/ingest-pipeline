@@ -1,4 +1,8 @@
-from status_change.status_utils import get_entity_ingest_url, get_primary_dataset
+from status_change.status_utils import (
+    get_entity_ingest_url,
+    get_is_derived,
+    get_primary_dataset,
+)
 
 from .base import SlackMessage
 
@@ -35,12 +39,7 @@ class SlackDatasetErrorDerived(SlackMessage):
 
     @classmethod
     def test(cls, entity_data, token, **kwargs):
-        if kwargs.get("derived") and entity_data.get("uuid"):
-            return True
-        # More likely to be caught here
-        elif get_primary_dataset(entity_data, token):
-            return True
-        return False
+        return get_is_derived(entity_data, token, **kwargs)
 
 
 class SlackDatasetErrorPrimaryPipeline(SlackMessage):
@@ -60,6 +59,7 @@ class SlackDatasetErrorPrimaryPipeline(SlackMessage):
 
     @classmethod
     def test(cls, entity_data, token, **kwargs):
+        # Weed out derived datasets
         if kwargs.get("derived") or get_primary_dataset(entity_data, token):
             return False
         if kwargs.get("processing_pipeline"):

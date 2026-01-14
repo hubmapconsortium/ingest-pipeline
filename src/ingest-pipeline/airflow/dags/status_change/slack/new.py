@@ -1,5 +1,8 @@
 from status_change.slack.base import SlackMessage
-from status_change.status_utils import get_entity_ingest_url, get_primary_dataset
+from status_change.status_utils import (
+    get_entity_ingest_url,
+    get_is_derived,
+)
 
 
 class SlackDatasetNew(SlackMessage):
@@ -24,8 +27,4 @@ class SlackDatasetNewDerived(SlackMessage):
 
     @classmethod
     def test(cls, entity_data, token, **kwargs):
-        if kwargs.get("derived") and entity_data.get("uuid"):
-            return True
-        elif get_primary_dataset(entity_data, token):
-            return True
-        return False
+        return get_is_derived(entity_data, token, **kwargs)
