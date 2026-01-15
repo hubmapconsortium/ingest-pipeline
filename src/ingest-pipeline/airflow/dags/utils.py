@@ -994,19 +994,6 @@ def pythonop_send_create_dataset(**kwargs) -> str:
         uuid = response_json["uuid"]
         group_uuid = response_json["group_uuid"]
 
-        response = HttpHook("GET", http_conn_id=http_conn_id).run(
-            endpoint=f"datasets/{uuid}/file-system-abs-path",
-            headers=headers,
-            extra_options={"check_response": False},
-        )
-        response.raise_for_status()
-        response_json = response.json()
-        if "path" not in response_json:
-            print(f"response from datasets/{uuid}/file-system-abs-path:")
-            pprint(response_json)
-            raise ValueError(f"datasets/{uuid}/file-system-abs-path" " did not return a path")
-        abs_path = response_json["path"]
-
         # Send confirmation message that derived dataset has been created
         call_message_managers(
             response_json.get("status"),
@@ -1019,6 +1006,19 @@ def pythonop_send_create_dataset(**kwargs) -> str:
             },
             message_classes=["SlackManager", "DataIngestBoardManager"],
         )
+
+        response = HttpHook("GET", http_conn_id=http_conn_id).run(
+            endpoint=f"datasets/{uuid}/file-system-abs-path",
+            headers=headers,
+            extra_options={"check_response": False},
+        )
+        response.raise_for_status()
+        response_json = response.json()
+        if "path" not in response_json:
+            print(f"response from datasets/{uuid}/file-system-abs-path:")
+            pprint(response_json)
+            raise ValueError(f"datasets/{uuid}/file-system-abs-path" " did not return a path")
+        abs_path = response_json["path"]
 
     except HTTPError as e:
         print(f"ERROR: {e}")
