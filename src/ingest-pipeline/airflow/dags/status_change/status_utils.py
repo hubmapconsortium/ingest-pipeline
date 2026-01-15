@@ -130,7 +130,9 @@ ENTITY_STATUS_MAP = {
 def get_status_enum(entity_type: str, status: Statuses | str, uuid: str) -> Statuses:
     if type(status) is str:
         try:
+            print(f"Looking for {entity_type.lower()}_{status.lower()} in ENTITY_STATUS_MAP.")
             status = ENTITY_STATUS_MAP[entity_type.lower()][status.lower()]
+            print(f"Found {status}.")
         except KeyError:
             raise EntityUpdateException(
                 f"""
@@ -333,10 +335,9 @@ def get_organ(uuid: str, token: str) -> str:
 
 def get_ancestors(uuid: str, token: str) -> dict:
     endpoint = f"/ancestors/{uuid}"
-    headers = {"Authorization": f"Bearer {token}"}
+    headers = get_headers(token)
     http_hook = HttpHook("GET", http_conn_id="entity_api_connection")
-    response = http_hook.run(endpoint, headers)
-    logging.info(f"""Response: {response.json()}""")
+    response = http_hook.run(endpoint, headers=headers)
     return response.json()
 
 
