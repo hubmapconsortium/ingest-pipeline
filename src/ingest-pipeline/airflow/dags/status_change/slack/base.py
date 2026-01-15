@@ -86,3 +86,7 @@ class SlackMessage:
         primary_dataset_uuid = get_primary_dataset(self.entity_data, self.token)
         if primary_dataset_uuid:
             return get_submission_context(self.token, primary_dataset_uuid)
+
+    def create_primary_link(self) -> str | None:
+        if self.primary_dataset_info:
+            return f"<{get_entity_ingest_url(self.primary_dataset_info)}|{self.primary_dataset_info.get(self.entity_id_str)}>"
