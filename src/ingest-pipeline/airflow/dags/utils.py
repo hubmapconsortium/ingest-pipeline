@@ -1012,9 +1012,13 @@ def pythonop_send_create_dataset(**kwargs) -> str:
             response_json.get("status"),
             uuid,
             get_auth_tok(**kwargs),
-            messages={"derived": True, "run_id": kwargs.get("run_id", "")},
-            message_classes=["SlackManager"],
-        ).update()
+            messages={
+                "derived": True,
+                "run_id": kwargs.get("run_id", ""),
+                "parent_dataset_uuid": kwargs["parent_dataset_uuid_callable"](**kwargs),
+            },
+            message_classes=["SlackManager", "DataIngestBoardManager"],
+        )
 
     except HTTPError as e:
         print(f"ERROR: {e}")
@@ -1061,6 +1065,12 @@ def pythonop_set_dataset_state(**kwargs) -> None:
     status = kwargs["ds_state"] if "ds_state" in kwargs else "Processing"
     message = kwargs.get("message")
     if dataset_uuid is not None:
+        messages = {
+            "run_id": run_id,
+            "processing_pipeline": kwargs.get("pipeline_name"),
+        }
+        if parent_dataset_uuid_callable := kwargs.get("parent_dataset_uuid_callable"):
+            messages["parent_dataset_uuid"] = parent_dataset_uuid_callable(**kwargs)
         StatusChanger(
             dataset_uuid,
             get_auth_tok(**kwargs),
@@ -1068,7 +1078,7 @@ def pythonop_set_dataset_state(**kwargs) -> None:
             fields_to_overwrite={"pipeline_message": message} if message else {},
             http_conn_id=http_conn_id,
             reindex=reindex,
-            messages={"run_id": run_id, "processing_pipeline": kwargs.get("pipeline_name")},
+            messages=messages,
         ).update()
     elif kwargs.get("parent_dataset_uuid_callable") and kwargs.get("pipeline_name"):
         call_message_managers(
