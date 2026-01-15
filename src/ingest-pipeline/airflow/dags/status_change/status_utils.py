@@ -206,6 +206,11 @@ class MessageManager:
 
     @property
     def derived(self) -> bool:
+        """
+        A dataset can either self-identify as derived
+        (as in pythonop_send_create_dataset) or be identified
+        as derived based on presence of self.parent_dataset_uuid.
+        """
         if not self.is_dataset:
             return False
         if self.messages.get("derived") or self.parent_dataset_uuid:
@@ -215,6 +220,9 @@ class MessageManager:
     @property
     def is_primary(self) -> bool:
         """
+        After weeding out non-datasets and anything categorized
+        as derived, checks for self.processing_pipeline value.
+
         Only used for datasets undergoing processing;
         datasets earlier in the ingestion process are not considered
         primaries.

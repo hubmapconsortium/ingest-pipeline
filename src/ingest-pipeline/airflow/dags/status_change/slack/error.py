@@ -32,9 +32,8 @@ class SlackDatasetErrorDerived(SlackMessage):
         message = [f"Derived dataset {self.uuid} is in Error state.", self.entity_links_str]
         if self.primary_dataset_info:
             message.append(
-                f"Primary dataset: {get_entity_ingest_url(self.primary_dataset_info)}|{self.primary_dataset_info.get(self.entity_id_str)}."
+                f"Primary dataset: <{get_entity_ingest_url(self.primary_dataset_info)}|{self.primary_dataset_info.get(self.entity_id_str)}>."
             )
-        message.append(self.entity_links_str)
         return message
 
     @classmethod
