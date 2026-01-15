@@ -191,22 +191,39 @@ class MessageManager:
         return self.messages.get("processing_pipeline", "")
 
     @property
+    def parent_dataset_uuid(self) -> str:
+        return self.messages.get("parent_dataset_uuid", "")
+
+    @property
     def run_id(self) -> str:
         return self.messages.get("run_id", "")
 
     @property
+    def is_dataset(self) -> bool:
+        if self.entity_data.get("entity_type", "").lower() == "dataset":
+            return True
+        return False
+
+    @property
     def derived(self) -> bool:
-        if not self.entity_data.get("entity_type", "").lower() == "dataset":
+        if not self.is_dataset:
             return False
-        return self.messages.get("derived", False)
+        if self.messages.get("derived") or self.parent_dataset_uuid:
+            return True
+        return False
 
     @property
     def is_primary(self) -> bool:
-        if not self.entity_data.get("entity_type", "").lower() == "dataset":
+        """
+        Only used for datasets undergoing processing;
+        datasets earlier in the ingestion process are not considered
+        primaries.
+        """
+        if not self.is_dataset:
             return False
-        if self.derived or get_primary_dataset(self.entity_data, self.token):
+        elif self.derived:
             return False
-        if self.processing_pipeline:
+        elif self.processing_pipeline:
             return True
         return False
 
