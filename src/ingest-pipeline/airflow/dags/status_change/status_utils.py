@@ -331,9 +331,8 @@ def get_organ(uuid: str, token: str) -> str:
         return ""
 
 
-def get_ancestors(uuid: str, token: str) -> dict:
+def get_ancestors(uuid: str) -> dict:
     endpoint = f"/ancestors/{uuid}"
-    headers = get_headers(token)
     http_hook = HttpHook("GET", http_conn_id="entity_api_connection")
     response = http_hook.run(endpoint, headers)
     logging.info(f"""Response: {response.json()}""")
@@ -342,7 +341,7 @@ def get_ancestors(uuid: str, token: str) -> dict:
 
 def get_primary_dataset(entity_data: dict, token: str) -> str | None:
     # TODO: is a dataset ancestor sufficient, or do we need to add additional checks?
-    ancestors = get_ancestors(entity_data.get("uuid", ""), token)
+    ancestors = get_ancestors(entity_data.get("uuid", ""))
     for ancestor in ancestors:
         if ancestor.get("entity_type", "").lower() == "dataset":
             return ancestor.get("uuid")

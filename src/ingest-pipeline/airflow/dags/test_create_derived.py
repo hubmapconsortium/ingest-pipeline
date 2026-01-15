@@ -1,12 +1,8 @@
 from datetime import datetime, timedelta
-from pprint import pprint
 
-from hubmap_operators.common_operators import (
-    CleanupTmpDirOperator,
-    CreateTmpDirOperator,
-)
 from utils import (
     HMDAG,
+    encrypt_tok,
     get_dataset_uuid,
     get_parent_dataset_uuid,
     get_parent_dataset_uuids_list,
@@ -18,6 +14,7 @@ from utils import (
     pythonop_set_dataset_state,
 )
 
+from airflow.configuration import conf as airflow_conf
 from airflow.operators.python import PythonOperator
 
 # Following are defaults which can be overridden later on
@@ -28,7 +25,7 @@ default_args = {
     "email": ["joel.welling@gmail.com"],
     "email_on_failure": False,
     "email_on_retry": False,
-    "retries": 1,
+    "retries": 0,
     "retry_delay": timedelta(minutes=1),
     "xcom_push": True,
     "queue": get_queue_resource("test_workflow"),
@@ -52,7 +49,7 @@ with HMDAG(
 
     # should set on primary (new behavior)
     t_set_dataset_error_primary = PythonOperator(
-        task_id="set_dataset_error",
+        task_id="set_dataset_error_primary",
         python_callable=pythonop_set_dataset_state,
         provide_context=True,
         trigger_rule="all_done",
@@ -62,6 +59,9 @@ with HMDAG(
             "message": "An error occurred in {}".format(pipeline_name),
             "parent_dataset_uuid_callable": get_parent_dataset_uuid,
             "pipeline_name": pipeline_name,
+            "crypt_auth_tok": encrypt_tok(
+                airflow_conf.as_dict()["connections"]["APP_CLIENT_SECRET"]
+            ).decode(),
         },
     )
 
@@ -75,12 +75,15 @@ with HMDAG(
             "http_conn_id": "ingest_api_connection",
             "dataset_name_callable": lambda **kwargs: "test_derived_dataset",
             "pipeline_shorthand": pipeline_name,
+            "crypt_auth_tok": encrypt_tok(
+                airflow_conf.as_dict()["connections"]["APP_CLIENT_SECRET"]
+            ).decode(),
         },
     )
 
     # should set on derived (existing unmodified behavior)
     t_set_dataset_error_derived = PythonOperator(
-        task_id="set_dataset_error",
+        task_id="set_dataset_error_derived",
         python_callable=pythonop_set_dataset_state,
         provide_context=True,
         trigger_rule="all_done",
@@ -90,6 +93,9 @@ with HMDAG(
             "message": "An error occurred in {}".format(pipeline_name),
             "parent_dataset_uuid_callable": get_parent_dataset_uuid,
             "pipeline_name": pipeline_name,
+            "crypt_auth_tok": encrypt_tok(
+                airflow_conf.as_dict()["connections"]["APP_CLIENT_SECRET"]
+            ).decode(),
         },
     )
 
