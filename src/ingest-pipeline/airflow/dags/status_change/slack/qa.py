@@ -1,7 +1,4 @@
-from status_change.status_utils import (
-    get_entity_ingest_url,
-    get_is_derived,
-)
+from status_change.status_utils import get_is_derived
 
 from .base import SlackMessage
 
@@ -23,8 +20,6 @@ class SlackDatasetQADerived(SlackMessage):
     def format(self):
         message = [f"Derived dataset {self.uuid} has reached QA!"]
         if self.primary_dataset_info:
-            message.append(
-                f"Primary dataset: {get_entity_ingest_url(self.primary_dataset_info)}|{self.primary_dataset_info.get(self.entity_id_str)}."
-            )
+            message.append(f"Primary dataset: {self.create_primary_link()}.")
         message.append(self.entity_links_str)
         return message
