@@ -2118,6 +2118,7 @@ def send_email(
     email_body: str,
     attachment_path: Optional[str] = None,
     cc: Optional[list[str]] = None,
+    bcc: Optional[list[str]] = None,
     prod_only: bool = True,
 ) -> bool:
     assert contacts and email_body
@@ -2148,6 +2149,7 @@ def send_email(
         email_body,
         files=[attachment_path] if attachment_path else None,
         cc=cc,
+        bcc=bcc,
     )
     return True
 

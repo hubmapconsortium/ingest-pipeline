@@ -59,7 +59,7 @@ class TestEmailProvidersDAG(unittest.TestCase):
         assert instructions == dp_instructions
 
     def test_list_datasets_by_status(self):
-        dataset_list = list_datasets_by_status(self.modified_df, "QA")
+        dataset_list = list_datasets_by_status(self.modified_df, Statuses.DATASET_QA)
         assert len(dataset_list) == 8
         assert (
             dataset_list[0]
