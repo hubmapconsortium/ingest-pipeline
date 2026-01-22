@@ -35,7 +35,8 @@ class SlackDatasetErrorDerived(SlackMessage):
 
     @classmethod
     def test(cls, entity_data, token, **kwargs):
-        return get_is_derived(entity_data, token, **kwargs)
+        del token
+        return get_is_derived(entity_data, **kwargs)
 
 
 class SlackDatasetErrorPrimaryPipeline(SlackMessage):
@@ -57,9 +58,11 @@ class SlackDatasetErrorPrimaryPipeline(SlackMessage):
 
     @classmethod
     def test(cls, entity_data, token, **kwargs):
+        del token
         # Weed out derived datasets
-        if kwargs.get("derived") or get_primary_dataset(entity_data, token):
+        if get_is_derived(entity_data, **kwargs):
             return False
+        # Only a primary if there is a processing pipeline
         if kwargs.get("processing_pipeline"):
             return True
         return False

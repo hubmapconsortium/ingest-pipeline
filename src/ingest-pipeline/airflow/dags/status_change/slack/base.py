@@ -44,7 +44,6 @@ class SlackMessage:
         entity_data - metadata from Entity API
         token - Globus token
         expected kwargs:
-            derived: bool - is this a derived dataset
             processing_pipeline: str - name of triggering pipeline;
                                  only used for processing pipelines
         """

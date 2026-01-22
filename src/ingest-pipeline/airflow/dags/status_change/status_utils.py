@@ -206,14 +206,9 @@ class MessageManager:
 
     @property
     def derived(self) -> bool:
-        """
-        A dataset can either self-identify as derived
-        (as in pythonop_send_create_dataset) or be identified
-        as derived based on presence of self.parent_dataset_uuid.
-        """
         if not self.is_dataset:
             return False
-        if self.messages.get("derived") or self.parent_dataset_uuid:
+        elif get_is_derived(self.entity_data):
             return True
         return False
 
@@ -367,7 +362,8 @@ def get_ancestors(uuid: str, token: str) -> dict:
 
 
 def get_primary_dataset(entity_data: dict, token: str) -> str | None:
-    # TODO: is a dataset ancestor sufficient, or do we need to add additional checks?
+    if not entity_data.get("creation_action", "") == "Central Process":
+        return
     ancestors = get_ancestors(entity_data.get("uuid", ""), token)
     for ancestor in ancestors:
         if ancestor.get("entity_type", "").lower() == "dataset":
@@ -497,12 +493,13 @@ def split_error_counts(error_message: str, no_bullets: bool = False) -> list[str
     return [f"- {line}" for line in re.split("; | \\| ", error_message)]
 
 
-def get_is_derived(entity_data: dict, token: str, **kwargs) -> bool:
+def get_is_derived(entity_data: dict, **kwargs) -> bool:
     """
-    Primarily for use by SlackMessage subclasses.
+    Since parent_dataset_uuid may be present already,
+    check that first.
     """
-    if kwargs.get("derived") and entity_data.get("uuid"):
+    if kwargs.get("parent_dataset_uuid"):
         return True
-    elif get_primary_dataset(entity_data, token):
+    elif entity_data.get("creation_action", "") == "Central Process":
         return True
     return False
