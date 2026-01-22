@@ -1070,7 +1070,7 @@ def pythonop_set_dataset_state(**kwargs) -> None:
             "processing_pipeline": kwargs.get("pipeline_name"),
         }
         if parent_dataset_uuid_callable := kwargs.get("parent_dataset_uuid_callable"):
-            messages["parent_dataset_uuid"] = parent_dataset_uuid_callable(**kwargs)
+            messages["primary_dataset_uuid"] = parent_dataset_uuid_callable(**kwargs)
         StatusChanger(
             dataset_uuid,
             get_auth_tok(**kwargs),
