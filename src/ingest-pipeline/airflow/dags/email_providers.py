@@ -348,9 +348,8 @@ def format_group_data(data: pd.DataFrame, group_name: str) -> str:
     return "".join(body)
 
 
-def get_template(data: pd.DataFrame, group_name: str) -> list[str]:
-    # Default template
-    template = [
+def get_template_header(data: pd.DataFrame, group_name: str) -> list[str]:
+    return [
         f"<b>Biweekly unpublished dataset report for {group_name}</b><br>",
         "This report is sent to the group PIs, PMs, and all creators of datasets in this list.<br>",
         "<br>",
@@ -361,18 +360,22 @@ def get_template(data: pd.DataFrame, group_name: str) -> list[str]:
         "<br>",
         "The datasets listed below are primary datasets representing the raw data that your site has submitted to the HIVE. Primary datasets can be published in advance of HIVE central analysis processing.<br>",
     ]
+
+
+footer = [
+    'Please consult our <a href="https://docs.google.com/document/d/13zBbp_BNCVPZPj71Q5dGLoNJ_TDRyEpPck2mGQbkLYg/edit?usp=sharing">guide to HuBMAP entity statuses</a> if you would like to learn more about the different dataset statuses.<br>',
+]
+
+
+def get_template(data: pd.DataFrame, group_name: str) -> list[str]:
+    template = get_template_header(data, group_name)
     # Add counts and instructions for data provider-actionable statuses, if present
     instructions = add_instructions(data)
     template.extend(instructions)
     # Add counts and descriptions of HIVE-actionable statuses, if present
     other_counts = add_other_counts(data)
     template.extend(other_counts)
-    # Footer
-    template.extend(
-        [
-            "Please consult our <a href='https://docs.google.com/document/d/13zBbp_BNCVPZPj71Q5dGLoNJ_TDRyEpPck2mGQbkLYg/edit?usp=sharing'>guide to HuBMAP entity statuses</a> if you would like to learn more about the different dataset statuses.<br>",
-        ]
-    )
+    template.extend(footer)
     return template
 
 
@@ -443,12 +446,7 @@ def annotated_statuses(
     ]
     for status, count in counts.items():
         template.extend(format_bullet(count[0], status, data))
-    template.extend(
-        [
-            "</ul>",
-            "<br>",
-        ]
-    )
+    template.append("</ul>")
     return template
 
 
