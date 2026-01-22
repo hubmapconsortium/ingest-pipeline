@@ -208,7 +208,7 @@ Example usage with optional params:
                 "error_counts": {<ErrorReport.counts>},
                 "processing_pipeline": "<name>",
                 "run_id": "<id>",
-                "derived": bool
+                "parent_dataset_uuid": "<id>"
             }  # optional
     ).update()
 """

@@ -103,7 +103,6 @@ class SlackManager(MessageManager):
         class_args = [self.uuid, self.token]
         class_kwargs = {"run_id": self.run_id, "processing_pipeline": self.processing_pipeline}
         test_kwargs = {
-            "derived": self.derived,
             "processing_pipeline": self.processing_pipeline,
         }
         for subclass in relevant_classes.get("subclasses", []):
