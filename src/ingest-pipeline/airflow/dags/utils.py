@@ -1000,7 +1000,6 @@ def pythonop_send_create_dataset(**kwargs) -> str:
             uuid,
             get_auth_tok(**kwargs),
             messages={
-                "derived": True,
                 "run_id": kwargs.get("run_id", ""),
                 "parent_dataset_uuid": kwargs["parent_dataset_uuid_callable"](**kwargs),
             },
@@ -1064,6 +1063,7 @@ def pythonop_set_dataset_state(**kwargs) -> None:
     http_conn_id = kwargs.get("http_conn_id", "entity_api_connection")
     status = kwargs["ds_state"] if "ds_state" in kwargs else "Processing"
     message = kwargs.get("message")
+    # Derived dataset created, need to set status and send relevant messages
     if dataset_uuid is not None:
         messages = {
             "run_id": run_id,
@@ -1080,6 +1080,7 @@ def pythonop_set_dataset_state(**kwargs) -> None:
             reindex=reindex,
             messages=messages,
         ).update()
+    # No derived dataset was created, message based on the primary
     elif kwargs.get("parent_dataset_uuid_callable") and kwargs.get("pipeline_name"):
         call_message_managers(
             str(status),
