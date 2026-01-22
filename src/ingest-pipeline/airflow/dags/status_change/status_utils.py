@@ -191,8 +191,8 @@ class MessageManager:
         return self.messages.get("processing_pipeline", "")
 
     @property
-    def parent_dataset_uuid(self) -> str:
-        return self.messages.get("parent_dataset_uuid", "")
+    def primary_dataset_uuid(self) -> str:
+        return self.messages.get("primary_dataset_uuid", "")
 
     @property
     def run_id(self) -> str:
@@ -206,9 +206,7 @@ class MessageManager:
 
     @property
     def derived(self) -> bool:
-        if not self.is_dataset:
-            return False
-        elif get_is_derived(self.entity_data):
+        if get_is_derived(self.entity_data):
             return True
         return False
 
@@ -493,13 +491,9 @@ def split_error_counts(error_message: str, no_bullets: bool = False) -> list[str
     return [f"- {line}" for line in re.split("; | \\| ", error_message)]
 
 
-def get_is_derived(entity_data: dict, **kwargs) -> bool:
-    """
-    Since parent_dataset_uuid may be present already,
-    check that first.
-    """
-    if kwargs.get("parent_dataset_uuid"):
-        return True
-    elif entity_data.get("creation_action", "") == "Central Process":
+def get_is_derived(entity_data: dict) -> bool:
+    if not entity_data.get("entity_type", "").lower() == "dataset":
+        return False
+    if entity_data.get("creation_action", "") == "Central Process":
         return True
     return False
