@@ -360,7 +360,7 @@ def get_ancestors(uuid: str, token: str) -> dict:
 
 
 def get_primary_dataset(entity_data: dict, token: str) -> str | None:
-    if not entity_data.get("creation_action", "") == "Central Process":
+    if not "central process" in entity_data.get("creation_action", "").lower():
         return
     ancestors = get_ancestors(entity_data.get("uuid", ""), token)
     for ancestor in ancestors:
