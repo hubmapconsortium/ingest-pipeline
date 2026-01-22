@@ -104,6 +104,7 @@ class SlackManager(MessageManager):
         class_kwargs = {"run_id": self.run_id, "processing_pipeline": self.processing_pipeline}
         test_kwargs = {
             "processing_pipeline": self.processing_pipeline,
+            "primary_dataset_uuid": self.primary_dataset_uuid,
         }
         for subclass in relevant_classes.get("subclasses", []):
             if subclass.test(self.entity_data, self.token, **test_kwargs):

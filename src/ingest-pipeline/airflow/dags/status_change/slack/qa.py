@@ -15,8 +15,8 @@ class SlackDatasetQADerived(SlackMessage):
 
     @classmethod
     def test(cls, entity_data, token, **kwargs):
-        del token
-        return get_is_derived(entity_data, **kwargs)
+        del token, kwargs
+        return get_is_derived(entity_data)
 
     def format(self):
         message = [f"Derived dataset {self.uuid} has reached QA!"]
