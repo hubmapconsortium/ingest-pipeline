@@ -14,7 +14,7 @@ with patch(
             add_other_counts,
             annotated_statuses,
             footer,
-            format_bullet,
+            format_id_bullets,
             format_group_data,
             get_counts,
             get_template_header,
@@ -94,9 +94,9 @@ class TestEmailProvidersDAG(unittest.TestCase):
     def test_format_group_data(self):
         assert format_group_data(self.modified_df, self.group_name) == formatted_group_data
 
-    def test_format_bullet(self):
+    def test_format_id_bullets(self):
         count = "Invalid: 1"
-        assert format_bullet(count, Statuses.DATASET_INVALID, self.modified_df) == [
+        assert format_id_bullets(count, Statuses.DATASET_INVALID, self.modified_df) == [
             count,
             status_to_description[Statuses.DATASET_INVALID],
             "<ul>",
