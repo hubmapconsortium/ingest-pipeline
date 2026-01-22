@@ -445,12 +445,12 @@ def annotated_statuses(
         "<ul>",
     ]
     for status, count in counts.items():
-        template.extend(format_bullet(count[0], status, data))
+        template.extend(format_id_bullets(count[0], status, data))
     template.append("</ul>")
     return template
 
 
-def format_bullet(count: str, status: Statuses, data: pd.DataFrame) -> list[str]:
+def format_id_bullets(count: str, status: Statuses, data: pd.DataFrame) -> list[str]:
     return [
         count,
         status_to_description[status],
