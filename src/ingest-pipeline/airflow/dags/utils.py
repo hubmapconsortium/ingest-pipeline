@@ -1,4 +1,5 @@
 import json
+import logging
 import math
 import os
 import re
@@ -14,6 +15,7 @@ from os.path import basename, dirname, exists, getsize, join, realpath, relpath,
 from pathlib import Path
 from pprint import pprint
 from subprocess import CalledProcessError, check_output
+from textwrap import dedent
 from typing import (
     Any,
     Callable,
@@ -44,6 +46,7 @@ from airflow import DAG
 from airflow.configuration import conf as airflow_conf
 from airflow.models.baseoperator import BaseOperator
 from airflow.providers.http.hooks.http import HttpHook
+from airflow.utils.email import send_email as airflow_send_email
 
 airflow_conf.read(join(environ["AIRFLOW_HOME"], "instance", "app.cfg"))
 try:
@@ -2107,6 +2110,45 @@ def main():
     crypt_s = encrypt_tok(s)
     s2 = decrypt_tok(crypt_s)
     print("crypto test: {} -> {} -> {}".format(s, crypt_s, s2))
+
+
+def send_email(
+    contacts: list[str],
+    subject: str,
+    email_body: str,
+    attachment_path: Optional[str] = None,
+    cc: Optional[list[str]] = None,
+    prod_only: bool = True,
+) -> bool:
+    assert contacts and email_body
+    preview = dedent(
+        f"""
+            Contact: {contacts}
+            cc: {", ".join(cc) if cc else "None"}
+            Subject: {subject}
+            Message: {email_body}
+            {("Attachment path: " + attachment_path) if attachment_path else "None"}
+            """
+    ).strip()
+    if prod_only:
+        host_str = HttpHook.get_connection("entity_api_connection").host
+        env = find_matching_endpoint(host_str) if host_str else ""
+        if env.lower() != "prod":
+            logging.info("Non-prod environment, not sending email. Would have sent:")
+            logging.info(preview)
+            return False
+    if cc:
+        # If a contact is in both lists, remove them from cc
+        cc = list(set(cc) - set(contacts))
+    logging.info(preview)
+    airflow_send_email(
+        list(set(contacts)),
+        subject,
+        email_body,
+        files=[attachment_path] if attachment_path else None,
+        cc=cc,
+    )
+    return True
 
 
 if __name__ == "__main__":
