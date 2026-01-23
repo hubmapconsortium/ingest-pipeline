@@ -11,7 +11,7 @@ from hubmap_operators.common_operators import (
 )
 from status_change.callbacks.failure_callback import FailureCallback
 from status_change.status_utils import Statuses
-from timetables.biweekly_timetable import BiweeklyTimetable
+from timetables import BiweeklyTimetable
 from utils import (
     HMDAG,
     decrypt_tok,
@@ -244,6 +244,7 @@ search_fields: list[str] = [
     "group_name",
     "group_uuid",
     "hubmap_id",
+    "lab_dataset_id",
     "last_modified_timestamp",
     "status",
     "title",
@@ -308,6 +309,7 @@ def modify_df(df: pd.DataFrame) -> pd.DataFrame:
         "dataset_type",
         "title",
         "created_date",
+        "lab_dataset_id",
         "last_modified_date",
         "created_by_user_display_name",
         "created_by_user_email",

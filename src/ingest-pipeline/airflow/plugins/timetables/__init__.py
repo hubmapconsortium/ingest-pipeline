@@ -1,0 +1,1 @@
+from biweekly_timetable import BiweeklyTimetable

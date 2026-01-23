@@ -2126,6 +2126,7 @@ def send_email(
         f"""
             Contact: {contacts}
             cc: {", ".join(cc) if cc else "None"}
+            cc: {", ".join(bcc) if bcc else "None"}
             Subject: {subject}
             Message: {email_body}
             {("Attachment path: " + attachment_path) if attachment_path else "None"}
