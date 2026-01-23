@@ -3,7 +3,7 @@ import unittest
 from unittest.mock import patch
 
 from pendulum import Date, DateTime, Time, day
-from timetables.biweekly_timetable import (  # type: ignore
+from timetables import (
     BiweeklyTimetable,
     TestTargetDayTimetable,
 )
