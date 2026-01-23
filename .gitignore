@@ -13,6 +13,7 @@ data
 media/*
 media
 .envrc
+pyrightconfig.json
 
 docker/dev-local
 
@@ -27,6 +28,7 @@ pg_conn.sh
 src/ingest-pipeline/misc/tools/.token.json
 src/ingest-pipeline/airflow/logs/
 src/ingest-pipeline/airflow/instance/app.cfg
+src/ingest-pipeline/airflow/dags/data_providers.json
 
 # dependencies
 node_modules
