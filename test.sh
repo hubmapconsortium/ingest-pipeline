@@ -11,4 +11,4 @@ set -o errexit
 
 
 PYTHONPATH=src/ingest-pipeline/airflow/dags/
-env AIRFLOW_HOME=${PWD}/src/ingest-pipeline/airflow PYTHONPATH=$PYTHONPATH python -m unittest discover tests
+env AIRFLOW_HOME=${PWD}/src/ingest-pipeline/airflow PYTHONPATH=plugins python -m unittest discover tests

@@ -5,13 +5,13 @@ from os.path import dirname, join
 from pathlib import Path
 
 import pandas as pd
+from biweekly_timetable import BiweeklyTimetable
 from hubmap_operators.common_operators import (
     CleanupTmpDirOperator,
     CreateTmpDirOperator,
 )
 from status_change.callbacks.failure_callback import FailureCallback
 from status_change.status_utils import Statuses
-from timetables import BiweeklyTimetable
 from utils import (
     HMDAG,
     decrypt_tok,
