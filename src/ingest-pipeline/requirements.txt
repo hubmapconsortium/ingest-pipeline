@@ -24,32 +24,3 @@ tifffile==2021.11.2
 xmlsec==1.3.14
 xmltodict==0.13.0
 authlib==1.6.0
-
-# removed: not used, no deps; only submodule deps; deps from other
-# installed packages, will re-evaluate if there are conflicts
-# airflow-multi-dagrun==2.3.1
-# authlib==0.15.6
-# Flask-OAuthlib==0.9.6 # deprecated, use authlib instead
-# Flask-Session==0.5.0
-# fastjsonschema==2.16.1
-# frictionless==4.0.0 # IVT only
-# globus-cli==3.34.0
-# goodtables==2.5.4
-# hubmap-pipeline-release-mgmt==0.6.2
-# imagecodecs>=2023.3.16 # IVT only
-# jsonref-ap==0.3.dev0
-# jsonref>=0.2,<1.0
-# multi-docker-build==0.7.3
-# numpyencoder==0.3.0
-# pandarallel==1.6.4 # hubmap-inventory
-# pendulum==2.1.2
-# prov==1.5.1
-# psycopg2-binary==2.9.5
-# python-magic==0.4.27 # hubmap-inventory
-# rdflib==5.0.0
-# rdflib-jsonld==0.6.2
-# tableschema==1.20.2 # IVT only
-# tqdm==4.36.1
-# WTForms==2.3.3
-# xmlschema==3.4.5 # xmlschema==1.9.2 # IVT only
-# yattag==1.14.0

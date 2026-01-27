@@ -5,12 +5,13 @@ from os.path import dirname, join
 from pathlib import Path
 
 import pandas as pd
-from biweekly_timetable import BiweeklyTimetable  # type: ignore
-from hubmap_operators.common_operators import (  # type: ignore
+from biweekly_timetable import BiweeklyTimetable
+from hubmap_operators.common_operators import (
     CleanupTmpDirOperator,
     CreateTmpDirOperator,
 )
 from status_change.callbacks.failure_callback import FailureCallback
+from status_change.status_utils import Statuses
 from utils import (
     HMDAG,
     decrypt_tok,
@@ -26,9 +27,19 @@ from airflow.decorators import task
 from airflow.operators.empty import EmptyOperator
 from airflow.providers.http.hooks.http import HttpHook
 
-INTERNAL_CONTACTS = ["gesina@psc.edu"]
+ERROR_CONTACTS = ["gesina@psc.edu"]
+CURATION_CONTACTS = ["bhonick@psc.edu"]
+"""
+data_providers.json lists all sites who have contributed datasets
+as of 2025-12, with the exception of components that no longer have
+funding and that no other component has taken over (RTI Broad and
+California Institute of Technology TMC).
+"""
 DP_PATH = Path(join(dirname(__file__), "data_providers.json"))
 
+#######
+# DAG #
+#######
 
 default_args = {
     "depends_on_past": False,
@@ -69,6 +80,11 @@ with HMDAG(
                     "uuid": uuid,
                     "contacts": {
                         contact_name: contact_email
+                    },
+                    "subcomponent": {  # optional
+                        "subcomponent_name": {
+                            "uuid": uuid
+                        }
                     }
                 }
             }
@@ -121,6 +137,7 @@ with HMDAG(
                         email_body,
                         attachment_path=spreadsheet_path,
                         cc=cc,
+                        bcc=CURATION_CONTACTS,
                     )
                     if sent:
                         logging.info(
@@ -143,7 +160,7 @@ with HMDAG(
         formatted_errors = "<br>".join([f"{key}: {val}" for key, val in errors.items()])
         logging.error(formatted_errors)
         send_email(
-            INTERNAL_CONTACTS,
+            ERROR_CONTACTS,
             "Errors in EmailProviders DAG",
             formatted_errors,
             # prod_only=False
@@ -168,10 +185,18 @@ def get_data(groups: dict, token: str) -> dict:
     Get data from search API by group.
     """
     data = {}
-    for group_name, group_data in groups.items():
-        group_data = get_datasets_by_group(group_name, group_data["uuid"], token)
+    for group_name, group_info in groups.items():
+        group_data = get_datasets_by_group(group_name, group_info["uuid"], token)
         if group_data is not None:
             data[group_name] = group_data.to_dict()
+            if subcomponent := group_info.get("subcomponent"):
+                for subcomponent_name, subcomponent_info in subcomponent.items():
+                    if subcomponent_data := get_datasets_by_group(
+                        subcomponent_name,
+                        subcomponent_info["uuid"],
+                        token,
+                    ):
+                        data[group_name].update(subcomponent_data.to_dict())
         else:
             data[group_name] = {}
     return data
@@ -196,7 +221,6 @@ def get_datasets_by_group(group_name: str, group_uuid: str, token: str) -> pd.Da
         DataFrame with upload/dataset information including uuid, created_by, group_name, etc.
     """
     logging.info(f"Fetching unpublished datasets for group {group_name} from Search API...")
-
     data = search_api_request(get_search_body(group_uuid), token)
     if not data["hits"]["hits"]:
         logging.info(f"   No unpublished datasets found for {group_name}.")
@@ -220,6 +244,7 @@ search_fields: list[str] = [
     "group_name",
     "group_uuid",
     "hubmap_id",
+    "lab_dataset_id",
     "last_modified_timestamp",
     "status",
     "title",
@@ -284,6 +309,7 @@ def modify_df(df: pd.DataFrame) -> pd.DataFrame:
         "dataset_type",
         "title",
         "created_date",
+        "lab_dataset_id",
         "last_modified_date",
         "created_by_user_display_name",
         "created_by_user_email",
@@ -316,29 +342,123 @@ def get_ingest_url(row: pd.Series) -> str:
 # Prepare email #
 #################
 
-max_rows: int = 100
+max_rows: int = 20
 
 
 def format_group_data(data: pd.DataFrame, group_name: str) -> str:
-    dataset_info = get_email_body_list(data)
-    body = [*get_template(data, group_name), dataset_info]
-    if len(data) > max_rows:
-        body.append(f"... ({len(data) - max_rows} more datasets, see CSV attachment)")
+    body = get_template(data, group_name)
     return "".join(body)
 
 
-def get_template(data: pd.DataFrame, group_name: str) -> list[str]:
+def get_template_header(data: pd.DataFrame, group_name: str) -> list[str]:
     return [
         f"<b>Biweekly unpublished dataset report for {group_name}</b><br>",
-        "This report is sent to the group PI(s) and all creators of datasets in this list.<br>",
+        "This report is sent to the group PIs, PMs, and all creators of datasets in this list.<br>",
         "<br>",
-        f"{len(data)} unpublished datasets:<br>",
-        # TODO
-        # "<ul>",
-        # *get_counts(data),
-        # "</ul>",
-        # "Instructions:",
-        # "<br>",
+        f"If you have questions, please schedule an appointment with Data Curator Brendan Honick (https://calendly.com/bhonick-psc/) or email ingest@hubmapconsortium.org. Do not respond to this email; this inbox is not monitored.<br>",
+        "<br>",
+        f"<b>Unpublished datasets:</b> {len(data)}<br>",
+        "You can see more details about all datasets in the attached CSV file.<br>",
+        "<br>",
+        "The datasets listed below are primary datasets representing the raw data that your site has submitted to the HIVE. Primary datasets can be published in advance of HIVE central analysis processing.<br>",
+    ]
+
+
+footer = [
+    'Please consult our <a href="https://docs.google.com/document/d/13zBbp_BNCVPZPj71Q5dGLoNJ_TDRyEpPck2mGQbkLYg/edit?usp=sharing">guide to HuBMAP entity statuses</a> if you would like to learn more about the different dataset statuses.<br>',
+]
+
+
+def get_template(data: pd.DataFrame, group_name: str) -> list[str]:
+    template = get_template_header(data, group_name)
+    # Add counts and instructions for data provider-actionable statuses, if present
+    instructions = add_instructions(data)
+    template.extend(instructions)
+    # Add counts and descriptions of HIVE-actionable statuses, if present
+    other_counts = add_other_counts(data)
+    template.extend(other_counts)
+    template.extend(footer)
+    return template
+
+
+##############
+# Formatting #
+##############
+
+status_to_description = {
+    Statuses.DATASET_QA: "The dataset has been validated and is ready for your approval. After reviewing these datasets, please email ingest@hubmapconsortium.org to list any datasets with issues that need to be addressed before publishing and/or indicate your approval of specific datasets for publication. Please include relevant dataset IDs in your message.<br>",
+    Statuses.DATASET_INVALID: "The dataset cannot be validated due a metadata or directory issue. View the errors on the dataset ingest page and correct them. Help is available by scheduling with Data Curator Brendan Honick (https://calendly.com/bhonick-psc/).<br>",
+    Statuses.DATASET_NEW: 'This status is an artifact of prior status handling. Go to the dataset ingest page and press "Submit."<br>',
+    Statuses.DATASET_ERROR: "Datasets have encountered an internal HIVE error. Curators and developers are working to address the issue.<br>",
+    Statuses.DATASET_SUBMITTED: "Datasets have been reorganized from a bulk upload submission. They are ready for dataset-level validation and HIVE central analysis processing (as applicable by assay type).<br>",
+    Statuses.DATASET_PROCESSING: "Datasets are going through the ingest process.<br>",
+    # TODO: deprecated statuses--should we include, just in case?
+    # Statuses.DATASET_HOLD: "",
+    # Statuses.DATASET_DEPRECATED: "",
+}
+
+
+def add_instructions(data: pd.DataFrame):
+    return annotated_statuses(
+        data,
+        [Statuses.DATASET_QA, Statuses.DATASET_INVALID, Statuses.DATASET_NEW],
+        "What you can do to move datasets forward",
+        "Some dataset statuses indicate the need for intervention by the data provider. Below are some brief instructions by status.",
+    )
+
+
+def add_other_counts(data: pd.DataFrame) -> list[str]:
+    return annotated_statuses(
+        data,
+        [
+            status
+            for status in status_to_description
+            if status not in [Statuses.DATASET_QA, Statuses.DATASET_INVALID, Statuses.DATASET_NEW]
+        ],
+        "Datasets currently in the ingestion process",
+        "Below are counts of datasets not currently requiring action on your part, with a brief description of each status.",
+    )
+
+
+def annotated_statuses(
+    data: pd.DataFrame, statuses: list[Statuses], section_title: str, section_desc: str
+) -> list[str]:
+    """
+    Returns an unordered list with a bullet for each status.
+    Formatting:
+        <section_title>
+        <section_description>
+            - <Status>: <count>
+              <status_description>
+              <list of ids>
+    """
+    counts = {}
+    for status in statuses:
+        count = get_counts(data, [status])
+        if not count:
+            continue
+        counts[status] = count
+    if not counts:
+        return []
+    template = [
+        "<br>",
+        f"<b>{section_title}:</b><br>",
+        f"{section_desc}<br>",
+        "<ul>",
+    ]
+    for status, count in counts.items():
+        template.extend(format_id_bullets(count[0], status, data))
+    template.append("</ul>")
+    return template
+
+
+def format_id_bullets(count: str, status: Statuses, data: pd.DataFrame) -> list[str]:
+    return [
+        count,
+        status_to_description[status],
+        "<ul>",
+        *[f"<li>{dataset}</li>" for dataset in list_datasets_by_status(data, status)],
+        "</ul>",
         "<br>",
     ]
 
@@ -347,58 +467,38 @@ def create_link(row: pd.Series) -> str:
     return f'<a href="{row.ingest_url}">{row.hubmap_id}</a>'
 
 
-def get_email_body_list(data: pd.DataFrame) -> str:
+def list_datasets_by_status(data: pd.DataFrame, status: Statuses) -> list[str]:
     subset = data[["hubmap_id", "last_modified_date", "status", "ingest_url"]].copy()
     subset["hubmap_id"] = subset.apply(create_link, axis=1)
+    subset["status"] = subset.apply(lambda row: row.status.lower(), axis=1)
     subset = subset.sort_values("last_modified_date")
-    subset = subset.rename(
-        columns={
-            "hubmap_id": "HuBMAP ID",
-            "status": "Status",
-            "last_modified_date": "Last Updated",
-        }
-    )
-    return subset.to_html(
-        columns=["HuBMAP ID", "Last Updated", "Status"],
-        index=False,
-        na_rep="",
-        justify="justify",
-        max_rows=100,
-        escape=False,
-        border=0,
-        col_space={"HuBMAP ID": 170, "Last Updated": 130},
-    ).replace("\n", "")
+    subset = subset.rename(columns={"hubmap_id": "HuBMAP ID"})
+    filtered = subset.loc[subset["status"] == status.status_str]
+    id_list = [val["HuBMAP ID"] for val in filtered.to_dict(orient="index").values()]
+    if len(id_list) > max_rows:
+        full_len = len(id_list)
+        id_list = id_list[0:max_rows]
+        id_list.append(f"...{full_len - max_rows} more datasets, see CSV attachment")
+    return id_list
 
 
-def get_counts(data: pd.DataFrame) -> list[str]:
+def get_counts(
+    data: pd.DataFrame,
+    statuses: list[Statuses] = [],
+) -> list[str]:
+    """
+    Create a list of <li> elements, one per status.
+    If statuses arg is passed, include only specified statuses.
+    """
     counts = data["status"].value_counts().to_dict()
-    provider_responsible_keys = ["qa", "invalid"]
-    provider_responsible = {
-        key: value for key, value in counts.items() if key.lower() in provider_responsible_keys
-    }
-    iec_responsible = {
-        key: value for key, value in counts.items() if key.lower() not in provider_responsible_keys
-    }
-    message = []
-    if provider_responsible:
-        message.extend(
-            [
-                "Datasets requiring action by data provider:",
-                "<ul>",
-                *[f"<li>{key}: {value}</li>" for key, value in provider_responsible.items()],
-                "</ul>",
-            ]
-        )
-    if iec_responsible:
-        message.extend(
-            [
-                "Datasets requiring action by IEC:",
-                "<ul>",
-                *[f"<li>{key}: {value}</li>" for key, value in iec_responsible.items()],
-                "</ul>",
-            ]
-        )
-    return message
+    if statuses:
+        str_include = [status.status_str for status in statuses]
+        counts = {key: value for key, value in counts.items() if key.lower() in str_include}
+    else:
+        counts = {key: value for key, value in counts.items() if key.lower()}
+    count_list = [f"<li>{key}: {value}</li>" for key, value in counts.items()]
+    count_list.sort()
+    return count_list
 
 
 ############
