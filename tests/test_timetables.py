@@ -2,11 +2,11 @@ import datetime
 import unittest
 from unittest.mock import patch
 
-from pendulum import Date, DateTime, Time, day
-from timetables.biweekly_timetable import (  # type: ignore
+from biweekly_timetable import (
     BiweeklyTimetable,
     TestTargetDayTimetable,
 )
+from pendulum import Date, DateTime, Time, day
 
 from airflow.timetables.base import DataInterval, TimeRestriction
 
@@ -87,11 +87,11 @@ class TestBiweeklyTimetable(unittest.TestCase):
             end=date_with_start_time(2025, 12, 1, with_tz=True),
         )
         with patch(
-            "timetables.biweekly_timetable.Date.today",
+            "biweekly_timetable.Date.today",
             return_value=Date(2025, 12, 1),
         ):
             with patch(
-                "timetables.biweekly_timetable.DateTime.utcnow",
+                "biweekly_timetable.DateTime.utcnow",
                 return_value=DateTime(2025, 12, 1, 15, 0, 0, tzinfo=tz),
             ):
                 next_run = self.tt.next_dagrun_info(
@@ -112,11 +112,11 @@ class TestBiweeklyTimetable(unittest.TestCase):
             end=date_with_start_time(2025, 12, 2),
         )
         with patch(
-            "timetables.biweekly_timetable.Date.today",
+            "biweekly_timetable.Date.today",
             return_value=Date(2025, 12, 1),
         ):
             with patch(
-                "timetables.biweekly_timetable.DateTime.utcnow",
+                "biweekly_timetable.DateTime.utcnow",
                 return_value=DateTime(2025, 12, 1, 15, 0, 0, tzinfo=tz),
             ):
                 next_run = self.tt.next_dagrun_info(
@@ -148,11 +148,11 @@ class TestBiweeklyTimetable(unittest.TestCase):
             earliest=DateTime(2025, 12, 1, tzinfo=tz), latest=None, catchup=False
         )
         with patch(
-            "timetables.biweekly_timetable.Date.today",
+            "biweekly_timetable.Date.today",
             return_value=Date(2025, 12, 2),
         ):
             with patch(
-                "timetables.biweekly_timetable.DateTime.utcnow",
+                "biweekly_timetable.DateTime.utcnow",
                 return_value=DateTime(2025, 12, 2, 15, 0, 0, tzinfo=tz),
             ):
                 assert self.tt.next_dagrun_info(
@@ -166,7 +166,7 @@ class TestBiweeklyTimetable(unittest.TestCase):
         at TimeRestriction.earliest.
         """
         with patch(
-            "timetables.biweekly_timetable.Date.today",
+            "biweekly_timetable.Date.today",
             return_value=Date(2025, 11, 30),
         ):
             restriction = TimeRestriction(
@@ -184,7 +184,7 @@ class TestBiweeklyTimetable(unittest.TestCase):
         is after today, send at TimeRestriction.earliest (at scheduled send_time).
         """
         with patch(
-            "timetables.biweekly_timetable.Date.today",
+            "biweekly_timetable.Date.today",
             return_value=Date(2025, 11, 30),
         ):
             assert self.tt.next_dagrun_info(
@@ -258,11 +258,11 @@ class TestBiweeklyTimetable(unittest.TestCase):
             end=date_with_start_time(2025, 12, 1),
         )
         with patch(
-            "timetables.biweekly_timetable.Date.today",
+            "biweekly_timetable.Date.today",
             return_value=Date(2025, 12, 1),
         ):
             with patch(
-                "timetables.biweekly_timetable.DateTime.utcnow",
+                "biweekly_timetable.DateTime.utcnow",
                 return_value=DateTime(2025, 12, 1, 14, 0, 0, tzinfo=tz),
             ):
                 next_run = self.tt.next_dagrun_info(
@@ -274,11 +274,11 @@ class TestBiweeklyTimetable(unittest.TestCase):
 
     def test_adjust_time(self):
         with patch(
-            "timetables.biweekly_timetable.Date.today",
+            "biweekly_timetable.Date.today",
             return_value=Date(2025, 12, 1),
         ):
             with patch(
-                "timetables.biweekly_timetable.DateTime.utcnow",
+                "biweekly_timetable.DateTime.utcnow",
                 return_value=DateTime(2025, 12, 1, 14, 0, 0, tzinfo=tz),
             ):
                 # No adjustment (16:00:00 -> 16:00:00)
@@ -289,7 +289,7 @@ class TestBiweeklyTimetable(unittest.TestCase):
                     self.tt.adjust_time(DateTime(2025, 12, 1, 15, 0, 0, tzinfo=tz)) == valid_time
                 )
             with patch(
-                "timetables.biweekly_timetable.DateTime.utcnow",
+                "biweekly_timetable.DateTime.utcnow",
                 return_value=DateTime(2025, 12, 1, 17, 0, 0, tzinfo=tz),
             ):
                 # Adjust to next day at send_time (12-01 17:00:00 -> 12-02 16:00:00)
@@ -351,11 +351,11 @@ class TestBiweeklyTimetable(unittest.TestCase):
         assert manual_interval.start.day_of_week == day.WeekDay.TUESDAY
         # use that DataInterval when calculating next_dagrun_info
         with patch(
-            "timetables.biweekly_timetable.DateTime.utcnow",
+            "biweekly_timetable.DateTime.utcnow",
             return_value=DateTime(2025, 12, 1, 15, 0, 0, tzinfo=tz),
         ):
             with patch(
-                "timetables.biweekly_timetable.Date.today",
+                "biweekly_timetable.Date.today",
                 return_value=Date(2025, 12, 1),
             ):
                 next_auto_run = self.tt.next_dagrun_info(
