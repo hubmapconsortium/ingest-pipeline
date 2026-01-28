@@ -893,6 +893,7 @@ def pythonop_send_create_dataset(**kwargs) -> str:
     'derived_dataset_uuid' : uuid for the created dataset
     'group_uuid' : group uuid for the created dataset
     """
+    from status_change.status_manager import call_message_managers
 
     for arg in ["parent_dataset_uuid_callable", "http_conn_id"]:
         assert arg in kwargs, "missing required argument {}".format(arg)
@@ -993,6 +994,18 @@ def pythonop_send_create_dataset(**kwargs) -> str:
         uuid = response_json["uuid"]
         group_uuid = response_json["group_uuid"]
 
+        # Send confirmation message that derived dataset has been created
+        call_message_managers(
+            response_json.get("status"),
+            uuid,
+            get_auth_tok(**kwargs),
+            messages={
+                "run_id": kwargs.get("run_id", ""),
+                "parent_dataset_uuid": kwargs["parent_dataset_uuid_callable"](**kwargs),
+            },
+            message_classes=["SlackManager", "DataIngestBoardManager"],
+        )
+
         response = HttpHook("GET", http_conn_id=http_conn_id).run(
             endpoint=f"datasets/{uuid}/file-system-abs-path",
             headers=headers,
@@ -1027,12 +1040,15 @@ def pythonop_set_dataset_state(**kwargs) -> None:
     Accepts the following via the caller's op_kwargs:
     'dataset_uuid_callable' : called with **kwargs; returns the
                               uuid of the dataset to be modified
+    'parent_dataset_uuid_callable' : called with **kwargs; returns the
+                              uuid of the parent dataset
     'http_conn_id' : the http connection to be used.  Default is "entity_api_connection"
     'ds_state' : one of 'QA', 'Processing', 'Error', 'Invalid'. Default: 'Processing'
     'message' : update message, saved as dataset metadata element "pipeline_message".
                 The default is not to save any message.
+    'pipeline_name' : name of pipeline
     """
-    from status_change.status_manager import StatusChanger
+    from status_change.status_manager import StatusChanger, call_message_managers
 
     if kwargs["dag_run"].conf.get("dryrun"):
         return
@@ -1046,8 +1062,15 @@ def pythonop_set_dataset_state(**kwargs) -> None:
     )
     http_conn_id = kwargs.get("http_conn_id", "entity_api_connection")
     status = kwargs["ds_state"] if "ds_state" in kwargs else "Processing"
-    message = kwargs.get("message", None)
+    message = kwargs.get("message")
+    # Derived dataset created, need to set status and send relevant messages
     if dataset_uuid is not None:
+        messages = {
+            "run_id": run_id,
+            "processing_pipeline": kwargs.get("pipeline_name"),
+        }
+        if parent_dataset_uuid_callable := kwargs.get("parent_dataset_uuid_callable"):
+            messages["primary_dataset_uuid"] = parent_dataset_uuid_callable(**kwargs)
         StatusChanger(
             dataset_uuid,
             get_auth_tok(**kwargs),
@@ -1055,8 +1078,17 @@ def pythonop_set_dataset_state(**kwargs) -> None:
             fields_to_overwrite={"pipeline_message": message} if message else {},
             http_conn_id=http_conn_id,
             reindex=reindex,
-            run_id=run_id,
+            messages=messages,
         ).update()
+    # No derived dataset was created, message based on the primary
+    elif kwargs.get("parent_dataset_uuid_callable") and kwargs.get("pipeline_name"):
+        call_message_managers(
+            str(status),
+            kwargs["parent_dataset_uuid_callable"](**kwargs),
+            get_auth_tok(**kwargs),
+            messages={"processing_pipeline": kwargs.get("pipeline_name")},
+            message_classes=["SlackManager", "DataIngestBoardManager"],
+        )
 
 
 def restructure_entity_metadata(raw_metadata: JSONType) -> JSONType:
@@ -1711,14 +1743,16 @@ def make_send_status_msg_function(
             if kwargs["dag"].dag_id in ["multiassay_component_metadata", "reorganize_multiassay"]:
                 status = None
             try:
+                messages = kwargs["ti"].xcom_pull(
+                    task_ids="run_validation", key="report_data"
+                ) or {} | {"run_id": kwargs.get("run_id")}
                 StatusChanger(
                     dataset_uuid,
                     get_auth_tok(**kwargs),
                     status=status,
                     fields_to_overwrite=extra_fields,
                     reindex=reindex,
-                    run_id=kwargs.get("run_id"),
-                    messages=kwargs["ti"].xcom_pull(task_ids="run_validation", key="report_data"),
+                    messages=messages,
                 ).update()
             except EntityUpdateException:
                 return_status = False

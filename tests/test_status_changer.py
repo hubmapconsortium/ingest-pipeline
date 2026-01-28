@@ -5,7 +5,7 @@ import unittest
 from datetime import date
 from functools import cached_property
 from typing import Optional
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, PropertyMock, call, patch
 
 import requests
 from status_change.callbacks.failure_callback import FailureCallback
@@ -13,6 +13,15 @@ from status_change.data_ingest_board_manager import DataIngestBoardManager
 from status_change.email_manager import EmailManager
 from status_change.email_templates.invalid import InvalidStatusEmail
 from status_change.slack.base import SlackMessage
+from status_change.slack.error import (
+    SlackDatasetError,
+    SlackDatasetErrorDerived,
+    SlackDatasetErrorPrimaryPipeline,
+    SlackUploadError,
+)
+from status_change.slack.invalid import SlackDatasetInvalid, SlackUploadInvalid
+from status_change.slack.new import SlackDatasetNew, SlackDatasetNewDerived
+from status_change.slack.qa import SlackDatasetQA, SlackDatasetQADerived
 from status_change.slack.reorganized import (
     SlackUploadReorganized,
     SlackUploadReorganizedNoDatasets,
@@ -24,6 +33,7 @@ from status_change.status_manager import (
     EntityUpdater,
     StatusChanger,
     Statuses,
+    call_message_managers,
 )
 from status_change.status_utils import (
     get_data_ingest_board_query_url,
@@ -37,6 +47,8 @@ from status_change.status_utils import (
 )
 from tests.fixtures import (
     dataset_context_mock_value,
+    dataset_context_mock_value_with_error,
+    derived_dataset_context_mock_value,
     endpoints,
     ext_error,
     good_upload_context,
@@ -102,6 +114,7 @@ class MockParent(unittest.TestCase):
             return_value={"connections": {"WORKFLOW_SCRATCH": "test_path"}},
         )
         self.httphook = patch("status_change.status_utils.HttpHook.run")
+        self.get_ancestors = patch("status_change.status_utils.get_ancestors")
         # self.scratch_base_path = patch("utils._get_scratch_base_path", return_value="test_path")
         self.entity_update = patch("status_change.status_manager.put_request_to_entity_api")
         self.status_context = patch(
@@ -124,6 +137,7 @@ class MockParent(unittest.TestCase):
         self.mock_conf = self.conf.start()
         self.mock_httphook = self.httphook.start()
         self.mock_httphook.return_value.json.return_value = good_upload_context  # GET request mock
+        self.mock_get_ancestors = self.get_ancestors.start()
         self.mock_entity_update = self.entity_update.start()
         self.mock_status_context = self.status_context.start()
         self.mock_slack_msg_context = self.slack_msg_context.start()
@@ -138,6 +152,7 @@ class MockParent(unittest.TestCase):
         self.addCleanup(self.env.stop)
         self.addCleanup(self.conf.stop)
         self.addCleanup(self.httphook.stop)
+        self.addCleanup(self.get_ancestors.stop)
         self.addCleanup(self.entity_update.stop)
         self.addCleanup(self.status_context.stop)
         self.addCleanup(self.slack_msg_context.stop)
@@ -217,7 +232,7 @@ class TestStatusChanger(MockParent):
         status_update_mock.assert_not_called()
 
     @patch("status_change.status_manager.StatusChanger.set_entity_api_data")
-    @patch("status_change.status_manager.StatusChanger.call_message_managers")
+    @patch("status_change.status_manager.call_message_managers")
     def test_same_status(self, mm_mock, status_update_mock):
         same_status = StatusChanger(
             "upload_valid_uuid",
@@ -372,7 +387,7 @@ class TestStatusChanger(MockParent):
             fields_to_overwrite={"pipeline_message": message},
             http_conn_id="entity_api_connection",
             reindex=True,
-            run_id=None,
+            messages={"run_id": None, "processing_pipeline": None},
         )
         # Pass a valid ds_state and assert it was passed properly
         pythonop_set_dataset_state(
@@ -390,7 +405,7 @@ class TestStatusChanger(MockParent):
             fields_to_overwrite={"pipeline_message": message},
             http_conn_id="entity_api_connection",
             reindex=True,
-            run_id=None,
+            messages={"run_id": None, "processing_pipeline": None},
         )
 
     def test_pythonop_set_dataset_state_invalid(self):
@@ -453,6 +468,92 @@ class TestStatusChanger(MockParent):
             ).update()
             self.mock_dib_update.assert_not_called()
 
+    def test_pass_message_managers(self):
+        with patch(
+            "status_change.status_manager.SlackManager.get_message_class",
+            new_callable=PropertyMock,
+        ) as mock_slack_mgr:
+            with patch(
+                "status_change.status_manager.DataIngestBoardManager.is_valid_for_status",
+                new_callable=PropertyMock,
+            ) as mock_dib_mgr:
+                with patch(
+                    "status_change.status_manager.EmailManager.is_valid_for_status",
+                    new_callable=PropertyMock,
+                ) as mock_email_mgr:
+                    with patch(
+                        "status_change.status_manager.StatisticsManager.is_valid_for_status",
+                        new_callable=PropertyMock,
+                    ) as mock_stats_mgr:
+                        call_message_managers(
+                            Statuses.DATASET_HOLD,
+                            "test_uuid",
+                            "test_tok",
+                            messages={"processing_pipeline": "test_pipeline"},
+                            message_classes=[SlackManager, DataIngestBoardManager],
+                        )
+                        mock_slack_mgr.assert_called_once()
+                        mock_dib_mgr.assert_called_once()
+                        mock_email_mgr.assert_not_called()
+                        mock_stats_mgr.assert_not_called()
+
+    def test_pass_message_managers_as_strs(self):
+        with patch(
+            "status_change.status_manager.SlackManager.get_message_class",
+            new_callable=PropertyMock,
+        ) as mock_slack_mgr:
+            with patch(
+                "status_change.status_manager.DataIngestBoardManager.is_valid_for_status",
+                new_callable=PropertyMock,
+            ) as mock_dib_mgr:
+                with patch(
+                    "status_change.status_manager.EmailManager.is_valid_for_status",
+                    new_callable=PropertyMock,
+                ) as mock_email_mgr:
+                    with patch(
+                        "status_change.status_manager.StatisticsManager.is_valid_for_status",
+                        new_callable=PropertyMock,
+                    ) as mock_stats_mgr:
+                        call_message_managers(
+                            Statuses.DATASET_HOLD,
+                            "test_uuid",
+                            "test_tok",
+                            messages={"processing_pipeline": "test_pipeline"},
+                            message_classes=["SlackManager", "DataIngestBoardManager"],
+                        )
+                        mock_slack_mgr.assert_called_once()
+                        mock_dib_mgr.assert_called_once()
+                        mock_email_mgr.assert_not_called()
+                        mock_stats_mgr.assert_not_called()
+
+    def test_pass_no_message_managers(self):
+        with patch(
+            "status_change.status_manager.SlackManager.get_message_class",
+            new_callable=PropertyMock,
+        ) as mock_slack_mgr:
+            with patch(
+                "status_change.status_manager.DataIngestBoardManager.is_valid_for_status",
+                new_callable=PropertyMock,
+            ) as mock_dib_mgr:
+                with patch(
+                    "status_change.status_manager.EmailManager.is_valid_for_status",
+                    new_callable=PropertyMock,
+                ) as mock_email_mgr:
+                    with patch(
+                        "status_change.status_manager.StatisticsManager.is_valid_for_status",
+                        new_callable=PropertyMock,
+                    ) as mock_stats_mgr:
+                        call_message_managers(
+                            Statuses.DATASET_HOLD,
+                            "test_uuid",
+                            "test_tok",
+                            messages={"processing_pipeline": "test_pipeline"},
+                        )
+                        mock_slack_mgr.assert_called_once()
+                        mock_dib_mgr.assert_called_once()
+                        mock_email_mgr.assert_called_once()
+                        mock_stats_mgr.assert_called_once()
+
 
 class SlackTest(SlackMessage):
     name = "test_class"
@@ -465,8 +566,8 @@ class SlackTestHold(SlackMessage):
     name = "dataset_hold"
 
     @classmethod
-    def test(cls, entity_data, token):
-        del token
+    def test(cls, entity_data, token, **kwargs):
+        del token, kwargs
         if str(entity_data.get("status")).lower() == "hold":
             return True
         return False
@@ -497,13 +598,16 @@ class TestSlack(MockParent):
         assert mgr.message_class.format() == ["I am formatted"]
 
     def test_get_slack_channel(self):
-        with patch.dict(
-            "status_change.slack_manager.SlackManager.status_to_class",
-            {"test_status": self.mock_slack_channels},
+        with patch(
+            "status_change.status_utils.MessageManager.get_status", return_value="test_status"
         ):
-            mgr = self.slack_manager("test_status")
-        assert mgr.message_class
-        assert mgr.message_class.channel == "test_class_channel"
+            with patch.dict(
+                "status_change.slack_manager.SlackManager.status_to_class",
+                {"test_status": self.mock_slack_channels},
+            ):
+                mgr = self.slack_manager("test_status")
+            assert mgr.message_class
+            assert mgr.message_class.channel == "test_class_channel"
 
     def test_update_with_slack_channel(self):
         """
@@ -550,8 +654,8 @@ class TestSlack(MockParent):
                     self.mock_slack_post.assert_called_once_with("test_token", "HOLD", channel)
                     self.mock_slack_post.reset_mock()
 
-    def slack_manager(self, status):
-        return SlackManager(status, "test_uuid", "test_token")
+    def slack_manager(self, status, **kwargs):
+        return SlackManager(status, "test_uuid", "test_token", **kwargs)
 
     def test_slack_manager_main_class(self):
         self.mock_status_context.return_value.pop("priority_project_list", None)
@@ -610,6 +714,118 @@ class TestSlack(MockParent):
                         with patch("utils.ENDPOINTS", endpoints["hubmap"]):
                             mgr = klass("test_uuid", "test_token")
                             assert mgr.format() == ret_val
+
+    def test_error_classes(self):
+        upload_mgr = self.slack_manager(Statuses.UPLOAD_ERROR)
+        assert type(upload_mgr.message_class) is SlackUploadError
+        self.status_context.stop()
+        with patch(
+            "status_change.status_utils.get_submission_context",
+            return_value=dataset_context_mock_value,
+        ):
+            dataset_mgr = self.slack_manager(Statuses.DATASET_ERROR)
+            assert type(dataset_mgr.message_class) is SlackDatasetError
+            primary_dataset_mgr = self.slack_manager(
+                Statuses.DATASET_ERROR,
+                **{
+                    "messages": {
+                        "primary_dataset_uuid": "test_primary_uuid",
+                        "processing_pipeline": "test_pipeline",
+                    }
+                },
+            )
+            assert type(primary_dataset_mgr.message_class) is SlackDatasetErrorPrimaryPipeline
+        with patch(
+            "status_change.status_utils.get_submission_context",
+            return_value=derived_dataset_context_mock_value,
+        ):
+            derived_dataset_mgr = self.slack_manager(
+                Statuses.DATASET_ERROR,
+                **{"messages": {"primary_dataset_uuid": "test_primary_uuid"}},
+            )
+            assert type(derived_dataset_mgr.message_class) is SlackDatasetErrorDerived
+
+    def test_invalid_classes(self):
+        upload_mgr = self.slack_manager(Statuses.UPLOAD_INVALID)
+        assert type(upload_mgr.message_class) is SlackUploadInvalid
+        dataset_mgr = self.slack_manager(Statuses.DATASET_INVALID)
+        assert type(dataset_mgr.message_class) is SlackDatasetInvalid
+
+    def test_new_classes(self):
+        self.status_context.stop()
+        with patch(
+            "status_change.status_utils.get_submission_context",
+            return_value=dataset_context_mock_value,
+        ):
+            dataset_mgr = self.slack_manager(Statuses.DATASET_NEW)
+            assert type(dataset_mgr.message_class) is SlackDatasetNew
+            with self.assertRaises(NotImplementedError):
+                dataset_mgr.message_class.format()
+        with patch(
+            "status_change.status_utils.get_submission_context",
+            return_value=derived_dataset_context_mock_value,
+        ):
+            derived_dataset_mgr = self.slack_manager(
+                Statuses.DATASET_NEW, **{"messages": {"processing_pipeline": "test_pipeline"}}
+            )
+            assert type(derived_dataset_mgr.message_class) is SlackDatasetNewDerived
+
+    def test_qa_classes(self):
+        self.status_context.stop()
+        with patch(
+            "status_change.status_utils.get_submission_context",
+            return_value=dataset_context_mock_value,
+        ):
+            dataset_mgr = self.slack_manager(Statuses.DATASET_QA)
+            assert type(dataset_mgr.message_class) is SlackDatasetQA
+        with patch(
+            "status_change.status_utils.get_submission_context",
+            return_value=derived_dataset_context_mock_value,
+        ):
+            derived_dataset_mgr = self.slack_manager(
+                Statuses.DATASET_QA, **{"messages": {"processing_pipeline": "test_pipeline"}}
+            )
+            assert type(derived_dataset_mgr.message_class) is SlackDatasetQADerived
+
+    def test_reorganized_no_datasets(self):
+        self.status_context.stop()
+        self.slack_msg_context.stop()
+        # add priority key to make sure SlackUploadReorganizedPriority doesn't trigger
+        additions = good_upload_context | {
+            "priority_project_list": ["PRIORITY"],
+        }
+        additions.pop("datasets")
+        with patch("status_change.status_utils.get_submission_context", return_value=additions):
+            no_datasets_upload_reorg_mgr = self.slack_manager(Statuses.UPLOAD_REORGANIZED)
+        assert type(no_datasets_upload_reorg_mgr.message_class) is SlackUploadReorganizedNoDatasets
+        with self.assertRaises(NotImplementedError):
+            no_datasets_upload_reorg_mgr.message_class.format()
+        self.mock_status_context.reset_mock()
+        self.mock_slack_msg_context.reset_mock()
+
+    def test_reorganized_priority(self):
+        self.status_context.stop()
+        self.slack_msg_context.stop()
+        additions = good_upload_context | {
+            "datasets": [{"dataset_type": "test_1"}],
+            "priority_project_list": ["PRIORITY"],
+        }
+        with patch("status_change.status_utils.get_submission_context", return_value=additions):
+            priority_reorg_dataset_mgr = self.slack_manager(Statuses.UPLOAD_REORGANIZED)
+        assert type(priority_reorg_dataset_mgr.message_class) is SlackUploadReorganizedPriority
+        self.mock_status_context.reset_mock()
+        self.mock_slack_msg_context.reset_mock()
+
+    def test_reorganized(self):
+        self.status_context.stop()
+        self.slack_msg_context.stop()
+        additions = good_upload_context | {"datasets": [{"dataset_type": "test_1"}]}
+        additions.pop("priority_project_list")
+        with patch("status_change.status_utils.get_submission_context", return_value=additions):
+            upload_mgr = self.slack_manager(Statuses.UPLOAD_REORGANIZED)
+        assert type(upload_mgr.message_class) is SlackUploadReorganized
+        self.mock_status_context.reset_mock()
+        self.mock_slack_msg_context.reset_mock()
 
 
 class TestFailureCallback(MockParent):
@@ -693,7 +909,7 @@ class TestDataIngestBoardManager(MockParent):
     def test_valid_status_return_ext_error(self):
         # invalid status, validation output doesn't have any internal error strings
         dib = DataIngestBoardManager(
-            Statuses.UPLOAD_INVALID, "test_uuid", "test_token", run_id="test_run_id"
+            Statuses.UPLOAD_INVALID, "test_uuid", "test_token", messages={"run_id": "test_run_id"}
         )
         assert dib.get_fields() == {
             "error_message": f"Invalid status from run test_run_id",
@@ -708,7 +924,10 @@ class TestDataIngestBoardManager(MockParent):
             | {"validation_message": "Internal error--test"},
         ):
             dib = DataIngestBoardManager(
-                Statuses.UPLOAD_INVALID, "test_uuid", "test_token", run_id="test_run_id"
+                Statuses.UPLOAD_INVALID,
+                "test_uuid",
+                "test_token",
+                messages={"run_id": "test_run_id"},
             )
             assert dib.get_fields() == {
                 "error_message": "Internal error. Log directory: test_path/test_run_id",
@@ -719,9 +938,9 @@ class TestDataIngestBoardManager(MockParent):
                 "test_uuid",
                 "test_token",
                 messages={
-                    "error_counts": {"Antibodies/Contributors Errors": "1", "Test errors": "5"}
+                    "error_counts": {"Antibodies/Contributors Errors": "1", "Test errors": "5"},
+                    "run_id": "test_run_id",
                 },
-                run_id="test_run_id",
             )
             assert dib_w_msg.get_fields() == {
                 "error_message": "Internal error. Log directory: test_path/test_run_id | Antibodies/Contributors Errors: 1; Test errors: 5",
@@ -739,7 +958,10 @@ class TestDataIngestBoardManager(MockParent):
             },
         ):
             dib = DataIngestBoardManager(
-                Statuses.UPLOAD_ERROR, "test_uuid", "test_token", run_id="test_run_id"
+                Statuses.UPLOAD_ERROR,
+                "test_uuid",
+                "test_token",
+                messages={"run_id": "test_run_id"},
             )
             assert dib.get_fields() == {
                 "error_message": "Internal error. Log directory: test_path/test_run_id",
@@ -749,8 +971,10 @@ class TestDataIngestBoardManager(MockParent):
                 Statuses.UPLOAD_ERROR,
                 "test_uuid",
                 "test_token",
-                run_id="test_run_id",
-                messages={"error_counts": {"Directory errors": "3", "Plugins skipped": "True"}},
+                messages={
+                    "error_counts": {"Directory errors": "3", "Plugins skipped": "True"},
+                    "run_id": "test_run_id",
+                },
             )
             assert dib_w_msg.get_fields() == {
                 "error_message": f"Internal error. Log directory: test_path/test_run_id | Directory errors: 3; Plugins skipped: True",
@@ -765,7 +989,10 @@ class TestDataIngestBoardManager(MockParent):
             },
         ):
             dib = DataIngestBoardManager(
-                Statuses.UPLOAD_ERROR, "test_uuid", "test_token", run_id="test_run_id"
+                Statuses.UPLOAD_ERROR,
+                "test_uuid",
+                "test_token",
+                messages={"run_id": "test_run_id"},
             )
             assert dib.get_fields() == {
                 "error_message": "Internal error. Log directory: test_path/test_run_id",
@@ -996,8 +1223,7 @@ class TestEmailManager(MockParent):
                 status,
                 "test_uuid",
                 "test_token",
-                messages=messages,
-                run_id="test_run_id",
+                messages=messages or {} | {"run_id": "test_run_id"},
             )
             manager.int_recipients = [self.int_recipients]
             return manager

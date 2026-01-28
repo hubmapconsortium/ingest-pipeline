@@ -75,6 +75,20 @@ dataset_context_mock_value = {
     "entity_type": "Dataset",
 }
 
+derived_dataset_context_mock_value = dataset_context_mock_value | {
+    "creation_action": "Central Process"
+}
+
+dataset_context_mock_value_with_error = {
+    "uuid": "test_dataset_uuid",
+    "hubmap_id": "test_hm_dataset_id",
+    "created_by_user_displayname": "Test User",
+    "created_by_user_email": "test_dataset@user.com",
+    "status": "New",
+    "entity_type": "Dataset",
+    "error_message": "includes test_derived",
+}
+
 endpoints = {
     "hubmap": {
         "PROD": {

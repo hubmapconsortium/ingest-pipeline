@@ -16,8 +16,9 @@ from .statistics_manager import StatisticsManager
 from .status_utils import (
     ENTITY_STATUS_MAP,
     EntityUpdateException,
+    MessageManager,
     Statuses,
-    get_run_id,
+    get_status_enum,
     get_submission_context,
     put_request_to_entity_api,
 )
@@ -35,7 +36,6 @@ class EntityUpdater:
         fields_to_append_to: Optional[dict] = None,
         delimiter: str = "|",
         reindex: bool = True,
-        run_id: Optional[str] = None,
     ):
         self.uuid = uuid
         self.token = token
@@ -44,7 +44,6 @@ class EntityUpdater:
         self.fields_to_append_to = fields_to_append_to if fields_to_append_to else {}
         self.delimiter = delimiter
         self.reindex = reindex
-        self.run_id = get_run_id(run_id)
         self.entity_type = self.get_entity_type()
         self.fields_to_change = self.get_fields_to_change()
 
@@ -162,7 +161,6 @@ class EntityUpdater:
             fields_to_append_to=self.fields_to_append_to,
             delimiter=self.delimiter,
             reindex=self.reindex,
-            run_id=self.run_id,
             status=status,
         ).update()
 
@@ -205,10 +203,14 @@ Example usage with optional params:
             fields_to_append_to={"ingest_task": "test"},  # optional
             delimiter=",",  # optional
             reindex=True,  # optional
-            run_id="<airflow_run_id>",
             status=<Statuses.STATUS_ENUM>,  # or "<status>"
-            message=<ErrorReport.counts>
-        ).update()
+            messages={
+                "error_counts": {<ErrorReport.counts>},
+                "processing_pipeline": "<name>",
+                "run_id": "<id>",
+                "primary_dataset_uuid": "<id>"
+            }  # optional
+    ).update()
 """
 
 
@@ -225,9 +227,9 @@ class StatusChanger(EntityUpdater):
         fields_to_append_to: Optional[dict] = None,
         delimiter: str = "|",
         reindex: bool = True,
-        run_id: Optional[str] = None,
         # Additional field to support privileged field "status"
         status: Optional[Union[Statuses, str]] = None,
+        # Additional field to pass data to messaging classes
         messages: Optional[dict] = None,
         **kwargs,
     ):
@@ -240,7 +242,6 @@ class StatusChanger(EntityUpdater):
             fields_to_append_to,
             delimiter,
             reindex,
-            run_id,
         )
         self.status = self._validate_status(status)
         self.messages = messages
@@ -271,29 +272,9 @@ class StatusChanger(EntityUpdater):
             logging.info("Updating status...")
             self.validate_fields_to_change()
             self.set_entity_api_data()
-        self.call_message_managers()
-
-    def call_message_managers(self):
-        for message_type in self.message_classes:
-            message_manager = message_type(
-                self.status,
-                self.uuid,
-                self.token,
-                messages=self.messages,
-                run_id=self.run_id,
-            )
-            if message_manager.is_valid_for_status:
-                try:
-                    message_manager.update()
-                except EntityUpdateException as e:
-                    # Do not blow up for known errors
-                    logging.error(
-                        f"Message not sent from manager class {type(message_manager).__name__}. Error: {e}"
-                    )
-            else:
-                logging.info(
-                    f"Message manager class {type(message_manager).__name__} not valid for status {self.status}, skipping."
-                )
+        call_message_managers(
+            self.status, self.uuid, self.token, self.messages, self.message_classes
+        )
 
     def validate_fields_to_change(self):
         super().validate_fields_to_change()
@@ -309,16 +290,7 @@ class StatusChanger(EntityUpdater):
             return
         # Convert to Statuses enum member if passed as str
         elif type(status) is str:
-            try:
-                status = ENTITY_STATUS_MAP[self.entity_type.lower()][status.lower()]
-            except KeyError:
-                raise EntityUpdateException(
-                    f"""
-                    Could not retrieve status for {self.uuid}.
-                    Check that status is valid for entity type.
-                    Status not changed.
-                    """
-                )
+            status = get_status_enum(self.entity_type, status, self.uuid)
         assert type(status) is Statuses
         logging.info(f"Pending status: {status.status_str} ({status})")
         # Can't set the same status over the existing status; keep status but set same_status = True.
@@ -358,3 +330,45 @@ class StatusChanger(EntityUpdater):
         # Slightly fragile, needs to keep pace with EntityUpdater.update()
         super().validate_fields_to_change()
         super().set_entity_api_data()
+
+
+def call_message_managers(
+    status: Statuses | str,
+    uuid: str,
+    token: str,
+    messages: dict | None = None,
+    message_classes: list[type[MessageManager] | str] | None = None,
+):
+    class_map = {
+        "DataIngestBoardManager": DataIngestBoardManager,
+        "SlackManager": SlackManager,
+        "EmailManager": EmailManager,
+        "StatisticsManager": StatisticsManager,
+    }
+    if not message_classes:
+        message_classes = list(class_map.values())
+    for message_type in message_classes:
+        if isinstance(message_type, str):
+            try:
+                message_type = class_map[message_type]
+            except Exception:
+                logging.error(f"MessageManager class {message_type} not found. Skipping.")
+                continue
+        message_manager = message_type(
+            status,
+            uuid,
+            token,
+            messages=messages,
+        )
+        if message_manager.is_valid_for_status:
+            try:
+                message_manager.update()
+            except EntityUpdateException as e:
+                # Do not blow up for known errors
+                logging.error(
+                    f"Message not sent from manager class {type(message_manager).__name__}. Error: {e}"
+                )
+        else:
+            logging.info(
+                f"Message manager class {type(message_manager).__name__} not valid for status {status}, skipping."
+            )
