@@ -9,6 +9,7 @@ from utils import (
     get_preserve_scratch_resource,
     get_previous_revision_uuid,
     get_queue_resource,
+    get_run_id,
     get_tmp_dir_path,
     pythonop_send_create_dataset,
     pythonop_set_dataset_state,
@@ -56,6 +57,7 @@ with HMDAG(
         op_kwargs={
             "dataset_uuid_callable": get_dataset_uuid,
             "ds_state": "Error",
+            "run_id_callable": get_run_id,
             "message": "An error occurred in {}".format(pipeline_name),
             "parent_dataset_uuid_callable": get_parent_dataset_uuid,
             "pipeline_name": pipeline_name,
@@ -90,6 +92,7 @@ with HMDAG(
         op_kwargs={
             "dataset_uuid_callable": get_dataset_uuid,
             "ds_state": "Error",
+            "run_id_callable": get_run_id,
             "message": "An error occurred in {}".format(pipeline_name),
             "parent_dataset_uuid_callable": get_parent_dataset_uuid,
             "pipeline_name": pipeline_name,
