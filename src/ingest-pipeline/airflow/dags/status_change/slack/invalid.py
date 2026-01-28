@@ -5,7 +5,7 @@ class SlackUploadInvalid(SlackMessage):
     name = "upload_invalid"
 
     def format(self):
-        return [f"Upload {self.uuid} is in Invalid state.", self.entity_links_str]
+        return [f"Upload {self.uuid} is in Invalid state.", *self.entity_links]
 
 
 class SlackDatasetInvalid(SlackMessage):
@@ -16,4 +16,4 @@ class SlackDatasetInvalid(SlackMessage):
     name = "dataset_invalid"
 
     def format(self):
-        return [f"Dataset {self.uuid} is in Invalid state.", self.entity_links_str]
+        return [f"Dataset {self.uuid} is in Invalid state.", *self.entity_links]

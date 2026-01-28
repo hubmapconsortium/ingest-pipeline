@@ -28,6 +28,7 @@ class SlackMessage:
         self.channel = slack_channels.get(self.name, "")
         self.entity_id_str = f"{get_project().value[0]}_id"  # "hubmap_id" or "sennet_id"
         self.entity_data = get_submission_context(token, uuid)
+        self.entity_id = self.entity_data.get(self.entity_id_str)
 
     @classmethod
     def get_channel(cls):
@@ -54,27 +55,37 @@ class SlackMessage:
         raise NotImplementedError
 
     @property
-    def ingest_ui_url(self):
+    def ingest_ui_url(self) -> str:
         return get_entity_ingest_url(self.entity_data)
 
     @property
-    def data_ingest_board_url(self):
+    def data_ingest_board_url(self) -> str:
+        if self.primary_dataset_info:
+            return get_data_ingest_board_query_url(self.primary_dataset_info)
         return get_data_ingest_board_query_url(self.entity_data)
 
     @property
-    def entity_links_str(self):
+    def entity_links(self) -> list[str]:
         """
         View on Ingest UI.
-        View on Data Ingest Board.
+        View [primary dataset] on Data Ingest Board.
         View on Globus.
         Filesystem path: /path/to/data
         """
-        return f"""
-        <{self.ingest_ui_url}|View on Ingest UI.>
-        <{self.data_ingest_board_url}|View on Data Ingest Board.>
-        <{get_globus_url(self.uuid, self.token)}|View on Globus.>
-        Filesystem path: {self.copyable_filepath}
-        """
+        msg = [f"<{self.ingest_ui_url}|View on Ingest UI.>"]
+        if self.primary_dataset_info:
+            msg.append(
+                f"<{self.data_ingest_board_url}|View primary dataset on Data Ingest Board.>"
+            )
+        else:
+            msg.append(f"<{self.data_ingest_board_url}|View on Data Ingest Board.>")
+        msg.extend(
+            [
+                f"<{get_globus_url(self.uuid, self.token)}|View on Globus.>",
+                "Filesystem path: {self.copyable_filepath}",
+            ]
+        )
+        return msg
 
     @property
     def copyable_filepath(self):

@@ -60,7 +60,7 @@ class EmailManager(MessageManager):
 
     def send_email(self):
         assert self.subj and self.msg
-        main_send_email(self.main_recipients, self.subj, self.msg, cc=self.cc, prod_only=False)  #
+        main_send_email(self.main_recipients, self.subj, self.msg, cc=self.cc)
 
     ###################
     # Message details #
