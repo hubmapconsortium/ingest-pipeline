@@ -82,7 +82,7 @@ class SlackMessage:
         msg.extend(
             [
                 f"<{get_globus_url(self.uuid, self.token)}|View on Globus.>",
-                "Filesystem path: {self.copyable_filepath}",
+                f"Filesystem path: {self.copyable_filepath}",
             ]
         )
         return msg

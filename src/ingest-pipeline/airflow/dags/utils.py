@@ -2207,10 +2207,12 @@ def send_email(
                 logging.info(f"Internal recipients: {config_int_recipients}")
             if not contacts:
                 logging.info("No contacts found in airflow_conf, not sending. Would have sent:")
+                logging.info(preview)
+                return False
             else:
-                logging.info(f"Sending email to {config_ext_recipients}:")
-            logging.info(preview)
-            return False
+                logging.info(
+                    f"Sending email to {config_ext_recipients}. Preview of real data below:"
+                )
     if cc:
         # If a contact is in both lists, remove them from cc
         cc = list(set(cc) - set(contacts))
