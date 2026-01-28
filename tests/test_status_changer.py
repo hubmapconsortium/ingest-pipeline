@@ -1240,7 +1240,7 @@ class TestEmailManager(MockParent):
         )
         manager.get_recipients()
         assert manager.main_recipients == self.int_recipients
-        assert manager.cc == ""
+        assert manager.cc == []
 
     def test_get_contacts_invalid(self):
         manager = self.email_manager(Statuses.UPLOAD_INVALID, mock=True)

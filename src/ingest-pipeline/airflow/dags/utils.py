@@ -510,6 +510,10 @@ def get_uuid_for_error(**kwargs) -> Optional[str]:
     return rslt
 
 
+def get_run_id(**kwargs):
+    return kwargs["ti"].xcom_pull(key="run_id")
+
+
 def get_git_commits(file_list: StrOrListStr) -> StrOrListStr:
     """
     Given a list of file paths, return a list of the current short commit hashes of those files
@@ -1087,7 +1091,7 @@ def pythonop_set_dataset_state(**kwargs) -> None:
             kwargs["parent_dataset_uuid_callable"](**kwargs),
             get_auth_tok(**kwargs),
             messages={"processing_pipeline": kwargs.get("pipeline_name")},
-            message_classes=["SlackManager", "DataIngestBoardManager"],
+            message_classes=["SlackManager"],
         )
 
 
@@ -2146,6 +2150,28 @@ def main():
     print("crypto test: {} -> {} -> {}".format(s, crypt_s, s2))
 
 
+def get_config_value_int_recipients() -> list[str]:
+    """
+    Allows setting default internal email recipients at the config level;
+    overrides values passed into send_email if prod_only=True
+    """
+    conf_dict = airflow_conf.as_dict()
+    if int_recipients := conf_dict.get("email_notifications", {}).get("int_recipients"):
+        return [str(address) for address in [int_recipients]]
+    return []
+
+
+def get_config_value_ext_recipients() -> list[str]:
+    """
+    Allows setting default external email recipients at the config level;
+    overrides values passed into send_email if prod_only=True
+    """
+    conf_dict = airflow_conf.as_dict()
+    if main_recipient := conf_dict.get("email_notifications", {}).get("main"):
+        return [str(main_recipient)]
+    return []
+
+
 def send_email(
     contacts: list[str],
     subject: str,
@@ -2158,9 +2184,9 @@ def send_email(
     assert contacts and email_body
     preview = dedent(
         f"""
-            Contact: {contacts}
+            Contact: {", ".join(contacts)}
             cc: {", ".join(cc) if cc else "None"}
-            cc: {", ".join(bcc) if bcc else "None"}
+            bcc: {", ".join(bcc) if bcc else "None"}
             Subject: {subject}
             Message: {email_body}
             {("Attachment path: " + attachment_path) if attachment_path else "None"}
@@ -2171,7 +2197,18 @@ def send_email(
         host_str = HttpHook.get_connection("entity_api_connection").host
         env = find_matching_endpoint(host_str) if host_str else ""
         if env.lower() != "prod":
-            logging.info("Non-prod environment, not sending email. Would have sent:")
+            logging.info("Non-prod environment, fetching overrides from config.")
+            contacts = []
+            cc = None
+            bcc = None
+            if config_ext_recipients := get_config_value_int_recipients():
+                contacts = config_ext_recipients
+            if config_int_recipients := get_config_value_int_recipients():
+                logging.info(f"Internal recipients: {config_int_recipients}")
+            if not contacts:
+                logging.info("No contacts found in airflow_conf, not sending. Would have sent:")
+            else:
+                logging.info(f"Sending email to {config_ext_recipients}:")
             logging.info(preview)
             return False
     if cc:

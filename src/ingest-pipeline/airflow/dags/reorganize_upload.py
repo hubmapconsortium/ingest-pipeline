@@ -25,6 +25,7 @@ from hubmap_operators.common_operators import (
 )
 
 from utils import (
+    get_run_id,
     pythonop_maybe_keep,
     make_send_status_msg_function,
     get_tmp_dir_path,
@@ -453,15 +454,12 @@ with HMDAG(
     def _get_upload_uuid(**kwargs):
         return kwargs["ti"].xcom_pull(task_ids="find_uuid", key="uuid")
 
-    def _get_run_id(**kwargs):
-        return kwargs["ti"].xcom_pull(task_ids="find_uuid", key="run_id")
-
     t_set_dataset_error = PythonOperator(
         task_id="set_dataset_error",
         python_callable=pythonop_set_dataset_state,
         provide_context=True,
         trigger_rule="all_done",
-        op_kwargs={"dataset_uuid_callable": _get_upload_uuid, "ds_state": "Error", "run_id_callable": _get_run_id},
+        op_kwargs={"dataset_uuid_callable": _get_upload_uuid, "ds_state": "Error", "run_id_callable": get_run_id},
     )
 
     (
