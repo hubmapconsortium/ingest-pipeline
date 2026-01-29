@@ -71,10 +71,8 @@ class AirflowCallback(ABC):
         about pipelines. Supply that information if we can find it.
         """
         # If we have certain kwargs, this check is easy
-        pipeline_name = self.context.get("pipeline_name") or self.context.get("pipeline_shorthand")
-        if pipeline_name:
+        if pipeline_name := self.context.get("pipeline_shorthand"):
             return {"processing_pipeline": pipeline_name}
-
         # If not, check whether there are indicators that this took place
         # in a pipeline
         derived_dataset_uuid = self.context["ti"].xcom_pull("derived_dataset_uuid")

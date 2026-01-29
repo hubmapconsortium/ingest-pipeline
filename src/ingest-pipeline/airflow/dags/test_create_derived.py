@@ -1,5 +1,4 @@
 from datetime import datetime, timedelta
-from pathlib import Path
 
 from status_change.callbacks.failure_callback import FailureCallback
 from utils import (
@@ -79,7 +78,7 @@ with HMDAG(
     workflow_description = "test desc"
     workflow_version = "1.0.0"
 
-    send_status_msg = make_send_status_msg_function(
+    send_status_msg_primary = make_send_status_msg_function(
         dag_file=__file__,
         retcode_ops=[
             "pipeline_exec_cwl_segmentation",
@@ -90,15 +89,15 @@ with HMDAG(
             "pipeline_exec_cwl_sprm_to_anndata",
             "move_data",
         ],
-        cwl_workflows=[Path("test")],
+        cwl_workflows=["test"],
         workflow_description=workflow_description,
         workflow_version=workflow_version,
         dataset_uuid_fun=get_dataset_uuid,
     )
 
     t_send_status_primary = PythonOperator(
-        task_id="send_status_msg",
-        python_callable=send_status_msg,
+        task_id="send_status_msg_primary",
+        python_callable=send_status_msg_primary,
         provide_context=True,
         op_kwargs={
             "crypt_auth_tok": encrypt_tok(
@@ -123,9 +122,26 @@ with HMDAG(
         },
     )
 
+    send_status_msg_derived = make_send_status_msg_function(
+        dag_file=__file__,
+        retcode_ops=[
+            "pipeline_exec_cwl_segmentation",
+            "pipeline_exec_cwl_sprm",
+            "pipeline_exec_cwl_create_vis_symlink_archive",
+            "pipeline_exec_cwl_ome_tiff_offsets",
+            "pipeline_exec_cwl_sprm_to_json",
+            "pipeline_exec_cwl_sprm_to_anndata",
+            "move_data",
+        ],
+        cwl_workflows=["test"],
+        workflow_description=workflow_description,
+        workflow_version=workflow_version,
+        dataset_uuid_fun=get_dataset_uuid,
+    )
+
     t_send_status_derived = PythonOperator(
-        task_id="send_status_msg",
-        python_callable=send_status_msg,
+        task_id="send_status_msg_derived",
+        python_callable=send_status_msg_derived,
         provide_context=True,
         op_kwargs={
             "crypt_auth_tok": encrypt_tok(

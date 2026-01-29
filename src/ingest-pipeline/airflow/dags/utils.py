@@ -1063,11 +1063,14 @@ def pythonop_set_dataset_state(**kwargs) -> None:
     http_conn_id = kwargs.get("http_conn_id", "entity_api_connection")
     status = kwargs["ds_state"] if "ds_state" in kwargs else "Processing"
     pipeline_message = kwargs.get("message")
-    parent_dataset_uuid = get_uuid_for_error(**kwargs)
-    if parent_dataset_uuid:
-        pipeline = kwargs["dag_run"].dag
+    parent_dataset_uuid_callable = kwargs["parent_dataset_uuid_callable"]
+    if parent_dataset_uuid_callable and isinstance(parent_dataset_uuid_callable, Callable):
+        parent_dataset_uuid = parent_dataset_uuid_callable(**kwargs)
     else:
-        pipeline = kwargs.get("pipeline_shorthand")
+        parent_dataset_uuid = None
+    if not (pipeline := kwargs["dag_run"].dag):
+        if not (pipeline := kwargs.get("pipeline_shorthand")):
+            pipeline = None
     messages = {"run_id": run_id, "processing_pipeline": pipeline}
     # Derived dataset created, need to set status and send relevant messages
     if dataset_uuid is not None:
@@ -1083,7 +1086,7 @@ def pythonop_set_dataset_state(**kwargs) -> None:
         ).update()
     # No derived dataset was created, message based on the primary if
     # this is coming from a pipeline
-    elif parent_dataset_uuid and pipeline:
+    if parent_dataset_uuid and pipeline:
         call_message_managers(
             str(status),
             parent_dataset_uuid,
