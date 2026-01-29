@@ -196,7 +196,8 @@ class MessageManager:
 
     @property
     def run_id(self) -> str:
-        return self.messages.get("run_id", "")
+        run_id = self.messages.get("run_id", "")
+        return get_run_id(run_id)
 
     @property
     def is_dataset(self) -> bool:
@@ -471,10 +472,12 @@ def get_globus_url(uuid: str, token: str) -> Optional[str]:
     return prefix + urlencode(params)
 
 
-def get_run_id(run_id):
+def get_run_id(run_id) -> str:
     if isinstance(run_id, DagRun):
-        return run_id.run_id
-    return str(run_id)
+        return run_id.run_id if type(run_id.run_id) is str else ""
+    if type(run_id) is str:
+        return run_id
+    return ""
 
 
 def log_directory_path(run_id: str) -> str:

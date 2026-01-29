@@ -510,7 +510,7 @@ def get_uuid_for_error(**kwargs) -> Optional[str]:
     return rslt
 
 
-def get_run_id(**kwargs):
+def get_run_id(**kwargs) -> str | None:
     return kwargs["ti"].xcom_pull(key="run_id")
 
 
@@ -1003,10 +1003,7 @@ def pythonop_send_create_dataset(**kwargs) -> str:
             response_json.get("status"),
             uuid,
             get_auth_tok(**kwargs),
-            messages={
-                "run_id": kwargs.get("run_id", ""),
-                "parent_dataset_uuid": kwargs["parent_dataset_uuid_callable"](**kwargs),
-            },
+            messages={"run_id": kwargs.get("run_id", ""), "parent_dataset_uuid": source_uuids[0]},
             message_classes=["SlackManager", "DataIngestBoardManager"],
         )
 
@@ -1066,31 +1063,34 @@ def pythonop_set_dataset_state(**kwargs) -> None:
     )
     http_conn_id = kwargs.get("http_conn_id", "entity_api_connection")
     status = kwargs["ds_state"] if "ds_state" in kwargs else "Processing"
-    message = kwargs.get("message")
+    pipeline_message = kwargs.get("message")
+    pipeline = kwargs.get("pipeline_name") or kwargs.get("pipeline_shorthand")
+    messages = {"run_id": run_id, "processing_pipeline": pipeline}
+    parent_dataset_uuid = (
+        kwargs["parent_dataset_uuid_callable"](**kwargs)
+        if kwargs.get("parent_dataset_uuid_callable")
+        else None
+    )
     # Derived dataset created, need to set status and send relevant messages
     if dataset_uuid is not None:
-        messages = {
-            "run_id": run_id,
-            "processing_pipeline": kwargs.get("pipeline_name"),
-        }
-        if parent_dataset_uuid_callable := kwargs.get("parent_dataset_uuid_callable"):
-            messages["primary_dataset_uuid"] = parent_dataset_uuid_callable(**kwargs)
+        messages["primary_dataset_uuid"] = parent_dataset_uuid
         StatusChanger(
             dataset_uuid,
             get_auth_tok(**kwargs),
             status=status,
-            fields_to_overwrite={"pipeline_message": message} if message else {},
+            fields_to_overwrite={"pipeline_message": pipeline_message} if pipeline_message else {},
             http_conn_id=http_conn_id,
             reindex=reindex,
             messages=messages,
         ).update()
-    # No derived dataset was created, message based on the primary
-    elif kwargs.get("parent_dataset_uuid_callable") and kwargs.get("pipeline_name"):
+    # No derived dataset was created, message based on the primary if
+    # this is coming from a pipeline
+    elif parent_dataset_uuid and pipeline:
         call_message_managers(
             str(status),
-            kwargs["parent_dataset_uuid_callable"](**kwargs),
+            parent_dataset_uuid,
             get_auth_tok(**kwargs),
-            messages={"processing_pipeline": kwargs.get("pipeline_name")},
+            messages=messages,
             message_classes=["SlackManager"],
         )
 

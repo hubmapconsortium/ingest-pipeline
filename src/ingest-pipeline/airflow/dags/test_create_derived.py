@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 
+from status_change.callbacks.failure_callback import FailureCallback
 from utils import (
     HMDAG,
     encrypt_tok,
@@ -24,6 +25,7 @@ default_args = {
     "depends_on_past": False,
     "start_date": datetime(2019, 1, 1),
     "email": ["joel.welling@gmail.com"],
+    "on_failure_callback": FailureCallback(__name__),
     "email_on_failure": False,
     "email_on_retry": False,
     "retries": 0,

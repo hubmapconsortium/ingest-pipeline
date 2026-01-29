@@ -8,6 +8,10 @@ class ErrorStatusEmail(EmailTemplate):
     def format(self) -> tuple[str, str]:
         if self.data.derived:
             subj = f"Internal error for derived dataset {self.data.entity_id}"
+        elif self.data.is_primary:
+            subj = (
+                f"Internal error in processing pipeline for primary dataset {self.data.entity_id}"
+            )
         else:
             subj = f"Internal error for {self.data.entity_type} {self.data.entity_id}"
         msg = self.format_msg()
