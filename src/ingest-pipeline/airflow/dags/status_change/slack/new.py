@@ -14,7 +14,7 @@ class SlackDatasetNewDerived(SlackMessage):
     name = "dataset_new_derived"
 
     def format(self):
-        message = [f"Derived dataset {self.uuid} has been created."]
+        message = [f"Derived dataset {self.entity_id} | {self.uuid} has been created."]
         message.extend(self.entity_links)
         if self.primary_dataset_info:
             message.append(f"Primary dataset: {self.create_primary_link()}.")

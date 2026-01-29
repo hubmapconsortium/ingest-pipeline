@@ -7,7 +7,7 @@ class SlackDatasetQA(SlackMessage):
     name = "dataset_qa"
 
     def format(self):
-        return [f"Dataset {self.uuid} has reached QA!", *self.entity_links]
+        return [f"Dataset {self.entity_id} | {self.uuid} has reached QA!", *self.entity_links]
 
 
 class SlackDatasetQADerived(SlackMessage):
@@ -19,7 +19,7 @@ class SlackDatasetQADerived(SlackMessage):
         return get_is_derived(entity_data)
 
     def format(self):
-        message = [f"Derived dataset {self.uuid} has reached QA!"]
+        message = [f"Derived dataset {self.entity_id} | {self.uuid} has reached QA!"]
         if self.primary_dataset_info:
             message.append(f"Primary dataset: {self.create_primary_link()}.")
         message.extend(self.entity_links)

@@ -63,7 +63,7 @@ class SlackUploadReorganized(SlackMessage):
     def format(self):
         dataset_info, msg_data = self.get_upload_info()
         return [
-            f"Upload {self.uuid} reorganized:",
+            f"Upload {self.entity_id} | {self.uuid} reorganized:",
             *self.get_combined_info(msg_data, dataset_info),
         ]
 

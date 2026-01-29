@@ -1,8 +1,9 @@
+import logging
 from abc import ABC
 from typing import Callable
 
 from status_change.status_utils import get_run_id, get_submission_context
-from utils import decrypt_tok, get_auth_tok
+from utils import decrypt_tok, get_auth_tok, get_uuid_for_error
 
 
 class AirflowCallback(ABC):
@@ -32,11 +33,20 @@ class AirflowCallback(ABC):
         raise NotImplementedError
 
     def get_data(self):
-        if self.dataset_uuid_callable:
-            self.uuid = self.dataset_uuid_callable(**self.context)
-        else:
-            self.uuid = self.context["task_instance"].xcom_pull(key="uuid")
-        self.context["uuid"] = self.uuid
+        # Try several methods of figuring out UUID
+        if not (
+            uuid := (
+                self.dataset_uuid_callable(**self.context) if self.dataset_uuid_callable else ""
+            )
+        ):
+            if not (uuid := self.context["task_instance"].xcom_pull(key="uuid")):
+                if not (uuid := get_uuid_for_error(**self.context)):
+                    logging.error(
+                        "Could not determine UUID, no status change or messaging actions will be taken."
+                    )
+                    self.uuid = ""
+                    return
+        self.context["uuid"] = uuid
         try:
             self.auth_tok = get_auth_tok(**self.context)
         except KeyError:

@@ -7,14 +7,14 @@ class SlackUploadError(SlackMessage):
     name = "upload_error"
 
     def format(self):
-        return [f"Upload {self.uuid} is in Error state.", *self.entity_links]
+        return [f"Upload {self.entity_id} | {self.uuid} is in Error state.", *self.entity_links]
 
 
 class SlackDatasetError(SlackMessage):
     name = "dataset_error"
 
     def format(self):
-        return [f"Dataset {self.uuid} is in Error state.", *self.entity_links]
+        return [f"Dataset {self.entity_id} | {self.uuid} is in Error state.", *self.entity_links]
 
 
 class SlackDatasetErrorDerived(SlackMessage):
@@ -25,7 +25,10 @@ class SlackDatasetErrorDerived(SlackMessage):
     name = "dataset_error_derived"
 
     def format(self):
-        message = [f"Derived dataset {self.uuid} is in Error state.", *self.entity_links]
+        message = [
+            f"Derived dataset {self.entity_id} | {self.uuid} is in Error state.",
+            *self.entity_links,
+        ]
         if self.primary_dataset_info:
             message.append(f"Primary dataset: {self.create_primary_link()}.")
         return message
@@ -46,7 +49,8 @@ class SlackDatasetErrorPrimaryPipeline(SlackMessage):
 
     def format(self):
         message = [
-            f"Error while processing primary dataset <{self.ingest_ui_url}|{self.entity_id}/{self.uuid}>.",
+            f"Error while processing primary dataset {self.entity_id} | {self.uuid}.",
+            f"<{self.ingest_ui_url}|View on Ingest UI.>",
             f"Error message: {self.entity_data['pipeline_message']}",
         ]
         if self.run_id:
