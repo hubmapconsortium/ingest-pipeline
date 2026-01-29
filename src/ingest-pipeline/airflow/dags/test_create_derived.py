@@ -1,16 +1,17 @@
 from datetime import datetime, timedelta
+from pathlib import Path
 
 from status_change.callbacks.failure_callback import FailureCallback
 from utils import (
     HMDAG,
     encrypt_tok,
-    get_dataset_uuid,
     get_parent_dataset_uuids_list,
     get_preserve_scratch_resource,
     get_previous_revision_uuid,
     get_queue_resource,
     get_run_id,
     get_tmp_dir_path,
+    get_uuid_for_error,
     make_send_status_msg_function,
     pythonop_send_create_dataset,
     pythonop_set_dataset_state,
@@ -50,6 +51,15 @@ with HMDAG(
 
     pipeline_name = "test_create_derived"
 
+    def get_dataset_uuid(**kwargs):
+        if not (uuid := kwargs["task_instance"].xcom_pull(key="uuid")):
+            if not (uuid := get_uuid_for_error(**kwargs)):
+                print(
+                    "Could not determine UUID, no status change or messaging actions will be taken."
+                )
+                return ""
+        return uuid
+
     # should set on primary (new behavior)
     t_set_dataset_error_primary = PythonOperator(
         task_id="set_dataset_error_primary",
@@ -80,15 +90,21 @@ with HMDAG(
             "pipeline_exec_cwl_sprm_to_anndata",
             "move_data",
         ],
-        cwl_workflows=lambda **kwargs: kwargs["ti"].xcom_pull(
-            key="cwl_workflows", task_ids="build_cmd_sprm_to_anndata"
-        ),
+        cwl_workflows=[Path("test")],
         workflow_description=workflow_description,
         workflow_version=workflow_version,
+        dataset_uuid_fun=get_dataset_uuid,
     )
 
-    t_send_status = PythonOperator(
-        task_id="send_status_msg", python_callable=send_status_msg, provide_context=True
+    t_send_status_primary = PythonOperator(
+        task_id="send_status_msg",
+        python_callable=send_status_msg,
+        provide_context=True,
+        op_kwargs={
+            "crypt_auth_tok": encrypt_tok(
+                airflow_conf.as_dict()["connections"]["APP_CLIENT_SECRET"]
+            ).decode()
+        },
     )
 
     t_send_create_dataset = PythonOperator(
@@ -102,8 +118,19 @@ with HMDAG(
             "dataset_name_callable": lambda **kwargs: "test_derived_dataset",
             "pipeline_shorthand": pipeline_name,
             "crypt_auth_tok": encrypt_tok(
-                airflow_conf.as_dict()["connections"]["APP_CLIENT_SECRET"]
+                airflow_conf.as_dict()["connections"]["APP_CLIENT_SECRET"]  # type: ignore
             ).decode(),
+        },
+    )
+
+    t_send_status_derived = PythonOperator(
+        task_id="send_status_msg",
+        python_callable=send_status_msg,
+        provide_context=True,
+        op_kwargs={
+            "crypt_auth_tok": encrypt_tok(
+                airflow_conf.as_dict()["connections"]["APP_CLIENT_SECRET"]
+            ).decode()
         },
     )
 
@@ -119,14 +146,15 @@ with HMDAG(
             "run_id_callable": get_run_id,
             "message": "An error occurred in {}".format(pipeline_name),
             "crypt_auth_tok": encrypt_tok(
-                airflow_conf.as_dict()["connections"]["APP_CLIENT_SECRET"]
+                airflow_conf.as_dict()["connections"]["APP_CLIENT_SECRET"]  # type: ignore
             ).decode(),
         },
     )
 
     (
         t_set_dataset_error_primary
-        >> t_send_status
+        >> t_send_status_primary
         >> t_send_create_dataset
+        >> t_send_status_derived
         >> t_set_dataset_error_derived
     )

@@ -1063,11 +1063,7 @@ def pythonop_set_dataset_state(**kwargs) -> None:
     http_conn_id = kwargs.get("http_conn_id", "entity_api_connection")
     status = kwargs["ds_state"] if "ds_state" in kwargs else "Processing"
     pipeline_message = kwargs.get("message")
-    parent_dataset_uuid = (
-        kwargs["parent_dataset_uuid_callable"](**kwargs)
-        if kwargs.get("parent_dataset_uuid_callable")
-        else None
-    )
+    parent_dataset_uuid = get_uuid_for_error(**kwargs)
     if parent_dataset_uuid:
         pipeline = kwargs["dag_run"].dag
     else:
@@ -1757,11 +1753,13 @@ def make_send_status_msg_function(
                 bool([op for op in retcode_ops if op == "pipeline_exec"]),
             ]
         )
+        print(f"PIPELINE: {pipeline}")
         messages = kwargs["ti"].xcom_pull(task_ids="run_validation", key="report_data") or {} | {
             "run_id": kwargs.get("run_id")
         }
         if pipeline == True:
             messages["processing_pipeline"] = dag_file
+        print(f"PROCESSING_PIPELINE: {dag_file}")
         if status:
             if kwargs["dag"].dag_id in ["multiassay_component_metadata", "reorganize_multiassay"]:
                 status = None
