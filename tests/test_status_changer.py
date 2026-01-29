@@ -1277,7 +1277,7 @@ class TestEmailManager(MockParent):
             context=good_upload_context | {"error_message": "An error has occurred"},
         )
         expected_subj = "Internal error for Upload test_hm_id"
-        expected_msg = "HuBMAP ID: test_hm_id<br>UUID: test_uuid<br>Entity type: Upload<br>Status: Error<br>Group: test group<br>Primary contact: test@user.com<br>Ingest page: https://ingest.hubmapconsortium.org/upload/test_uuid<br>Log file: test_path/test_run_id<br>"
+        expected_msg = "HuBMAP ID: test_hm_id<br>UUID: test_uuid<br>Entity type: Upload<br>Status: Error<br>Group: test group<br>Primary contact: test@user.com<br>Ingest page: https://ingest.hubmapconsortium.org/upload/test_uuid<br>Run ID: test_run_id<br>Log file: test_path/test_run_id<br>"
         # print(f"Expected subject: {expected_subj}")
         # print(f"Actual subj: {manager.subj}")
         # print(f"Expected msg: {expected_msg}")
