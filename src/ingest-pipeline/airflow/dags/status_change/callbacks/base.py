@@ -46,6 +46,7 @@ class AirflowCallback(ABC):
                     )
                     self.uuid = ""
                     return
+        self.uuid = uuid
         self.context["uuid"] = uuid
         try:
             self.auth_tok = get_auth_tok(**self.context)

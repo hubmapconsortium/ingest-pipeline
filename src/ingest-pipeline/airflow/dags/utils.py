@@ -1047,7 +1047,6 @@ def pythonop_set_dataset_state(**kwargs) -> None:
     'ds_state' : one of 'QA', 'Processing', 'Error', 'Invalid'. Default: 'Processing'
     'message' : update message, saved as dataset metadata element "pipeline_message".
                 The default is not to save any message.
-    'pipeline_name' : name of pipeline
     """
     from status_change.status_manager import StatusChanger, call_message_managers
 
@@ -1064,13 +1063,16 @@ def pythonop_set_dataset_state(**kwargs) -> None:
     http_conn_id = kwargs.get("http_conn_id", "entity_api_connection")
     status = kwargs["ds_state"] if "ds_state" in kwargs else "Processing"
     pipeline_message = kwargs.get("message")
-    pipeline = kwargs.get("pipeline_name") or kwargs.get("pipeline_shorthand")
-    messages = {"run_id": run_id, "processing_pipeline": pipeline}
     parent_dataset_uuid = (
         kwargs["parent_dataset_uuid_callable"](**kwargs)
         if kwargs.get("parent_dataset_uuid_callable")
         else None
     )
+    if parent_dataset_uuid:
+        pipeline = kwargs["dag_run"].dag
+    else:
+        pipeline = kwargs.get("pipeline_shorthand")
+    messages = {"run_id": run_id, "processing_pipeline": pipeline}
     # Derived dataset created, need to set status and send relevant messages
     if dataset_uuid is not None:
         messages["primary_dataset_uuid"] = parent_dataset_uuid
@@ -1563,7 +1565,11 @@ def make_send_status_msg_function(
     no file metadata will be included.  Note that file metadata may also be excluded
     based on the return value of 'dataset_lz_path_fun' above.
     """
-    from status_change.status_manager import EntityUpdateException, StatusChanger
+    from status_change.status_manager import (
+        EntityUpdateException,
+        StatusChanger,
+        call_message_managers,
+    )
 
     # Does the string represent a "true" value, or an int that is 1
     def __is_true(val):
@@ -1743,13 +1749,23 @@ def make_send_status_msg_function(
                 "pipeline_message": err_txt[-20000:],
             }
             return_status = False
+
+        pipeline = any(
+            [
+                bool(workflow_description),
+                bool(cwl_workflows),
+                bool([op for op in retcode_ops if op == "pipeline_exec"]),
+            ]
+        )
+        messages = kwargs["ti"].xcom_pull(task_ids="run_validation", key="report_data") or {} | {
+            "run_id": kwargs.get("run_id")
+        }
+        if pipeline == True:
+            messages["processing_pipeline"] = dag_file
         if status:
             if kwargs["dag"].dag_id in ["multiassay_component_metadata", "reorganize_multiassay"]:
                 status = None
             try:
-                messages = kwargs["ti"].xcom_pull(
-                    task_ids="run_validation", key="report_data"
-                ) or {} | {"run_id": kwargs.get("run_id")}
                 StatusChanger(
                     dataset_uuid,
                     get_auth_tok(**kwargs),
@@ -1761,6 +1777,15 @@ def make_send_status_msg_function(
             except EntityUpdateException:
                 return_status = False
 
+        elif pipeline:
+            call_message_managers(
+                ds_rslt.get("status", ""),
+                dataset_uuid,
+                get_auth_tok(**kwargs),
+                messages=messages,
+                message_classes=["SlackManager"],
+            )
+            return_status = False
         return return_status
 
     return send_status_msg

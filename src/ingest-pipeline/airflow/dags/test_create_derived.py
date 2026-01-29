@@ -5,13 +5,13 @@ from utils import (
     HMDAG,
     encrypt_tok,
     get_dataset_uuid,
-    get_parent_dataset_uuid,
     get_parent_dataset_uuids_list,
     get_preserve_scratch_resource,
     get_previous_revision_uuid,
     get_queue_resource,
     get_run_id,
     get_tmp_dir_path,
+    make_send_status_msg_function,
     pythonop_send_create_dataset,
     pythonop_set_dataset_state,
 )
@@ -61,12 +61,34 @@ with HMDAG(
             "ds_state": "Error",
             "run_id_callable": get_run_id,
             "message": "An error occurred in {}".format(pipeline_name),
-            "parent_dataset_uuid_callable": get_parent_dataset_uuid,
-            "pipeline_name": pipeline_name,
             "crypt_auth_tok": encrypt_tok(
                 airflow_conf.as_dict()["connections"]["APP_CLIENT_SECRET"]
             ).decode(),
         },
+    )
+    workflow_description = "test desc"
+    workflow_version = "1.0.0"
+
+    send_status_msg = make_send_status_msg_function(
+        dag_file=__file__,
+        retcode_ops=[
+            "pipeline_exec_cwl_segmentation",
+            "pipeline_exec_cwl_sprm",
+            "pipeline_exec_cwl_create_vis_symlink_archive",
+            "pipeline_exec_cwl_ome_tiff_offsets",
+            "pipeline_exec_cwl_sprm_to_json",
+            "pipeline_exec_cwl_sprm_to_anndata",
+            "move_data",
+        ],
+        cwl_workflows=lambda **kwargs: kwargs["ti"].xcom_pull(
+            key="cwl_workflows", task_ids="build_cmd_sprm_to_anndata"
+        ),
+        workflow_description=workflow_description,
+        workflow_version=workflow_version,
+    )
+
+    t_send_status = PythonOperator(
+        task_id="send_status_msg", python_callable=send_status_msg, provide_context=True
     )
 
     t_send_create_dataset = PythonOperator(
@@ -96,12 +118,15 @@ with HMDAG(
             "ds_state": "Error",
             "run_id_callable": get_run_id,
             "message": "An error occurred in {}".format(pipeline_name),
-            "parent_dataset_uuid_callable": get_parent_dataset_uuid,
-            "pipeline_name": pipeline_name,
             "crypt_auth_tok": encrypt_tok(
                 airflow_conf.as_dict()["connections"]["APP_CLIENT_SECRET"]
             ).decode(),
         },
     )
 
-    t_set_dataset_error_primary >> t_send_create_dataset >> t_set_dataset_error_derived
+    (
+        t_set_dataset_error_primary
+        >> t_send_status
+        >> t_send_create_dataset
+        >> t_set_dataset_error_derived
+    )
