@@ -196,32 +196,8 @@ class MessageManager:
         return get_run_id(run_id)
 
     @property
-    def is_dataset(self) -> bool:
-        if self.entity_data.get("entity_type", "").lower() == "dataset":
-            return True
-        return False
-
-    @property
     def derived(self) -> bool:
         if get_is_derived(self.entity_data):
-            return True
-        return False
-
-    @property
-    def is_primary(self) -> bool:
-        """
-        After weeding out non-datasets and anything categorized
-        as derived, checks for self.processing_pipeline value.
-
-        Only used for datasets undergoing processing;
-        datasets earlier in the ingestion process are not considered
-        primaries.
-        """
-        if not self.is_dataset:
-            return False
-        elif self.derived:
-            return False
-        elif self.processing_pipeline:
             return True
         return False
 
