@@ -191,10 +191,6 @@ class MessageManager:
         return self.messages.get("processing_pipeline", "")
 
     @property
-    def primary_dataset_uuid(self) -> str:
-        return self.messages.get("primary_dataset_uuid", "")
-
-    @property
     def run_id(self) -> str:
         run_id = self.messages.get("run_id", "")
         return get_run_id(run_id)

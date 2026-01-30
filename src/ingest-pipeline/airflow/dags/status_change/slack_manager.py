@@ -6,8 +6,7 @@ from status_change.slack.new import SlackDatasetNew, SlackDatasetNewDerived
 from .slack.base import SlackMessage
 from .slack.error import (
     SlackDatasetError,
-    SlackDatasetErrorDerived,
-    SlackDatasetErrorPrimaryPipeline,
+    SlackDatasetErrorProcessing,
     SlackUploadError,
 )
 from .slack.invalid import (
@@ -65,7 +64,7 @@ class SlackManager(MessageManager):
         Statuses.DATASET_ERROR: {
             "main_class": SlackDatasetError,
             "subclasses": [],
-            "subclasses": [SlackDatasetErrorDerived, SlackDatasetErrorPrimaryPipeline],
+            "subclasses": [SlackDatasetErrorProcessing],
         },
         Statuses.DATASET_INVALID: {
             "main_class": SlackDatasetInvalid,
@@ -104,7 +103,6 @@ class SlackManager(MessageManager):
         class_kwargs = {"run_id": self.run_id, "processing_pipeline": self.processing_pipeline}
         test_kwargs = {
             "processing_pipeline": self.processing_pipeline,
-            "primary_dataset_uuid": self.primary_dataset_uuid,
         }
         for subclass in relevant_classes.get("subclasses", []):
             if subclass.test(self.entity_data, self.token, **test_kwargs):

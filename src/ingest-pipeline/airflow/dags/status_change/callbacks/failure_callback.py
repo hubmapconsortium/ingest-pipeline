@@ -89,3 +89,12 @@ class FailureCallback(AirflowCallback):
         super().get_data()
         exception = self.context.get("exception")
         self.formatted_exception = formatted_exception(exception)
+        self.messages["processing_pipeline"] = self.check_for_pipeline()
+
+    def check_for_pipeline(self) -> str:
+        """
+        Some messaging rules depend on the presence of information
+        about pipelines. If we have it, add it to messages.
+        """
+        pipeline = self.context.get("pipeline_shorthand") or self.context.get("pipeline_name", "")
+        return pipeline

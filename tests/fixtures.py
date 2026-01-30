@@ -15,7 +15,7 @@ slack_upload_reorg_priority_str = [
 
 
 slack_upload_reorg_str = [
-    "Upload test_uuid reorganized:",
+    "Upload test_hm_id | test_uuid reorganized:",
     "hubmap_id: <https://ingest.hubmapconsortium.org/upload/test_uuid|test_hm_id>",
     "created_by_user_displayname: Test User",
     "created_by_user_email: test@user.com",
@@ -73,6 +73,7 @@ dataset_context_mock_value = {
     "created_by_user_email": "test_dataset@user.com",
     "status": "New",
     "entity_type": "Dataset",
+    "creation_action": "Create Dataset Activity",
 }
 
 derived_dataset_context_mock_value = dataset_context_mock_value | {

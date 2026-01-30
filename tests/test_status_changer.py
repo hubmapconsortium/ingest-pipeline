@@ -5,7 +5,7 @@ import unittest
 from datetime import date
 from functools import cached_property
 from typing import Optional
-from unittest.mock import MagicMock, PropertyMock, call, patch
+from unittest.mock import MagicMock, PropertyMock, patch
 
 import requests
 from status_change.callbacks.failure_callback import FailureCallback
@@ -15,8 +15,7 @@ from status_change.email_templates.invalid import InvalidStatusEmail
 from status_change.slack.base import SlackMessage
 from status_change.slack.error import (
     SlackDatasetError,
-    SlackDatasetErrorDerived,
-    SlackDatasetErrorPrimaryPipeline,
+    SlackDatasetErrorProcessing,
     SlackUploadError,
 )
 from status_change.slack.invalid import SlackDatasetInvalid, SlackUploadInvalid
@@ -28,6 +27,7 @@ from status_change.slack.reorganized import (
     SlackUploadReorganizedPriority,
 )
 from status_change.slack_manager import SlackManager
+from status_change.statistics_manager import StatisticsManager
 from status_change.status_manager import (
     EntityUpdateException,
     EntityUpdater,
@@ -47,7 +47,6 @@ from status_change.status_utils import (
 )
 from tests.fixtures import (
     dataset_context_mock_value,
-    dataset_context_mock_value_with_error,
     derived_dataset_context_mock_value,
     endpoints,
     ext_error,
@@ -61,6 +60,7 @@ from utils import pythonop_set_dataset_state
 
 from airflow.configuration import conf as airflow_conf
 from airflow.models.connection import Connection
+from airflow.models.dagrun import DagRun
 
 conn_mock_hm = Connection(host=f"https://ingest.api.hubmapconsortium.org")
 
@@ -100,6 +100,13 @@ class MockParent(unittest.TestCase):
     Other patches may be necessary at the subclass or test level.
     """
 
+    mock_message_class_map = {
+        "status_change.data_ingest_board_manager.DataIngestBoardManager": DataIngestBoardManager,
+        "status_change.slack_manager.SlackManager": SlackManager,
+        "status_change.email_manager.EmailManager": EmailManager,
+        "status_change.statistics_manager.StatisticsManager": StatisticsManager,
+    }
+
     def setUp(self):
 
         # Patch objects
@@ -129,6 +136,10 @@ class MockParent(unittest.TestCase):
             "status_change.data_ingest_board_manager.DataIngestBoardManager.update"
         )
         self.email_send = patch("status_change.email_manager.EmailManager.send_email")
+        # self.class_map = patch(
+        #     "status_change.status_manager.message_class_map",
+        #     self.mock_message_class_map,
+        # )
 
         # Mock objects
         self.mock_token = self.token.start()
@@ -145,6 +156,7 @@ class MockParent(unittest.TestCase):
         self.mock_slack_post = self.slack_post.start()
         self.mock_dib_update = self.dib_update.start()
         self.mock_email_send = self.email_send.start()
+        # self.mock_class_map = self.class_map.start()
 
         # Stop/clean up patches after test
         self.addCleanup(self.token.stop)
@@ -160,6 +172,7 @@ class MockParent(unittest.TestCase):
         self.addCleanup(self.slack_post.stop)
         self.addCleanup(self.dib_update.stop)
         self.addCleanup(self.email_send.stop)
+        # self.addCleanup(self.class_map.stop)
 
         super().setUp()
 
@@ -420,6 +433,47 @@ class TestStatusChanger(MockParent):
                 message=message,
                 ds_state="Unknown",
             )
+
+    @patch("status_change.status_manager.StatusChanger")
+    def test_get_any_dataset_uuid(self, sc_mock):
+        uuid = None
+        token = "test_token"
+        message = "Test message"
+        # No uuid passed, no uuid in context
+        dag_run_mock = MagicMock(conf={"dryrun": False})
+        pythonop_set_dataset_state(
+            crypt_auth_tok=token,
+            dataset_uuid_callable=self.my_callable,
+            uuid=uuid,
+            message=message,
+            dag_run=dag_run_mock,
+            pipeline_name="test_pipeline",
+        )
+        sc_mock.assert_not_called()
+        self.mock_slack_update.assert_not_called()
+        # No uuid passed, but uuid in context
+        task_instance_mock = MagicMock()
+        task_instance_mock.xcom_pull.side_effect = lambda key: {"uuid": "test_uuid"}[key]
+        for mock_kwargs in [
+            {"ti": task_instance_mock},
+            {"derived_dataset_uuid": "test_uuid"},
+            {"parent_submission_id": "test_uuid"},
+        ]:
+            pythonop_set_dataset_state(
+                crypt_auth_tok=token,
+                dataset_uuid_callable=self.my_callable,
+                uuid=uuid,
+                message=message,
+                ds_state="Error",
+                dag_run=dag_run_mock,
+                pipeline_name="test_pipeline",
+                **mock_kwargs,
+            )
+            try:
+                sc_mock.assert_not_called()
+                self.mock_slack_update.assert_called_once()
+            except AssertionError as e:
+                raise Exception(f"mock_kwargs = {mock_kwargs}; {e}")
 
     def test_slack_triggered(
         self,
@@ -729,21 +783,20 @@ class TestSlack(MockParent):
                 Statuses.DATASET_ERROR,
                 **{
                     "messages": {
-                        "primary_dataset_uuid": "test_primary_uuid",
                         "processing_pipeline": "test_pipeline",
                     }
                 },
             )
-            assert type(primary_dataset_mgr.message_class) is SlackDatasetErrorPrimaryPipeline
+            assert type(primary_dataset_mgr.message_class) is SlackDatasetErrorProcessing
         with patch(
             "status_change.status_utils.get_submission_context",
             return_value=derived_dataset_context_mock_value,
         ):
             derived_dataset_mgr = self.slack_manager(
                 Statuses.DATASET_ERROR,
-                **{"messages": {"primary_dataset_uuid": "test_primary_uuid"}},
+                **{"messages": {"processing_pipeline": "test_pipeline"}},
             )
-            assert type(derived_dataset_mgr.message_class) is SlackDatasetErrorDerived
+            assert type(derived_dataset_mgr.message_class) is SlackDatasetErrorProcessing
 
     def test_invalid_classes(self):
         upload_mgr = self.slack_manager(Statuses.UPLOAD_INVALID)
@@ -829,41 +882,57 @@ class TestSlack(MockParent):
 
 
 class TestFailureCallback(MockParent):
-    @patch("traceback.TracebackException.from_exception")
-    def test_failure_callback(self, tbfa_mock):
+    run_id = "execution_date_test_dag"
+    dag_run_mock = MagicMock(
+        conf={"dryrun": False},
+        dag_id="test_dag_id",
+        execution_date=date.fromisoformat("2025-06-05"),
+        run_id=run_id,
+        spec=DagRun,
+    )
+
+    @staticmethod
+    def _xcom_getter(key):
+        return {"uuid": "abc123"}[key]
+
+    class _exception_formatter:
+        def __init__(self, excp_str):
+            self.excp_str = excp_str
+
+        def format(self):
+            return f"This is the formatted version of {self.excp_str}"
+
+    def setUp(self):
+        super().setUp()
+        self.from_excp = patch(
+            "traceback.TracebackException.from_exception",
+            side_effect=lambda excp: self._exception_formatter(excp),
+        )
+        task_instance_mock = MagicMock()
+        task_instance_mock.xcom_pull.side_effect = self._xcom_getter
+
+        self.mock_from_excp = self.from_excp.start()
+
+        self.addCleanup(self.from_excp.stop)
+
+        self.context_tweak = {
+            "task_instance": task_instance_mock,
+            "task": MagicMock(task_id="mytaskid"),
+            "crypt_auth_tok": "test_crypt_auth_tok",
+            "dag_run": self.dag_run_mock,
+            "exception": "FakeTestException",
+        }
+
+    def test_default(self):
         self.entity_update.stop()
-
-        def _xcom_getter(key):
-            return {"uuid": "abc123"}[key]
-
-        class _exception_formatter:
-            def __init__(self, excp_str):
-                self.excp_str = excp_str
-
-            def format(self):
-                return f"This is the formatted version of {self.excp_str}"
 
         with patch("status_change.status_utils.HttpHook.run") as hhr_mock:
             with patch("status_change.callbacks.base.get_auth_tok", return_value="auth_token"):
                 hhr_mock.return_value.json.return_value = {
                     "entity_type": "upload",
-                    "status": "new",
+                    "status": "error",
                 }
-                tbfa_mock.side_effect = lambda excp: _exception_formatter(excp)
-                dag_run_mock = MagicMock(
-                    conf={"dryrun": False},
-                    dag_id="test_dag_id",
-                    execution_date=date.fromisoformat("2025-06-05"),
-                )
-                task_instance_mock = MagicMock()
-                task_instance_mock.xcom_pull.side_effect = _xcom_getter
-                tweaked_ctx = good_upload_context.copy() | {
-                    "task_instance": task_instance_mock,
-                    "task": MagicMock(task_id="mytaskid"),
-                    "crypt_auth_tok": "test_crypt_auth_tok",
-                    "dag_run": dag_run_mock,
-                    "exception": "FakeTestException",
-                }
+                tweaked_ctx = good_upload_context.copy() | self.context_tweak
                 fcb = FailureCallback(__name__)
                 fcb(tweaked_ctx)
                 assert fcb.task
@@ -887,6 +956,28 @@ class TestFailureCallback(MockParent):
                 assert hhr_call[0][0] == "/entities/abc123?reindex=True"
                 assert hhr_call[0][2]["authorization"] == "Bearer auth_token"
 
+    def test_has_pipeline_name(self):
+        self.entity_update.stop()
+
+        with patch("status_change.status_utils.HttpHook.run") as hhr_mock:
+            with patch("status_change.callbacks.base.get_auth_tok"):
+                hhr_mock.return_value.json.return_value = {
+                    "entity_type": "dataset",
+                    "status": "qa",
+                }
+                tweaked_ctx = (
+                    dataset_context_mock_value.copy()
+                    | self.context_tweak
+                    | {"pipeline_name": "test_pipeline"}
+                )
+                fcb = FailureCallback(__name__)
+                fcb(tweaked_ctx)
+                assert fcb.messages == {
+                    "processing_pipeline": "test_pipeline",
+                    "run_id": self.run_id,
+                }
+                self.mock_slack_update.assert_called_once()
+
 
 class TestDataIngestBoardManager(MockParent):
 
@@ -901,6 +992,7 @@ class TestDataIngestBoardManager(MockParent):
             "upload_valid_token",
             status="Invalid",
             extra_options={},
+            message_classes=["DataIngestBoardManager"],
         )
         sc.update()
         self.mock_dib_update.assert_called_once()

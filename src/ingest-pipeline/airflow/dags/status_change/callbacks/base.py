@@ -56,7 +56,7 @@ class AirflowCallback(ABC):
         self.task = self.context.get("task")
         self.entity_data = get_submission_context(self.auth_tok, self.uuid)
         self.entity_type = self.entity_data.get("entity_type", "").lower()
-        self.messages = self.check_for_pipeline() | {"run_id": get_run_id(self.dag_run)}
+        self.messages = {"run_id": get_run_id(self.dag_run)}
 
     def alt_get_auth_tok(self):
         crypt_auth_tok = self.context["params"]["crypt_auth_tok"]
@@ -64,25 +64,3 @@ class AirflowCallback(ABC):
             e for e in decrypt_tok(crypt_auth_tok.encode()) if e.isalnum()
         )  # strip out non-alnum characters
         return auth_tok
-
-    def check_for_pipeline(self) -> dict[str, str]:
-        """
-        Some messaging rules depend on the presence of information
-        about pipelines. Supply that information if we can find it.
-        """
-        # If we have certain kwargs, this check is easy
-        if pipeline_name := self.context.get("pipeline_shorthand"):
-            return {"processing_pipeline": pipeline_name}
-        # If not, check whether there are indicators that this took place
-        # in a pipeline
-        derived_dataset_uuid = self.context["ti"].xcom_pull("derived_dataset_uuid")
-        parent_dataset_uuid = (
-            self.context["parent_dataset_uuid_callable"](**self.context)
-            if isinstance(self.context.get("parent_dataset_uuid_callable"), Callable)
-            else None
-        )
-
-        # If indicator found, return relevant message
-        if parent_dataset_uuid or derived_dataset_uuid:
-            return {"processing_pipeline": self.called_from}
-        return {}

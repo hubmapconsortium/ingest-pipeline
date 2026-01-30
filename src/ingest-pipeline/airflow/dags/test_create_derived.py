@@ -1,16 +1,20 @@
 from datetime import datetime, timedelta
 
+from hubmap_operators.common_operators import (
+    CleanupTmpDirOperator,
+    CreateTmpDirOperator,
+)
 from status_change.callbacks.failure_callback import FailureCallback
 from utils import (
     HMDAG,
     encrypt_tok,
+    get_dataset_uuid,
     get_parent_dataset_uuids_list,
     get_preserve_scratch_resource,
     get_previous_revision_uuid,
     get_queue_resource,
     get_run_id,
     get_tmp_dir_path,
-    get_uuid_for_error,
     make_send_status_msg_function,
     pythonop_send_create_dataset,
     pythonop_set_dataset_state,
@@ -49,15 +53,6 @@ with HMDAG(
 ) as dag:
 
     pipeline_name = "test_create_derived"
-
-    def get_dataset_uuid(**kwargs):
-        if not (uuid := kwargs["task_instance"].xcom_pull(key="uuid")):
-            if not (uuid := get_uuid_for_error(**kwargs)):
-                print(
-                    "Could not determine UUID, no status change or messaging actions will be taken."
-                )
-                return ""
-        return uuid
 
     # should set on primary (new behavior)
     t_set_dataset_error_primary = PythonOperator(
@@ -167,10 +162,16 @@ with HMDAG(
         },
     )
 
+    t_create_tmpdir = CreateTmpDirOperator(task_id="create_temp_dir")
+
+    t_cleanup_tmpdir = CleanupTmpDirOperator(task_id="cleanup_temp_dir")
+
     (
-        t_set_dataset_error_primary
+        t_create_tmpdir
+        >> t_set_dataset_error_primary
         >> t_send_status_primary
         >> t_send_create_dataset
         >> t_send_status_derived
         >> t_set_dataset_error_derived
+        >> t_cleanup_tmpdir
     )

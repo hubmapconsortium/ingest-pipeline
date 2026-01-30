@@ -208,7 +208,6 @@ Example usage with optional params:
                 "error_counts": {<ErrorReport.counts>},
                 "processing_pipeline": "<name>",
                 "run_id": "<id>",
-                "primary_dataset_uuid": "<id>"
             }  # optional
     ).update()
 """
@@ -231,6 +230,7 @@ class StatusChanger(EntityUpdater):
         status: Optional[Union[Statuses, str]] = None,
         # Additional field to pass data to messaging classes
         messages: Optional[dict] = None,
+        message_classes: list[str | type[MessageManager]] = [],
         **kwargs,
     ):
         del kwargs
@@ -245,6 +245,7 @@ class StatusChanger(EntityUpdater):
         )
         self.status = self._validate_status(status)
         self.messages = messages
+        self.message_classes = message_classes
 
     def update(self) -> None:
         """
@@ -332,28 +333,40 @@ class StatusChanger(EntityUpdater):
         super().set_entity_api_data()
 
 
+message_class_map = {
+    "DataIngestBoardManager": DataIngestBoardManager,
+    "SlackManager": SlackManager,
+    "EmailManager": EmailManager,
+    "StatisticsManager": StatisticsManager,
+}
+
+
+def get_message_manager_class(message_type: str | type[MessageManager]) -> type[MessageManager]:
+    if isinstance(message_type, str):
+        if message_class := message_class_map.get(message_type):
+            return message_class
+    elif type(message_type) is type(MessageManager):
+        return message_type
+    raise Exception(f"MessageManager class {message_type} not found. Skipping.")
+
+
 def call_message_managers(
     status: Statuses | str,
     uuid: str,
     token: str,
     messages: dict | None = None,
-    message_classes: list[type[MessageManager] | str] | None = None,
+    message_classes: list[str | type[MessageManager]] = [],
 ):
-    class_map = {
-        "DataIngestBoardManager": DataIngestBoardManager,
-        "SlackManager": SlackManager,
-        "EmailManager": EmailManager,
-        "StatisticsManager": StatisticsManager,
-    }
     if not message_classes:
-        message_classes = list(class_map.values())
-    for message_type in message_classes:
-        if isinstance(message_type, str):
+        validated_message_classes = list(message_class_map.values())
+    else:
+        validated_message_classes = []
+        for msg_class in message_classes:
             try:
-                message_type = class_map[message_type]
-            except Exception:
-                logging.error(f"MessageManager class {message_type} not found. Skipping.")
-                continue
+                validated_message_classes.append(get_message_manager_class(msg_class))
+            except Exception as e:
+                logging.error(e)
+    for message_type in validated_message_classes:
         message_manager = message_type(
             status,
             uuid,

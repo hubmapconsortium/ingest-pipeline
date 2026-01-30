@@ -1004,7 +1004,7 @@ def pythonop_send_create_dataset(**kwargs) -> str:
             uuid,
             get_auth_tok(**kwargs),
             messages={"run_id": kwargs.get("run_id", ""), "parent_dataset_uuid": source_uuids[0]},
-            message_classes=["SlackManager", "DataIngestBoardManager"],
+            message_classes=["SlackManager"],
         )
 
         response = HttpHook("GET", http_conn_id=http_conn_id).run(
@@ -1047,6 +1047,7 @@ def pythonop_set_dataset_state(**kwargs) -> None:
     'ds_state' : one of 'QA', 'Processing', 'Error', 'Invalid'. Default: 'Processing'
     'message' : update message, saved as dataset metadata element "pipeline_message".
                 The default is not to save any message.
+    'pipeline_name' : allows MessageManager classes to identify this as a processing run
     """
     from status_change.status_manager import StatusChanger, call_message_managers
 
@@ -1063,18 +1064,9 @@ def pythonop_set_dataset_state(**kwargs) -> None:
     http_conn_id = kwargs.get("http_conn_id", "entity_api_connection")
     status = kwargs["ds_state"] if "ds_state" in kwargs else "Processing"
     pipeline_message = kwargs.get("message")
-    parent_dataset_uuid_callable = kwargs["parent_dataset_uuid_callable"]
-    if parent_dataset_uuid_callable and isinstance(parent_dataset_uuid_callable, Callable):
-        parent_dataset_uuid = parent_dataset_uuid_callable(**kwargs)
-    else:
-        parent_dataset_uuid = None
-    if not (pipeline := kwargs["dag_run"].dag):
-        if not (pipeline := kwargs.get("pipeline_shorthand")):
-            pipeline = None
+    pipeline = kwargs.get("pipeline_name") or kwargs.get("pipeline_shorthand")
     messages = {"run_id": run_id, "processing_pipeline": pipeline}
-    # Derived dataset created, need to set status and send relevant messages
     if dataset_uuid is not None:
-        messages["primary_dataset_uuid"] = parent_dataset_uuid
         StatusChanger(
             dataset_uuid,
             get_auth_tok(**kwargs),
@@ -1084,15 +1076,32 @@ def pythonop_set_dataset_state(**kwargs) -> None:
             reindex=reindex,
             messages=messages,
         ).update()
-    # No derived dataset was created, message based on the primary if
-    # this is coming from a pipeline
-    if parent_dataset_uuid and pipeline:
+    # Likely a processing pipeline failed before creating derived dataset;
+    # try to message based on the primary if this is coming from a pipeline
+    try:
+        uuid = get_any_dataset_uuid(**kwargs)
+    except Exception as e:
+        logging.error(e)
+        return
+    if uuid and pipeline:
         call_message_managers(
             str(status),
-            parent_dataset_uuid,
+            uuid,
             get_auth_tok(**kwargs),
             messages=messages,
             message_classes=["SlackManager"],
+        )
+
+
+def get_any_dataset_uuid(**kwargs) -> str | None:
+    try:
+        if not (uuid := kwargs["ti"].xcom_pull(key="uuid")):
+            if not (uuid := get_uuid_for_error(**kwargs)):
+                return
+        return uuid
+    except Exception:
+        raise Exception(
+            "Could not determine UUID, no status change or messaging actions will be taken."
         )
 
 
@@ -1756,13 +1765,11 @@ def make_send_status_msg_function(
                 bool([op for op in retcode_ops if op == "pipeline_exec"]),
             ]
         )
-        print(f"PIPELINE: {pipeline}")
         messages = kwargs["ti"].xcom_pull(task_ids="run_validation", key="report_data") or {} | {
             "run_id": kwargs.get("run_id")
         }
         if pipeline == True:
             messages["processing_pipeline"] = dag_file
-        print(f"PROCESSING_PIPELINE: {dag_file}")
         if status:
             if kwargs["dag"].dag_id in ["multiassay_component_metadata", "reorganize_multiassay"]:
                 status = None
@@ -1778,15 +1785,6 @@ def make_send_status_msg_function(
             except EntityUpdateException:
                 return_status = False
 
-        elif pipeline:
-            call_message_managers(
-                ds_rslt.get("status", ""),
-                dataset_uuid,
-                get_auth_tok(**kwargs),
-                messages=messages,
-                message_classes=["SlackManager"],
-            )
-            return_status = False
         return return_status
 
     return send_status_msg
