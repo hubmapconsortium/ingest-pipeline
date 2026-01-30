@@ -2206,6 +2206,8 @@ def send_email(
     prod_only: bool = True,
 ) -> bool:
     assert contacts and email_body
+    if type(contacts) is str:
+        contacts = [contacts]
     preview = dedent(
         f"""
             Contact: {", ".join(contacts)}

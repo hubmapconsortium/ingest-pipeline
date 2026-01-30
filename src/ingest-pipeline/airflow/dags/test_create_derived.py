@@ -68,6 +68,7 @@ with HMDAG(
             "crypt_auth_tok": encrypt_tok(
                 airflow_conf.as_dict()["connections"]["APP_CLIENT_SECRET"]
             ).decode(),
+            "pipeline_name": pipeline_name,
         },
     )
     workflow_description = "test desc"
@@ -159,6 +160,7 @@ with HMDAG(
             "crypt_auth_tok": encrypt_tok(
                 airflow_conf.as_dict()["connections"]["APP_CLIENT_SECRET"]  # type: ignore
             ).decode(),
+            "pipeline_name": pipeline_name,
         },
     )
 

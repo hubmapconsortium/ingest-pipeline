@@ -245,7 +245,8 @@ class StatusChanger(EntityUpdater):
         )
         self.status = self._validate_status(status)
         self.messages = messages
-        self.message_classes = message_classes
+        if message_classes:
+            self.message_classes = message_classes
 
     def update(self) -> None:
         """

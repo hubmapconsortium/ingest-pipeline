@@ -908,15 +908,15 @@ class TestFailureCallback(MockParent):
             "traceback.TracebackException.from_exception",
             side_effect=lambda excp: self._exception_formatter(excp),
         )
-        task_instance_mock = MagicMock()
-        task_instance_mock.xcom_pull.side_effect = self._xcom_getter
+        self.task_instance_mock = MagicMock()
+        self.task_instance_mock.xcom_pull.side_effect = self._xcom_getter
 
         self.mock_from_excp = self.from_excp.start()
 
         self.addCleanup(self.from_excp.stop)
 
         self.context_tweak = {
-            "task_instance": task_instance_mock,
+            "ti": self.task_instance_mock,
             "task": MagicMock(task_id="mytaskid"),
             "crypt_auth_tok": "test_crypt_auth_tok",
             "dag_run": self.dag_run_mock,
@@ -1368,7 +1368,7 @@ class TestEmailManager(MockParent):
             Statuses.UPLOAD_ERROR,
             context=good_upload_context | {"error_message": "An error has occurred"},
         )
-        expected_subj = "Internal error for Upload test_hm_id"
+        expected_subj = "Internal error for upload test_hm_id"
         expected_msg = "HuBMAP ID: test_hm_id<br>UUID: test_uuid<br>Entity type: Upload<br>Status: Error<br>Group: test group<br>Primary contact: test@user.com<br>Ingest page: https://ingest.hubmapconsortium.org/upload/test_uuid<br>Run ID: test_run_id<br>Log file: test_path/test_run_id<br>"
         # print(f"Expected subject: {expected_subj}")
         # print(f"Actual subj: {manager.subj}")

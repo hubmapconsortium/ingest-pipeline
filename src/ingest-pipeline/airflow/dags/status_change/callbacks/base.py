@@ -39,7 +39,7 @@ class AirflowCallback(ABC):
                 self.dataset_uuid_callable(**self.context) if self.dataset_uuid_callable else ""
             )
         ):
-            if not (uuid := self.context["task_instance"].xcom_pull(key="uuid")):
+            if not (uuid := self.context["ti"].xcom_pull(key="uuid")):
                 if not (uuid := get_uuid_for_error(**self.context)):
                     logging.error(
                         "Could not determine UUID, no status change or messaging actions will be taken."

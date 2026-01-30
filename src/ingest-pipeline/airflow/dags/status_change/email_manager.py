@@ -86,7 +86,8 @@ class EmailManager(MessageManager):
             return
 
     def get_recipients(self):
-        if self.is_internal_error:
+        # TODO: external emails currently turned off for pipelines/derived datasets
+        if self.is_internal_error or self.processing_pipeline or self.derived:
             self.main_recipients = self.int_recipients
         else:
             self.main_recipients = self.primary_contact

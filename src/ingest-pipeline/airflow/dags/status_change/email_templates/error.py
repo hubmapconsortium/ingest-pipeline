@@ -13,7 +13,7 @@ class ErrorStatusEmail(EmailTemplate):
                 f"Internal error while processing pipeline primary dataset {self.data.entity_id}"
             )
         else:
-            subj = f"Internal error for {self.data.entity_type} {self.data.entity_id}"
+            subj = f"Internal error for {self.data.entity_type.lower()} {self.data.entity_id}"
         msg = self.format_msg()
         return subj, msg
 

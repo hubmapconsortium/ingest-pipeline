@@ -32,7 +32,7 @@ class SlackDatasetErrorProcessing(SlackMessage):
             message = [f"Derived dataset {self.entity_id} | {self.uuid} is in Error state."]
         else:
             message = [f"Pipeline processing failed for {self.entity_id} | {self.uuid}."]
-        message.extend(*self.entity_links)
+        message.extend(self.entity_links)
         if derived and self.primary_dataset_info:
             message.append(f"Primary dataset: {self.create_primary_link()}.")
         return message
