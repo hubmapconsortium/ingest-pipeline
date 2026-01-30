@@ -1,7 +1,6 @@
 import logging
-from typing import Optional
 
-from .status_utils import (  # get_primary_dataset,
+from .status_utils import (
     EntityUpdateException,
     MessageManager,
     Statuses,
@@ -10,10 +9,6 @@ from .status_utils import (  # get_primary_dataset,
 
 
 class DataIngestBoardManager(MessageManager):
-    # TODO: derived datasets are not created until pipeline steps succeed;
-    # therefore there is no status change to indicate failed pipeline run.
-    # Pipelines hit set_dataset_error but do not set error on primary.
-    # Perhaps add EntityUpdater call *somewhere* in set_dataset_error?
     """
     Handle updating metadata fields tied to Data Ingest Board.
     """
@@ -31,12 +26,11 @@ class DataIngestBoardManager(MessageManager):
         status: Statuses,
         uuid: str,
         token: str,
-        messages: Optional[dict] = None,
-        run_id: str = "",
+        messages: dict | None = None,
         *args,
         **kwargs,
     ):
-        super().__init__(status, uuid, token, messages, run_id, args, kwargs)
+        super().__init__(status, uuid, token, messages, *args, **kwargs)
         self.update_fields = self.get_fields()
 
     @property
@@ -65,7 +59,7 @@ class DataIngestBoardManager(MessageManager):
         logging.info(f"""Response: {response}""")
         return response
 
-    def get_fields(self) -> Optional[dict]:
+    def get_fields(self) -> dict | None:
         entity = self.entity_data.get("entity_type", "").lower()
         msg_type = f"{entity}_{Statuses.valid_str(self.status)}"
         if clear_msg := self.get_clear_message(msg_type):
@@ -83,30 +77,24 @@ class DataIngestBoardManager(MessageManager):
             update_data["assigned_to_group_name"] = ""
         return update_data
 
-    def get_clear_message(self, msg_type: str) -> Optional[dict]:
+    def get_clear_message(self, msg_type: str) -> dict | None:
         """
         Clear error messages following success.
         """
         if msg_type in self.clear_only:
-            # if entity == "dataset":
-            #     # Derived datasets need to write to primary dataset error_message;
-            #     # set self.uuid to primary if uuid passed in is for a derived dataset.
-            #     self.check_is_derived
             return {"error_message": ""}
 
     @property
-    def assigned_to_group_name(self) -> Optional[str]:
+    def assigned_to_group_name(self) -> str | None:
         if self.is_internal_error:
             return "IEC Testing Group"
         elif group_name := self.entity_data.get("group_name"):
             if self.status in self.assign_to_dp:
                 return group_name
 
-    ########################
-    #
-    # Status-based messages
-    #
-    ########################
+    #########################
+    # Status-based messages #
+    #########################
 
     def get_internal_error_msg(self) -> str:
         prefix = f"Internal error. Log directory: {self.log_directory_path}"
@@ -142,13 +130,6 @@ class DataIngestBoardManager(MessageManager):
         Derived datasets need to write to primary dataset's error_message field;
         handle any errant primary datasets set to Error as well.
         """
-        # if self.check_is_derived:
-        #     msg = (
-        #         self.msg
-        #         if self.msg
-        #         else f"Derived dataset {self.child_uuid} is in Error state."
-        #     )
-        # else:
         return {"error_message": self.get_internal_error_msg()}
 
     def dataset_invalid(self):
@@ -164,27 +145,4 @@ class DataIngestBoardManager(MessageManager):
                 if self.error_counts
                 else f"Invalid status from run {self.run_id}"
             )
-        # if self.check_is_derived:
-        #     error = f"Derived dataset {self.child_uuid} is in Invalid state. {error}"
         return {"error_message": error}
-
-    ###########
-    #
-    # Utils
-    #
-    ###########
-
-    # @property
-    # def child_uuid(self) -> Optional[str]:
-    #     """
-    #     Check if dataset is descendant of another dataset.
-    #     If so, set self.uuid to primary and return child uuid.
-    #     """
-    #     if primary_uuid := get_primary_dataset(self.entity_data, self.token):
-    #         child_uuid = self.uuid
-    #         self.uuid = primary_uuid
-    #         return child_uuid
-    #
-    # @property
-    # def check_is_derived(self) -> bool:
-    #     return bool(self.child_uuid)

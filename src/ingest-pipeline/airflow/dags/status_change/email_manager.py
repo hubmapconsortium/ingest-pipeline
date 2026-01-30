@@ -10,15 +10,13 @@ from status_change.status_utils import (
     Statuses,
     get_project,
 )
-
-from airflow.configuration import conf as airflow_conf
-from airflow.utils.email import send_email
+from utils import send_email as main_send_email
 
 
 class EmailManager(MessageManager):
     int_recipients = ["bhonick@psc.edu"]
-    main_recipients = ""
-    cc = ""
+    main_recipients = []
+    cc = []
     subj = ""
     msg = ""
     good_statuses = [
@@ -28,19 +26,18 @@ class EmailManager(MessageManager):
 
     def __init__(
         self,
-        status: Statuses,
-        uuid: str,
-        token: str,
-        messages: Optional[dict] = None,
-        run_id: str = "",
+        status,
+        uuid,
+        token,
+        messages=None,
         *args,
         **kwargs,
     ):
-        super().__init__(status, uuid, token, messages, run_id, args, kwargs)
+        super().__init__(status, uuid, token, messages, *args, **kwargs)
         self.entity_type = self.entity_data.get("entity_type", "").title()
         self.project = get_project()
         self.entity_id = self.entity_data.get(f"{get_project().value[0]}_id")
-        self.primary_contact = self.entity_data.get("created_by_user_email", "")
+        self.primary_contact = self.entity_data.get("created_by_user_email") or []
         self.get_message_content()
 
     @property
@@ -63,14 +60,7 @@ class EmailManager(MessageManager):
 
     def send_email(self):
         assert self.subj and self.msg
-        logging.info(
-            f"""
-        Sending email
-            Subject: {self.subj}
-            Message: {self.msg}
-            """
-        )
-        send_email(self.main_recipients, self.subj, self.msg, cc=self.cc)
+        main_send_email(self.main_recipients, self.subj, self.msg, cc=self.cc)
 
     ###################
     # Message details #
@@ -96,13 +86,12 @@ class EmailManager(MessageManager):
             return
 
     def get_recipients(self):
-        self.get_config_values()
-        if self.is_internal_error:
-            self.main_recipients = ", ".join(self.int_recipients)
+        # TODO: external emails currently turned off for pipelines/derived datasets
+        if self.is_internal_error or self.processing_pipeline or self.derived:
+            self.main_recipients = self.int_recipients
         else:
             self.main_recipients = self.primary_contact
-            self.main_recipients = ", ".join(self.int_recipients)
-            self.cc = ", ".join(self.int_recipients)
+            self.cc = self.int_recipients
 
     #########
     # Tests #
@@ -115,16 +104,3 @@ class EmailManager(MessageManager):
             "Reorganized upload does not have child datasets (DAG may still be running); not sending email."
         )
         return False
-
-    #########
-    # Utils #
-    #########
-
-    def get_config_values(self):
-        conf_dict = airflow_conf.as_dict()
-        # Allows for setting defaults at the config level that override class defaults, e.g. for testing
-        if int_recipients := conf_dict.get("email_notifications", {}).get("int_recipients"):
-            cleaned_int_recipients = [str(address) for address in [int_recipients]]
-            self.int_recipients = cleaned_int_recipients
-        if main_recipient := conf_dict.get("email_notifications", {}).get("main"):
-            self.primary_contact = main_recipient
