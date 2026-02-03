@@ -45,13 +45,12 @@ from schema_utils import (
 from airflow import DAG
 from airflow.configuration import conf as airflow_conf
 from airflow.models.baseoperator import BaseOperator
-from airflow.models.operator import Operator
 from airflow.providers.http.hooks.http import HttpHook
 from airflow.utils.email import send_email as airflow_send_email
 
 airflow_conf.read(join(environ["AIRFLOW_HOME"], "instance", "app.cfg"))
 try:
-    sys.path.append(str(airflow_conf.as_dict()["connections"]["SRC_PATH"]).strip("'").strip('"'))
+    sys.path.append(airflow_conf.as_dict()["connections"]["SRC_PATH"].strip("'").strip('"'))
     from misc.tools.survey import ENDPOINTS
 
     sys.path.pop()
@@ -227,7 +226,7 @@ class HMDAG(DAG):
             kwargs["max_active_runs"] = get_lanes_resource(dag_id)
         super().__init__(dag_id, **kwargs)
 
-    def add_task(self, task: Operator):
+    def add_task(self, task: BaseOperator):
         """
         Provide "queue".  This overwrites existing data on the fly
         unless the queue specified in the resource table is None.
@@ -238,7 +237,6 @@ class HMDAG(DAG):
         default value.  One would have to monkeypatch BaseOperator
         to respect a queue specified on the task definition line.
         """
-        assert type(task) is BaseOperator
         res_queue = get_queue_resource(self.dag_id, task.task_id)
         if res_queue is not None:
             try:
@@ -289,7 +287,7 @@ def get_cwl_cmd_from_workflows(
     workflow["input_parameters"] = input_param_vals
 
     # Get the cwl invocation
-    command: list[str | Path] = [*get_cwltool_base_cmd(tmp_dir)]
+    command = [*get_cwltool_base_cmd(tmp_dir)]
 
     # Rather than setting outdir, cycle through cwl_param vals and see whether its present
     # if not, then we set it to the default value.
@@ -359,15 +357,13 @@ def build_dataset_name(dag_id: str, pipeline_str: str, **kwargs) -> str:
 
 
 def get_parent_dataset_uuids_list(**kwargs) -> List[str]:
-    conf_uuid_list = kwargs["dag_run"].conf["parent_submission_id"]
+    uuid_list = kwargs["dag_run"].conf["parent_submission_id"]
     if kwargs["dag"].dag_id == "azimuth_annotations":
         uuid_list = pythonop_get_dataset_state(
-            dataset_uuid_callable=lambda **kwargs: conf_uuid_list[0], **kwargs
+            dataset_uuid_callable=lambda **kwargs: uuid_list[0], **kwargs
         ).get("parent_dataset_uuid_list")
-    else:
-        uuid_list = conf_uuid_list
     if not isinstance(uuid_list, list):
-        uuid_list = [str(uuid_list)]
+        uuid_list = [uuid_list]
     return uuid_list
 
 
@@ -1677,7 +1673,7 @@ def make_send_status_msg_function(
                 md.update(
                     get_file_metadata_dict(
                         ds_dir,
-                        str(get_tmp_dir_path(kwargs["run_id"])),
+                        get_tmp_dir_path(kwargs["run_id"]),
                         manifest_files,
                     ),
                 )
@@ -1801,9 +1797,7 @@ def map_queue_name(raw_queue_name: str) -> str:
     conf_dict = airflow_conf.as_dict()
     if "QUEUE_NAME_TEMPLATE" in conf_dict.get("connections", {}):
         template = conf_dict["connections"]["QUEUE_NAME_TEMPLATE"]
-        template = (
-            str(template).strip("'").strip('"')
-        )  # remove quotes that may be on the config string
+        template = template.strip("'").strip('"')  # remove quotes that may be on the config string
         rslt = template.format(raw_queue_name)
         return rslt
     else:
