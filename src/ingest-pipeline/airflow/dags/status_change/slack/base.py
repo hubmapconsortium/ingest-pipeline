@@ -35,7 +35,7 @@ class SlackMessage:
         return slack_channels.get(cls.name, "")
 
     @classmethod
-    def test(cls, entity_data: dict, token: str, **kwargs) -> bool:
+    def test(cls, entity_data: dict, **kwargs) -> bool:
         """
         If there are special case subclasses for a given status, their
         test() methods will be called to determine if the subclass applies.
@@ -43,12 +43,11 @@ class SlackMessage:
         after first True result.
 
         entity_data - metadata from Entity API
-        token - Globus token
-        expected kwargs:
+        possible kwargs:
             processing_pipeline: str - name of triggering pipeline;
                                  only used for processing pipelines
         """
-        del entity_data, token, kwargs
+        del entity_data, kwargs
         return False
 
     def format(self) -> list:

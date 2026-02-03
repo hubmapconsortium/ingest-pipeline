@@ -97,4 +97,9 @@ class FailureCallback(AirflowCallback):
         about pipelines. If we have it, add it to messages.
         """
         pipeline = self.context.get("pipeline_shorthand") or self.context.get("pipeline_name", "")
+        if not pipeline:
+            try:
+                pipeline = self.context["ti"].xcom_pull(key="pipeline_name")
+            except Exception:
+                pass
         return pipeline

@@ -620,8 +620,8 @@ class SlackTestHold(SlackMessage):
     name = "dataset_hold"
 
     @classmethod
-    def test(cls, entity_data, token, **kwargs):
-        del token, kwargs
+    def test(cls, entity_data, **kwargs):
+        del kwargs
         if str(entity_data.get("status")).lower() == "hold":
             return True
         return False

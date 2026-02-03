@@ -38,8 +38,7 @@ class SlackDatasetErrorProcessing(SlackMessage):
         return message
 
     @classmethod
-    def test(cls, entity_data, token, **kwargs):
-        del entity_data, token
+    def test(cls, entity_data, **kwargs):
         if kwargs.get("processing_pipeline"):
             return True
-        return False
+        return get_is_derived(entity_data)

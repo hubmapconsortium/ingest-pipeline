@@ -9,9 +9,7 @@ class ErrorStatusEmail(EmailTemplate):
         if self.data.derived:
             subj = f"Internal error for derived dataset {self.data.entity_id}"
         elif self.data.processing_pipeline:
-            subj = (
-                f"Internal error while processing pipeline primary dataset {self.data.entity_id}"
-            )
+            subj = f"Internal error while processing primary dataset {self.data.entity_id}"
         else:
             subj = f"Internal error for {self.data.entity_type.lower()} {self.data.entity_id}"
         msg = self.format_msg()

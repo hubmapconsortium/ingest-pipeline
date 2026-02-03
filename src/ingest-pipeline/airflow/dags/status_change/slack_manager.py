@@ -105,7 +105,7 @@ class SlackManager(MessageManager):
             "processing_pipeline": self.processing_pipeline,
         }
         for subclass in relevant_classes.get("subclasses", []):
-            if subclass.test(self.entity_data, self.token, **test_kwargs):
+            if subclass.test(self.entity_data, **test_kwargs):
                 return subclass(*class_args, **class_kwargs)
         if main_class := relevant_classes["main_class"]:
             return main_class(*class_args, **class_kwargs)

@@ -45,12 +45,13 @@ from schema_utils import (
 from airflow import DAG
 from airflow.configuration import conf as airflow_conf
 from airflow.models.baseoperator import BaseOperator
+from airflow.models.operator import Operator
 from airflow.providers.http.hooks.http import HttpHook
 from airflow.utils.email import send_email as airflow_send_email
 
 airflow_conf.read(join(environ["AIRFLOW_HOME"], "instance", "app.cfg"))
 try:
-    sys.path.append(airflow_conf.as_dict()["connections"]["SRC_PATH"].strip("'").strip('"'))
+    sys.path.append(str(airflow_conf.as_dict()["connections"]["SRC_PATH"]).strip("'").strip('"'))
     from misc.tools.survey import ENDPOINTS
 
     sys.path.pop()
@@ -226,7 +227,7 @@ class HMDAG(DAG):
             kwargs["max_active_runs"] = get_lanes_resource(dag_id)
         super().__init__(dag_id, **kwargs)
 
-    def add_task(self, task: BaseOperator):
+    def add_task(self, task: Operator):
         """
         Provide "queue".  This overwrites existing data on the fly
         unless the queue specified in the resource table is None.
@@ -237,6 +238,7 @@ class HMDAG(DAG):
         default value.  One would have to monkeypatch BaseOperator
         to respect a queue specified on the task definition line.
         """
+        assert type(task) is BaseOperator
         res_queue = get_queue_resource(self.dag_id, task.task_id)
         if res_queue is not None:
             try:
@@ -287,7 +289,7 @@ def get_cwl_cmd_from_workflows(
     workflow["input_parameters"] = input_param_vals
 
     # Get the cwl invocation
-    command = [*get_cwltool_base_cmd(tmp_dir)]
+    command: list[str | Path] = [*get_cwltool_base_cmd(tmp_dir)]
 
     # Rather than setting outdir, cycle through cwl_param vals and see whether its present
     # if not, then we set it to the default value.
@@ -357,13 +359,15 @@ def build_dataset_name(dag_id: str, pipeline_str: str, **kwargs) -> str:
 
 
 def get_parent_dataset_uuids_list(**kwargs) -> List[str]:
-    uuid_list = kwargs["dag_run"].conf["parent_submission_id"]
+    conf_uuid_list = kwargs["dag_run"].conf["parent_submission_id"]
     if kwargs["dag"].dag_id == "azimuth_annotations":
         uuid_list = pythonop_get_dataset_state(
-            dataset_uuid_callable=lambda **kwargs: uuid_list[0], **kwargs
+            dataset_uuid_callable=lambda **kwargs: conf_uuid_list[0], **kwargs
         ).get("parent_dataset_uuid_list")
+    else:
+        uuid_list = conf_uuid_list
     if not isinstance(uuid_list, list):
-        uuid_list = [uuid_list]
+        uuid_list = [str(uuid_list)]
     return uuid_list
 
 
@@ -1573,11 +1577,7 @@ def make_send_status_msg_function(
     no file metadata will be included.  Note that file metadata may also be excluded
     based on the return value of 'dataset_lz_path_fun' above.
     """
-    from status_change.status_manager import (
-        EntityUpdateException,
-        StatusChanger,
-        call_message_managers,
-    )
+    from status_change.status_manager import EntityUpdateException, StatusChanger
 
     # Does the string represent a "true" value, or an int that is 1
     def __is_true(val):
@@ -1590,6 +1590,16 @@ def make_send_status_msg_function(
         return False
 
     def send_status_msg(**kwargs) -> bool:
+        # add pipeline info right away if present in case FailureCallback is triggered
+        pipeline = any(
+            [
+                bool(workflow_description),
+                bool(cwl_workflows),
+                bool([op for op in retcode_ops if op.startswith("pipeline_exec")]),
+            ]
+        )
+        if pipeline:
+            kwargs["ti"].xcom_push(key="pipeline_name", value=Path(dag_file).stem)
         retcodes = [kwargs["ti"].xcom_pull(task_ids=op) for op in retcode_ops]
         retcodes = [int(rc or "0") for rc in retcodes]
         print("retcodes: ", {k: v for k, v in zip(retcode_ops, retcodes)})
@@ -1667,13 +1677,16 @@ def make_send_status_msg_function(
                 md.update(
                     get_file_metadata_dict(
                         ds_dir,
-                        get_tmp_dir_path(kwargs["run_id"]),
+                        str(get_tmp_dir_path(kwargs["run_id"])),
                         manifest_files,
                     ),
                 )
 
             # Refactoring metadata structure
             contacts = []
+            antibodies = md["metadata"].pop("antibodies", [])
+            contributors = md["metadata"].pop("contributors", [])
+            calculated_metadata = md["metadata"].pop("calculated_metadata", {})
             if metadata_fun:
                 # Always override the value if files_info_alt_path is set, or if md["files"] is empty
                 files_info_alt_path = md["metadata"].pop("files_info_alt_path", [])
@@ -1687,9 +1700,6 @@ def make_send_status_msg_function(
                     "collectiontype": md["metadata"].pop("collectiontype", None)
                 }
                 # md["thumbnail_file_abs_path"] = thumbnail_file_abs_path
-                antibodies = md["metadata"].pop("antibodies", [])
-                contributors = md["metadata"].pop("contributors", [])
-                calculated_metadata = md["metadata"].pop("calculated_metadata", {})
                 md["metadata"] = md["metadata"].pop("metadata", {})
                 for contrib in contributors:
                     if "is_contact" in contrib:
@@ -1758,18 +1768,11 @@ def make_send_status_msg_function(
             }
             return_status = False
 
-        pipeline = any(
-            [
-                bool(workflow_description),
-                bool(cwl_workflows),
-                bool([op for op in retcode_ops if op == "pipeline_exec"]),
-            ]
-        )
         messages = kwargs["ti"].xcom_pull(task_ids="run_validation", key="report_data") or {} | {
             "run_id": kwargs.get("run_id")
         }
         if pipeline == True:
-            messages["processing_pipeline"] = dag_file
+            messages["processing_pipeline"] = Path(dag_file).stem
         if status:
             if kwargs["dag"].dag_id in ["multiassay_component_metadata", "reorganize_multiassay"]:
                 status = None
@@ -1798,7 +1801,9 @@ def map_queue_name(raw_queue_name: str) -> str:
     conf_dict = airflow_conf.as_dict()
     if "QUEUE_NAME_TEMPLATE" in conf_dict.get("connections", {}):
         template = conf_dict["connections"]["QUEUE_NAME_TEMPLATE"]
-        template = template.strip("'").strip('"')  # remove quotes that may be on the config string
+        template = (
+            str(template).strip("'").strip('"')
+        )  # remove quotes that may be on the config string
         rslt = template.format(raw_queue_name)
         return rslt
     else:
@@ -1807,19 +1812,18 @@ def map_queue_name(raw_queue_name: str) -> str:
 
 def create_dataset_state_error_callback(
     dataset_uuid_callable: Callable[[Any], str],
-) -> Callable[[Mapping, Any], None]:
+) -> Callable:
     # TODO: this should be deprecated in favor of status_change.callbacks.FailureCallback
-    def set_dataset_state_error(context_dict: Mapping, **kwargs) -> None:
+    def set_dataset_state_error(**kwargs) -> None:
         """
         This routine is meant to be
         """
         if kwargs["dag_run"].conf.get("dryrun"):
             return None
         msg = "An internal error occurred in the {} workflow step {}".format(
-            context_dict["dag"].dag_id, context_dict["task"].task_id
+            kwargs["dag"].dag_id, kwargs["task"].task_id
         )
         new_kwargs = kwargs.copy()
-        new_kwargs.update(context_dict)
         new_kwargs.update(
             {
                 "dataset_uuid_callable": dataset_uuid_callable,

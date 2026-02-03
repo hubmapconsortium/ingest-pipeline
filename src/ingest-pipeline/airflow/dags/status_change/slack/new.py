@@ -22,6 +22,6 @@ class SlackDatasetNewDerived(SlackMessage):
         return message
 
     @classmethod
-    def test(cls, entity_data, token, **kwargs):
-        del token, kwargs
+    def test(cls, entity_data, **kwargs):
+        del kwargs
         return get_is_derived(entity_data)
