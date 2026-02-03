@@ -1809,18 +1809,20 @@ def map_queue_name(raw_queue_name: str) -> str:
 
 def create_dataset_state_error_callback(
     dataset_uuid_callable: Callable[[Any], str],
-) -> Callable:
+) -> Callable[[Mapping, Any], None]:
     # TODO: this should be deprecated in favor of status_change.callbacks.FailureCallback
-    def set_dataset_state_error(**kwargs) -> None:
+    def set_dataset_state_error(context_dict: Mapping, **kwargs) -> None:
         """
         This routine is meant to be
         """
-        if kwargs["dag_run"].conf.get("dryrun"):
-            return None
+        if dag_run := kwargs.get("dag_run"):
+            if dag_run.conf.get("dryrun"):
+                return None
         msg = "An internal error occurred in the {} workflow step {}".format(
-            kwargs["dag"].dag_id, kwargs["task"].task_id
+            context_dict["dag"].dag_id, context_dict["task"].task_id
         )
         new_kwargs = kwargs.copy()
+        new_kwargs.update(context_dict)
         new_kwargs.update(
             {
                 "dataset_uuid_callable": dataset_uuid_callable,
