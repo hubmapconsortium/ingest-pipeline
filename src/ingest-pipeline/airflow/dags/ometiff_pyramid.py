@@ -18,7 +18,6 @@ import utils
 from utils import (
     get_absolute_workflow,
     get_dataset_uuid,
-    get_parent_dataset_uuid,
     get_parent_dataset_uuids_list,
     get_parent_data_dir,
     build_dataset_name as inner_build_dataset_name,
@@ -209,7 +208,6 @@ with HMDAG(
             "dataset_uuid_callable": get_dataset_uuid,
             "ds_state": "Error",
             "message": "An error occurred in {}".format(pipeline_name),
-            "parent_dataset_uuid_callable": get_parent_dataset_uuid,
             "pipeline_name": pipeline_name
         },
     )

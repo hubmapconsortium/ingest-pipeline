@@ -205,8 +205,7 @@ class MessageManager:
 slack_channels = {
     "base": "C08V3TAP3GQ",  # testing-status-change
     "dataset_error": "C08V3TAP3GQ",
-    "dataset_error_derived": "C08V3TAP3GQ",
-    "dataset_error_primary_pipeline": "C08V3TAP3GQ",
+    "dataset_error_processing": "C08V3TAP3GQ",
     "dataset_invalid": "C08V3TAP3GQ",
     "dataset_new_derived": "C08V3TAP3GQ",
     "dataset_qa": "C099KMKJT26",  # dataset-qa-notifications
