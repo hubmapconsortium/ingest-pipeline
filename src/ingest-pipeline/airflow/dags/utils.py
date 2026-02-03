@@ -1066,7 +1066,7 @@ def pythonop_set_dataset_state(**kwargs) -> None:
     pipeline_message = kwargs.get("message")
     pipeline = kwargs.get("pipeline_name") or kwargs.get("pipeline_shorthand")
     messages = {"run_id": run_id, "processing_pipeline": pipeline}
-    if dataset_uuid is not None:
+    if dataset_uuid:
         StatusChanger(
             dataset_uuid,
             get_auth_tok(**kwargs),
@@ -1076,21 +1076,22 @@ def pythonop_set_dataset_state(**kwargs) -> None:
             reindex=reindex,
             messages=messages,
         ).update()
-    # Likely a processing pipeline failed before creating derived dataset;
-    # try to message based on the primary if this is coming from a pipeline
-    try:
-        uuid = get_any_dataset_uuid(**kwargs)
-    except Exception as e:
-        logging.error(e)
-        return
-    if uuid and pipeline:
-        call_message_managers(
-            str(status),
-            uuid,
-            get_auth_tok(**kwargs),
-            messages=messages,
-            message_classes=["SlackManager"],
-        )
+    else:
+        # Likely a processing pipeline failed before creating derived dataset;
+        # try to message based on the primary if this is coming from a pipeline
+        try:
+            uuid = get_any_dataset_uuid(**kwargs)
+        except Exception as e:
+            logging.error(e)
+            return
+        if uuid and pipeline:
+            call_message_managers(
+                str(status),
+                uuid,
+                get_auth_tok(**kwargs),
+                messages=messages,
+                message_classes=["SlackManager"],
+            )
 
 
 def get_any_dataset_uuid(**kwargs) -> str | None:
@@ -1680,9 +1681,11 @@ def make_send_status_msg_function(
 
             # Refactoring metadata structure
             contacts = []
-            antibodies = md["metadata"].pop("antibodies", [])
-            contributors = md["metadata"].pop("contributors", [])
-            calculated_metadata = md["metadata"].pop("calculated_metadata", {})
+            antibodies = md["metadata"].pop("antibodies", []) if md.get("metadata") else []
+            contributors = md["metadata"].pop("contributors", []) if md.get("metadata") else []
+            calculated_metadata = (
+                md["metadata"].pop("calculated_metadata", {}) if md.get("metadata") else []
+            )
             if metadata_fun:
                 # Always override the value if files_info_alt_path is set, or if md["files"] is empty
                 files_info_alt_path = md["metadata"].pop("files_info_alt_path", [])
