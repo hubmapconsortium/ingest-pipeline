@@ -202,21 +202,22 @@ class MessageManager:
         return False
 
 
+base_slack_channel = "C08V3TAP3GQ"  # testing-status-change
 slack_channels = {
-    "base": "C08V3TAP3GQ",  # testing-status-change
-    "dataset_error": "C08V3TAP3GQ",
-    "dataset_error_processing": "C08V3TAP3GQ",
-    "dataset_invalid": "C08V3TAP3GQ",
-    "dataset_new_derived": "C08V3TAP3GQ",
+    "base": base_slack_channel,
+    "dataset_error": base_slack_channel,
+    "dataset_error_processing": base_slack_channel,
+    "dataset_invalid": base_slack_channel,
+    "dataset_new_derived": base_slack_channel,
     "dataset_qa": "C099KMKJT26",  # dataset-qa-notifications
-    "dataset_qa_derived": "C08V3TAP3GQ",
-    "upload_error": "C08V3TAP3GQ",
-    "upload_invalid": "C08V3TAP3GQ",
-    "upload_reorganized": "C08V3TAP3GQ",
+    "dataset_qa_derived": base_slack_channel,
+    "upload_error": base_slack_channel,
+    "upload_invalid": base_slack_channel,
+    "upload_reorganized": base_slack_channel,
     "upload_priority_reorganized": "C08STFJTJKT",  # fasttrack-ingest
 }
 
-slack_channels_testing = {"base": "C08V3TAP3GQ"}
+slack_channels_testing = {"base": "C0A8ES4M9RU"}  # test-notifications
 
 
 class Project(Enum):
