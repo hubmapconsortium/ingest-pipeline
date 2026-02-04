@@ -1681,11 +1681,9 @@ def make_send_status_msg_function(
 
             # Refactoring metadata structure
             contacts = []
-            antibodies = md["metadata"].pop("antibodies", []) if md.get("metadata") else []
-            contributors = md["metadata"].pop("contributors", []) if md.get("metadata") else []
-            calculated_metadata = (
-                md["metadata"].pop("calculated_metadata", {}) if md.get("metadata") else []
-            )
+            antibodies = md.get("metadata", {}).pop("antibodies", [])
+            contributors = md.get("metadata", {}).pop("contributors", [])
+            calculated_metadata = md.get("metadata", {}).pop("calculated_metadata", {})
             if metadata_fun:
                 # Always override the value if files_info_alt_path is set, or if md["files"] is empty
                 files_info_alt_path = md["metadata"].pop("files_info_alt_path", [])
@@ -1815,9 +1813,8 @@ def create_dataset_state_error_callback(
         """
         This routine is meant to be
         """
-        if dag_run := kwargs.get("dag_run"):
-            if dag_run.conf.get("dryrun"):
-                return None
+        if (dag_run := kwargs.get("dag_run")) and dag_run.conf.get("dryrun"):
+            return None
         msg = "An internal error occurred in the {} workflow step {}".format(
             context_dict["dag"].dag_id, context_dict["task"].task_id
         )
