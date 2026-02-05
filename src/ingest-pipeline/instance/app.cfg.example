@@ -44,9 +44,6 @@ STATISTICS_PATH= '/hive/hubmap-dev/statistics'
 [webserver]
 auth_backend = globus_auth.globus_auth
 
-[slack_channels]
-# PRIORITY_UPLOAD_REORGANIZED =
-
 [email_notifications]
 int_recipients=example1@test.com,example2@test.com
 main=example@test.com

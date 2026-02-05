@@ -31,10 +31,6 @@ class SlackMessage:
         self.entity_id = self.entity_data.get(self.entity_id_str)
 
     @classmethod
-    def get_channel(cls):
-        return slack_channels.get(cls.name, "")
-
-    @classmethod
     def test(cls, entity_data: dict, **kwargs) -> bool:
         """
         If there are special case subclasses for a given status, their

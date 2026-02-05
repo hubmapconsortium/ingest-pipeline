@@ -9,8 +9,8 @@ from status_change.status_utils import (
     MessageManager,
     Statuses,
     get_project,
+    main_send_email,
 )
-from utils import send_email as main_send_email
 
 
 class EmailManager(MessageManager):

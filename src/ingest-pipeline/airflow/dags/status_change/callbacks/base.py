@@ -2,8 +2,13 @@ import logging
 from abc import ABC
 from typing import Callable
 
-from status_change.status_utils import get_run_id, get_submission_context
-from utils import decrypt_tok, get_auth_tok, get_uuid_for_error
+from status_change.status_utils import (
+    decrypt_tok,
+    get_auth_tok,
+    get_run_id,
+    get_submission_context,
+    get_uuid_for_error,
+)
 
 
 class AirflowCallback(ABC):
