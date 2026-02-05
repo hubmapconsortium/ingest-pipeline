@@ -112,10 +112,14 @@ Lazy construction; a list of tuples (dag_id_reges, task_id_regex, {key:value})
 """
 RESOURCE_MAP_FILENAME = "resource_map.yml"  # Expected to be found in this same dir
 RESOURCE_MAP_SCHEMA = "resource_map_schema.yml"
+<<<<<<< HEAD
 TaskList = list[tuple[Pattern, dict[str, Any]]]
 DagDct = dict[str, Any]
 COMPILED_RESOURCE_MAP: list[Tuple[Pattern, DagDct, TaskList]] | None = None
 
+=======
+COMPILED_RESOURCE_MAP: Optional[List[Tuple[Pattern, int, Dict[str, Any]]]] = None
+>>>>>>> f218e107 (changes to getting slack channel)
 DEFAULT_SLACK_TEST_CHANNEL = "C0A8ES4M9RU"  # test-notifications
 
 CURATION_CONTACTS = ["bhonick@psc.edu", "dbordelon@psc.edu", "egaskin@psc.edu"]
@@ -1990,10 +1994,18 @@ def get_env() -> str:
 
 
 def env_appropriate_slack_channel(prod_channel: str) -> str:
+<<<<<<< HEAD
     if get_env() == "prod":
         return prod_channel
     logging.info(
         f"Switching channel from {prod_channel} to default ({DEFAULT_SLACK_TEST_CHANNEL})."
+=======
+    env = get_env()
+    if prod_channel and env == "prod":
+        return prod_channel
+    logging.info(
+        f"Switching channel from {prod_channel} to {DEFAULT_SLACK_TEST_CHANNEL}. Env: {env}."
+>>>>>>> f218e107 (changes to getting slack channel)
     )
     return DEFAULT_SLACK_TEST_CHANNEL
 
