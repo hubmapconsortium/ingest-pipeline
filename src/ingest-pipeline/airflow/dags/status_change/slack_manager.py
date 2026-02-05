@@ -143,11 +143,7 @@ class SlackManager(MessageManager):
     def get_channel(self) -> str:
         if not self.message_class:
             raise EntityUpdateException("Can't retrieve channel without message class.")
-        try:
-            env = get_env()
-        except Exception as e:
-            env = "dev"
-            logging.info(f"Error retrieving env, defaulting to DEV. {e}")
+        env = get_env()
         if env == "prod":
             channel = self.message_class.channel
         else:

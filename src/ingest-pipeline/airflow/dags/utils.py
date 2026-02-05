@@ -2082,14 +2082,24 @@ def post_to_slack_notify(token: str, message: str, channel: str):
     response.raise_for_status()
 
 
+def get_env() -> str:
+    host = None
+    env = None
+    for conn in ["ingest_api_connection", "entity_api_connection"]:
+        if host := HttpHook.get_connection(conn).host:
+            try:
+                env = find_matching_endpoint(host).lower()
+            except Exception:
+                continue
+    if not env:
+        logging.error(f"Could not determine env. Host: {host}. Defaulting to dev.")
+        env = "dev"
+    return env
+
+
 def env_appropriate_slack_channel(prod_channel: str) -> str:
     default = "C0A8ES4M9RU"  # test-notifications
-    entity_host = HttpHook.get_connection("entity_api_connection").host or ""
-    try:
-        env = find_matching_endpoint(entity_host) or ""
-    except AssertionError:
-        env = "dev"
-    if env.lower() == "prod":
+    if get_env() == "prod":
         return prod_channel
     return default
 
@@ -2174,26 +2184,38 @@ def main():
     print("crypto test: {} -> {} -> {}".format(s, crypt_s, s2))
 
 
-def get_config_value_int_recipients() -> list[str]:
+def send_email_with_config_recipients(
+    subject: str, email_body: str, attachment_path: str | None, preview: str | None
+) -> bool:
     """
-    Allows setting default internal email recipients at the config level;
-    overrides values passed into send_email if prod_only=True
+    Bypass send_email and use config values only.
     """
+    logging.info("Fetching email contact overrides from config.")
     conf_dict = airflow_conf.as_dict()
+    # fetch any internal recipient overrides
     if int_recipients := conf_dict.get("email_notifications", {}).get("int_recipients"):
-        return [str(address) for address in [int_recipients]]
-    return []
 
-
-def get_config_value_ext_recipients() -> list[str]:
-    """
-    Allows setting default external email recipients at the config level;
-    overrides values passed into send_email if prod_only=True
-    """
-    conf_dict = airflow_conf.as_dict()
-    if main_recipient := conf_dict.get("email_notifications", {}).get("main"):
-        return [str(main_recipient)]
-    return []
+        int_recipients = str(int_recipients).split(",")
+        logging.info(f"Internal recipients: {int_recipients}")
+    # fetch any main recipient overrides
+    if contacts := conf_dict.get("email_notifications", {}).get("main"):
+        contacts = str(contacts).split(",")
+    if preview:
+        if not contacts:
+            logging.info("No contacts found in airflow_conf, not sending. Would have sent:")
+        else:
+            logging.info(f"Sending email to {contacts}. Preview of real data below:")
+        logging.info(preview)
+    if contacts:
+        airflow_send_email(
+            contacts,
+            subject,
+            email_body,
+            files=[attachment_path] if attachment_path else None,
+            cc=int_recipients,
+        )
+        return True
+    return False
 
 
 def send_email(
@@ -2205,9 +2227,16 @@ def send_email(
     bcc: Optional[list[str]] = None,
     prod_only: bool = True,
 ) -> bool:
+    """
+    If prod_only=True, all recipient info will be overwritten with app.cfg values.
+    """
     assert contacts and email_body
     if type(contacts) is str:
         contacts = [contacts]
+    contacts = list(set(contacts))
+    if cc:
+        # If a contact is in both lists, remove them from cc
+        cc = list(set(cc) - set(contacts))
     preview = dedent(
         f"""
             Contact: {", ".join(contacts)}
@@ -2218,30 +2247,8 @@ def send_email(
             {("Attachment path: " + attachment_path) if attachment_path else "None"}
             """
     ).strip()
-    contacts = list(set(contacts))
-    if prod_only:
-        host_str = HttpHook.get_connection("entity_api_connection").host
-        env = find_matching_endpoint(host_str) if host_str else ""
-        if env.lower() != "prod":
-            logging.info("Non-prod environment, fetching overrides from config.")
-            contacts = []
-            cc = None
-            bcc = None
-            if config_ext_recipients := get_config_value_int_recipients():
-                contacts = config_ext_recipients
-            if config_int_recipients := get_config_value_int_recipients():
-                logging.info(f"Internal recipients: {config_int_recipients}")
-            if not contacts:
-                logging.info("No contacts found in airflow_conf, not sending. Would have sent:")
-                logging.info(preview)
-                return False
-            else:
-                logging.info(
-                    f"Sending email to {config_ext_recipients}. Preview of real data below:"
-                )
-    if cc:
-        # If a contact is in both lists, remove them from cc
-        cc = list(set(cc) - set(contacts))
+    if prod_only and get_env() != "prod":
+        return send_email_with_config_recipients(subject, email_body, attachment_path, preview)
     logging.info(preview)
     airflow_send_email(
         contacts,

@@ -94,7 +94,6 @@ endpoints = {
     "hubmap": {
         "PROD": {
             "entity_url": "https://entity.api.hubmapconsortium.org",
-            "ingest_url": "vm004@hive.psc.edu",
         },
         "DEV": {"entity_url": "https://entity-api.dev.hubmapconsortium.org"},
     },
@@ -103,8 +102,6 @@ endpoints = {
         "DEV": {"entity_url": "https://entity-api.dev.sennetconsortium.org"},
     },
 }
-
-# validation_report = 'Data File Errors:\n  Recursively test all ome-tiff files for an assay-specific list of fields:\n  - \'/hive/hubmap/data/protected/Stanford University Bone Marrow TMC/f6aff8e28f2fc0ef22e71cbadc1f6f51/HUBMAP1_slide100_L/lab_processed/images/HUBMAP_H&E_Slide99_C31C1.ome.tiff\n    is not a valid OME.TIFF file: Failed to read OME XML.\'\n  - \'/hive/hubmap/data/protected/Stanford University Bone Marrow TMC/f6aff8e28f2fc0ef22e71cbadc1f6f51/HUBMAP1_slide100_R/lab_processed/images/HUBMAP_H&E_Slide99_C32C1.ome.tiff\n    is not a valid OME.TIFF file: Failed to read OME XML.\'\n  Recursively test all ome-tiff files for validity:\n  - "/hive/hubmap/data/protected/Stanford University Bone Marrow TMC/f6aff8e28f2fc0ef22e71cbadc1f6f51/HUBMAP1_slide100_L/lab_processed/images/HUBMAP_H&E_Slide99_C31C1.ome.tiff\\\n    \\ is not a valid OME.TIFF file: XMLSchemaDecodeError: attribute Color="(255, 0, 0)": invalid literal for int()\\\n    \\ with base 10: "(255, 0, 0)"\n  - "/hive/hubmap/data/protected/Stanford University Bone Marrow TMC/f6aff8e28f2fc0ef22e71cbadc1f6f51/HUBMAP1_slide100_R/lab_processed/images/HUBMAP_H&E_Slide99_C32C1.ome.tiff\\\n    \\ is not a valid OME.TIFF file: XMLSchemaDecodeError: attribute Color="(255, 0, 0)": invalid literal for int()\\\n    \\ with base 10: "(255, 0, 0)"\n'
 
 validation_report_html_list = [
     "<ul>",

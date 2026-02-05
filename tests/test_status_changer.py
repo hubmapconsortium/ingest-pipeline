@@ -40,7 +40,6 @@ from status_change.status_utils import (
     get_entity_id,
     get_entity_ingest_url,
     get_env,
-    get_globus_url,
     get_headers,
     get_project,
     is_internal_error,
@@ -61,8 +60,6 @@ from utils import pythonop_set_dataset_state
 from airflow.configuration import conf as airflow_conf
 from airflow.models.connection import Connection
 from airflow.models.dagrun import DagRun
-
-conn_mock_hm = Connection(host=f"https://ingest.api.hubmapconsortium.org")
 
 
 def get_mock_response(good: bool, response_data: bytes) -> requests.Response:
@@ -113,9 +110,13 @@ class MockParent(unittest.TestCase):
         self.token = patch("utils.get_auth_tok", return_value="test_token")
         self.conn = patch(
             "status_change.status_utils.HttpHook.get_connection",
-            return_value=Connection(host=f"https://ingest.api.hubmapconsortium.org"),
+            return_value=Connection(host=f"https://entity.api.hubmapconsortium.org"),
         )
+        self.endpoints = patch("utils.ENDPOINTS", endpoints["hubmap"])
         self.env = patch("status_change.slack_manager.get_env", side_effect=["prod", "dev"])
+        self.globus = patch(
+            "status_change.slack.reorganized.get_globus_url", return_value="test_globus_url"
+        )
         self.conf = patch(
             "utils.airflow_conf.as_dict",
             return_value={"connections": {"WORKFLOW_SCRATCH": "test_path"}},
@@ -144,7 +145,9 @@ class MockParent(unittest.TestCase):
         # Mock objects
         self.mock_token = self.token.start()
         self.mock_conn = self.conn.start()
+        self.mock_endpoints = self.endpoints.start()
         self.mock_env = self.env.start()
+        self.mock_globus = self.globus.start()
         self.mock_conf = self.conf.start()
         self.mock_httphook = self.httphook.start()
         self.mock_httphook.return_value.json.return_value = good_upload_context  # GET request mock
@@ -161,7 +164,9 @@ class MockParent(unittest.TestCase):
         # Stop/clean up patches after test
         self.addCleanup(self.token.stop)
         self.addCleanup(self.conn.stop)
+        self.addCleanup(self.endpoints.stop)
         self.addCleanup(self.env.stop)
+        self.addCleanup(self.globus.stop)
         self.addCleanup(self.conf.stop)
         self.addCleanup(self.httphook.stop)
         self.addCleanup(self.get_ancestors.stop)
@@ -755,19 +760,16 @@ class TestSlack(MockParent):
     def test_reorganized_formatting(self):
         with patch("status_change.slack.reorganized.get_organ", return_value="test_organ"):
             with patch(
-                "status_change.slack.reorganized.get_globus_url", return_value="test_globus_url"
+                "status_change.slack.reorganized.get_abs_path", return_value="test_abs_path"
             ):
-                with patch(
-                    "status_change.slack.reorganized.get_abs_path", return_value="test_abs_path"
-                ):
-                    self.entity_update.stop()
-                    for klass, ret_val in {
-                        SlackUploadReorganized: slack_upload_reorg_str,
-                        SlackUploadReorganizedPriority: slack_upload_reorg_priority_str,
-                    }.items():
-                        with patch("utils.ENDPOINTS", endpoints["hubmap"]):
-                            mgr = klass("test_uuid", "test_token")
-                            assert mgr.format() == ret_val
+                self.entity_update.stop()
+                for klass, ret_val in {
+                    SlackUploadReorganized: slack_upload_reorg_str,
+                    SlackUploadReorganizedPriority: slack_upload_reorg_priority_str,
+                }.items():
+                    with patch("utils.ENDPOINTS", endpoints["hubmap"]):
+                        mgr = klass("test_uuid", "test_token")
+                        assert mgr.format() == ret_val
 
     def test_error_classes(self):
         upload_mgr = self.slack_manager(Statuses.UPLOAD_ERROR)
@@ -1117,7 +1119,7 @@ class TestStatusUtils(unittest.TestCase):
     def test_get_project(self, conn_mock):
         for ingest_context in ["hubmap", "sennet"]:
             conn_mock.return_value = Connection(
-                host=f"https://ingest.api.{ingest_context}consortium.org"
+                host=f"https://entity.api.{ingest_context}consortium.org"
             )
             proj = get_project()
             assert proj.value[0] == ingest_context
@@ -1129,7 +1131,7 @@ class TestStatusUtils(unittest.TestCase):
             "sennet": self.sn_entity_data,
         }.items():
             conn_mock.return_value = Connection(
-                host=f"https://ingest.api.{ingest_context}consortium.org"
+                host=f"https://entity.api.{ingest_context}consortium.org"
             )
             entity_id = get_entity_id(entity_data)
             assert entity_id == f"test_{ingest_context}_id"
@@ -1137,7 +1139,7 @@ class TestStatusUtils(unittest.TestCase):
     @patch("status_change.status_utils.HttpHook.get_connection")
     def test_get_headers(self, conn_mock):
         for proj in ["hubmap", "sennet"]:
-            conn_mock.return_value = Connection(host=f"https://ingest.api.{proj}consortium.org")
+            conn_mock.return_value = Connection(host=f"https://entity.api.{proj}consortium.org")
             assert get_headers("test_token") == {
                 "authorization": f"Bearer test_token",
                 "content-type": "application/json",
@@ -1172,7 +1174,7 @@ class TestStatusUtils(unittest.TestCase):
                 for env, host_url in {
                     "prod": f"https://entity.api.{proj}consortium.org",
                     "dev": f"https://entity-api.dev.{proj}consortium.org",
-                    None: "https://badurl",
+                    "dev": "https://badurl",
                 }.items():
                     conn_mock.return_value = Connection(host=host_url)
                     assert get_env() == env
@@ -1237,45 +1239,6 @@ class TestStatusUtils(unittest.TestCase):
                         expected_url += "&entity_type=uploads"
                     print(f"assert {url} == {expected_url}")
                     assert url == expected_url
-
-    @patch("status_change.status_utils.get_abs_path")
-    @patch("status_change.status_utils.HttpHook.get_connection")
-    def test_get_globus_url(self, conn_mock, abs_path_mock):
-        test_data = {
-            "sn_public_uuid_dev": {
-                "sennet": {
-                    "abs_path": "/codcc-dev/data/public/sn_public_uuid_dev",
-                    "dest_path": "https://app.globus.org/file-manager?origin_id=96b2b9e5-6915-4dbc-9ab5-173ad628902e&origin_path=sn_public_uuid_dev",
-                }
-            },
-            "hm_public_uuid_dev": {
-                "hubmap": {
-                    "abs_path": "/hive/hubmap-dev/data/public/hm_public_uuid_dev",
-                    "dest_path": "https://app.globus.org/file-manager?origin_id=af603d86-eab9-4eec-bb1d-9d26556741bb&origin_path=hm_public_uuid_dev",
-                }
-            },
-            "sn_protected_uuid_prod": {
-                "sennet": {
-                    "abs_path": "/codcc-prod/data/protected/component/sn_protected_uuid_prod",
-                    "dest_path": "https://app.globus.org/file-manager?origin_id=45617036-f2cc-4320-8108-edf599290158&origin_path=%2Fprotected%2Fcomponent%2Fsn_protected_uuid_prod%2F",
-                }
-            },
-            "hm_protected_uuid_prod": {
-                "hubmap": {
-                    "abs_path": "/hive/hubmap/data/protected/component/hm_protected_uuid_prod",
-                    "dest_path": "https://app.globus.org/file-manager?origin_id=24c2ee95-146d-4513-a1b3-ac0bfdb7856f&origin_path=%2Fprotected%2Fcomponent%2Fhm_protected_uuid_prod%2F",
-                }
-            },
-        }
-        for uuid, data in test_data.items():
-            for proj, paths in data.items():
-                with patch("utils.ENDPOINTS", endpoints[proj]):
-                    abs_path_mock.return_value = paths["abs_path"]
-                    conn_mock.return_value = Connection(
-                        host=f"https://entity.api.{proj}consortium.org"
-                    )
-                    print(get_globus_url(uuid, "test_token"))
-                    assert get_globus_url(uuid, "test_token") == paths["dest_path"]
 
 
 class MockedEmailManager(EmailManager):

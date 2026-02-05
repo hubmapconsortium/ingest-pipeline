@@ -8,6 +8,8 @@ from enum import Enum
 from typing import Any, Optional, Union
 from urllib.parse import urlencode, urljoin
 
+import requests
+from utils import get_env
 from utils import get_submission_context as base_get_submission_context
 
 from airflow.models import DagRun
@@ -225,32 +227,6 @@ class Project(Enum):
     SENNET = ("sennet", "SenNet")
 
 
-globus_dirs = {
-    "hubmap": {
-        "prod": {
-            "public": "af603d86-eab9-4eec-bb1d-9d26556741bb",
-            "protected": "24c2ee95-146d-4513-a1b3-ac0bfdb7856f",
-        },
-        "dev": {
-            "public": "2b82f085-1d50-4c93-897e-cd79d77481ed",
-            "protected": "ff1bd56e-2e65-4ec9-86fa-f79422884e96",
-        },
-        "path_replace_regex": r"/hive/hubmap.*/data",
-    },
-    "sennet": {
-        "prod": {
-            "public": "96b2b9e5-6915-4dbc-9ab5-173ad628902e",
-            "protected": "45617036-f2cc-4320-8108-edf599290158",
-        },
-        "dev": {
-            "public": "96b2b9e5-6915-4dbc-9ab5-173ad628902e",
-            "protected": "b1571f8f-4ce5-4c81-9327-47bba11423ff",
-        },
-        "path_replace_regex": f"/codcc.*/data",
-    },
-}
-
-
 def get_project() -> Project:
     url = HttpHook.get_connection("ingest_api_connection").host
     if "hubmap" in str(url) or "hive" in str(url):
@@ -357,19 +333,6 @@ def put_request_to_entity_api(
     return response.json()
 
 
-def get_env() -> Optional[str]:
-    from utils import find_matching_endpoint
-
-    host = None
-    for conn in ["ingest_api_connection", "entity_api_connection"]:
-        if host := HttpHook.get_connection(conn).host:
-            try:
-                return find_matching_endpoint(host).lower()
-            except Exception:
-                continue
-    logging.error(f"Could not determine env. Host: {host}.")
-
-
 def is_internal_error(entity_data: dict) -> bool:
     status = entity_data.get("status", "").lower()
     if status == "error":
@@ -389,7 +352,7 @@ def get_entity_ingest_url(entity_data: dict) -> str:
         url_end = "sennetconsortium.org/"
     env = get_env()
     url_start = "https://ingest."
-    if env not in ["prod", None]:
+    if env != "prod":
         url_start = f"https://ingest.{env}."
     entity_type = entity_data.get("entity_type", "").lower()
     base_url = urljoin(url_start + url_end, entity_type)
@@ -422,26 +385,30 @@ def get_data_ingest_board_query_url(entity_data: dict) -> str:
     return f"{url}?{urlencode(params)}"
 
 
-def get_globus_url(uuid: str, token: str) -> Optional[str]:
+def get_globus_url(entity_data: dict, token: str) -> Optional[str]:
     """
-    Return the Globus URL (default) for a dataset.
-    URL format is https://app.globus.org/file-manager?origin_id=<id>&origin_path=<uuid | consortium|private/<group>/<uuid>>
+    Return the Globus URL (default) for an entity.
     """
-    path = get_abs_path(uuid, token)
-    prefix = "https://app.globus.org/file-manager?"
-    proj = get_project()
-    project_dict = globus_dirs.get(proj.value[0]) or {}
-    if not (env_dict := project_dict.get(get_env() or "", {})):
+    url_end = "hubmapconsortium.org/"
+    if get_project() == Project.SENNET:
+        url_end = "sennetconsortium.org/"
+    env = get_env()
+    url_start = "https://entity.api."
+    if env != "prod":
+        url_start = f"https://entity-api.{env}."
+    entity_type = entity_data.get("entity_type", "").lower()
+    prefix = f"{url_start}{url_end}/entities/"
+    base_url = urljoin(prefix, entity_type)
+    if not base_url.endswith("/"):
+        base_url += "/"
+    path = f"globus-url/{entity_data['uuid']}"
+    response = requests.get(urljoin(base_url, path), headers=get_headers(token))
+    try:
+        response.raise_for_status()
+    except Exception as e:
+        logging.error(f"Could not retrieve Globus URL. Error: {e}")
         return
-    params = {}
-    if "public" in path:
-        params["origin_id"] = env_dict.get("public")
-        params["origin_path"] = uuid
-    else:
-        regex = project_dict.get("path_replace_regex", "")
-        params["origin_id"] = env_dict.get("protected")
-        params["origin_path"] = re.sub(regex, "", path) + "/"
-    return prefix + urlencode(params)
+    return response.text
 
 
 def get_run_id(run_id) -> str:
