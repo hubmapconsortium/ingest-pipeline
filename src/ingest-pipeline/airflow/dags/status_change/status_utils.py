@@ -9,8 +9,21 @@ from typing import Any, Optional, Union
 from urllib.parse import urlencode, urljoin
 
 import requests
-from utils import get_env
+
+# make utils available to other files in dir to prevent circular import
+from utils import (
+    decrypt_tok,
+    env_appropriate_slack_channel,
+    find_matching_endpoint,
+    get_auth_tok,
+    get_env,
+)
 from utils import get_submission_context as base_get_submission_context
+from utils import (
+    get_tmp_dir_path,
+    get_uuid_for_error,
+)
+from utils import send_email as main_send_email
 
 from airflow.models import DagRun
 from airflow.providers.http.hooks.http import HttpHook
@@ -204,6 +217,11 @@ class MessageManager:
         return False
 
 
+"""
+Use utils.get_env_appropriate_slack_channel in order to
+automatically switch to utils.DEFAULT_SLACK_TEST_CHANNEL
+when not on PROD.
+"""
 base_slack_channel = "C08V3TAP3GQ"  # testing-status-change
 slack_channels = {
     "base": base_slack_channel,
@@ -218,8 +236,6 @@ slack_channels = {
     "upload_reorganized": base_slack_channel,
     "upload_priority_reorganized": "C08STFJTJKT",  # fasttrack-ingest
 }
-
-slack_channels_testing = {"base": "C0A8ES4M9RU"}  # test-notifications
 
 
 class Project(Enum):
@@ -362,7 +378,6 @@ def get_entity_ingest_url(entity_data: dict) -> str:
 
 
 def get_data_ingest_board_query_url(entity_data: dict) -> str:
-    from utils import find_matching_endpoint
 
     proj = get_project().value[0]
     env = None
@@ -420,7 +435,6 @@ def get_run_id(run_id) -> str:
 
 
 def log_directory_path(run_id: str) -> str:
-    from utils import get_tmp_dir_path
 
     if not run_id:
         return ""

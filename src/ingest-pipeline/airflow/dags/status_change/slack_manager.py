@@ -23,8 +23,7 @@ from .status_utils import (
     EntityUpdateException,
     MessageManager,
     Statuses,
-    get_env,
-    slack_channels_testing,
+    env_appropriate_slack_channel,
     split_error_counts,
 )
 
@@ -143,19 +142,4 @@ class SlackManager(MessageManager):
     def get_channel(self) -> str:
         if not self.message_class:
             raise EntityUpdateException("Can't retrieve channel without message class.")
-        env = get_env()
-        if env == "prod":
-            channel = self.message_class.channel
-        else:
-            channel = slack_channels_testing.get(self.message_class.name)
-            logging.info(
-                f"Non-prod environment, switching channel from {self.message_class.channel} to {channel}."
-            )
-            if not channel:
-                channel = slack_channels_testing.get("base", "")
-        if not channel:
-            channel = SlackMessage.get_channel()
-            logging.info(
-                f"No channel found for message class {self.message_class.name} on {env}, using default channel."
-            )
-        return channel
+        return env_appropriate_slack_channel(self.message_class.channel)
