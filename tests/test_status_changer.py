@@ -223,7 +223,7 @@ class TestEntityUpdater(MockParent):
         for call in self.mock_httphook.call_args_list:
             for call_tuple in call:
                 for call_arg in call_tuple:
-                    if call_arg == "/entities/upload_valid_uuid?reindex-priority=3":
+                    if call_arg == "entities/upload_valid_uuid?exclude=direct_ancestors.files":
                         put_calls.append(call)
         assert len(put_calls) == 1
 
@@ -239,6 +239,42 @@ class TestEntityUpdater(MockParent):
         with_status.update()
         status_update_mock.assert_called_once()
         self.mock_entity_update.assert_not_called()
+
+    def test_reindex_specified_priority_set(self):
+        updater = EntityUpdater(
+            "upload_valid_uuid",
+            "upload_valid_token",
+            fields_to_overwrite={"validation_message": self.validation_msg},
+            reindex=2,
+        )
+        assert updater.reindex == 2
+
+    def test_reindex_true(self):
+        updater = EntityUpdater(
+            "upload_valid_uuid",
+            "upload_valid_token",
+            fields_to_overwrite={"validation_message": self.validation_msg},
+            reindex=True,
+        )
+        assert updater.reindex == 1
+
+    def test_reindex_default(self):
+        for reindex_val, outcome in [
+            # reindex=None
+            (None, 3),
+            # reindex=<invalid int>
+            (4, 3),
+            (0, 3),
+            # reindex=False
+            (False, 3),
+        ]:
+            updater = EntityUpdater(
+                "upload_valid_uuid",
+                "upload_valid_token",
+                fields_to_overwrite={"validation_message": self.validation_msg},
+                reindex=reindex_val,
+            )
+            assert updater.reindex == outcome
 
 
 class TestStatusChanger(MockParent):
