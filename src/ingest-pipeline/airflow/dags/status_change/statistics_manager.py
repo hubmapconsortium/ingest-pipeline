@@ -7,7 +7,7 @@ from status_change.status_utils import (
     MessageManager,
     Statuses,
     get_abs_path,
-    log_directory_path,
+    get_log_directory_path,
 )
 
 
@@ -42,7 +42,7 @@ class StatisticsManager(MessageManager):
                 {"uuid": self.uuid, "dataset_type": self.dataset_type, "directory": self.path},
                 index=[0],
             )
-            statistics_path = log_directory_path(self.run_id) + "/datasets.csv"
+            statistics_path = get_log_directory_path(self.run_id) + "/datasets.csv"
             print(f"Statistics Path {statistics_path}")
             df.to_csv(Path(statistics_path), index=False)
             df = calculate_statistics(statistics_path)
