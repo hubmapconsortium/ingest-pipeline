@@ -38,6 +38,7 @@ from airflow.configuration import conf as airflow_conf
 
 from extra_utils import build_tag_containers
 
+SLACK_NOTIFY_CHANNEL = "C07P2P1D5LP"
 
 default_args = {
     "owner": "hubmap",
@@ -165,12 +166,23 @@ with HMDAG(
         python_callable=utils.pythonop_maybe_keep,
         provide_context=True,
         op_kwargs={
-            "next_op": "notify_user_stellar_pre_convert",
+            "next_op": "copy_stellar_pre_convert_data",
             "bail_op": "set_dataset_error",
             "test_op": "pipeline_exec_cwl_segmentation",
         },
     )
 
+    #  output is a single file cell_data.h5ad
+    #  copy this output to some hardcoded directory
+    t_copy_stellar_pre_convert_data = BashOperator(
+        task_id="copy_stellar_pre_convert_data",
+        bash_command=""" \
+            mkdir /hive/hubmap/data/projects/STELLAR_pre_convert/{{ dag_run.conf.parent_submission_id | replace("[", "") | replace("]", "") }}/
+            tmp_dir={{tmp_dir_path(run_id)}} ; \
+            find ${tmp_dir} -name "cell_data.h5ad" -exec cp -v {} /hive/hubmap/data/projects/STELLAR_pre_convert/{{ dag_run.conf.parent_submission_id | replace("[", "") | replace("]", "") }} \; ; \
+            echo $?
+            """,
+    )
 
     @task
     def notify_user_stellar_pre_convert(**kwargs):
@@ -184,13 +196,12 @@ with HMDAG(
         primary_id = get_submission_context(
             get_auth_tok(**kwargs), get_parent_dataset_uuid(**kwargs)
         ).get("hubmap_id")
-        message = f"STELLAR pre-convert step succeeded in run <{run_url}|{run_id}>. Primary dataset ID: {primary_id}."
+        message = f"CellDIVE segmentation step succeeded in run <{run_url}|{run_id}>. Primary dataset ID: {primary_id}."
         if kwargs["dag_run"].conf.get("dryrun"):
             message = "[dryrun] " + message
         post_to_slack_notify(
             get_auth_tok(**kwargs), message, env_appropriate_slack_channel(SLACK_NOTIFY_CHANNEL)
         )
-
 
     t_notify_user_stellar_pre_convert = notify_user_stellar_pre_convert()
 
@@ -245,6 +256,7 @@ with HMDAG(
         >> t_build_cwl_segmentation
         >> t_pipeline_exec_cwl_segmentation
         >> t_maybe_keep_cwl_segmentation
+        >> t_copy_stellar_pre_convert_data
         >> t_notify_user_stellar_pre_convert
         >> t_trigger_phenocyler
 
