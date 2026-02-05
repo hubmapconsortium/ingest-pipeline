@@ -2137,57 +2137,6 @@ def get_submission_context(token: str, uuid: str, headers: dict | None = None) -
         return {}
 
 
-def main():
-    """
-    This provides some unit tests.  To run it, you will need to define the
-    'search_api_connection' connection ID and the Fernet key.  The easiest way
-    to do that is with something like:
-
-      export AIRFLOW_CONN_SEARCH_API_CONNECTION='https://search.api.hubmapconsortium.org/v3/
-      fernet_key=`python -c 'from cryptography.fernet import Fernet ; print(Fernet.generate_key().decode())'`
-      export AIRFLOW__CORE__FERNET_KEY=${fernet_key}
-    """
-    print(__file__)
-    print(get_git_commits([__file__]))
-    print(get_git_provenance_dict(__file__))
-    dirnm = dirname(__file__)
-    if dirnm == "":
-        dirnm = "."
-    for elt in get_file_metadata(dirnm, DummyFileMatcher()):
-        print(elt)
-    pprint(get_git_provenance_list(__file__))
-    md = {
-        "metadata": {"my_string": "hello world"},
-        "files": get_file_metadata(dirnm, DummyFileMatcher()),
-        "dag_provenance_list": get_git_provenance_list(__file__),
-    }
-    try:
-        assert_json_matches_schema(md, "dataset_metadata_schema.yml")
-        print("ASSERT passed")
-    except AssertionError as e:
-        print(f"ASSERT failed {e}")
-
-    assay_pairs = [
-        ("devtest", "devtest"),
-        ("codex", "CODEX"),
-        ("codex", "SOMEOTHER"),
-        ("someother", "CODEX"),
-        ("someother", "salmon_sn_rnaseq_10x"),
-        ("someother", "salmon_rnaseq_10x_sn"),
-    ]
-    for collectiontype, assay_type in assay_pairs:
-        print("collectiontype {}, assay_type {}:".format(collectiontype, assay_type))
-        for elt in downstream_workflow_iter(collectiontype, assay_type):
-            print("  -> {}".format(elt))
-
-    print(f"cwltool bin path: {get_cwltool_bin_path()}")
-
-    s = "hello world"
-    crypt_s = encrypt_tok(s)
-    s2 = decrypt_tok(crypt_s)
-    print("crypto test: {} -> {} -> {}".format(s, crypt_s, s2))
-
-
 def send_email_with_config_recipients(
     subject: str, email_body: str, attachment_path: str | None, preview: str | None
 ) -> bool:
@@ -2263,6 +2212,57 @@ def send_email(
         bcc=bcc,
     )
     return True
+
+
+def main():
+    """
+    This provides some unit tests.  To run it, you will need to define the
+    'search_api_connection' connection ID and the Fernet key.  The easiest way
+    to do that is with something like:
+
+      export AIRFLOW_CONN_SEARCH_API_CONNECTION='https://search.api.hubmapconsortium.org/v3/
+      fernet_key=`python -c 'from cryptography.fernet import Fernet ; print(Fernet.generate_key().decode())'`
+      export AIRFLOW__CORE__FERNET_KEY=${fernet_key}
+    """
+    print(__file__)
+    print(get_git_commits([__file__]))
+    print(get_git_provenance_dict(__file__))
+    dirnm = dirname(__file__)
+    if dirnm == "":
+        dirnm = "."
+    for elt in get_file_metadata(dirnm, DummyFileMatcher()):
+        print(elt)
+    pprint(get_git_provenance_list(__file__))
+    md = {
+        "metadata": {"my_string": "hello world"},
+        "files": get_file_metadata(dirnm, DummyFileMatcher()),
+        "dag_provenance_list": get_git_provenance_list(__file__),
+    }
+    try:
+        assert_json_matches_schema(md, "dataset_metadata_schema.yml")
+        print("ASSERT passed")
+    except AssertionError as e:
+        print(f"ASSERT failed {e}")
+
+    assay_pairs = [
+        ("devtest", "devtest"),
+        ("codex", "CODEX"),
+        ("codex", "SOMEOTHER"),
+        ("someother", "CODEX"),
+        ("someother", "salmon_sn_rnaseq_10x"),
+        ("someother", "salmon_rnaseq_10x_sn"),
+    ]
+    for collectiontype, assay_type in assay_pairs:
+        print("collectiontype {}, assay_type {}:".format(collectiontype, assay_type))
+        for elt in downstream_workflow_iter(collectiontype, assay_type):
+            print("  -> {}".format(elt))
+
+    print(f"cwltool bin path: {get_cwltool_bin_path()}")
+
+    s = "hello world"
+    crypt_s = encrypt_tok(s)
+    s2 = decrypt_tok(crypt_s)
+    print("crypto test: {} -> {} -> {}".format(s, crypt_s, s2))
 
 
 if __name__ == "__main__":

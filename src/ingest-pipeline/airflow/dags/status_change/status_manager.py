@@ -3,7 +3,6 @@ from __future__ import annotations
 import logging
 from copy import deepcopy
 from functools import cached_property
-from typing import Any, Optional, Union
 
 from schema_utils import (
     localized_assert_json_matches_schema as assert_json_matches_schema,
@@ -18,6 +17,8 @@ from .status_utils import (
     EntityUpdateException,
     MessageManager,
     Statuses,
+    enums_to_lowercase,
+    format_multiline,
     get_status_enum,
     get_submission_context,
     put_request_to_entity_api,
@@ -32,11 +33,31 @@ class EntityUpdater:
         uuid: str,
         token: str,
         http_conn_id: str = "entity_api_connection",
-        fields_to_overwrite: Optional[dict] = None,
-        fields_to_append_to: Optional[dict] = None,
+        fields_to_overwrite: dict | None = None,
+        fields_to_append_to: dict | None = None,
         delimiter: str = "|",
         reindex: bool = True,
     ):
+        """Update metadata fields for a given entity.
+        Basic usage, overwrite field:
+            EntityUpdater(
+                "uuid_string",
+                "token_string",
+                fields_to_overwrite={
+                    "validation_message": "Errors found!"
+                    }
+                ).update()
+        uuid -- uuid of entity to update
+        token -- Globus token
+        http_conn_id -- Entity API http connection for Airflow
+        fields_to_overwrite -- dict of {fieldname: new_value},
+            where new_value will replace the existing field value
+        fields_to_append_to -- dict of {fieldname: new_value},
+            where new_value will be appended to existing field value
+        delimiter -- choose how to separate existing & new field
+            values when appending
+        reindex -- whether to specify reindex in request to Entity API
+        """
         self.uuid = uuid
         self.token = token
         self.http_conn_id = http_conn_id
@@ -48,24 +69,53 @@ class EntityUpdater:
         self.fields_to_change = self.get_fields_to_change()
 
     @cached_property
-    def entity_data(self):
+    def entity_data(self) -> dict:
         rslt = get_submission_context(self.token, self.uuid)
         return rslt
 
-    def get_entity_type(self):
+    def get_entity_type(self) -> str:
         try:
             entity_type = self.entity_data.get("entity_type")
             assert entity_type is not None
             return entity_type
         except Exception as excp:
             raise EntityUpdateException(
-                f"""
+                format_multiline(
+                    f"""
                 Could not find entity type for {self.uuid}.
                 Error {excp}
                 """
+                )
             )
 
+    ##########
+    # Public #
+    ##########
+
+    def update(self):
+        """
+        - If status found in fields_to_change: send to StatusChanger then return.
+        - _check_fields ensures entity type not changed, ensures {"status": None} not
+            in fields_to_change, and checks JSON schema of request body.
+        - _set_entity_api_data sends PUT with fields_to_change payload to entity-api.
+        """
+        if self.fields_to_change.get("status"):
+            self._send_to_status_manager()
+            return
+        self.validate_fields_to_change()
+        self.set_entity_api_data()
+
+    ##########
+    # Fields #
+    ##########
+
     def get_fields_to_change(self) -> dict:
+        """
+        - Ensure that there are no conflicting instructions (append and overwrite)
+        for any fields.
+        - Append values from fields_to_append_to to existing metadata values.
+        - Combine appended fields and fields_to_overwrite.
+        """
         duplicates = set(self.fields_to_overwrite.keys()).intersection(
             set(self.fields_to_append_to.keys())
         )
@@ -73,48 +123,6 @@ class EntityUpdater:
             not duplicates
         ), f"Field(s) {', '.join(duplicates)} cannot be both appended to and overwritten."
         return self._update_existing_values() | self.fields_to_overwrite
-
-    def update(self):
-        """
-        This is the main method for using the EntityUpdater.
-        - Calculates fields_to_change value: deduplicated collection of
-            fields_to_overwrite, fields_to_append_to appended to existing fields.
-        - If status key and value found: instantiates StatusChanger with update call
-            and returns.
-        - _check_fields ensures entity type not changed, ensures "status": None not in
-            fields_to_change, and checks JSON schema of request body.
-        - _set_entity_api_data sends PUT with fields_to_change payload to entity-api.
-        """
-        if (
-            "status" in self.fields_to_change.keys()
-            and self.fields_to_change["status"] is not None
-        ):
-            self._send_to_status_manager()
-            return
-        self.validate_fields_to_change()
-        self.set_entity_api_data()
-
-    def set_entity_api_data(self) -> dict:
-        logging.info(
-            f"""
-            data:
-            {self.fields_to_change}
-            """
-        )
-        try:
-            response = put_request_to_entity_api(
-                self.uuid, self.token, self.fields_to_change, {"reindex": self.reindex}
-            )
-        except Exception as e:
-            raise EntityUpdateException(
-                f"""
-                Encountered error with request to change fields {', '.join([key for key in self.fields_to_change])}
-                for {self.uuid}, fields either not changed or not updated completely.
-                Error: {e}
-                """
-            )
-        logging.info(f"""Response: {response}""")
-        return response
 
     def validate_fields_to_change(self):
         self._check_fields()
@@ -133,13 +141,11 @@ class EntityUpdater:
                 f" (attempted change from {original_entity_type} to {updated_entity_type})"
             )
         try:
-            assert_json_matches_schema(
-                EntityUpdater._enums_to_lowercase(updated_entity_data), ENTITY_JSON_SCHEMA
-            )
+            assert_json_matches_schema(enums_to_lowercase(updated_entity_data), ENTITY_JSON_SCHEMA)
         except AssertionError as excp:
             raise EntityUpdateException(excp) from excp
 
-    def _update_existing_values(self):
+    def _update_existing_values(self) -> dict:
         new_field_data = {}
         for field, value in self.fields_to_append_to.items():
             existing_field_data = self.entity_data.get(field, "")
@@ -148,6 +154,34 @@ class EntityUpdater:
             else:
                 new_field_data[field] = value
         return new_field_data
+
+    ##########
+    # Update #
+    ##########
+
+    def set_entity_api_data(self) -> dict:
+        logging.info(
+            f"""
+            data:
+            {self.fields_to_change}
+            """
+        )
+        try:
+            response = put_request_to_entity_api(
+                self.uuid, self.token, self.fields_to_change, {"reindex": self.reindex}
+            )
+        except Exception as e:
+            raise EntityUpdateException(
+                format_multiline(
+                    f"""
+                Encountered error with request to change fields {', '.join([key for key in self.fields_to_change])}
+                for {self.uuid}, fields either not changed or not updated completely.
+                Error: {e}
+                """
+                )
+            )
+        logging.info(f"""Response: {response}""")
+        return response
 
     def _send_to_status_manager(self):
         status = self.fields_to_overwrite.pop("status", None)
@@ -164,54 +198,6 @@ class EntityUpdater:
             status=status,
         ).update()
 
-    @staticmethod
-    def _enums_to_lowercase(data: Any) -> Any:
-        """
-        Lowercase all strings which appear as dictionary values.
-        This modifies the passed data in place, rather than making
-        a copy!
-        """
-        if isinstance(data, dict):
-            for key, val in data.items():
-                if isinstance(val, str):
-                    data[key] = val.lower()
-                else:
-                    data[key] = EntityUpdater._enums_to_lowercase(val)
-            return data
-        elif isinstance(data, list):
-            return [EntityUpdater._enums_to_lowercase(val) for val in data]
-        else:
-            return data
-
-
-"""
-Example usage, simple path (e.g. status string, no validation message):
-    from status_manager import StatusChanger
-    StatusChanger(
-            "uuid_string",
-            "token_string",
-            status="status",
-        ).update()
-
-Example usage with optional params:
-    from status_manager import StatusChanger, Statuses
-    StatusChanger(
-            "uuid_string",
-            "token_string",
-            http_conn_id="entity_api_connection",  # optional
-            fields_to_overwrite={"test_field": "test"},  # optional
-            fields_to_append_to={"ingest_task": "test"},  # optional
-            delimiter=",",  # optional
-            reindex=True,  # optional
-            status=<Statuses.STATUS_ENUM>,  # or "<status>"
-            messages={
-                "error_counts": {<ErrorReport.counts>},
-                "processing_pipeline": "<name>",
-                "run_id": "<id>",
-            }  # optional
-    ).update()
-"""
-
 
 class StatusChanger(EntityUpdater):
     message_classes = [DataIngestBoardManager, SlackManager, EmailManager, StatisticsManager]
@@ -222,17 +208,37 @@ class StatusChanger(EntityUpdater):
         uuid: str,
         token: str,
         http_conn_id: str = "entity_api_connection",
-        fields_to_overwrite: Optional[dict] = None,
-        fields_to_append_to: Optional[dict] = None,
+        fields_to_overwrite: dict | None = None,
+        fields_to_append_to: dict | None = None,
         delimiter: str = "|",
         reindex: bool = True,
         # Additional field to support privileged field "status"
-        status: Optional[Union[Statuses, str]] = None,
+        status: Statuses | str | None = None,
         # Additional field to pass data to messaging classes
-        messages: Optional[dict] = None,
+        messages: dict | None = None,
         message_classes: list[str | type[MessageManager]] = [],
         **kwargs,
     ):
+        """Specialized subclass to handle status updates and call appropriate
+        message managers.
+
+        Basic usage, just status string (no additional fields or messages):
+            from status_manager import StatusChanger
+            StatusChanger(
+                    "uuid_string",
+                    "token_string",
+                    status="status",
+                ).update()
+        status -- Statuses enum or string version of new status
+        messages -- dict for parsing by MessageManager classes,
+            e.g. {
+                    "error_dict": {<content>},
+                    "error_counts": <counts_str>,
+                    "run_id": <run_id>
+                    "pipeline_name": <pipeline_name>
+                }
+
+        """
         del kwargs
         super().__init__(
             uuid,
@@ -248,17 +254,22 @@ class StatusChanger(EntityUpdater):
         if message_classes:
             self.message_classes = message_classes
 
+    ##########
+    # Public #
+    ##########
+
     def update(self) -> None:
         """
-        This is the main method for using the StatusChanger.
-        - If no status or same status and other fields_to_change, send to
-            EntityUpdater; if same status continue to message step.
-        - Validates fields and adds status to fields_to_change.
-        - Runs EntityUpdater._set_entity_api_data() process.
-        - Also instantiates messaging classes, sends updates based on class's
+        - If no status or if same_status and fields_to_change, send to
+            EntityUpdater.
+            - If no status: return (nothing left to do).
+            - If same_status: continue to call_message_managers.
+        - Validates fields with parent method and adds status to fields_to_change.
+        - Runs parent _set_entity_api_data() process.
+        - Instantiates messaging classes, sends updates based on message class's
             is_valid_for_status value.
         """
-        if self.status is None or self.same_status == True:
+        if self.status is None or self.same_status:
             if self.fields_to_change:
                 self._send_to_entity_updater(
                     f"Status for {self.uuid} unchanged, sending to EntityUpdater."
@@ -278,12 +289,16 @@ class StatusChanger(EntityUpdater):
             self.status, self.uuid, self.token, self.messages, self.message_classes
         )
 
+    ##########
+    # Fields #
+    ##########
+
     def validate_fields_to_change(self):
         super().validate_fields_to_change()
         assert self.status
         self.fields_to_change["status"] = self.status.status_str
 
-    def _validate_status(self, status: Union[Statuses, str, None]) -> Optional[Statuses]:
+    def _validate_status(self, status: Statuses | str | None) -> Statuses | None:
         current_status = self.entity_data.get("status", "").lower()
         logging.info(
             f"Current status: {current_status} ({ENTITY_STATUS_MAP[self.entity_type.lower()][current_status.lower()]})"
@@ -314,7 +329,7 @@ class StatusChanger(EntityUpdater):
             except Exception:
                 if type(extra_status) is str:
                     extra_status_str = extra_status.lower()
-                elif isinstance(extra_status, Statuses):
+                elif type(extra_status) is Statuses:
                     extra_status_str = extra_status.status_str
                 else:
                     extra_status_str = str(extra_status)
@@ -322,6 +337,10 @@ class StatusChanger(EntityUpdater):
                     f"Entity {self.uuid} passed multiple statuses ({status.status_str} and {extra_status_str})."
                 )
         return status
+
+    ##########
+    # Update #
+    ##########
 
     def _send_to_entity_updater(self, log_msg: str):
         logging.info(log_msg)
