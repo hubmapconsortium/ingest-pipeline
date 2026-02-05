@@ -371,6 +371,7 @@ def generate_salmon_rnaseq_dag(params: SequencingDagParameters) -> DAG:
                 "dataset_uuid_callable": get_dataset_uuid,
                 "ds_state": "Error",
                 "message": f"An error occurred in {params.pipeline_name}",
+                "pipeline_name": params.pipeline_name
             },
         )
 

@@ -1,16 +1,19 @@
 import logging
 from typing import Optional
 
+from status_change.slack.new import SlackDatasetNew, SlackDatasetNewDerived
+
 from .slack.base import SlackMessage
-from .slack.error import (  # SlackDatasetErrorDerived,; SlackDatasetErrorPrimary,
+from .slack.error import (
     SlackDatasetError,
+    SlackDatasetErrorProcessing,
     SlackUploadError,
 )
-from .slack.invalid import (  # SlackDatasetInvalidDerived,
+from .slack.invalid import (
     SlackDatasetInvalid,
     SlackUploadInvalid,
 )
-from .slack.qa import SlackDatasetQA
+from .slack.qa import SlackDatasetQA, SlackDatasetQADerived
 from .slack.reorganized import (
     SlackUploadReorganized,
     SlackUploadReorganizedNoDatasets,
@@ -38,19 +41,18 @@ class SlackManager(MessageManager):
 
     def __init__(
         self,
-        status: Statuses,
-        uuid: str,
-        token: str,
-        messages: Optional[dict] = None,
-        run_id: str = "",
+        status,
+        uuid,
+        token,
+        messages=None,
         *args,
         **kwargs,
     ):
-        super().__init__(status, uuid, token, messages, run_id, args, kwargs)
-        self.message_class = self.get_message_class(status)
+        super().__init__(status, uuid, token, messages, *args, **kwargs)
+        self.message_class = self.get_message_class(self.status)
         if not self.message_class:
             logging.info(
-                f"Status {status.value} does not have any Slack messaging rules; no message will be sent."
+                f"Status {self.status.value} does not have any Slack messaging rules; no message will be sent."
             )
 
     """
@@ -62,16 +64,19 @@ class SlackManager(MessageManager):
         Statuses.DATASET_ERROR: {
             "main_class": SlackDatasetError,
             "subclasses": [],
-            # "subclasses": [SlackDatasetErrorPrimary, SlackDatasetErrorDerived],
+            "subclasses": [SlackDatasetErrorProcessing],
         },
         Statuses.DATASET_INVALID: {
             "main_class": SlackDatasetInvalid,
             "subclasses": [],
-            # "subclasses": [SlackDatasetInvalidDerived],
+        },
+        Statuses.DATASET_NEW: {
+            "main_class": SlackDatasetNew,
+            "subclasses": [SlackDatasetNewDerived],
         },
         Statuses.DATASET_QA: {
             "main_class": SlackDatasetQA,
-            "subclasses": [],
+            "subclasses": [SlackDatasetQADerived],
         },
         Statuses.UPLOAD_ERROR: {
             "main_class": SlackUploadError,
@@ -92,15 +97,18 @@ class SlackManager(MessageManager):
         return bool(self.message_class)
 
     def get_message_class(self, msg_type: Statuses) -> Optional[SlackMessage]:
-        relevant_classes = self.status_to_class.get(msg_type)
-        if not relevant_classes:
+        if not (relevant_classes := self.status_to_class.get(msg_type)):
             return
-        # Re-request entity data as previous message managers may have altered it
+        class_args = [self.uuid, self.token]
+        class_kwargs = {"run_id": self.run_id, "processing_pipeline": self.processing_pipeline}
+        test_kwargs = {
+            "processing_pipeline": self.processing_pipeline,
+        }
         for subclass in relevant_classes.get("subclasses", []):
-            if subclass.test(self.entity_data, self.token):
-                return subclass(self.uuid, self.token)
+            if subclass.test(self.entity_data, **test_kwargs):
+                return subclass(*class_args, **class_kwargs)
         if main_class := relevant_classes["main_class"]:
-            return main_class(self.uuid, self.token)
+            return main_class(*class_args, **class_kwargs)
 
     def update(self):
         from utils import post_to_slack_notify

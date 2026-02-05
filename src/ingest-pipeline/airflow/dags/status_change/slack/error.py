@@ -1,4 +1,5 @@
-# from ..status_utils import get_primary_dataset
+from status_change.status_utils import get_is_derived
+
 from .base import SlackMessage
 
 
@@ -6,55 +7,38 @@ class SlackUploadError(SlackMessage):
     name = "upload_error"
 
     def format(self):
-        return [f"Upload {self.uuid} is in Error state.", self.entity_links_str]
+        return [f"Upload {self.entity_id} | {self.uuid} is in Error state.", *self.entity_links]
 
 
 class SlackDatasetError(SlackMessage):
     name = "dataset_error"
 
     def format(self):
-        return [f"Dataset {self.uuid} is in Error state.", self.entity_links_str]
+        return [f"Dataset {self.entity_id} | {self.uuid} is in Error state.", *self.entity_links]
 
 
-# class SlackDatasetErrorDerived(SlackMessage):
-#     """
-#     Error occurred during pipeline processing.
-#     """
-#
-#     name = "dataset_error_derived"
-#
-#     @classmethod
-#     def test(cls, entity_data, token):
-#         if get_primary_dataset(entity_data, token):
-#             return True
-#         return False
-#
-#     def format(self):
-#         child_uuid = self.uuid
-#         primary_dataset = get_primary_dataset(self.entity_data, self.token)
-#         self.uuid = primary_dataset
-#         return f"""
-#         Derived dataset <{self.get_globus_url(child_uuid)}|{child_uuid}> is in Error state.
-#         Primary dataset: <{self.get_globus_url()}|{self.uuid}>
-#         {self.entity_links_str}
-#         """
-#
-#
-# class SlackDatasetErrorPrimary(SlackDatasetError):
-#     """
-#     Error in primary dataset (e.g. uncaught exception during scan_and_begin_processing)
-#     """
-#
-#     name = "dataset_error_primary"
-#
-#     @classmethod
-#     def test(cls, entity_data, token):
-#         if not get_primary_dataset(entity_data, token):
-#             return True
-#         return False
-#
-#     def format(self):
-#         return f"""
-#         Dataset {self.uuid} is in Error state.
-#         {self.entity_links_str}
-#         """
+class SlackDatasetErrorProcessing(SlackMessage):
+    """
+    Error in processing pipeline. If a pipeline_name
+    was passed in, figure out whether this is a derived
+    dataset or not and message accordingly.
+    """
+
+    name = "dataset_error_processing"
+
+    def format(self):
+        derived = get_is_derived(self.entity_data)
+        if derived:
+            message = [f"Derived dataset {self.entity_id} | {self.uuid} is in Error state."]
+        else:
+            message = [f"Pipeline processing failed for {self.entity_id} | {self.uuid}."]
+        message.extend(self.entity_links)
+        if derived and self.primary_dataset_info:
+            message.append(f"Primary dataset: {self.create_primary_link()}.")
+        return message
+
+    @classmethod
+    def test(cls, entity_data, **kwargs):
+        if kwargs.get("processing_pipeline"):
+            return True
+        return get_is_derived(entity_data)

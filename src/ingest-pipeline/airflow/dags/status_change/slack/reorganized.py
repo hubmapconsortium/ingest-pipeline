@@ -9,8 +9,8 @@ from .base import SlackMessage
 class SlackUploadReorganized(SlackMessage):
     name = "upload_reorganized"
 
-    def __init__(self, uuid, token):
-        super().__init__(uuid, token)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.datasets: list[dict] = self.entity_data.get("datasets", [])
 
     @property
@@ -63,7 +63,7 @@ class SlackUploadReorganized(SlackMessage):
     def format(self):
         dataset_info, msg_data = self.get_upload_info()
         return [
-            f"Upload {self.uuid} reorganized:",
+            f"Upload {self.entity_id} | {self.uuid} reorganized:",
             *self.get_combined_info(msg_data, dataset_info),
         ]
 
@@ -99,8 +99,8 @@ class SlackUploadReorganizedNoDatasets(SlackMessage):
     """
 
     @classmethod
-    def test(cls, entity_data, token) -> bool:
-        del token
+    def test(cls, entity_data, **kwargs) -> bool:
+        del kwargs
         if not entity_data.get("datasets"):
             logging.info(
                 "Reorganized upload does not have child datasets (DAG may still be running); not sending Slack message."
@@ -127,8 +127,8 @@ class SlackUploadReorganizedPriority(SlackUploadReorganized):
         ]
 
     @classmethod
-    def test(cls, entity_data, token) -> bool:
-        del token
+    def test(cls, entity_data, **kwargs) -> bool:
+        del kwargs
         if not entity_data.get("datasets"):
             return False  # If no datasets, do not apply
         return bool(entity_data.get("priority_project_list"))

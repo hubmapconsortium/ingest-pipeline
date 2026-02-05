@@ -332,7 +332,7 @@ with HMDAG(
         python_callable=pythonop_set_dataset_state,
         provide_context=True,
         trigger_rule="all_done",
-        op_kwargs={"dataset_uuid_callable": _get_dataset_uuid, "ds_state": "Error", "reindex": False, "run_id": get_run_id},
+        op_kwargs={"dataset_uuid_callable": _get_dataset_uuid, "ds_state": "Error", "reindex": False, "run_id_callable": get_run_id},
     )
 
     (
