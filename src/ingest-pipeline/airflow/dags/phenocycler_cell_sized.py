@@ -6,7 +6,6 @@ from airflow.operators.empty import EmptyOperator
 from airflow.operators.python import PythonOperator, BranchPythonOperator
 
 from datetime import datetime, timedelta
-from pathlib import Path
 from typing import List
 
 from hubmap_operators.common_operators import (

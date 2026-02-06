@@ -23,7 +23,17 @@ resource_map:
       - 'task_re': '.*'
         'queue': 'general'
         'threads': 2
-  - 'dag_re': 'celldive_deepcell'
+  - 'dag_re': 'celldive_deepcell_segmentation'
+    'preserve_scratch': true
+    'lanes': 2
+    'tasks':
+      - 'task_re': '.*segmentation'
+        'queue': 'gpu000_q1'
+        'threads': 6
+      - 'task_re': '.*'
+        'queue': 'general'
+        'threads': 16
+  - 'dag_re': 'celldive_sprm'
     'preserve_scratch': true
     'lanes': 2
     'tasks':
@@ -43,7 +53,7 @@ resource_map:
       - 'task_re': '.*'
         'queue': 'general'
         'threads': 6
-  - 'dag_re': 'phenocycler_deepcell'
+  - 'dag_re': 'phenocycler_deepcell_segmentation'
     'preserve_scratch': true
     'lanes': 2
     'tasks':
