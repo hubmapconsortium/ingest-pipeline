@@ -232,7 +232,7 @@ with HMDAG(
             "metadata": kwargs["dag_run"].conf.get("metadata"),
             "crypt_auth_tok": kwargs["dag_run"].conf.get("crypt_auth_tok"),
             "workflows": kwargs["ti"].xcom_pull(
-                task_ids="build_cwl_stellar_pre_convert", key="cwl_workflows"
+                task_ids="build_cwl_segmentation", key="cwl_workflows"
             ),
         }
         print(
