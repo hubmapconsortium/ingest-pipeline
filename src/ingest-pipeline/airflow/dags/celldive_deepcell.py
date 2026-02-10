@@ -76,6 +76,12 @@ with HMDAG(
             "documentation_url": "",
         },
         {
+            "workflow_path": str(
+                get_absolute_workflow(Path("stellar-outofband", "steps", "pre-convert.cwl"))
+            ),
+            "documentation_url": "",
+        },
+        {
             "workflow_path": str(get_absolute_workflow(Path("sprm", "pipeline.cwl"))),
             "documentation_url": "",
         },
@@ -166,11 +172,52 @@ with HMDAG(
         python_callable=utils.pythonop_maybe_keep,
         provide_context=True,
         op_kwargs={
-            "next_op": "copy_stellar_pre_convert_data",
+            "next_op": "prepare_stellar_pre_convert",
             "bail_op": "set_dataset_error",
             "test_op": "pipeline_exec_cwl_segmentation",
         },
     )
+
+
+    @task(task_id="prepare_stellar_pre_convert")
+    def prepare_cwl_stellar_pre_convert(**kwargs):
+        if kwargs["dag_run"].conf.get("dryrun"):
+            cwl_path = Path(cwl_workflows[1]["workflow_path"]).parent
+            return build_tag_containers(cwl_path)
+        else:
+            return "No Container build required"
+
+    prepare_stellar_pre_convert = prepare_cwl_stellar_pre_convert()
+
+    def build_cwltool_cwl_stellar_pre_convert(**kwargs):
+        run_id = kwargs["run_id"]
+        tmpdir = get_tmp_dir_path(run_id)
+        print("tmpdir: ", tmpdir)
+
+        workflows = kwargs["ti"].xcom_pull(key="cwl_workflows", task_ids="build_cwl_segmentation")
+
+        input_parameters = [
+            {"parameter_name": "--directory", "value": str(tmpdir / "cwl_out")},
+        ]
+        command = get_cwl_cmd_from_workflows(workflows, 1, input_parameters, tmpdir, kwargs["ti"])
+
+        return join_quote_command_str(command)
+
+    t_build_cwl_stellar_pre_convert = PythonOperator(
+        task_id="build_cwl_stellar_pre_convert",
+        python_callable=build_cwltool_cwl_stellar_pre_convert,
+        provide_context=True,
+    )
+
+    t_pipeline_exec_cwl_stellar_pre_convert = BashOperator(
+        task_id="pipeline_exec_cwl_stellar_pre_convert",
+        bash_command=""" \
+            tmp_dir={{tmp_dir_path(run_id)}} ; \
+            {{ti.xcom_pull(task_ids='build_cwl_stellar_pre_convert')}} >> $tmp_dir/session.log 2>&1 ; \
+            echo $?
+            """,
+    )
+
 
     #  output is a single file cell_data.h5ad
     #  copy this output to some hardcoded directory
@@ -257,6 +304,10 @@ with HMDAG(
         >> t_build_cwl_segmentation
         >> t_pipeline_exec_cwl_segmentation
         >> t_maybe_keep_cwl_segmentation
+
+        >> prepare_stellar_pre_convert
+        >> t_build_cwl_stellar_pre_convert
+        >> t_pipeline_exec_cwl_stellar_pre_convert
         >> t_copy_stellar_pre_convert_data
         >> t_notify_user_stellar_pre_convert
         >> t_trigger_phenocyler
