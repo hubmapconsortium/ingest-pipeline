@@ -102,8 +102,9 @@ class EntityUpdater:
             """
         )
         try:
+            params = {"reindex-priority": 3} if self.reindex else {}
             response = put_request_to_entity_api(
-                self.uuid, self.token, self.fields_to_change, {"reindex": self.reindex}
+                self.uuid, self.token, self.fields_to_change, params
             )
         except Exception as e:
             raise EntityUpdateException(
