@@ -1,4 +1,4 @@
-import time
+
 from datetime import datetime, timedelta
 import pandas as pd
 import shutil
@@ -254,13 +254,9 @@ with HMDAG(
         ):
             raise AirflowException(f"Failed to reindex upload {upload_uuid}")
 
-        time.sleep(240)
-
         for uuid in dataset_uuids.keys():
             if not search_api_reindex(uuid, **pass_token):
                 raise AirflowException(f"Failed to reindex dataset {uuid}")
-
-            time.sleep(240)
 
         return True
 

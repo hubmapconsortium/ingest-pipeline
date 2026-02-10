@@ -363,7 +363,6 @@ with HMDAG(
                 else:
                     print(f"Something went wrong!!")
                     return 1
-            time.sleep(30)
         return 0
 
     t_send_status = PythonOperator(
@@ -378,8 +377,6 @@ with HMDAG(
         if not search_api_reindex(upload_uuid, **kwargs):
             return 1
 
-        time.sleep(240)
-
         # TODO: Seems like we can just issue a re-index for the donors. But let's do it like this for now.
         # If we can skip this for multi-assay datasets, that will save us a lot of time.
         child_uuid_list = kwargs["ti"].xcom_pull(task_ids="split_stage_2", key="child_uuid_list")
@@ -387,7 +384,6 @@ with HMDAG(
             if not search_api_reindex(uuid, **kwargs):
                 return 1
 
-            time.sleep(240)
         return 0
 
     t_reindex_routine = PythonOperator(

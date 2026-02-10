@@ -1,6 +1,5 @@
 from pprint import pprint
 from datetime import datetime, timedelta
-import time
 import os
 import yaml
 
@@ -171,7 +170,6 @@ with HMDAG(
                 print(f"Encountered {e}")
                 kwargs["ti"].xcom_push(key="split", value="1")  # signal failure
                 return
-            time.sleep(30)
         kwargs["ti"].xcom_push(key="split", value="0")  # signal success
 
     t_split = PythonOperator(
@@ -289,7 +287,6 @@ with HMDAG(
                 else:
                     print(f"Something went wrong!!")
                     return 1
-            time.sleep(30)
         return 0
 
     t_send_status = PythonOperator(
@@ -315,7 +312,6 @@ with HMDAG(
             if not search_api_reindex(uuid, **kwargs):
                 return 1
 
-            time.sleep(240)
         return 0
 
     t_reindex_routine = PythonOperator(
