@@ -209,7 +209,7 @@ class TestEntityUpdater(MockParent):
         for call in self.mock_httphook.call_args_list:
             for call_tuple in call:
                 for call_arg in call_tuple:
-                    if call_arg == "/entities/upload_valid_uuid?reindex=True":
+                    if call_arg == "/entities/upload_valid_uuid?reindex-priority=3":
                         put_calls.append(call)
         assert len(put_calls) == 1
 
@@ -953,7 +953,7 @@ class TestFailureCallback(MockParent):
                             if "error_message" in call_arg:
                                 hhr_call = call
                 assert hhr_call
-                assert hhr_call[0][0] == "/entities/abc123?reindex=True"
+                assert hhr_call[0][0] == "/entities/abc123?reindex-priority=3"
                 assert hhr_call[0][2]["authorization"] == "Bearer auth_token"
 
     def test_has_pipeline_name(self):
