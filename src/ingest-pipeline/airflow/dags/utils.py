@@ -103,6 +103,7 @@ FILE_TYPE_MATCHERS = [
     (r"^.*\.arrow$", "arrow"),
     (r"(^.*\.fastq$)|(^.*\.fastq.gz$)", "fastq"),
     (r"(^.*\.yml$)|(^.*\.yaml$)", "yaml"),
+    (r"^.*\.zip$", "zip"),
 ]
 COMPILED_TYPE_MATCHERS: Optional[List[Tuple[Pattern, str]]] = None
 
