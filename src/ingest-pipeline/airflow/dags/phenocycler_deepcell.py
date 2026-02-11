@@ -212,6 +212,17 @@ with HMDAG(
         """,
     )
 
+    t_maybe_keep_cwl_stellar_pre_convert = BranchPythonOperator(
+        task_id="maybe_keep_cwl_stellar_pre_convert",
+        python_callable=pythonop_maybe_keep,
+        provide_context=True,
+        op_kwargs={
+            "next_op": "t_copy_stellar_pre_convert_data",
+            "bail_op": "set_dataset_error",
+            "test_op": "pipeline_exec_cwl_stellar_pre_convert",
+        },
+    )
+
     #  output is a single file cell_data.h5ad
     #  copy this output to some hardcoded directory
     t_copy_stellar_pre_convert_data = BashOperator(
@@ -222,17 +233,6 @@ with HMDAG(
         find ${tmp_dir} -name "cell_data.h5ad" -exec cp -v {} /hive/hubmap/data/projects/STELLAR_pre_convert/{{ dag_run.conf.parent_submission_id | replace("[", "") | replace("]", "") }} \; ; \
         echo $?
         """,
-    )
-
-    t_maybe_keep_cwl_stellar_pre_convert = BranchPythonOperator(
-        task_id="maybe_keep_cwl_stellar_pre_convert",
-        python_callable=pythonop_maybe_keep,
-        provide_context=True,
-        op_kwargs={
-            "next_op": "notify_user_stellar_pre_convert",
-            "bail_op": "set_dataset_error",
-            "test_op": "pipeline_exec_cwl_stellar_pre_convert",
-        },
     )
 
     @task
@@ -351,8 +351,8 @@ with HMDAG(
         >> prepare_stellar_pre_convert
         >> t_build_cwl_stellar_pre_convert
         >> t_pipeline_exec_cwl_stellar_pre_convert
-        >> t_copy_stellar_pre_convert_data
         >> t_maybe_keep_cwl_stellar_pre_convert
+        >> t_copy_stellar_pre_convert_data
         >> t_notify_user_stellar_pre_convert
         >> prepare_cell_count_cmd
         >> cell_count_cmd
@@ -361,3 +361,4 @@ with HMDAG(
     )
     t_maybe_start_small_sprm >> t_trigger_phenocyler
     t_maybe_keep_cwl_segmentation >> t_set_dataset_error
+    t_maybe_keep_cwl_stellar_pre_convert >> t_set_dataset_error
