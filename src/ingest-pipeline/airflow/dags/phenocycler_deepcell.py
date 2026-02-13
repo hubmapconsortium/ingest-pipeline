@@ -68,7 +68,7 @@ with HMDAG(
 ) as dag:
     pipeline_name = "phenocycler-pipeline"
     workflow_version = "1.0.0"
-    workflow_description = "The Phenocycler pipeline begins with optional masking of user-specified regions defined in an optional geoJSON file describing areas of inclusino or exclusion.  It then breaks the image up into slices that can be reasonably segmented, runs cell and nuclear segmentation on those slices using DeepCell with the specified marker channels and stitches the segmentation masks back into one mask which can overlay the full expression image.  The segmentation masks and expression images are then used for cell type assignment using RIBCA, Stellar, and DeepCellTypes.  Finally, SPRM is used for spatial analysis of expression data, including computation of various measures of analyte intensity per cell, clustering based on expression and other data, marker computation per cluster, subclustering of cell types assigned by multiple methods and more."
+    workflow_description = "The Phenocycler pipeline begins with optional masking of user-specified regions defined in an optional geoJSON file describing areas of inclusion or exclusion.  It then breaks the image up into slices that can be reasonably segmented, runs cell and nuclear segmentation on those slices using DeepCell with the specified marker channels and stitches the segmentation masks back into one mask which can overlay the full expression image.  The segmentation masks and expression images are then used for cell type assignment using RIBCA, Stellar, and DeepCellTypes.  Finally, SPRM is used for spatial analysis of expression data, including computation of various measures of analyte intensity per cell, clustering based on expression and other data, marker computation per cluster, subclustering of cell types assigned by multiple methods and more."
 
     cwl_workflows = [
         {
@@ -77,7 +77,7 @@ with HMDAG(
         },
         {
             "workflow_path": str(
-                get_absolute_workflow(Path("stellar-outofband", "steps", "pre-convert.cwl"))
+                get_absolute_workflow(Path("stellar-outofband/expr-mask-convert", "pipeline.cwl"))
             ),
             "documentation_url": "",
         },

@@ -77,7 +77,7 @@ with HMDAG(
         },
         {
             "workflow_path": str(
-                get_absolute_workflow(Path("stellar-outofband", "steps", "pre-convert.cwl"))
+                get_absolute_workflow(Path("stellar-outofband/expr-mask-convert", "pipeline.cwl"))
             ),
             "documentation_url": "",
         },
