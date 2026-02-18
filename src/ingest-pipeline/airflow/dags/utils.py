@@ -2057,24 +2057,6 @@ def gather_calculated_metadata(**kwargs):
     return {"calculated_metadata": output_metadata}
 
 
-def search_api_reindex(uuid, **kwargs):
-    auth_token = get_auth_tok(**kwargs)
-    search_hook = HttpHook("PUT", http_conn_id="search_api_connection")
-    headers = {
-        "authorization": f"Bearer {auth_token}",
-        "content-type": "text/plain",
-        "X-Hubmap-Application": "search-api",
-    }
-
-    try:
-        response = search_hook.run(endpoint=f"reindex/{uuid}", headers=headers, extra_options=[])
-        response.raise_for_status()
-    except HTTPError as e:
-        print(f"Redinex for {uuid} failed. ERROR: {e}")
-        return False
-    return True
-
-
 def post_to_slack_notify(token: str, message: str, channel: str):
     http_hook = HttpHook("POST", http_conn_id="ingest_api_connection")
     payload = json.dumps({"message": message, "channel": channel})

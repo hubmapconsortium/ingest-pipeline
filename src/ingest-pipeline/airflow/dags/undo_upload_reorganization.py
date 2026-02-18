@@ -1,4 +1,3 @@
-
 from datetime import datetime, timedelta
 import pandas as pd
 import shutil
@@ -18,7 +17,6 @@ from utils import (
     get_queue_resource,
     get_preserve_scratch_resource,
     _get_scratch_base_path,
-    search_api_reindex,
     encrypt_tok,
 )
 
@@ -65,8 +63,6 @@ with HMDAG(
     #       - Same steps as above
     #   - Upload failed during dataset updates
     #       - If we want to move data back we can, but it would probably be easiest to just bulk update/re-ingest metadata
-    #   - Upload failed during re-indexing
-    #       - Not really anything to fix here, just need to reindex things
 
     def instantiate_factories():
         # Need an EntityFactory
@@ -219,7 +215,6 @@ with HMDAG(
                     "dag_run": dag_run,
                     "dataset_uuid_callable": lambda **kwargs: upload_uuid,
                     "ds_state": "New",
-                    "reindex": False,
                     "crypt_auth_tok": crypt_auth_tok,
                 }
             )
@@ -230,7 +225,6 @@ with HMDAG(
                         "dag_run": dag_run,
                         "dataset_uuid_callable": lambda **kwargs: uuid,
                         "ds_state": "Error",
-                        "reindex": False,
                         "crypt_auth_tok": crypt_auth_tok,
                     }
                 )
@@ -239,32 +233,10 @@ with HMDAG(
 
         return True
 
-    @task()
-    def reindex(dataset_uuids, dag_run: DagRun):
-        upload_uuid = dag_run.conf["upload_uuid"]
-        pass_token = {
-            "crypt_auth_tok": encrypt_tok(
-                airflow_conf.as_dict()["connections"]["APP_CLIENT_SECRET"]
-            ).decode()
-        }
-
-        if not search_api_reindex(
-            upload_uuid,
-            **pass_token,
-        ):
-            raise AirflowException(f"Failed to reindex upload {upload_uuid}")
-
-        for uuid in dataset_uuids.keys():
-            if not search_api_reindex(uuid, **pass_token):
-                raise AirflowException(f"Failed to reindex dataset {uuid}")
-
-        return True
-
     # Task definitions
     config_validation_task = check_conf()
     move_data_task = move_data()
     update_statuses_task = update_statuses(move_data_task)
-    reindex_task = reindex(move_data_task)
 
     # Task dependencies
-    config_validation_task >> move_data_task >> update_statuses_task >> reindex_task
+    config_validation_task >> move_data_task >> update_statuses_task
