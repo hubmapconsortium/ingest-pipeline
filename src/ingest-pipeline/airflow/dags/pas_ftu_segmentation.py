@@ -36,7 +36,7 @@ from hubmap_operators.common_operators import (
     SetDatasetProcessingOperator,
 )
 
-from extra_utils import build_tag_containers
+from extra_utils import build_tag_containers, get_gpus
 
 default_args = {
     "owner": "hubmap",
@@ -174,6 +174,7 @@ with HMDAG(
         input_parameters = [
             {"parameter_name": "--processes", "value": get_threads_resource(dag.dag_id)},
             {"parameter_name": "--ometiff_directory", "value": str(tmpdir / "cwl_out")},
+            {"parameter_name": "--gpus", "value": get_gpus()}
         ]
         command = get_cwl_cmd_from_workflows(workflows, 1, input_parameters, tmpdir, kwargs["ti"])
 
