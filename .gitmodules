@@ -91,3 +91,6 @@
 [submodule "src/ingest-pipeline/airflow/dags/cwl/10x-flex-pipeline"]
 	path = src/ingest-pipeline/airflow/dags/cwl/10x-flex-pipeline
 	url = https://github.com/hubmapconsortium/10x-flex-pipeline
+[submodule "src/ingest-pipeline/airflow/dags/cwl/imc-3d-segmentation"]
+	path = src/ingest-pipeline/airflow/dags/cwl/imc-3d-segmentation
+	url = https://github.com/hubmapconsortium/imc-3d-segmentation
