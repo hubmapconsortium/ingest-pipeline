@@ -126,6 +126,7 @@ with HMDAG(
         input_parameters = [
             {"parameter_name": "--data_directory", "value": str(data_dir)},
             {"parameter_name": "--tissue_type", "value": organ_code},
+            {"parameter_name": "--gpus", "value": get_gpus()}
         ]
         command = get_cwl_cmd_from_workflows(
             cwl_workflows, 0, input_parameters, tmpdir, kwargs["ti"]
@@ -174,7 +175,6 @@ with HMDAG(
         input_parameters = [
             {"parameter_name": "--processes", "value": get_threads_resource(dag.dag_id)},
             {"parameter_name": "--ometiff_directory", "value": str(tmpdir / "cwl_out")},
-            {"parameter_name": "--gpus", "value": get_gpus()}
         ]
         command = get_cwl_cmd_from_workflows(workflows, 1, input_parameters, tmpdir, kwargs["ti"])
 
