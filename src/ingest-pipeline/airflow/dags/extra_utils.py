@@ -1,6 +1,7 @@
 import json
 import pandas as pd
 import re
+import torch
 
 from typing import List, Dict
 from pathlib import Path
@@ -12,6 +13,8 @@ from pprint import pprint
 from typing import Tuple
 from multi_docker_build.build_docker_images import build as docker_builder
 from hubmap_pipeline_release_mgmt.tag_release_pipeline import adjust_cwl_docker_tags
+
+from pynvml import nvmlInit, nvmlDeviceGetMemoryInfo, nvmlDeviceGetHandleByIndex
 
 
 def check_link_published_drvs(uuid: str, auth_tok: str) -> Tuple[bool, str]:
@@ -241,3 +244,18 @@ def calculate_statistics(file_path: str) -> pd:
             cpu_count = 1
             processes_marker = False
     return df
+
+
+def get_gpus() -> int:
+    nvmlInit()
+    min_mem = 0
+    node_selected = None
+    for device in range(torch.cuda.device_count()):
+        info = nvmlDeviceGetMemoryInfo(nvmlDeviceGetHandleByIndex(device))
+        if node_selected is None:
+            node_selected = device
+            min_mem = info.free
+        elif min_mem < info.free:
+            min_mem = info.free
+            node_selected = device
+    return node_selected
