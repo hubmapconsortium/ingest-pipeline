@@ -127,26 +127,42 @@ ENTITY_STATUS_MAP = {
 }
 
 
+def get_status_enum(entity_type: str, status: Statuses | str, uuid: str) -> Statuses:
+    if type(status) is str:
+        try:
+            print(f"Looking for {entity_type.lower()}_{status.lower()} in ENTITY_STATUS_MAP.")
+            status = ENTITY_STATUS_MAP[entity_type.lower()][status.lower()]
+            print(f"Found {status}.")
+        except KeyError:
+            raise EntityUpdateException(
+                f"""
+                Could not retrieve status for {uuid}.
+                Check that status is valid for entity type.
+                Status not changed.
+                """
+            )
+    assert type(status) is Statuses
+    return status
+
+
 class MessageManager:
 
     def __init__(
         self,
-        status: Statuses,
+        status: Statuses | str,
         uuid: str,
         token: str,
         messages: Optional[dict] = None,
-        run_id: str = "",
         *args,
         **kwargs,
     ):
         self.uuid = uuid
         self.token = token
-        self.status = status
         self.messages = messages if messages else {}
-        self.run_id = run_id
         self.args = args
         self.kwargs = kwargs
         self.entity_data = get_submission_context(self.token, self.uuid)
+        self.status = self.get_status(status)
         self.is_internal_error = is_internal_error(self.entity_data)
         self.log_directory_path = log_directory_path(self.run_id)
 
@@ -157,6 +173,9 @@ class MessageManager:
     def update(self):
         raise NotImplementedError
 
+    def get_status(self, status: Statuses | str) -> Statuses:
+        return get_status_enum(self.entity_data.get("entity_type", ""), status, self.uuid)
+
     @property
     def error_counts(self) -> str:
         if counts := self.messages.get("error_counts"):
@@ -165,23 +184,40 @@ class MessageManager:
 
     @property
     def error_dict(self) -> dict:
-        if error_dict := self.messages.get("error_dict"):
-            return error_dict
-        return {}
+        return self.messages.get("error_dict", {})
+
+    @property
+    def processing_pipeline(self) -> str:
+        return self.messages.get("processing_pipeline", "")
+
+    @property
+    def run_id(self) -> str:
+        run_id = self.messages.get("run_id", "")
+        return get_run_id(run_id)
+
+    @property
+    def derived(self) -> bool:
+        if get_is_derived(self.entity_data):
+            return True
+        return False
 
 
+base_slack_channel = "C08V3TAP3GQ"  # testing-status-change
 slack_channels = {
-    "base": "C08V3TAP3GQ",  # testing-status-change
-    "dataset_error": "C08V3TAP3GQ",
-    "dataset_invalid": "C08V3TAP3GQ",
+    "base": base_slack_channel,
+    "dataset_error": base_slack_channel,
+    "dataset_error_processing": base_slack_channel,
+    "dataset_invalid": base_slack_channel,
+    "dataset_new_derived": base_slack_channel,
     "dataset_qa": "C099KMKJT26",  # dataset-qa-notifications
-    "upload_error": "C08V3TAP3GQ",
-    "upload_invalid": "C08V3TAP3GQ",
-    "upload_reorganized": "C08V3TAP3GQ",
+    "dataset_qa_derived": base_slack_channel,
+    "upload_error": base_slack_channel,
+    "upload_invalid": base_slack_channel,
+    "upload_reorganized": base_slack_channel,
     "upload_priority_reorganized": "C08STFJTJKT",  # fasttrack-ingest
 }
 
-slack_channels_testing = {"base": "C08V3TAP3GQ"}
+slack_channels_testing = {"base": "C0A8ES4M9RU"}  # test-notifications
 
 
 class Project(Enum):
@@ -292,21 +328,17 @@ def get_ancestors(uuid: str, token: str) -> dict:
     endpoint = f"/ancestors/{uuid}"
     headers = get_headers(token)
     http_hook = HttpHook("GET", http_conn_id="entity_api_connection")
-    response = http_hook.run(endpoint, headers)
-    logging.info(f"""Response: {response.json()}""")
+    response = http_hook.run(endpoint, headers=headers)
     return response.json()
 
 
-def get_primary_dataset(entity_data: dict, token: str) -> Optional[str]:
-    # Weed out multi-assay
-    dag_provenance_list = entity_data.get("ingest_metadata", {}).get("dag_provenance_list", [])
-    for dag in dag_provenance_list:
-        if ".cwl" in dag.get("name", ""):
-            # If it's been through a pipeline, then find ancestor dataset
-            ancestors = get_ancestors(entity_data.get("uuid", ""), token)
-            for ancestor in ancestors:
-                if ancestor.get("entity_type", "").lower() == "dataset":
-                    return ancestor.get("uuid")
+def get_primary_dataset(entity_data: dict, token: str) -> str | None:
+    if not "central process" in entity_data.get("creation_action", "").lower():
+        return
+    ancestors = get_ancestors(entity_data.get("uuid", ""), token)
+    for ancestor in ancestors:
+        if ancestor.get("entity_type", "").lower() == "dataset":
+            return ancestor.get("uuid")
 
 
 def put_request_to_entity_api(
@@ -412,10 +444,12 @@ def get_globus_url(uuid: str, token: str) -> Optional[str]:
     return prefix + urlencode(params)
 
 
-def get_run_id(run_id):
+def get_run_id(run_id) -> str:
     if isinstance(run_id, DagRun):
-        return run_id.run_id
-    return str(run_id)
+        return run_id.run_id if type(run_id.run_id) is str else ""
+    if type(run_id) is str:
+        return run_id
+    return ""
 
 
 def log_directory_path(run_id: str) -> str:
@@ -430,3 +464,11 @@ def split_error_counts(error_message: str, no_bullets: bool = False) -> list[str
     if no_bullets:
         return [line for line in re.split("; | \\| ", error_message)]
     return [f"- {line}" for line in re.split("; | \\| ", error_message)]
+
+
+def get_is_derived(entity_data: dict) -> bool:
+    if not entity_data.get("entity_type", "").lower() == "dataset":
+        return False
+    if entity_data.get("creation_action", "") == "Central Process":
+        return True
+    return False

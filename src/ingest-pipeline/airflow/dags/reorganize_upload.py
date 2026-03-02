@@ -25,6 +25,7 @@ from hubmap_operators.common_operators import (
 )
 
 from utils import (
+    get_run_id,
     pythonop_maybe_keep,
     make_send_status_msg_function,
     get_tmp_dir_path,
@@ -36,7 +37,6 @@ from utils import (
     get_queue_resource,
     get_preserve_scratch_resource,
     get_soft_data_assaytype,
-    search_api_reindex,
 )
 
 from misc.tools.split_and_create import reorganize
@@ -338,14 +338,20 @@ with HMDAG(
         dataset_lz_path_fun=get_dataset_lz_path,
         metadata_fun=read_metadata_file,
         include_file_metadata=False,
-        reindex=False,
     )
 
     def wrapped_send_status_msg(**kwargs):
         # re-set status to trigger messages now that child datasets have been created
         upload_uuid = kwargs["ti"].xcom_pull(task_ids="find_uuid", key="uuid")
-        StatusChanger(upload_uuid, get_auth_tok(**kwargs), run_id=kwargs.get("run_id"), status="reorganized", reindex=False).update()
-        child_uuid_list = kwargs["ti"].xcom_pull(task_ids="split_stage_2", key="child_uuid_list") or []
+        StatusChanger(
+            upload_uuid,
+            get_auth_tok(**kwargs),
+            messages={"run_id": kwargs.get("run_id")},
+            status="reorganized",
+        ).update()
+        child_uuid_list = (
+            kwargs["ti"].xcom_pull(task_ids="split_stage_2", key="child_uuid_list") or []
+        )
         for child_uuid_chunk in [
             child_uuid_list[i : i + 10] for i in range(0, len(child_uuid_list), 10)
         ]:
@@ -362,7 +368,6 @@ with HMDAG(
                 else:
                     print(f"Something went wrong!!")
                     return 1
-            time.sleep(30)
         return 0
 
     t_send_status = PythonOperator(
@@ -370,29 +375,6 @@ with HMDAG(
         python_callable=wrapped_send_status_msg,
         provide_context=True,
         trigger_rule="all_done",
-    )
-
-    def reindex_routine(**kwargs):
-        upload_uuid = kwargs["dag_run"].conf["uuid"]
-        if not search_api_reindex(upload_uuid, **kwargs):
-            return 1
-
-        time.sleep(240)
-
-        # TODO: Seems like we can just issue a re-index for the donors. But let's do it like this for now.
-        # If we can skip this for multi-assay datasets, that will save us a lot of time.
-        child_uuid_list = kwargs["ti"].xcom_pull(task_ids="split_stage_2", key="child_uuid_list")
-        for uuid in child_uuid_list:
-            if not search_api_reindex(uuid, **kwargs):
-                return 1
-
-            time.sleep(240)
-        return 0
-
-    t_reindex_routine = PythonOperator(
-        task_id="reindex_routine",
-        python_callable=reindex_routine,
-        provide_context=True,
     )
 
     t_log_info = LogInfoOperator(task_id="log_info")
@@ -453,15 +435,16 @@ with HMDAG(
     def _get_upload_uuid(**kwargs):
         return kwargs["ti"].xcom_pull(task_ids="find_uuid", key="uuid")
 
-    def _get_run_id(**kwargs):
-        return kwargs["ti"].xcom_pull(task_ids="find_uuid", key="run_id")
-
     t_set_dataset_error = PythonOperator(
         task_id="set_dataset_error",
         python_callable=pythonop_set_dataset_state,
         provide_context=True,
         trigger_rule="all_done",
-        op_kwargs={"dataset_uuid_callable": _get_upload_uuid, "ds_state": "Error", "run_id_callable": _get_run_id},
+        op_kwargs={
+            "dataset_uuid_callable": _get_upload_uuid,
+            "ds_state": "Error",
+            "run_id_callable": get_run_id,
+        },
     )
 
     (
@@ -476,7 +459,6 @@ with HMDAG(
         >> t_md_consistency_tests
         >> t_reset_permissions
         >> t_send_status
-        >> t_reindex_routine
         >> t_join
         >> t_preserve_info
         >> t_cleanup_tmpdir

@@ -45,8 +45,8 @@ default_args = {
     "owner": "hubmap",
     "depends_on_past": False,
     "start_date": datetime(2019, 1, 1),
-    "email": ["icaoberg@psc.edu"],
-    "email_on_failure": True,
+    "email": ["joel.welling@gmail.com"],
+    "email_on_failure": False,
     "email_on_retry": False,
     "retries": 1,
     "retry_delay": timedelta(minutes=1),
@@ -212,6 +212,7 @@ with HMDAG(
             "dataset_uuid_callable": get_dataset_uuid,
             "ds_state": "Error",
             "message": "An error occurred in {}".format(pipeline_name),
+            "pipeline_name": pipeline_name
         },
     )
 

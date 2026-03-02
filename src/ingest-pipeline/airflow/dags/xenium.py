@@ -400,6 +400,7 @@ with HMDAG(
             "dataset_uuid_callable": get_dataset_uuid,
             "ds_state": "Error",
             "message": f"An error occurred in xenium-pipeline",
+            "pipeline_name": "xenium-pipeline"
         },
     )
 

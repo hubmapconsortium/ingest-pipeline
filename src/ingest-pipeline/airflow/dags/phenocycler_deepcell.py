@@ -68,7 +68,7 @@ with HMDAG(
 ) as dag:
     pipeline_name = "phenocycler-pipeline"
     workflow_version = "1.0.0"
-    workflow_description = "The Phenocycler pipeline begins with optional masking of user-specified regions defined in an optional geoJSON file describing areas of inclusino or exclusion.  It then breaks the image up into slices that can be reasonably segmented, runs cell and nuclear segmentation on those slices using DeepCell with the specified marker channels and stitches the segmentation masks back into one mask which can overlay the full expression image.  The segmentation masks and expression images are then used for cell type assignment using RIBCA, Stellar, and DeepCellTypes.  Finally, SPRM is used for spatial analysis of expression data, including computation of various measures of analyte intensity per cell, clustering based on expression and other data, marker computation per cluster, subclustering of cell types assigned by multiple methods and more."
+    workflow_description = "The Phenocycler pipeline begins with optional masking of user-specified regions defined in an optional geoJSON file describing areas of inclusion or exclusion.  It then breaks the image up into slices that can be reasonably segmented, runs cell and nuclear segmentation on those slices using DeepCell with the specified marker channels and stitches the segmentation masks back into one mask which can overlay the full expression image.  The segmentation masks and expression images are then used for cell type assignment using RIBCA, Stellar, and DeepCellTypes.  Finally, SPRM is used for spatial analysis of expression data, including computation of various measures of analyte intensity per cell, clustering based on expression and other data, marker computation per cluster, subclustering of cell types assigned by multiple methods and more."
 
     cwl_workflows = [
         {
@@ -77,7 +77,7 @@ with HMDAG(
         },
         {
             "workflow_path": str(
-                get_absolute_workflow(Path("stellar-outofband", "steps", "pre-convert.cwl"))
+                get_absolute_workflow(Path("stellar-outofband/expr-mask-convert", "pipeline.cwl"))
             ),
             "documentation_url": "",
         },
@@ -212,6 +212,17 @@ with HMDAG(
         """,
     )
 
+    t_maybe_keep_cwl_stellar_pre_convert = BranchPythonOperator(
+        task_id="maybe_keep_cwl_stellar_pre_convert",
+        python_callable=pythonop_maybe_keep,
+        provide_context=True,
+        op_kwargs={
+            "next_op": "t_copy_stellar_pre_convert_data",
+            "bail_op": "set_dataset_error",
+            "test_op": "pipeline_exec_cwl_stellar_pre_convert",
+        },
+    )
+
     #  output is a single file cell_data.h5ad
     #  copy this output to some hardcoded directory
     t_copy_stellar_pre_convert_data = BashOperator(
@@ -219,20 +230,9 @@ with HMDAG(
         bash_command=""" \
         mkdir /hive/hubmap/data/projects/STELLAR_pre_convert/{{ dag_run.conf.parent_submission_id | replace("[", "") | replace("]", "") }}/
         tmp_dir={{tmp_dir_path(run_id)}} ; \
-        find ${tmp_dir} -name "cell_data.h5ad" -exec cp -v {} /hive/hubmap/data/projects/STELLAR_pre_convert/{{ dag_run.conf.parent_submission_id  | replace("[", "") | replace("]", "") }} \; ; \
+        find ${tmp_dir} -name "cell_data.h5ad" -exec cp -v {} /hive/hubmap/data/projects/STELLAR_pre_convert/{{ dag_run.conf.parent_submission_id | replace("[", "") | replace("]", "") }} \; ; \
         echo $?
         """,
-    )
-
-    t_maybe_keep_cwl_stellar_pre_convert = BranchPythonOperator(
-        task_id="maybe_keep_cwl_stellar_pre_convert",
-        python_callable=pythonop_maybe_keep,
-        provide_context=True,
-        op_kwargs={
-            "next_op": "notify_user_stellar_pre_convert",
-            "bail_op": "set_dataset_error",
-            "test_op": "pipeline_exec_cwl_stellar_pre_convert",
-        },
     )
 
     @task
@@ -337,6 +337,7 @@ with HMDAG(
             "dataset_uuid_callable": get_dataset_uuid,
             "ds_state": "Error",
             "message": "An error occurred in {}".format(pipeline_name),
+            "pipeline_name": pipeline_name
         },
     )
 
@@ -350,8 +351,8 @@ with HMDAG(
         >> prepare_stellar_pre_convert
         >> t_build_cwl_stellar_pre_convert
         >> t_pipeline_exec_cwl_stellar_pre_convert
-        >> t_copy_stellar_pre_convert_data
         >> t_maybe_keep_cwl_stellar_pre_convert
+        >> t_copy_stellar_pre_convert_data
         >> t_notify_user_stellar_pre_convert
         >> prepare_cell_count_cmd
         >> cell_count_cmd
@@ -360,3 +361,4 @@ with HMDAG(
     )
     t_maybe_start_small_sprm >> t_trigger_phenocyler
     t_maybe_keep_cwl_segmentation >> t_set_dataset_error
+    t_maybe_keep_cwl_stellar_pre_convert >> t_set_dataset_error

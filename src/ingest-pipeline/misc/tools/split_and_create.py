@@ -174,6 +174,7 @@ def create_new_uuid(row, source_entity, entity_factory, primary_entity, dryrun=F
             priority_project_list=priority_project_list,
             reindex=False,
         )
+        print(f"New dataset: {rslt.get('uuid')}")
         return rslt["uuid"]
 
 
@@ -402,7 +403,6 @@ def update_upload_entity(child_uuid_list, source_entity, dryrun=False, verbose=F
                 verbose=verbose,
                 reindex=False,
             ).update()
-            time.sleep(30)
             print(f"{source_entity.uuid} status is Reorganized")
 
             # Batch update the child uuids
@@ -416,7 +416,6 @@ def update_upload_entity(child_uuid_list, source_entity, dryrun=False, verbose=F
                     verbose=verbose,
                     reindex=False,
                 ).update()
-                time.sleep(60)
 
             for child_uuid_chunk in [
                 child_uuid_list[i : i + 10] for i in range(0, len(child_uuid_list), 10)
@@ -433,7 +432,6 @@ def update_upload_entity(child_uuid_list, source_entity, dryrun=False, verbose=F
                     print(
                         f"Reorganized new: {uuid} from Upload: {source_entity.uuid} status is Submitted"
                     )
-                time.sleep(30)
     else:
         print(
             f"source entity <{source_entity.uuid}> is not an upload,"
@@ -455,7 +453,6 @@ def submit_uuid(uuid, entity_factory, dryrun=False):
             contains_human_genetic_sequences=uuid_entity_to_submit.contains_human_genetic_sequences,
             reindex=False,
         )
-        time.sleep(10)
         return rslt
 
 
@@ -605,8 +602,9 @@ def create_multiassay_component(
         ],
     }
     print(f"Data to create components {data}")
+    reindex_param = "reindex-priority=3" if reindex else ""
     response = HttpHook("POST", http_conn_id="ingest_api_connection").run(
-        endpoint=f"datasets/components?reindex={reindex}",
+        endpoint=f"datasets/components?{reindex_param}",
         headers=headers,
         data=json.dumps(data),
     )

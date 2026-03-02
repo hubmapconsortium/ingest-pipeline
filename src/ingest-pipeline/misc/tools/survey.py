@@ -769,8 +769,9 @@ class EntityFactory:
         if is_epic:
             data.update({"creation_action": "External Process"})
         print(f"Creating dataset with data {data}")
+        reindex_param = "reindex-priority=3" if reindex else ""
         r = requests.post(
-            f"{ingest_url}/datasets?reindex={reindex}",
+            f"{ingest_url}/datasets?{reindex_param}",
             data=json.dumps(data),
             headers={
                 "Authorization": f"Bearer {self.auth_tok}",
@@ -788,8 +789,9 @@ class EntityFactory:
         """
         ingest_url = ENDPOINTS[self.instance]["ingest_url"]
         data = {"contains_human_genetic_sequences": contains_human_genetic_sequences}
+        reindex_param = "reindex-priority=3" if reindex else ""
         r = requests.put(
-            f"{ingest_url}/datasets/{uuid}/submit?reindex={reindex}",
+            f"{ingest_url}/datasets/{uuid}/submit?{reindex_param}",
             data=json.dumps(data),
             headers={
                 "Authorization": f"Bearer {self.auth_tok}",

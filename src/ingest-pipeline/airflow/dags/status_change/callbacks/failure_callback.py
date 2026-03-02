@@ -61,8 +61,7 @@ class FailureCallback(AirflowCallback):
             self.auth_tok,
             status="error",
             fields_to_overwrite=data,
-            dag=self.called_from,
-            run_id=self.dag_run,
+            messages=self.messages,
         ).update()
 
     def __call__(self, context):
@@ -76,16 +75,31 @@ class FailureCallback(AirflowCallback):
         except Exception as e:
             logging.info(e)
             return
-        self.get_data(context)
+        self.context = context
+        self.get_data()
         if self.uuid:
             self.set_status()
         else:
             logging.info(f"No uuid sent with context, can't update status. Context:")
-            logging.info(pformat(context))
+            logging.info(pformat(self.context))
             logging.error("Cause of failure:")
             logging.error(self.formatted_exception)
 
-    def get_data(self, context):
-        super().get_data(context)
-        exception = context.get("exception")
+    def get_data(self):
+        super().get_data()
+        exception = self.context.get("exception")
         self.formatted_exception = formatted_exception(exception)
+        self.messages["processing_pipeline"] = self.check_for_pipeline()
+
+    def check_for_pipeline(self) -> str:
+        """
+        Some messaging rules depend on the presence of information
+        about pipelines. If we have it, add it to messages.
+        """
+        pipeline = self.context.get("pipeline_shorthand") or self.context.get("pipeline_name", "")
+        if not pipeline:
+            try:
+                pipeline = self.context["ti"].xcom_pull(key="pipeline_name")
+            except Exception:
+                pass
+        return pipeline

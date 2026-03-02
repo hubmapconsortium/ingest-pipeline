@@ -155,3 +155,6 @@ workflow_map:
   - 'collection_type': '.*'
     'assay_type': '10x-flex'
     'workflow': '10x_flex'
+  - 'collection_type': 'celldive_sprm'
+    'assay_type': 'celldive'
+    'workflow': 'celldive_sprm'
