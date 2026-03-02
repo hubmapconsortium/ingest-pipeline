@@ -30,7 +30,6 @@ from utils import (
     get_preserve_scratch_resource,
     encrypt_tok,
     make_send_status_msg_function,
-    search_api_reindex,
 )
 
 from extra_utils import get_components
@@ -79,6 +78,7 @@ def read_metadata_file(**kwargs):
     with open(md_fname, "r") as f:
         scanned_md = yaml.safe_load(f)
     return scanned_md
+
 
 def get_run_id(**kwargs):
     return kwargs.get("run_id")
@@ -161,7 +161,6 @@ with HMDAG(
                 reorganize_multiassay(
                     ds_uuid,
                     # dryrun=True,
-                    reindex=False,
                     dryrun=False,
                     instance=find_matching_endpoint(entity_host),
                     auth_tok=get_auth_tok(**kwargs),
@@ -267,7 +266,6 @@ with HMDAG(
         dataset_lz_path_fun=get_dataset_lz_path,
         metadata_fun=read_metadata_file,
         include_file_metadata=False,
-        reindex=False,
     )
 
     def wrapped_send_status_msg(**kwargs):
@@ -296,30 +294,6 @@ with HMDAG(
         trigger_rule="all_done",
     )
 
-    def reindex_routine(**kwargs):
-        # TODO: Seems like we can just issue a re-index for the donors. But let's do it like this for now.
-        parent_dataset_uuids = kwargs["ti"].xcom_pull(task_ids="find_uuid", key="uuids")
-
-        component_uuids = [
-            component["uuid"]
-            for uuid, component_list in kwargs["ti"]
-            .xcom_pull(task_ids="get_component_datasets")
-            .items()
-            for component in component_list
-        ]
-
-        for uuid in parent_dataset_uuids + component_uuids:
-            if not search_api_reindex(uuid, **kwargs):
-                return 1
-
-        return 0
-
-    t_reindex_routine = PythonOperator(
-        task_id="reindex_routine",
-        python_callable=reindex_routine,
-        provide_context=True,
-    )
-
     def _get_dataset_uuid(**kwargs):
         return kwargs["ti"].xcom_pull(task_ids="find_uuid", key="uuid")
 
@@ -328,7 +302,11 @@ with HMDAG(
         python_callable=pythonop_set_dataset_state,
         provide_context=True,
         trigger_rule="all_done",
-        op_kwargs={"dataset_uuid_callable": _get_dataset_uuid, "ds_state": "Error", "reindex": False, "run_id_callable": get_run_id},
+        op_kwargs={
+            "dataset_uuid_callable": _get_dataset_uuid,
+            "ds_state": "Error",
+            "run_id_callable": get_run_id,
+        },
     )
 
     (
@@ -340,7 +318,6 @@ with HMDAG(
         >> t_get_component_datasets
         >> t_run_md_extract
         >> t_send_status
-        >> t_reindex_routine
         >> t_join
         >> t_cleanup_tmpdir
     )

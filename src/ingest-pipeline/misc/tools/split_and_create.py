@@ -174,6 +174,7 @@ def create_new_uuid(row, source_entity, entity_factory, primary_entity, dryrun=F
             priority_project_list=priority_project_list,
             reindex=False,
         )
+        print(f"New dataset: {rslt.get('uuid')}")
         return rslt["uuid"]
 
 

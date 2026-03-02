@@ -71,10 +71,7 @@ class DataIngestBoardManager(MessageManager):
             )
             return
         update_data = func()
-        if self.assigned_to_group_name:
-            update_data["assigned_to_group_name"] = self.assigned_to_group_name
-        else:
-            update_data["assigned_to_group_name"] = ""
+        update_data["assigned_to_group_name"] = self.assigned_to_group_name
         return update_data
 
     def get_clear_message(self, msg_type: str) -> dict | None:
@@ -85,12 +82,11 @@ class DataIngestBoardManager(MessageManager):
             return {"error_message": ""}
 
     @property
-    def assigned_to_group_name(self) -> str | None:
-        if self.is_internal_error:
-            return "IEC Testing Group"
-        elif group_name := self.entity_data.get("group_name"):
+    def assigned_to_group_name(self) -> str:
+        if group_name := self.entity_data.get("group_name"):
             if self.status in self.assign_to_dp:
                 return group_name
+        return ""
 
     #########################
     # Status-based messages #

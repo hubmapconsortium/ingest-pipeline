@@ -1013,7 +1013,10 @@ class TestDataIngestBoardManager(MockParent):
         with patch(
             "status_change.status_utils.get_submission_context",
             return_value=self.mock_status_context.return_value.copy()
-            | {"validation_message": "Internal error--test"},
+            | {
+                "validation_message": "Internal error--test",
+                "group_name": "test_group",
+            },
         ):
             dib = DataIngestBoardManager(
                 Statuses.UPLOAD_INVALID,
@@ -1023,7 +1026,7 @@ class TestDataIngestBoardManager(MockParent):
             )
             assert dib.get_fields() == {
                 "error_message": "Internal error. Log directory: test_path/test_run_id",
-                "assigned_to_group_name": "IEC Testing Group",
+                "assigned_to_group_name": "test_group",
             }
             dib_w_msg = DataIngestBoardManager(
                 Statuses.UPLOAD_INVALID,
@@ -1036,7 +1039,7 @@ class TestDataIngestBoardManager(MockParent):
             )
             assert dib_w_msg.get_fields() == {
                 "error_message": "Internal error. Log directory: test_path/test_run_id | Antibodies/Contributors Errors: 1; Test errors: 5",
-                "assigned_to_group_name": "IEC Testing Group",
+                "assigned_to_group_name": "test_group",
             }
 
     def test_valid_status_internal_error_status(self):
@@ -1047,6 +1050,7 @@ class TestDataIngestBoardManager(MockParent):
             | {
                 "error_message": "Internal error--test",
                 "status": "error",
+                "group_name": "test_group",
             },
         ):
             dib = DataIngestBoardManager(
@@ -1057,7 +1061,7 @@ class TestDataIngestBoardManager(MockParent):
             )
             assert dib.get_fields() == {
                 "error_message": "Internal error. Log directory: test_path/test_run_id",
-                "assigned_to_group_name": "IEC Testing Group",
+                "assigned_to_group_name": "",
             }
             dib_w_msg = DataIngestBoardManager(
                 Statuses.UPLOAD_ERROR,
@@ -1070,7 +1074,7 @@ class TestDataIngestBoardManager(MockParent):
             )
             assert dib_w_msg.get_fields() == {
                 "error_message": f"Internal error. Log directory: test_path/test_run_id | Directory errors: 3; Plugins skipped: True",
-                "assigned_to_group_name": "IEC Testing Group",
+                "assigned_to_group_name": "",
             }
         with patch(
             "status_change.status_utils.get_submission_context",
@@ -1088,7 +1092,7 @@ class TestDataIngestBoardManager(MockParent):
             )
             assert dib.get_fields() == {
                 "error_message": "Internal error. Log directory: test_path/test_run_id",
-                "assigned_to_group_name": "IEC Testing Group",
+                "assigned_to_group_name": "",
             }
 
     def test_status_invalid_for_manager(self):
