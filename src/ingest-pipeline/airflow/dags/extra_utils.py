@@ -2,6 +2,7 @@ import json
 import pandas as pd
 import re
 import torch
+import time
 
 from typing import List, Dict
 from pathlib import Path
@@ -246,16 +247,16 @@ def calculate_statistics(file_path: str) -> pd:
     return df
 
 
-def get_gpus() -> int:
+def get_gpus() -> str:
     nvmlInit()
     min_mem = 0
     node_selected = None
     for device in range(torch.cuda.device_count()):
         info = nvmlDeviceGetMemoryInfo(nvmlDeviceGetHandleByIndex(device))
         if node_selected is None:
-            node_selected = device
+            node_selected = str(device)
             min_mem = info.free
         elif min_mem < info.free:
             min_mem = info.free
-            node_selected = device
+            node_selected = str(device)
     return node_selected
