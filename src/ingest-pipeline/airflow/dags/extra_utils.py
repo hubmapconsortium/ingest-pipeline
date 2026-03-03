@@ -260,6 +260,8 @@ def get_gpus() -> str:
             min_mem = info.free
             node_selected = device
     # Custom assignment to avoid overlapping with the VLLM permanent job
-    if node_selected == 2:
-        node_selected += 1
-    return str(node_selected)
+    if node_selected == 1:
+        node_selected += 2
+    # Torch get the physical device number, since we are using MIG, we need to account for that
+    # since CUDA in the cwltool will use the number of MIGs
+    return str(node_selected * 2)
