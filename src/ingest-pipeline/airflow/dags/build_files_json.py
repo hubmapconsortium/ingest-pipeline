@@ -82,11 +82,10 @@ with HMDAG(
                 pipeline_file_manifests,
                 max_in_line_files = -1
             )
-            rslt[uuid] = file_metadata_dict
-        json_file_path = Path(get_tmp_dir_path(kwargs["run_id"])) / "uuid_files.json"
-        with open(json_file_path, "w") as f:
-            json.dump(rslt, f)
-        print(f"Wrote files info to {json_file_path}")
+            json_file_path = Path(get_tmp_dir_path(kwargs["run_id"])) / f"{uuid}.json"
+            with open(json_file_path, "w") as f:
+                json.dump(file_metadata_dict)
+            print(f"Wrote metadata for {uuid} to {json_file_path}")
 
     t_emit_files_json = PythonOperator(
         task_id="emit_files_json",
