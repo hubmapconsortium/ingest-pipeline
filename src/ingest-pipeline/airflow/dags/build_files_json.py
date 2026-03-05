@@ -84,7 +84,7 @@ with HMDAG(
             )
             json_file_path = Path(get_tmp_dir_path(kwargs["run_id"])) / f"{uuid}.json"
             with open(json_file_path, "w") as f:
-                json.dump(file_metadata_dict)
+                json.dump(file_metadata_dict, f)
             print(f"Wrote metadata for {uuid} to {json_file_path}")
 
     t_emit_files_json = PythonOperator(
