@@ -121,6 +121,8 @@ RESOURCE_MAP_FILENAME = "resource_map.yml"  # Expected to be found in this same 
 RESOURCE_MAP_SCHEMA = "resource_map_schema.yml"
 COMPILED_RESOURCE_MAP: Optional[List[Tuple[Pattern, int, Dict[str, Any]]]] = None
 
+CURATION_CONTACTS = ["bhonick@psc.edu", "dbordelon@psc.edu", "egaskin@psc.edu"]
+CURATION_OFFICE_HOURS_SCHEDULING_LINK = "https://calendar.app.google/db2J6CDzZQuQnGHr6"
 
 # Parameters used to generate scRNA and scATAC analysis DAGs; these
 # are the only fields which differ between assays and DAGs
