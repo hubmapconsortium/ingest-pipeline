@@ -1,13 +1,21 @@
 import json
+import pandas as pd
+import re
+import torch
+import time
+
 from typing import List, Dict
 from pathlib import Path
 from csv import DictReader
 
 from airflow.providers.http.hooks.http import HttpHook
+from datetime import datetime, timedelta
 from pprint import pprint
 from typing import Tuple
 from multi_docker_build.build_docker_images import build as docker_builder
 from hubmap_pipeline_release_mgmt.tag_release_pipeline import adjust_cwl_docker_tags
+
+from pynvml import nvmlInit, nvmlDeviceGetMemoryInfo, nvmlDeviceGetHandleByIndex
 
 
 def check_link_published_drvs(uuid: str, auth_tok: str) -> Tuple[bool, str]:
@@ -17,7 +25,7 @@ def check_link_published_drvs(uuid: str, auth_tok: str) -> Tuple[bool, str]:
     headers = {
         "content-type": "application/json",
         "X-Hubmap-Application": "ingest-pipeline",
-        "Authorization": f"Bearer {auth_tok}"
+        "Authorization": f"Bearer {auth_tok}",
     }
     extra_options = {}
 
@@ -27,22 +35,19 @@ def check_link_published_drvs(uuid: str, auth_tok: str) -> Tuple[bool, str]:
     print("response: ")
     pprint(response.json())
     for data in response.json():
-        if (
-            data.get("entity_type") == "Dataset"
-            and data.get("status") == "Published"
-        ):
+        if data.get("entity_type") == "Dataset" and data.get("status") == "Published":
             needs_previous_version = True
             published_uuid = data.get("uuid")
     return needs_previous_version, published_uuid
 
 
-def get_component_uuids(uuid:str, auth_tok: str) -> List:
+def get_components(uuid: str, auth_tok: str) -> List:
     children = []
     endpoint = f"/children/{uuid}"
     headers = {
         "content-type": "application/json",
         "X-Hubmap-Application": "ingest-pipeline",
-        "Authorization": f"Bearer {auth_tok}"
+        "Authorization": f"Bearer {auth_tok}",
     }
     extra_options = {}
 
@@ -53,7 +58,7 @@ def get_component_uuids(uuid:str, auth_tok: str) -> List:
     pprint(response.json())
     for data in response.json():
         if data.get("creation_action") == "Multi-Assay Split":
-            children.append(data.get("uuid"))
+            children.append(data)
     return children
 
 
@@ -139,9 +144,15 @@ class SoftAssayClient:
 
 def build_tag_containers(cwl_path: Path) -> str:
     try:
-        docker_builder(tag_timestamp=False, tag_git_describe=False, tag="airflow-devel",
-                       push=False, ignore_missing_submodules=True, pretend=False,
-                       base_dir=cwl_path)
+        docker_builder(
+            tag_timestamp=False,
+            tag_git_describe=False,
+            tag="airflow-devel",
+            push=False,
+            ignore_missing_submodules=True,
+            pretend=False,
+            base_dir=cwl_path,
+        )
     except Exception as e:
         return f"Error in docker builder: {e}"
     try:
@@ -149,3 +160,108 @@ def build_tag_containers(cwl_path: Path) -> str:
     except Exception as e:
         return f"Error adjusting docker tags: {e}"
     return f"Container built for {cwl_path}"
+
+
+def __get_timestamp(line: str) -> datetime:
+    timestamp_format = "%Y-%m-%d %H:%M:%S"
+    timestamp_str = line[6:25]
+    return datetime.strptime(timestamp_str, timestamp_format)
+
+
+def __calculate_usage(starting_timestamp: datetime, ending_timestamp: datetime,
+                      cpu_count: int) -> timedelta:
+    return (ending_timestamp - starting_timestamp) * int(cpu_count)
+
+
+def calculate_statistics(file_path: str) -> pd:
+    df = pd.read_csv(Path(file_path))
+    startjob = r"\[job .+\] .+ docker \\$"
+    endjob = r"\[job .+\] completed success$"
+    processes = r"--num_concurrent_tasks \\$|--processes \\$|--threads \\$"
+    single_line = r"^\s{4}[0-9]+$"
+    gpu_task = r".*gpu.*"
+    gpu = False
+    processes_marker = False
+    cpu_count = 1
+    starting_timestamp = None
+    ending_timestamp = None
+    df['cpu_usage'] = None
+    df['gpu_usage'] = None
+    cpu_usage = timedelta(seconds=0)
+    gpu_usage = timedelta(seconds=0)
+    for index, row in df.iterrows():
+        print(f"UUID: {row['uuid']}")
+        path = Path(row.directory + "/session.log")
+        try:
+            with open(path, "r") as session_file:
+                for line in session_file:
+                    if re.search(startjob, line):
+                        starting_timestamp = __get_timestamp(line)
+                        # Check if this is CPU or GPU and create a flag
+                    if starting_timestamp and re.search(gpu_task, line):
+                        gpu = True
+                    if processes_marker or re.search(single_line, line):
+                        cpu_count *= int(line.strip("\\\n"))
+                        processes_marker = False
+                    if starting_timestamp and re.search(processes, line):
+                        processes_marker = True
+                    if re.search(endjob, line) and starting_timestamp:
+                        ending_timestamp = __get_timestamp(line)
+                    if starting_timestamp and ending_timestamp:
+                        print(f"Starting timestamp: {starting_timestamp}")
+                        print(f"ending timestamp: {ending_timestamp}")
+                        print(f"Increasing time: {ending_timestamp - starting_timestamp}")
+                        # if GPU flag, append to GPU, else append to CPU
+                        if gpu:
+                            gpu_usage += __calculate_usage(starting_timestamp,
+                                                           ending_timestamp,
+                                                           1)
+                            print(f"GPU: {gpu}")
+                        else:
+                            cpu_usage += __calculate_usage(starting_timestamp, ending_timestamp,
+                                                           cpu_count)
+                            print(f"CPU count: {cpu_count}")
+
+                        starting_timestamp = None
+                        ending_timestamp = None
+                        gpu = False
+                        cpu_count = 1
+                        processes_marker = False
+                        print(f"CPU usage: {cpu_usage}, GPU usage: {gpu_usage}")
+        except FileNotFoundError:
+            print(f"{path} not found")
+        except PermissionError:
+            print(f"{path} permission denied")
+        except Exception as e:
+            print(f"Error {e} in: {path}")
+        finally:
+            df.loc[index, "gpu_usage"] = gpu_usage
+            df.loc[index, "cpu_usage"] = cpu_usage
+            gpu_usage = timedelta(seconds=0)
+            cpu_usage = timedelta(seconds=0)
+            starting_timestamp = None
+            ending_timestamp = None
+            gpu = False
+            cpu_count = 1
+            processes_marker = False
+    return df
+
+
+def get_gpus() -> str:
+    nvmlInit()
+    min_mem = 0
+    node_selected = None
+    for device in range(torch.cuda.device_count()):
+        info = nvmlDeviceGetMemoryInfo(nvmlDeviceGetHandleByIndex(device))
+        if node_selected is None:
+            node_selected = device
+            min_mem = info.free
+        elif min_mem < info.free:
+            min_mem = info.free
+            node_selected = device
+    # Custom assignment to avoid overlapping with the VLLM permanent job
+    if node_selected == 1:
+        node_selected += 2
+    # Torch gets the physical device number, since we are using MIG, we need to account for that
+    # since CUDA in the cwltool will use the number of MIGs
+    return str(node_selected * 2)

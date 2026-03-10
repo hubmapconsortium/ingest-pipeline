@@ -1,26 +1,27 @@
+import json
+import logging
 import os
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 
 import utils
-import json
-import logging
 from hubmap_operators.common_operators import (
     CleanupTmpDirOperator,
     CreateTmpDirOperator,
+    SetDatasetProcessingOperator,
 )
-
+from status_change.callbacks.failure_callback import FailureCallback
+from status_change.status_manager import StatusChanger, Statuses
 from utils import (
     HMDAG,
     get_auth_tok,
     get_preserve_scratch_resource,
     get_queue_resource,
-    pythonop_get_dataset_state,
     get_threads_resource,
     get_tmp_dir_path,
+    pythonop_get_dataset_state,
 )
-from status_change.status_manager import StatusChanger, Statuses
 
 from airflow.configuration import conf as airflow_conf
 from airflow.exceptions import AirflowException
@@ -51,7 +52,7 @@ default_args = {
     "retry_delay": timedelta(minutes=1),
     "xcom_push": True,
     "queue": get_queue_resource("validate_dataset"),
-    "on_failure_callback": utils.create_dataset_state_error_callback(get_dataset_uuid),
+    "on_failure_callback": FailureCallback(__name__),
 }
 
 
@@ -94,6 +95,7 @@ with HMDAG(
 
     def run_validation(**kwargs):
         lz_path, uuid = __get_lzpath_uuid(**kwargs)
+        kwargs["ti"].xcom_push(key="uuid", value=uuid)
         plugin_path = [path for path in ingest_validation_tests.__path__][0]
 
         ignore_globs = [uuid, "extras", "*metadata.tsv", "validation_report.txt"]
@@ -111,8 +113,7 @@ with HMDAG(
             dataset_ignore_globs=ignore_globs,
             upload_ignore_globs="*",
             plugin_directory=plugin_path,
-            # offline=True,  # noqa E265
-            add_notes=False,
+            # offline_only=True,  # noqa E265
             extra_parameters={
                 "coreuse": get_threads_resource("validate_dataset", "run_validation")
             },
@@ -128,11 +129,8 @@ with HMDAG(
         with open(validation_file_path, "w") as f:
             f.write(report.as_text())
         kwargs["ti"].xcom_push(
-            key="error_counts",
-            value=json.dumps(report.counts, indent=9)
-            .strip("{}")
-            .replace('"', "")
-            .replace(",", ""),
+            key="report_data",
+            value={"error_counts": report.counts, "error_dict": report.errors},
         )
         kwargs["ti"].xcom_push(key="validation_file_path", value=str(validation_file_path))
 
@@ -146,7 +144,11 @@ with HMDAG(
     def send_status_msg(**kwargs):
         uuid = get_dataset_uuid(**kwargs)
         validation_file_path = Path(kwargs["ti"].xcom_pull(key="validation_file_path"))
-        error_counts = Path(kwargs["ti"].xcom_pull(key="error_counts"))
+        report_data = kwargs["ti"].xcom_pull(key="report_data") or {}
+        error_counts = report_data.get("error_counts", {})
+        error_counts_print = (
+            json.dumps(error_counts, indent=9).strip("{}").replace('"', "").replace(",", "")
+        )
         with open(validation_file_path) as f:
             report_txt = f.read()
         if report_txt.startswith("No errors!"):
@@ -155,6 +157,7 @@ with HMDAG(
                 "validation_message": "",
             }
         else:
+            # TODO: should this be DATASET_INVALID?
             status = Statuses.DATASET_ERROR
             extra_fields = {
                 "validation_message": report_txt,
@@ -172,14 +175,18 @@ with HMDAG(
                 f"""
                 ------------
                 Error counts:
-                {error_counts}
+                {error_counts_print}
                 ------------
                 """
             )
+        messages = kwargs["ti"].xcom_pull(key="report_data") or {} | {
+            "run_id": kwargs.get("run_id")
+        }
         StatusChanger(
             uuid,
             get_auth_tok(**kwargs),
             status=status,
+            messages=messages,
         ).update()
 
     t_send_status = PythonOperator(
@@ -190,5 +197,12 @@ with HMDAG(
 
     t_create_tmpdir = CreateTmpDirOperator(task_id="create_temp_dir")
     t_cleanup_tmpdir = CleanupTmpDirOperator(task_id="cleanup_temp_dir")
+    t_set_dataset_processing = SetDatasetProcessingOperator(task_id="set_dataset_processing")
 
-    t_create_tmpdir >> t_run_validation >> t_send_status >> t_cleanup_tmpdir
+    (
+        t_create_tmpdir
+        >> t_set_dataset_processing
+        >> t_run_validation
+        >> t_send_status
+        >> t_cleanup_tmpdir
+    )

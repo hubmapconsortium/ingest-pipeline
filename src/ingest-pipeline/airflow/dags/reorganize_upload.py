@@ -25,6 +25,7 @@ from hubmap_operators.common_operators import (
 )
 
 from utils import (
+    get_run_id,
     pythonop_maybe_keep,
     make_send_status_msg_function,
     get_tmp_dir_path,
@@ -41,6 +42,7 @@ from utils import (
 from misc.tools.split_and_create import reorganize
 from misc.tools.set_standard_protections import process_one_uuid
 from misc.tools.survey import EntityFactory
+from status_change.status_manager import StatusChanger
 
 
 # Following are defaults which can be overridden later on
@@ -139,6 +141,7 @@ with HMDAG(
         print(f"lz path: {lz_path}")
         kwargs["ti"].xcom_push(key="lz_path", value=lz_path)
         kwargs["ti"].xcom_push(key="uuid", value=uuid)
+        kwargs["ti"].xcom_push(key="run_id", value=kwargs.get("run_id"))
 
     t_find_uuid = PythonOperator(
         task_id="find_uuid", python_callable=find_uuid, provide_context=True, op_kwargs={}
@@ -207,6 +210,7 @@ with HMDAG(
                 auth_tok=get_auth_tok(**kwargs),
                 frozen_df_fname=_get_frozen_df_path(kwargs["run_id"]),
             )
+            kwargs["ti"].xcom_push(key="child_uuid_list", value=child_uuid_list)
             kwargs["ti"].xcom_push(key="split_stage_2", value="0")  # signal success
             kwargs["ti"].xcom_push(key="is_multiassay", value=is_multiassay)
             kwargs["ti"].xcom_push(key="is_epic", value=is_epic)
@@ -240,7 +244,6 @@ with HMDAG(
                 work_dirs.append('"{}"'.format(ds_rslt["local_directory_full_path"]))
             work_dirs = " ".join(work_dirs)
             kwargs["ti"].xcom_push(key="child_work_dirs", value=work_dirs)
-            kwargs["ti"].xcom_push(key="child_uuid_list", value=child_uuid_list)
         except Exception as e:
             print(f"Encountered {e}")
             kwargs["ti"].xcom_push(key="split_stage_2", value="1")  # signal failure
@@ -302,13 +305,13 @@ with HMDAG(
     def xcom_consistency_puller(**kwargs):
         return kwargs["ti"].xcom_pull(task_ids="split_stage_2", key="child_uuid_list")
 
-
     @task(task_id="permission_resetting")
     def permission_resetting(**kwargs):
         return_error = []
         entity_host = HttpHook.get_connection("entity_api_connection").host
-        entity_factory = EntityFactory(get_auth_tok(**kwargs),
-                                       instance=find_matching_endpoint(entity_host))
+        entity_factory = EntityFactory(
+            get_auth_tok(**kwargs), instance=find_matching_endpoint(entity_host)
+        )
         for uuid in kwargs["ti"].xcom_pull(task_ids="split_stage_2", key="child_uuid_list"):
             return_error.append(process_one_uuid(uuid, entity_factory))
         if False in return_error:
@@ -338,19 +341,33 @@ with HMDAG(
     )
 
     def wrapped_send_status_msg(**kwargs):
-        for uuid in kwargs["ti"].xcom_pull(task_ids="split_stage_2", key="child_uuid_list"):
-            kwargs["uuid_dataset"] = uuid
-            if send_status_msg(**kwargs):
-                scanned_md = read_metadata_file(**kwargs)  # Yes, it's getting re-read
-                print(
-                    f"""Got CollectionType {scanned_md['collectiontype'] 
-                    if 'collectiontype' in scanned_md else None} """
-                )
-                soft_data_assay_type = get_soft_data_assaytype(uuid, **kwargs)
-                print(f"Got {soft_data_assay_type} as the soft_data_type for UUID {uuid}")
-            else:
-                print(f"Something went wrong!!")
-                return 1
+        # re-set status to trigger messages now that child datasets have been created
+        upload_uuid = kwargs["ti"].xcom_pull(task_ids="find_uuid", key="uuid")
+        StatusChanger(
+            upload_uuid,
+            get_auth_tok(**kwargs),
+            messages={"run_id": kwargs.get("run_id")},
+            status="reorganized",
+        ).update()
+        child_uuid_list = (
+            kwargs["ti"].xcom_pull(task_ids="split_stage_2", key="child_uuid_list") or []
+        )
+        for child_uuid_chunk in [
+            child_uuid_list[i : i + 10] for i in range(0, len(child_uuid_list), 10)
+        ]:
+            for uuid in child_uuid_chunk:
+                kwargs["uuid_dataset"] = uuid
+                if send_status_msg(**kwargs):
+                    scanned_md = read_metadata_file(**kwargs)  # Yes, it's getting re-read
+                    print(
+                        f"""Got CollectionType {scanned_md['collectiontype']
+                        if 'collectiontype' in scanned_md else None} """
+                    )
+                    soft_data_assay_type = get_soft_data_assaytype(uuid, **kwargs)
+                    print(f"Got {soft_data_assay_type} as the soft_data_type for UUID {uuid}")
+                else:
+                    print(f"Something went wrong!!")
+                    return 1
         return 0
 
     t_send_status = PythonOperator(
@@ -366,7 +383,7 @@ with HMDAG(
 
     def flex_maybe_multiassay_epic_spawn(**kwargs):
         """
-        This will tigger DAG Runs if the upload was a MultiAssay to create its components a build
+        This will trigger DAG Runs if the upload was a MultiAssay to create its components a build
         basic metadata
         """
         print("kwargs:")
@@ -388,21 +405,25 @@ with HMDAG(
                 process = "transform.epic"
             else:
                 return 0
-            for uuid in kwargs["ti"].xcom_pull(task_ids="split_stage_2", key="child_uuid_list"):
-                execution_date = datetime.now(
-                    pytz.timezone(airflow_conf.as_dict()["core"]["timezone"])
-                )
-                run_id = "{}_{}_{}".format(uuid, process, execution_date.isoformat())
-                conf = {
-                    "process": process,
-                    "dag_id": dag_id,
-                    "run_id": run_id,
-                    "crypt_auth_tok": kwargs["dag_run"].conf["crypt_auth_tok"],
-                    "uuid": uuid,
-                }
-                time.sleep(1)
-                print(f"Triggering {dag_id} for UUID {uuid}")
-                trigger_dag(dag_id, run_id, conf, execution_date=execution_date)
+
+            execution_date = datetime.now(
+                pytz.timezone(airflow_conf.as_dict()["core"]["timezone"])
+            )
+
+            upload_uuid = _get_upload_uuid(**kwargs)
+            child_uuids = kwargs["ti"].xcom_pull(task_ids="split_stage_2", key="child_uuid_list")
+            run_id = "{}_{}_{}".format(upload_uuid, process, execution_date.isoformat())
+            conf = {
+                "process": process,
+                "dag_id": dag_id,
+                "run_id": run_id,
+                "crypt_auth_tok": kwargs["dag_run"].conf["crypt_auth_tok"],
+                "uuids": child_uuids,
+                "src_path": kwargs["dag_run"].conf["src_path"],
+            }
+            time.sleep(1)
+            print(f"Triggering {dag_id} for UUIDs: \n{child_uuids}")
+            trigger_dag(dag_id, run_id, conf, execution_date=execution_date)
         return 0
 
     t_maybe_multiassay_epic_spawn = PythonOperator(
@@ -419,25 +440,24 @@ with HMDAG(
         python_callable=pythonop_set_dataset_state,
         provide_context=True,
         trigger_rule="all_done",
-        op_kwargs={"dataset_uuid_callable": _get_upload_uuid, "ds_state": "Error"},
+        op_kwargs={
+            "dataset_uuid_callable": _get_upload_uuid,
+            "ds_state": "Error",
+            "run_id_callable": get_run_id,
+        },
     )
 
     (
         t_log_info
         >> t_find_uuid
         >> t_create_tmpdir
-
         >> t_split_stage_1
         >> t_maybe_keep_1
-
         >> t_split_stage_2
         >> t_maybe_keep_2
-
         >> t_run_md_extract
         >> t_md_consistency_tests
-
         >> t_reset_permissions
-
         >> t_send_status
         >> t_join
         >> t_preserve_info

@@ -1,6 +1,6 @@
+import inspect
 import os
 import sys
-import inspect
 from datetime import datetime, timedelta
 from pathlib import Path
 from pprint import pprint
@@ -18,10 +18,10 @@ from utils import (
     get_preserve_scratch_resource,
     get_queue_resource,
     get_soft_data_assaytype,
+    get_threads_resource,
     make_send_status_msg_function,
     pythonop_get_dataset_state,
     pythonop_maybe_keep,
-    get_threads_resource,
 )
 
 from airflow.configuration import conf as airflow_conf
@@ -125,8 +125,7 @@ with HMDAG(
             dataset_ignore_globs=ignore_globs,
             upload_ignore_globs="*",
             plugin_directory=plugin_path,
-            # offline=True,  # noqa E265
-            add_notes=False,
+            # offline_only=True,  # noqa E265
             extra_parameters={
                 "coreuse": get_threads_resource("scan_and_begin_processing", "run_validation")
             },
@@ -135,16 +134,20 @@ with HMDAG(
             app_context=app_context,
         )
         # Scan reports an error result
-        errors = upload.get_errors(plugin_kwargs=kwargs)
-        if errors:
-            info = upload.get_info()
-            report = ingest_validation_tools_error_report.ErrorReport(errors=errors, info=info)
+        report = ingest_validation_tools_error_report.ErrorReport(
+            errors=upload.get_errors(plugin_kwargs=kwargs), info=upload.get_info()
+        )
+        if report.errors:
             sys.stdout.write("Directory validation failed! Errors follow:\n")
             sys.stdout.write(report.as_text())
             log_fname = os.path.join(utils.get_tmp_dir_path(kwargs["run_id"]), "session.log")
             with open(log_fname, "w") as f:
                 f.write("Directory validation failed! Errors follow:\n")
                 f.write(report.as_text())
+            kwargs["ti"].xcom_push(
+                key="error_counts",
+                value="; ".join([f"{k}: {v}" for k, v in report.counts.items()]),
+            )
             return 1
         else:
             kwargs["ti"].xcom_push(key="ivt_path", value=inspect.getfile(upload.__class__))

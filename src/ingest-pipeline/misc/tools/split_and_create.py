@@ -10,6 +10,7 @@ from shutil import copy2, copytree
 from typing import List, Tuple, TypeVar, Union
 
 import pandas as pd
+import numpy as np
 from extra_utils import SoftAssayClient
 from status_change.status_manager import StatusChanger, Statuses
 
@@ -137,6 +138,9 @@ def create_new_uuid(row, source_entity, entity_factory, primary_entity, dryrun=F
         description = source_entity.prop_dct["description"]
     else:
         description = ""
+
+    lab_id = row.get("lab_id", "")
+
     sample_id_list = (
         (row["tissue_id"] if hasattr(row, "tissue_id") else row["parent_sample_id"])
         if not is_epic
@@ -166,8 +170,11 @@ def create_new_uuid(row, source_entity, entity_factory, primary_entity, dryrun=F
             group_uuid=group_uuid,
             description=description,
             is_epic=is_epic,
+            lab_id=lab_id,
             priority_project_list=priority_project_list,
+            reindex=False,
         )
+        print(f"New dataset: {rslt.get('uuid')}")
         return rslt["uuid"]
 
 
@@ -308,6 +315,8 @@ def copy_shared_data(kid_path, source_entity, non_global_files, dryrun):
 
 def copy_data_path(kid_path, source_data_path, dryrun):
     for elt in source_data_path.glob("*"):
+        if elt.name.endswith("-metadata.tsv"):
+            continue
         dst_file = kid_path / elt.name
         if dryrun:
             if dst_file.exists() and dst_file.is_dir():
@@ -386,26 +395,43 @@ def update_upload_entity(child_uuid_list, source_entity, dryrun=False, verbose=F
             # Set links from Upload to split Datasets
             print(f"Setting status of {source_entity.uuid} to 'Reorganized'. Child UUIDs:")
             pprint(child_uuid_list)
+            # Update status first, then let's iterate over the child list
             StatusChanger(
                 source_entity.uuid,
                 source_entity.entity_factory.auth_tok,
                 status=Statuses.UPLOAD_REORGANIZED,
-                fields_to_overwrite={"dataset_uuids_to_link": child_uuid_list},
                 verbose=verbose,
+                reindex=False,
             ).update()
             print(f"{source_entity.uuid} status is Reorganized")
 
-            for uuid in child_uuid_list:
-                print(f"Setting status of dataset {uuid} to Submitted")
+            # Batch update the child uuids
+            for chunk in [
+                child_uuid_list[i : i + 100] for i in range(0, len(child_uuid_list), 100)
+            ]:
                 StatusChanger(
-                    uuid,
+                    source_entity.uuid,
                     source_entity.entity_factory.auth_tok,
-                    status=Statuses.DATASET_SUBMITTED,
+                    fields_to_overwrite={"dataset_uuids_to_link": list(chunk)},
                     verbose=verbose,
+                    reindex=False,
                 ).update()
-                print(
-                    f"Reorganized new: {uuid} from Upload: {source_entity.uuid} status is Submitted"
-                )
+
+            for child_uuid_chunk in [
+                child_uuid_list[i : i + 10] for i in range(0, len(child_uuid_list), 10)
+            ]:
+                for uuid in child_uuid_chunk:
+                    print(f"Setting status of dataset {uuid} to Submitted")
+                    StatusChanger(
+                        uuid,
+                        source_entity.entity_factory.auth_tok,
+                        status=Statuses.DATASET_SUBMITTED,
+                        verbose=verbose,
+                        reindex=False,
+                    ).update()
+                    print(
+                        f"Reorganized new: {uuid} from Upload: {source_entity.uuid} status is Submitted"
+                    )
     else:
         print(
             f"source entity <{source_entity.uuid}> is not an upload,"
@@ -425,6 +451,7 @@ def submit_uuid(uuid, entity_factory, dryrun=False):
         rslt = entity_factory.submit_dataset(
             uuid=uuid,
             contains_human_genetic_sequences=uuid_entity_to_submit.contains_human_genetic_sequences,
+            reindex=False,
         )
         return rslt
 
@@ -476,14 +503,24 @@ def reorganize(source_uuid, **kwargs) -> Union[Tuple, None]:
                 axis=1,
                 dataset_type=full_entity.primary_assay.get("dataset-type"),
             )
-            source_df["new_uuid"] = source_df.apply(
-                create_new_uuid,
-                axis=1,
-                source_entity=source_entity,
-                entity_factory=entity_factory,
-                primary_entity=full_entity.primary_assay,
-                dryrun=dryrun,
-            )
+
+            new_uuids = []
+            for df_chunk in [source_df[i : i + 10] for i in range(0, len(source_df), 10)]:
+                for df_i in range(len(df_chunk)):
+                    df = df_chunk.iloc[df_i]
+                    new_uuids.append(
+                        create_new_uuid(
+                            df,
+                            source_entity=source_entity,
+                            entity_factory=entity_factory,
+                            primary_entity=full_entity.primary_assay,
+                            dryrun=dryrun,
+                        )
+                    )
+                time.sleep(30)
+
+            source_df["new_uuid"] = new_uuids
+
             source_df = apply_special_case_transformations(source_df, source_data_types)
             print(source_df[["data_path", "canonical_assay_type", "new_uuid"]])
             this_frozen_df_fname = frozen_df_fname.format("_" + str(src_idx))
@@ -530,6 +567,7 @@ def create_multiassay_component(
     auth_tok: str,
     components: list,
     parent_dir: str,
+    reindex: bool = True,
 ) -> None:
     headers = {
         "authorization": "Bearer " + auth_tok,
@@ -538,7 +576,7 @@ def create_multiassay_component(
     }
 
     response = HttpHook("GET", http_conn_id="entity_api_connection").run(
-        endpoint=f"entities/{source_uuid}",
+        endpoint=f"entities/{source_uuid}?exclude=direct_ancestors.files",
         headers=headers,
         extra_options={"check_response": False},
     )
@@ -564,15 +602,16 @@ def create_multiassay_component(
         ],
     }
     print(f"Data to create components {data}")
+    reindex_param = "reindex-priority=3" if reindex else ""
     response = HttpHook("POST", http_conn_id="ingest_api_connection").run(
-        endpoint=f"datasets/components",
+        endpoint=f"datasets/components?{reindex_param}",
         headers=headers,
         data=json.dumps(data),
     )
     response.raise_for_status()
 
 
-def reorganize_multiassay(source_uuid, verbose=False, **kwargs) -> None:
+def reorganize_multiassay(source_uuid, verbose=False, reindex=True, **kwargs) -> None:
     auth_tok = kwargs["auth_tok"]
     instance = kwargs["instance"]
 
@@ -583,14 +622,20 @@ def reorganize_multiassay(source_uuid, verbose=False, **kwargs) -> None:
     full_entity = SoftAssayClient(list(source_entity.full_path.glob("*metadata.tsv")), auth_tok)
     # We are NOT passing in the priority project list here. Doesn't seem that it'd be helpful to have that information
     # tied on the components of a multi-assay dataset. (05/21/2025 - Juan Muerto)
+    print(f"Assay components: {full_entity.assay_components}")
     create_multiassay_component(
-        source_uuid, auth_tok, full_entity.assay_components, str(source_entity.full_path)
+        source_uuid,
+        auth_tok,
+        full_entity.assay_components,
+        str(source_entity.full_path),
+        reindex=reindex,
     )
     StatusChanger(
         source_entity.uuid,
         source_entity.entity_factory.auth_tok,
         status=Statuses.DATASET_SUBMITTED,
         verbose=verbose,
+        reindex=reindex,
     ).update()
     print(f"{source_entity.uuid} status is Submitted")
 

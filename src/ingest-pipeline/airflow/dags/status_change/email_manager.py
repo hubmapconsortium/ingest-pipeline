@@ -1,0 +1,106 @@
+import logging
+from typing import Optional
+
+from status_change.email_templates.error import ErrorStatusEmail
+from status_change.email_templates.good import GenericGoodStatusEmail
+from status_change.email_templates.invalid import InvalidStatusEmail
+from status_change.email_templates.reorganized import ReorganizedStatusEmail
+from status_change.status_utils import (
+    MessageManager,
+    Statuses,
+    get_project,
+)
+from utils import send_email as main_send_email
+
+
+class EmailManager(MessageManager):
+    int_recipients = ["bhonick@psc.edu"]
+    main_recipients = []
+    cc = []
+    subj = ""
+    msg = ""
+    good_statuses = [
+        Statuses.DATASET_QA,
+        Statuses.UPLOAD_VALID,
+    ]
+
+    def __init__(
+        self,
+        status,
+        uuid,
+        token,
+        messages=None,
+        *args,
+        **kwargs,
+    ):
+        super().__init__(status, uuid, token, messages, *args, **kwargs)
+        self.entity_type = self.entity_data.get("entity_type", "").title()
+        self.project = get_project()
+        self.entity_id = self.entity_data.get(f"{get_project().value[0]}_id")
+        self.primary_contact = self.entity_data.get("created_by_user_email") or []
+        self.get_message_content()
+
+    @property
+    def is_valid_for_status(self):
+        return bool(self.subj and self.msg)
+
+    def update(self):
+        if not (self.subj and self.msg):
+            logging.error(
+                f"""
+            Status is valid for EmailManager but missing full message content.
+            Subject: {self.subj}.
+            Message: {self.msg}
+            Exiting without sending.
+            """
+            )
+            return
+        self.get_recipients()
+        self.send_email()
+
+    def send_email(self):
+        assert self.subj and self.msg
+        main_send_email(self.main_recipients, self.subj, self.msg, cc=self.cc)
+
+    ###################
+    # Message details #
+    ###################
+
+    def get_message_content(self) -> Optional[tuple[str, str]]:
+        # error status or bad content in validation_message
+        if self.is_internal_error:
+            self.subj, self.msg = ErrorStatusEmail(self).format()
+        # good status or reorg with child datasets
+        elif self.status in self.good_statuses:
+            self.subj, self.msg = GenericGoodStatusEmail(self).format()
+        # finished reorg (has datasets)
+        elif self.reorg_status_with_child_datasets():
+            self.subj, self.msg = ReorganizedStatusEmail(self).format()
+        # actually invalid
+        elif self.status in [
+            Statuses.DATASET_INVALID,
+            Statuses.UPLOAD_INVALID,
+        ]:
+            self.subj, self.msg = InvalidStatusEmail(self).format()
+        else:
+            return
+
+    def get_recipients(self):
+        # TODO: external emails currently turned off for pipelines/derived datasets
+        if self.is_internal_error or self.processing_pipeline or self.derived:
+            self.main_recipients = self.int_recipients
+        else:
+            self.main_recipients = self.primary_contact
+            self.cc = self.int_recipients
+
+    #########
+    # Tests #
+    #########
+
+    def reorg_status_with_child_datasets(self):
+        if self.status == Statuses.UPLOAD_REORGANIZED and self.entity_data.get("datasets"):
+            return True  # only want to send good email if reorg status AND has child datasets
+        logging.info(
+            "Reorganized upload does not have child datasets (DAG may still be running); not sending email."
+        )
+        return False

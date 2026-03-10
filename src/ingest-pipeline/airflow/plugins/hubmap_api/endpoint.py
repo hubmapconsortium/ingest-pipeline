@@ -37,7 +37,6 @@ NEEDED_ENV_VARS = [
     "AIRFLOW_CONN_INGEST_API_CONNECTION",
     "AIRFLOW_CONN_UUID_API_CONNECTION",
     "AIRFLOW_CONN_FILES_API_CONNECTION",
-    "AIRFLOW_CONN_SPATIAL_API_CONNECTION",
     "AIRFLOW_CONN_SEARCH_API_CONNECTION",
     "AIRFLOW_CONN_ENTITY_API_CONNECTION",
 ]
@@ -539,7 +538,7 @@ def request_dev_analysis():
         execution_date = datetime.now(tz)
         LOGGER.info("starting {} with execution_date: {}".format(dag_id, execution_date))
 
-        run_id = "{}_{}_{}".format(uuid_list, "launch.multi", execution_date.isoformat())
+        run_id = "{}_{}_{}".format(uuid_list[0], "launch.multi", execution_date.isoformat())
         ingest_id = run_id
 
         conf = {

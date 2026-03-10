@@ -120,7 +120,7 @@ with HMDAG(
             "X-Hubmap-Application": "ingest-pipeline",
         }
         http_hook = HttpHook(method, http_conn_id="entity_api_connection")
-        endpoint = f"entities/{uuid}"
+        endpoint = f"entities/{uuid}?exclude=direct_ancestors.files"
         try:
             response = http_hook.run(
                 endpoint, headers=headers, extra_options={"check_response": False}
@@ -241,6 +241,7 @@ with HMDAG(
             "dataset_uuid_callable": get_dataset_uuid,
             "ds_state": "Error",
             "message": "An error occurred in {}".format(pipeline_name),
+            "pipeline_name": pipeline_name
         },
     )
 
@@ -275,12 +276,10 @@ with HMDAG(
     (
         t_log_info
         >> t_create_tmpdir
-
         >> t_find_uuid
         >> t_build_ancillary_data
         >> t_maybe_keep_ancillary_data
         >> t_maybe_create_dataset
-
         >> t_send_create_dataset
         >> t_move_data
         >> t_send_status

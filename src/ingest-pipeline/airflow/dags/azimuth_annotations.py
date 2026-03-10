@@ -324,6 +324,7 @@ with HMDAG(
             "dataset_uuid_callable": get_dataset_uuid,
             "ds_state": "Error",
             "message": "An error occurred in {}".format(pipeline_name),
+            "pipeline_name": pipeline_name
         },
     )
 
@@ -405,15 +406,18 @@ with HMDAG(
         >> t_send_create_dataset
         >> t_set_dataset_processing
         >> t_populate_tmpdir
+
         >> prepare_cwl1
         >> t_build_cmd1
         >> t_pipeline_exec_azimuth_annotate
         >> t_maybe_keep_cwl1
+
         >> prepare_cwl2
         >> t_build_cmd2
         >> t_convert_for_ui
         >> t_maybe_keep_cwl2
         >> t_maybe_skip_cwl3
+
         >> prepare_cwl3
         >> t_build_cmd3
         >> t_convert_for_ui_2

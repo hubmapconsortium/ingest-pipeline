@@ -73,6 +73,8 @@ def process_one_uuid(uuid: str, entity_factory: EntityFactory, **kwargs) -> bool
     env = ""
     if "-dev" in str(ds_full_path):
         env = "-dev"
+    elif "-test" in str(str(ds_full_path)):
+        env = "-test"
 
     # Get the dataset relative path for the script
     prefix = Path(f"/hive/hubmap{env}/data")

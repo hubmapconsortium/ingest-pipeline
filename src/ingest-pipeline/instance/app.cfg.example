@@ -38,8 +38,15 @@ OUTPUT_GROUP_NAME = 'dataaccessgroup'
 # Optional template for use in customizing queue names, for better Celery sharing
 #QUEUE_NAME_TEMPLATE = '{}-test'
 
+# Path for datasets statistics
+STATISTICS_PATH= '/hive/hubmap-dev/statistics'
+
 [webserver]
 auth_backend = globus_auth.globus_auth
 
 [slack_channels]
 # PRIORITY_UPLOAD_REORGANIZED =
+
+[email_notifications]
+int_recipients=example1@test.com,example2@test.com
+main=example@test.com
