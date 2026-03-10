@@ -14,7 +14,7 @@ from utils import send_email as main_send_email
 
 
 class EmailManager(MessageManager):
-    int_recipients = ["bhonick@psc.edu"]
+    int_recipients = ["bhonick@psc.edu", "dbordelon@psc.edu", "egaskin@psc.edu"]
     main_recipients = []
     cc = []
     subj = ""

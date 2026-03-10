@@ -28,7 +28,7 @@ from airflow.operators.empty import EmptyOperator
 from airflow.providers.http.hooks.http import HttpHook
 
 ERROR_CONTACTS = ["gesina@psc.edu"]
-CURATION_CONTACTS = ["bhonick@psc.edu"]
+CURATION_CONTACTS = ["bhonick@psc.edu", "dbordelon@psc.edu", "egaskin@psc.edu"]
 """
 data_providers.json lists all sites who have contributed datasets
 as of 2025-12, with the exception of components that no longer have
