@@ -13,6 +13,8 @@ from hubmap_operators.common_operators import (
 from status_change.callbacks.failure_callback import FailureCallback
 from status_change.status_utils import Statuses
 from utils import (
+    CURATION_CONTACTS,
+    CURATION_OFFICE_HOURS_SCHEDULING_LINK,
     HMDAG,
     decrypt_tok,
     encrypt_tok,
@@ -28,7 +30,6 @@ from airflow.operators.empty import EmptyOperator
 from airflow.providers.http.hooks.http import HttpHook
 
 ERROR_CONTACTS = ["gesina@psc.edu"]
-CURATION_CONTACTS = ["bhonick@psc.edu"]
 """
 data_providers.json lists all sites who have contributed datasets
 as of 2025-12, with the exception of components that no longer have
@@ -355,7 +356,7 @@ def get_template_header(data: pd.DataFrame, group_name: str) -> list[str]:
         f"<b>Biweekly unpublished dataset report for {group_name}</b><br>",
         "This report is sent to the group PIs, PMs, and all creators of datasets in this list.<br>",
         "<br>",
-        f"If you have questions, please schedule an appointment with Data Curator Brendan Honick (https://calendly.com/bhonick-psc/) or email ingest@hubmapconsortium.org. Do not respond to this email; this inbox is not monitored.<br>",
+        f"If you have questions, please schedule an appointment with Data Curator Brendan Honick ({CURATION_OFFICE_HOURS_SCHEDULING_LINK}) or email ingest@hubmapconsortium.org. Do not respond to this email; this inbox is not monitored.<br>",
         "<br>",
         f"<b>Unpublished datasets:</b> {len(data)}<br>",
         "You can see more details about all datasets in the attached CSV file.<br>",
@@ -387,7 +388,7 @@ def get_template(data: pd.DataFrame, group_name: str) -> list[str]:
 
 status_to_description = {
     Statuses.DATASET_QA: "The dataset has been validated and is ready for your approval. After reviewing these datasets, please email ingest@hubmapconsortium.org to list any datasets with issues that need to be addressed before publishing and/or indicate your approval of specific datasets for publication. Please include relevant dataset IDs in your message.<br>",
-    Statuses.DATASET_INVALID: "The dataset cannot be validated due a metadata or directory issue. View the errors on the dataset ingest page and correct them. Help is available by scheduling with Data Curator Brendan Honick (https://calendly.com/bhonick-psc/).<br>",
+    Statuses.DATASET_INVALID: f"The dataset cannot be validated due a metadata or directory issue. View the errors on the dataset ingest page and correct them. Help is available by scheduling with Data Curator Brendan Honick ({CURATION_OFFICE_HOURS_SCHEDULING_LINK}).<br>",
     Statuses.DATASET_NEW: 'This status is an artifact of prior status handling. Go to the dataset ingest page and press "Submit."<br>',
     Statuses.DATASET_ERROR: "Datasets have encountered an internal HIVE error. Curators and developers are working to address the issue.<br>",
     Statuses.DATASET_SUBMITTED: "Datasets have been reorganized from a bulk upload submission. They are ready for dataset-level validation and HIVE central analysis processing (as applicable by assay type).<br>",

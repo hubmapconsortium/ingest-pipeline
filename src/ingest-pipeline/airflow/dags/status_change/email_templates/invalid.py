@@ -1,4 +1,5 @@
 from status_change.status_utils import get_entity_ingest_url
+from utils import CURATION_OFFICE_HOURS_SCHEDULING_LINK
 
 from .base import EmailTemplate
 
@@ -14,7 +15,7 @@ class InvalidStatusEmail(EmailTemplate):
             "The validation process starts by checking metadata TSVs and directory structures. If those checks pass, then certain individual file types (such as FASTQ and OME.TIFF files) are validated.",
             "",
             "<b>What to do next</b>",
-            f"If you have questions about your {self.data.entity_type.lower()}, please schedule an appointment with Data Curator Brendan Honick (https://calendly.com/bhonick-psc/) or email ingest@hubmapconsortium.org. Do not respond to this email; this inbox is not monitored.",
+            f"If you have questions about your {self.data.entity_type.lower()}, please schedule an appointment with Data Curator Brendan Honick ({CURATION_OFFICE_HOURS_SCHEDULING_LINK}) or email ingest@hubmapconsortium.org. Do not respond to this email; this inbox is not monitored.",
         ]
         if self.data.error_dict:
             msg.extend(
