@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+from os import fspath
 from pathlib import Path
 
 from airflow.operators.bash import BashOperator
@@ -127,7 +128,7 @@ with HMDAG(
             {"parameter_name": "--cytoplasm_markers", "value": "In115"},
             {"parameter_name": "--membrane_markers", "value": "La139"},
             {"parameter_name": "--nucleus_markers", "value": "Ir191"},
-            {"parameter_name": "--input_dir", "value": str(data_dir / "data")},
+            {"parameter_name": "--input_dir", "value": fspath(data_dir)},
         ]
         command = get_cwl_cmd_from_workflows(
             cwl_workflows, 0, input_parameters, tmpdir, kwargs["ti"]
