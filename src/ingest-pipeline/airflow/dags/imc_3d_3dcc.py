@@ -128,7 +128,7 @@ with HMDAG(
         input_parameters = [
             {"parameter_name": "--gpus", "value": "all"},
             {"parameter_name": "--cytoplasm_markers", "value": "In115"},
-            {"parameter_name": "--cytoplasm_markers", "value": "La139"},
+            {"parameter_name": "--membrane_markers", "value": "La139"},
             {"parameter_name": "--nucleus_markers", "value": "Ir191"},
             {"parameter_name": "--input_dir", "value": str(data_dir / "data")},
         ]
