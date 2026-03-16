@@ -294,6 +294,7 @@ with HMDAG(
         assay_type = kwargs.get("assay_type", "")
         payload = {
             "tmp_dir": get_tmp_dir_path(kwargs["run_id"]),
+            "run_id": kwargs["run_id"],
             "parent_submission_id": kwargs["dag_run"].conf.get("parent_submission_id"),
             "parent_lz_path": kwargs["dag_run"].conf.get("parent_lz_path"),
             "previous_version_uuid": kwargs["dag_run"].conf.get("previous_version_uuid"),

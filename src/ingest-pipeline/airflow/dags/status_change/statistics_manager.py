@@ -44,7 +44,7 @@ class StatisticsManager(MessageManager):
             )
             statistics_path = log_directory_path(self.run_id) + "/datasets.csv"
             print(f"Statistics Path {statistics_path}")
-            # df.to_csv(Path(statistics_path), index=False)
+            df.to_csv(Path(statistics_path), index=False)
             df = calculate_statistics(statistics_path)
             df.to_csv(
                 Path(utils.get_statistics_base_path() / "dataset_usage.csv"),
