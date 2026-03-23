@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import logging
 import os
 import sys
@@ -29,7 +28,7 @@ from airflow.exceptions import AirflowException
 from airflow.operators.python import PythonOperator
 from airflow.providers.http.hooks.http import HttpHook
 
-sys.path.append(airflow_conf.as_dict()["connections"]["SRC_PATH"].strip("'").strip('"'))
+sys.path.append(str(airflow_conf.as_dict()["connections"]["SRC_PATH"]).strip("'").strip('"'))
 
 from submodules import ingest_validation_tools_upload  # noqa E402
 from submodules import ingest_validation_tests, ingest_validation_tools_error_report
@@ -120,8 +119,8 @@ with HMDAG(
 
         ignore_globs = [uuid, "extras", "*metadata.tsv", "validation_report.txt"]
         app_context = {
-            "entities_url": HttpHook.get_connection("entity_api_connection").host + "/entities/",
-            "uuid_url": HttpHook.get_connection("uuid_api_connection").host + "/uuid/",
+            "entities_url": f"{HttpHook.get_connection('entity_api_connection').host} /entities/",
+            "uuid_url": f"{HttpHook.get_connection('uuid_api_connection').host} /uuid/",
             "ingest_url": os.environ["AIRFLOW_CONN_INGEST_API_CONNECTION"],
             "request_header": {"X-Hubmap-Application": "ingest-pipeline"},
         }
@@ -163,9 +162,7 @@ with HMDAG(
         validation_file_path = Path(kwargs["ti"].xcom_pull(key="validation_file_path"))
         report_data = kwargs["ti"].xcom_pull(key="report_data") or {}
         error_counts = report_data.get("error_counts", {})
-        error_counts_print = (
-            json.dumps(error_counts, indent=9).strip("{}").replace('"', "").replace(",", "")
-        )
+        error_counts_print = "; ".join([f"{key}: {value}" for key, value in error_counts.items()])
         with open(validation_file_path) as f:
             report_txt = f.read()
         if report_txt.startswith("No errors!"):
