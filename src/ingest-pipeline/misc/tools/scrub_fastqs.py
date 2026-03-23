@@ -16,9 +16,7 @@ def _sha256(path: Path) -> str:
 
 
 def _run_scrubber(input_path: Path, output_name: str) -> None:
-    """Run one scrubber pass. Output file is written to input_path.parent / output_name."""
-    # Docker -v binding requires the host path to contain no spaces.
-    # Upload paths in this pipeline are UUID-based and space-free by convention.
+    # Invoke docker container and pass data
     subprocess.run(
         [
             "docker",
@@ -71,11 +69,7 @@ def _scrub_fastq_gz(fastq_gz_path: Path) -> None:
 
     On success:
       - fastq_gz_path         → fastq_gz_path + ".original"  (audit trail)
-      - recompressed clean    → fastq_gz_path                 (cleaned file takes original name)
-
-    On failure after the rename (step 5) but before recompression completes:
-      a .fastq.gz.original will exist without a corresponding .fastq.gz.
-      Manual recovery: rename .fastq.gz.original back to .fastq.gz.
+      - recompressed clean    → fastq_gz_path                (cleaned file takes original name)
     """
     parent = fastq_gz_path.parent
     # Derive stem: "sample" from "sample.fastq.gz"
