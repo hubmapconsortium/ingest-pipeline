@@ -146,28 +146,25 @@ with HMDAG(
         validation_file_path = Path(kwargs["ti"].xcom_pull(key="validation_file_path"))
         report_data = kwargs["ti"].xcom_pull(key="report_data") or {}
         error_counts = report_data.get("error_counts", {})
-        error_counts_print = (
-            json.dumps(error_counts, indent=9).strip("{}").replace('"', "").replace(",", "")
-        )
+        error_counts_print = "; ".join([f"{key}: {value}" for key, value in error_counts.items()])
         with open(validation_file_path) as f:
             report_txt = f.read()
         if report_txt.startswith("No errors!"):
             status = Statuses.DATASET_QA
             extra_fields = {
-                "validation_message": "",
+                "pipeline_message": "",
             }
         else:
-            # TODO: should this be DATASET_INVALID?
-            status = Statuses.DATASET_ERROR
+            status = Statuses.DATASET_INVALID
             extra_fields = {
-                "validation_message": report_txt,
+                "pipeline_message": error_counts_print,
             }
             if not error_counts:
                 logging.info("ERROR: status is invalid but error_counts not found.")
         logging.info(
             f"""
                      status: {status.value}
-                     validation_message: {extra_fields['validation_message']}
+                     pipeline_message: {extra_fields['pipeline_message']}
                      """
         )
         if error_counts:
@@ -186,6 +183,7 @@ with HMDAG(
             uuid,
             get_auth_tok(**kwargs),
             status=status,
+            fields_to_overwrite=extra_fields,
             messages=messages,
         ).update()
 
