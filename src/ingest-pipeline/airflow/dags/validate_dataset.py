@@ -1,4 +1,3 @@
-import json
 import logging
 import os
 import sys
@@ -28,7 +27,7 @@ from airflow.exceptions import AirflowException
 from airflow.operators.python import PythonOperator
 from airflow.providers.http.hooks.http import HttpHook
 
-sys.path.append(airflow_conf.as_dict()["connections"]["SRC_PATH"].strip("'").strip('"'))
+sys.path.append(str(airflow_conf.as_dict()["connections"]["SRC_PATH"]).strip("'").strip('"'))
 from submodules import ingest_validation_tools_upload  # noqa E402
 from submodules import ingest_validation_tests, ingest_validation_tools_error_report
 
@@ -36,7 +35,7 @@ sys.path.pop()
 
 
 def get_dataset_uuid(**kwargs):
-    lz_path, uuid = __get_lzpath_uuid(**kwargs)
+    _, uuid = __get_lzpath_uuid(**kwargs)
     return uuid
 
 
@@ -100,8 +99,8 @@ with HMDAG(
 
         ignore_globs = [uuid, "extras", "*metadata.tsv", "validation_report.txt"]
         app_context = {
-            "entities_url": HttpHook.get_connection("entity_api_connection").host + "/entities/",
-            "uuid_url": HttpHook.get_connection("uuid_api_connection").host + "/uuid/",
+            "entities_url": f"{HttpHook.get_connection('entity_api_connection').host} /entities/",
+            "uuid_url": f"{HttpHook.get_connection('uuid_api_connection').host} /uuid/",
             "ingest_url": os.environ["AIRFLOW_CONN_INGEST_API_CONNECTION"],
             "request_header": {"X-Hubmap-Application": "ingest-pipeline"},
         }
