@@ -120,3 +120,7 @@ def scrub_upload(upload_path: Path) -> None:
         ).exists():
             continue
         _scrub_fastq(fastq)
+
+    # Finally, delete these originals.
+    for orig_fastq in sorted(upload_path.rglob("*.fastq.*.original")):
+        orig_fastq.unlink()
