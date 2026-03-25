@@ -62,7 +62,7 @@ from airflow.configuration import conf as airflow_conf
 from airflow.models.connection import Connection
 from airflow.models.dagrun import DagRun
 
-conn_mock_hm = Connection(host=f"https://ingest.api.hubmapconsortium.org")
+conn_mock_hm = Connection(host=f"https://entity.api.hubmapconsortium.org")
 
 
 def get_mock_response(good: bool, response_data: bytes) -> requests.Response:
@@ -113,7 +113,7 @@ class MockParent(unittest.TestCase):
         self.token = patch("utils.get_auth_tok", return_value="test_token")
         self.conn = patch(
             "status_change.status_utils.HttpHook.get_connection",
-            return_value=Connection(host=f"https://ingest.api.hubmapconsortium.org"),
+            return_value=Connection(host=f"https://entity.api.hubmapconsortium.org"),
         )
         self.env = patch("status_change.slack_manager.get_env", side_effect=["prod", "dev"])
         self.conf = patch(
@@ -797,6 +797,9 @@ class TestSlack(MockParent):
                 **{"messages": {"processing_pipeline": "test_pipeline"}},
             )
             assert type(derived_dataset_mgr.message_class) is SlackDatasetErrorProcessing
+            breakpoint()
+            with patch("utils.ENDPOINTS", endpoints["hubmap"]):
+                assert "test_pipeline" in derived_dataset_mgr.message_class.format()
 
     def test_invalid_classes(self):
         upload_mgr = self.slack_manager(Statuses.UPLOAD_INVALID)
