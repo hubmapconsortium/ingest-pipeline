@@ -139,7 +139,7 @@ def create_new_uuid(row, source_entity, entity_factory, primary_entity, dryrun=F
     else:
         description = ""
 
-    lab_id = row.get("lab_id", "")
+    # lab_id = row.get("lab_id", "")
 
     sample_id_list = (
         (row["tissue_id"] if hasattr(row, "tissue_id") else row["parent_sample_id"])
@@ -170,7 +170,7 @@ def create_new_uuid(row, source_entity, entity_factory, primary_entity, dryrun=F
             group_uuid=group_uuid,
             description=description,
             is_epic=is_epic,
-            lab_id=lab_id,
+            # lab_id=lab_id,
             priority_project_list=priority_project_list,
             reindex=False,
         )
@@ -185,6 +185,7 @@ def populate(row, source_entity, entity_factory, dryrun=False, components=None):
     uuid = row["new_uuid"]
     old_data_path = row["data_path"]
     row["data_path"] = "."
+    row["lab_id"] = ""
 
     # Contributors and antibodies should point to the path directly.
     old_paths = []
@@ -253,6 +254,7 @@ def populate(row, source_entity, entity_factory, dryrun=False, components=None):
             for _, row_component in component_df_cp.iterrows():
                 # This loop updates the data_path for the component
                 row_component["data_path"] = "."
+                row_component["lab_id"] = ""
                 old_component_paths = []
                 for path_index in ["contributors_path", "antibodies_path"]:
                     if old_component_path := row_component.get(path_index):
