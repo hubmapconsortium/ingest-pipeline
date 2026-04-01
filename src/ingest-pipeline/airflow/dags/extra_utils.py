@@ -178,7 +178,7 @@ def calculate_statistics(file_path: str) -> pd:
     startjob = r"\[job .+\] .+ docker \\$"
     endjob = r"\[job .+\] completed success$"
     processes = r"--num_concurrent_tasks \\$|--processes \\$|--threads \\$"
-    single_line = r"^\s{4}[0-9]+$"
+    single_line = r"^\s{4}[0-9]+"
     gpu_task = r".*gpu.*"
     gpu = False
     processes_marker = False
@@ -197,10 +197,12 @@ def calculate_statistics(file_path: str) -> pd:
                 for line in session_file:
                     if re.search(startjob, line):
                         starting_timestamp = __get_timestamp(line)
+                        cpu_count = 1
+                        processes_marker = False
                         # Check if this is CPU or GPU and create a flag
                     if starting_timestamp and re.search(gpu_task, line):
                         gpu = True
-                    if processes_marker or re.search(single_line, line):
+                    if processes_marker and re.search(single_line, line):
                         cpu_count *= int(line.strip("\\\n"))
                         processes_marker = False
                     if starting_timestamp and re.search(processes, line):
@@ -235,8 +237,8 @@ def calculate_statistics(file_path: str) -> pd:
         except Exception as e:
             print(f"Error {e} in: {path}")
         finally:
-            df.loc[index, "gpu_usage"] = gpu_usage
-            df.loc[index, "cpu_usage"] = cpu_usage
+            df.loc[index, "gpu_usage"] = gpu_usage.total_seconds()
+            df.loc[index, "cpu_usage"] = cpu_usage.total_seconds()
             gpu_usage = timedelta(seconds=0)
             cpu_usage = timedelta(seconds=0)
             starting_timestamp = None
