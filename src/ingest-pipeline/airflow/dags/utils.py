@@ -120,6 +120,7 @@ Lazy construction; a list of tuples (dag_id_reges, task_id_regex, {key:value})
 RESOURCE_MAP_FILENAME = "resource_map.yml"  # Expected to be found in this same dir
 RESOURCE_MAP_SCHEMA = "resource_map_schema.yml"
 COMPILED_RESOURCE_MAP: Optional[List[Tuple[Pattern, int, Dict[str, Any]]]] = None
+DEFAULT_SLACK_TEST_CHANNEL = "C0A8ES4M9RU"  # test-notifications
 
 CURATION_CONTACTS = ["bhonick@psc.edu", "dbordelon@psc.edu", "egaskin@psc.edu"]
 CURATION_OFFICE_HOURS_SCHEDULING_LINK = "https://calendar.app.google/db2J6CDzZQuQnGHr6"
@@ -1044,8 +1045,6 @@ def pythonop_set_dataset_state(**kwargs) -> None:
     Accepts the following via the caller's op_kwargs:
     'dataset_uuid_callable' : called with **kwargs; returns the
                               uuid of the dataset to be modified
-    'parent_dataset_uuid_callable' : called with **kwargs; returns the
-                              uuid of the parent dataset
     'http_conn_id' : the http connection to be used.  Default is "entity_api_connection"
     'ds_state' : one of 'QA', 'Processing', 'Error', 'Invalid'. Default: 'Processing'
     'message' : update message, saved as dataset metadata element "pipeline_message".
@@ -2067,16 +2066,29 @@ def post_to_slack_notify(token: str, message: str, channel: str):
     response.raise_for_status()
 
 
-def env_appropriate_slack_channel(prod_channel: str) -> str:
-    default = "C0A8ES4M9RU"  # test-notifications
-    entity_host = HttpHook.get_connection("entity_api_connection").host or ""
-    try:
-        env = find_matching_endpoint(entity_host) or ""
-    except AssertionError:
+def get_env() -> str:
+    host = None
+    env = None
+    for conn in ["ingest_api_connection", "entity_api_connection"]:
+        if host := HttpHook.get_connection(conn).host:
+            try:
+                env = find_matching_endpoint(host).lower()
+            except Exception:
+                continue
+    if not env:
+        logging.error(f"Could not determine env. Host: {host}. Defaulting to dev.")
         env = "dev"
-    if env.lower() == "prod":
+    return env
+
+
+def env_appropriate_slack_channel(prod_channel: str) -> str:
+    env = get_env()
+    if prod_channel and env == "prod":
         return prod_channel
-    return default
+    logging.info(
+        f"Switching channel from {prod_channel} to {DEFAULT_SLACK_TEST_CHANNEL}. Env: {env}."
+    )
+    return DEFAULT_SLACK_TEST_CHANNEL
 
 
 # This is simplified from pythonop_get_dataset_state in utils
@@ -2106,6 +2118,83 @@ def get_submission_context(token: str, uuid: str, headers: dict | None = None) -
             raise RuntimeError("entity database authorization was rejected?")
         print("benign error")
         return {}
+
+
+def send_email_with_config_recipients(
+    subject: str, email_body: str, attachment_path: str | None, preview: str | None
+) -> bool:
+    """
+    Bypass send_email and use config values only.
+    """
+    logging.info("Fetching email contact overrides from config.")
+    conf_dict = airflow_conf.as_dict()
+    # fetch any internal recipient overrides
+    if int_recipients := conf_dict.get("email_notifications", {}).get("int_recipients"):
+
+        int_recipients = str(int_recipients).split(",")
+        logging.info(f"Internal recipients: {int_recipients}")
+    # fetch any main recipient overrides
+    if contacts := conf_dict.get("email_notifications", {}).get("main"):
+        contacts = str(contacts).split(",")
+    if preview:
+        if not contacts:
+            logging.info("No contacts found in airflow_conf, not sending. Would have sent:")
+        else:
+            logging.info(f"Sending email to {contacts}. Preview of real data below:")
+        logging.info(preview)
+    if contacts:
+        airflow_send_email(
+            contacts,
+            subject,
+            email_body,
+            files=[attachment_path] if attachment_path else None,
+            cc=int_recipients,
+        )
+        return True
+    return False
+
+
+def send_email(
+    contacts: list[str],
+    subject: str,
+    email_body: str,
+    attachment_path: Optional[str] = None,
+    cc: Optional[list[str]] = None,
+    bcc: Optional[list[str]] = None,
+    prod_only: bool = True,
+) -> bool:
+    """
+    If prod_only=True, all recipient info will be overwritten with app.cfg values.
+    """
+    assert contacts and email_body
+    if type(contacts) is str:
+        contacts = [contacts]
+    contacts = list(set(contacts))
+    if cc:
+        # If a contact is in both lists, remove them from cc
+        cc = list(set(cc) - set(contacts))
+    preview = dedent(
+        f"""
+            Contact: {", ".join(contacts)}
+            cc: {", ".join(cc) if cc else "None"}
+            bcc: {", ".join(bcc) if bcc else "None"}
+            Subject: {subject}
+            Message: {email_body}
+            {("Attachment path: " + attachment_path) if attachment_path else "None"}
+            """
+    ).strip()
+    if prod_only and get_env() != "prod":
+        return send_email_with_config_recipients(subject, email_body, attachment_path, preview)
+    logging.info(preview)
+    airflow_send_email(
+        contacts,
+        subject,
+        email_body,
+        files=[attachment_path] if attachment_path else None,
+        cc=cc,
+        bcc=bcc,
+    )
+    return True
 
 
 def main():
@@ -2157,86 +2246,6 @@ def main():
     crypt_s = encrypt_tok(s)
     s2 = decrypt_tok(crypt_s)
     print("crypto test: {} -> {} -> {}".format(s, crypt_s, s2))
-
-
-def get_config_value_int_recipients() -> list[str]:
-    """
-    Allows setting default internal email recipients at the config level;
-    overrides values passed into send_email if prod_only=True
-    """
-    conf_dict = airflow_conf.as_dict()
-    if int_recipients := conf_dict.get("email_notifications", {}).get("int_recipients"):
-        return [str(address) for address in [int_recipients]]
-    return []
-
-
-def get_config_value_ext_recipients() -> list[str]:
-    """
-    Allows setting default external email recipients at the config level;
-    overrides values passed into send_email if prod_only=True
-    """
-    conf_dict = airflow_conf.as_dict()
-    if main_recipient := conf_dict.get("email_notifications", {}).get("main"):
-        return [str(main_recipient)]
-    return []
-
-
-def send_email(
-    contacts: list[str],
-    subject: str,
-    email_body: str,
-    attachment_path: Optional[str] = None,
-    cc: Optional[list[str]] = None,
-    bcc: Optional[list[str]] = None,
-    prod_only: bool = True,
-) -> bool:
-    assert contacts and email_body
-    if type(contacts) is str:
-        contacts = [contacts]
-    preview = dedent(
-        f"""
-            Contact: {", ".join(contacts)}
-            cc: {", ".join(cc) if cc else "None"}
-            bcc: {", ".join(bcc) if bcc else "None"}
-            Subject: {subject}
-            Message: {email_body}
-            {("Attachment path: " + attachment_path) if attachment_path else "None"}
-            """
-    ).strip()
-    contacts = list(set(contacts))
-    if prod_only:
-        host_str = HttpHook.get_connection("entity_api_connection").host
-        env = find_matching_endpoint(host_str) if host_str else ""
-        if env.lower() != "prod":
-            logging.info("Non-prod environment, fetching overrides from config.")
-            contacts = []
-            cc = None
-            bcc = None
-            if config_ext_recipients := get_config_value_int_recipients():
-                contacts = config_ext_recipients
-            if config_int_recipients := get_config_value_int_recipients():
-                logging.info(f"Internal recipients: {config_int_recipients}")
-            if not contacts:
-                logging.info("No contacts found in airflow_conf, not sending. Would have sent:")
-                logging.info(preview)
-                return False
-            else:
-                logging.info(
-                    f"Sending email to {config_ext_recipients}. Preview of real data below:"
-                )
-    if cc:
-        # If a contact is in both lists, remove them from cc
-        cc = list(set(cc) - set(contacts))
-    logging.info(preview)
-    airflow_send_email(
-        contacts,
-        subject,
-        email_body,
-        files=[attachment_path] if attachment_path else None,
-        cc=cc,
-        bcc=bcc,
-    )
-    return True
 
 
 if __name__ == "__main__":

@@ -31,10 +31,6 @@ class SlackMessage:
         self.entity_id = self.entity_data.get(self.entity_id_str)
 
     @classmethod
-    def get_channel(cls):
-        return slack_channels.get(cls.name, "")
-
-    @classmethod
     def test(cls, entity_data: dict, **kwargs) -> bool:
         """
         If there are special case subclasses for a given status, their
@@ -80,7 +76,7 @@ class SlackMessage:
             msg.append(f"<{self.data_ingest_board_url}|View on Data Ingest Board.>")
         msg.extend(
             [
-                f"<{get_globus_url(self.uuid, self.token)}|View on Globus.>",
+                f"<{get_globus_url(self.entity_data, self.token)}|View on Globus.>",
                 f"Filesystem path: {self.copyable_filepath}",
             ]
         )

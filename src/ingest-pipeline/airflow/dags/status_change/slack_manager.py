@@ -2,6 +2,7 @@ import logging
 from typing import Optional
 
 from status_change.slack.new import SlackDatasetNew, SlackDatasetNewDerived
+from utils import env_appropriate_slack_channel
 
 from .slack.base import SlackMessage
 from .slack.error import (
@@ -23,8 +24,6 @@ from .status_utils import (
     EntityUpdateException,
     MessageManager,
     Statuses,
-    get_env,
-    slack_channels_testing,
     split_error_counts,
 )
 
@@ -143,23 +142,4 @@ class SlackManager(MessageManager):
     def get_channel(self) -> str:
         if not self.message_class:
             raise EntityUpdateException("Can't retrieve channel without message class.")
-        try:
-            env = get_env()
-        except Exception as e:
-            env = "dev"
-            logging.info(f"Error retrieving env, defaulting to DEV. {e}")
-        if env == "prod":
-            channel = self.message_class.channel
-        else:
-            channel = slack_channels_testing.get(self.message_class.name)
-            logging.info(
-                f"Non-prod environment, switching channel from {self.message_class.channel} to {channel}."
-            )
-            if not channel:
-                channel = slack_channels_testing.get("base", "")
-        if not channel:
-            channel = SlackMessage.get_channel()
-            logging.info(
-                f"No channel found for message class {self.message_class.name} on {env}, using default channel."
-            )
-        return channel
+        return env_appropriate_slack_channel(self.message_class.channel)

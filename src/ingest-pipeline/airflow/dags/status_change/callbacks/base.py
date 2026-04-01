@@ -2,7 +2,10 @@ import logging
 from abc import ABC
 from typing import Callable
 
-from status_change.status_utils import get_run_id, get_submission_context
+from status_change.status_utils import (
+    get_run_id,
+    get_submission_context,
+)
 from utils import decrypt_tok, get_auth_tok, get_uuid_for_error
 
 
@@ -52,7 +55,7 @@ class AirflowCallback(ABC):
             self.auth_tok = get_auth_tok(**self.context)
         except KeyError:
             self.auth_tok = self.alt_get_auth_tok()
-        self.dag_run = self.context.get("dag_run")
+        self.dag_run = self.context.get("dag_run", "")
         self.task = self.context.get("task")
         self.entity_data = get_submission_context(self.auth_tok, self.uuid)
         self.entity_type = self.entity_data.get("entity_type", "").lower()
