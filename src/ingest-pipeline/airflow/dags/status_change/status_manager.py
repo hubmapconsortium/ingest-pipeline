@@ -93,27 +93,6 @@ class EntityUpdater:
                 )
             )
 
-    ##########
-    # Public #
-    ##########
-
-    def update(self):
-        """
-        - If status found in fields_to_change: send to StatusChanger then return.
-        - _check_fields ensures entity type not changed, ensures {"status": None} not
-            in fields_to_change, and checks JSON schema of request body.
-        - _set_entity_api_data sends PUT with fields_to_change payload to entity-api.
-        """
-        if self.fields_to_change.get("status"):
-            self._send_to_status_manager()
-            return
-        self.validate_fields_to_change()
-        self.set_entity_api_data()
-
-    ##########
-    # Fields #
-    ##########
-
     def get_fields_to_change(self) -> dict:
         """
         - Ensure that there are no conflicting instructions (append and overwrite)
@@ -128,6 +107,43 @@ class EntityUpdater:
             not duplicates
         ), f"Field(s) {', '.join(duplicates)} cannot be both appended to and overwritten."
         return self._update_existing_values() | self.fields_to_overwrite
+
+    def update(self):
+        """
+        - If status found in fields_to_change: send to StatusChanger then return.
+        - _check_fields ensures entity type not changed, ensures {"status": None} not
+            in fields_to_change, and checks JSON schema of request body.
+        - _set_entity_api_data sends PUT with fields_to_change payload to entity-api.
+        """
+        if self.fields_to_change.get("status"):
+            self._send_to_status_manager()
+            return
+        self.validate_fields_to_change()
+        self.set_entity_api_data()
+
+    def set_entity_api_data(self) -> dict:
+        logging.info(
+            f"""
+            data:
+            {self.fields_to_change}
+            """
+        )
+        try:
+            response = put_request_to_entity_api(
+                self.uuid, self.token, self.fields_to_change, {"reindex-priority": self.reindex}
+            )
+        except Exception as e:
+            raise EntityUpdateException(
+                format_multiline(
+                    f"""
+                Encountered error with request to change fields {', '.join([key for key in self.fields_to_change])}
+                for {self.uuid}, fields either not changed or not updated completely.
+                Error: {e}
+                """
+                )
+            )
+        logging.info(f"""Response: {response}""")
+        return response
 
     def validate_fields_to_change(self):
         self._check_fields()
@@ -159,34 +175,6 @@ class EntityUpdater:
             else:
                 new_field_data[field] = value
         return new_field_data
-
-    ##########
-    # Update #
-    ##########
-
-    def set_entity_api_data(self) -> dict:
-        logging.info(
-            f"""
-            data:
-            {self.fields_to_change}
-            """
-        )
-        try:
-            response = put_request_to_entity_api(
-                self.uuid, self.token, self.fields_to_change, {"reindex-priority": self.reindex}
-            )
-        except Exception as e:
-            raise EntityUpdateException(
-                format_multiline(
-                    f"""
-                Encountered error with request to change fields {', '.join([key for key in self.fields_to_change])}
-                for {self.uuid}, fields either not changed or not updated completely.
-                Error: {e}
-                """
-                )
-            )
-        logging.info(f"""Response: {response}""")
-        return response
 
     def _send_to_status_manager(self):
         status = self.fields_to_overwrite.pop("status", None)
