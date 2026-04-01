@@ -8,19 +8,13 @@ from typing import Any
 from urllib.parse import urlencode, urljoin
 
 import requests
-
-# make utils available to other files in dir to prevent circular import
 from utils import (
-    decrypt_tok,
-    env_appropriate_slack_channel,
     find_matching_endpoint,
-    get_auth_tok,
     get_env,
 )
 from utils import get_submission_context as base_get_submission_context
 from utils import (
     get_tmp_dir_path,
-    get_uuid_for_error,
 )
 
 from airflow.models import DagRun
