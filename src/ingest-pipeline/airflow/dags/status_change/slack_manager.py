@@ -2,6 +2,7 @@ import logging
 from typing import Optional
 
 from status_change.slack.new import SlackDatasetNew, SlackDatasetNewDerived
+from utils import env_appropriate_slack_channel
 
 from .slack.base import SlackMessage
 from .slack.error import (
@@ -23,7 +24,6 @@ from .status_utils import (
     EntityUpdateException,
     MessageManager,
     Statuses,
-    env_appropriate_slack_channel,
     split_error_counts,
 )
 
