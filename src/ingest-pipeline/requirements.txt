@@ -26,3 +26,4 @@ xmltodict==0.13.0
 authlib==1.6.0
 torch==2.4.0
 nvidia-ml-py==13.590.48
+pydantic==1.10.2
