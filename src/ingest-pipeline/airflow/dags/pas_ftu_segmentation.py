@@ -1,3 +1,6 @@
+import random
+import time
+
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -122,6 +125,8 @@ with HMDAG(
 
         organ_list = list(set(ds_rslt["organs"]))
         organ_code = organ_list[0] if len(organ_list) == 1 else "multi"
+
+        time.sleep(random.randrange(3, 10))
 
         input_parameters = [
             {"parameter_name": "--data_directory", "value": str(data_dir)},

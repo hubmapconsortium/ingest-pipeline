@@ -77,7 +77,7 @@ with HMDAG(
         },
         {
             "workflow_path": str(
-                get_absolute_workflow(Path("stellar-outofband/expr-mask-convert", "pipeline.cwl"))
+                get_absolute_workflow(Path("stellar-outofband/steps", "pre-convert.cwl"))
             ),
             "documentation_url": "",
         },
@@ -223,7 +223,7 @@ with HMDAG(
         python_callable=utils.pythonop_maybe_keep,
         provide_context=True,
         op_kwargs={
-            "next_op": "t_copy_stellar_pre_convert_data",
+            "next_op": "copy_stellar_pre_convert_data",
             "bail_op": "set_dataset_error",
             "test_op": "pipeline_exec_cwl_stellar_pre_convert",
         },
