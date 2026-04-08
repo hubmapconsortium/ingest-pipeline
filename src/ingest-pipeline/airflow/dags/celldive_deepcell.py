@@ -21,11 +21,6 @@ from utils import (
     get_queue_resource,
     get_preserve_scratch_resource,
     get_cwl_cmd_from_workflows,
-    get_submission_context,
-    get_auth_tok,
-    get_parent_dataset_uuid,
-    post_to_slack_notify,
-    env_appropriate_slack_channel
 )
 
 from hubmap_operators.common_operators import (
@@ -72,12 +67,6 @@ with HMDAG(
         {
             "workflow_path": str(
                 get_absolute_workflow(Path("phenocycler-pipeline", "pipeline.cwl"))
-            ),
-            "documentation_url": "",
-        },
-        {
-            "workflow_path": str(
-                get_absolute_workflow(Path("stellar-outofband/steps", "pre-convert.cwl"))
             ),
             "documentation_url": "",
         },
@@ -172,95 +161,94 @@ with HMDAG(
         python_callable=utils.pythonop_maybe_keep,
         provide_context=True,
         op_kwargs={
-            "next_op": "prepare_stellar_pre_convert",
+            "next_op": "trigger_sprm",
             "bail_op": "set_dataset_error",
             "test_op": "pipeline_exec_cwl_segmentation",
         },
     )
 
-
-    @task(task_id="prepare_stellar_pre_convert")
-    def prepare_cwl_stellar_pre_convert(**kwargs):
-        if kwargs["dag_run"].conf.get("dryrun"):
-            cwl_path = Path(cwl_workflows[1]["workflow_path"]).parent
-            return build_tag_containers(cwl_path)
-        else:
-            return "No Container build required"
-
-    prepare_stellar_pre_convert = prepare_cwl_stellar_pre_convert()
-
-    def build_cwltool_cwl_stellar_pre_convert(**kwargs):
-        run_id = kwargs["run_id"]
-        tmpdir = get_tmp_dir_path(run_id)
-        print("tmpdir: ", tmpdir)
-
-        workflows = kwargs["ti"].xcom_pull(key="cwl_workflows", task_ids="build_cwl_segmentation")
-
-        input_parameters = [
-            {"parameter_name": "--directory", "value": str(tmpdir / "cwl_out")},
-        ]
-        command = get_cwl_cmd_from_workflows(workflows, 1, input_parameters, tmpdir, kwargs["ti"])
-
-        return join_quote_command_str(command)
-
-    t_build_cwl_stellar_pre_convert = PythonOperator(
-        task_id="build_cwl_stellar_pre_convert",
-        python_callable=build_cwltool_cwl_stellar_pre_convert,
-        provide_context=True,
-    )
-
-    t_pipeline_exec_cwl_stellar_pre_convert = BashOperator(
-        task_id="pipeline_exec_cwl_stellar_pre_convert",
-        bash_command=""" \
-            tmp_dir={{tmp_dir_path(run_id)}} ; \
-            {{ti.xcom_pull(task_ids='build_cwl_stellar_pre_convert')}} >> $tmp_dir/session.log 2>&1 ; \
-            echo $?
-            """,
-    )
-
-    t_maybe_keep_cwl_stellar_pre_convert = BranchPythonOperator(
-        task_id="maybe_keep_cwl_stellar_pre_convert",
-        python_callable=utils.pythonop_maybe_keep,
-        provide_context=True,
-        op_kwargs={
-            "next_op": "copy_stellar_pre_convert_data",
-            "bail_op": "set_dataset_error",
-            "test_op": "pipeline_exec_cwl_stellar_pre_convert",
-        },
-    )
-
-    #  output is a single file cell_data.h5ad
-    #  copy this output to some hardcoded directory
-    t_copy_stellar_pre_convert_data = BashOperator(
-        task_id="copy_stellar_pre_convert_data",
-        bash_command=""" \
-            mkdir /hive/hubmap/data/projects/STELLAR_pre_convert/{{ dag_run.conf.parent_submission_id | replace("[", "") | replace("]", "") }}/
-            tmp_dir={{tmp_dir_path(run_id)}} ; \
-            find ${tmp_dir} -name "cell_data.h5ad" -exec cp -v {} /hive/hubmap/data/projects/STELLAR_pre_convert/{{ dag_run.conf.parent_submission_id | replace("[", "") | replace("]", "") }} \; ; \
-            echo $?
-            """,
-    )
-
-    @task
-    def notify_user_stellar_pre_convert(**kwargs):
-        run_id = kwargs["run_id"]
-        conf = airflow_conf.as_dict().get("webserver", {})
-        # ensure base_url uses https
-        base_url = (
-            urllib.parse.urlparse(str(conf.get("base_url", "")))._replace(scheme="https").geturl()
-        )
-        run_url = f"{base_url}:{conf.get('web_server_port', '')}/dags/phenocycler_deepcell_segmentation/grid?dag_run_id={urllib.parse.quote(run_id)}"
-        primary_id = get_submission_context(
-            get_auth_tok(**kwargs), get_parent_dataset_uuid(**kwargs)
-        ).get("hubmap_id")
-        message = f"CellDIVE segmentation step succeeded in run <{run_url}|{run_id}>. Primary dataset ID: {primary_id}."
-        if kwargs["dag_run"].conf.get("dryrun"):
-            message = "[dryrun] " + message
-        post_to_slack_notify(
-            get_auth_tok(**kwargs), message, env_appropriate_slack_channel(SLACK_NOTIFY_CHANNEL)
-        )
-
-    t_notify_user_stellar_pre_convert = notify_user_stellar_pre_convert()
+    # @task(task_id="prepare_stellar_pre_convert")
+    # def prepare_cwl_stellar_pre_convert(**kwargs):
+    #     if kwargs["dag_run"].conf.get("dryrun"):
+    #         cwl_path = Path(cwl_workflows[1]["workflow_path"]).parent
+    #         return build_tag_containers(cwl_path)
+    #     else:
+    #         return "No Container build required"
+    #
+    # prepare_stellar_pre_convert = prepare_cwl_stellar_pre_convert()
+    #
+    # def build_cwltool_cwl_stellar_pre_convert(**kwargs):
+    #     run_id = kwargs["run_id"]
+    #     tmpdir = get_tmp_dir_path(run_id)
+    #     print("tmpdir: ", tmpdir)
+    #
+    #     workflows = kwargs["ti"].xcom_pull(key="cwl_workflows", task_ids="build_cwl_segmentation")
+    #
+    #     input_parameters = [
+    #         {"parameter_name": "--directory", "value": str(tmpdir / "cwl_out")},
+    #     ]
+    #     command = get_cwl_cmd_from_workflows(workflows, 1, input_parameters, tmpdir, kwargs["ti"])
+    #
+    #     return join_quote_command_str(command)
+    #
+    # t_build_cwl_stellar_pre_convert = PythonOperator(
+    #     task_id="build_cwl_stellar_pre_convert",
+    #     python_callable=build_cwltool_cwl_stellar_pre_convert,
+    #     provide_context=True,
+    # )
+    #
+    # t_pipeline_exec_cwl_stellar_pre_convert = BashOperator(
+    #     task_id="pipeline_exec_cwl_stellar_pre_convert",
+    #     bash_command=""" \
+    #         tmp_dir={{tmp_dir_path(run_id)}} ; \
+    #         {{ti.xcom_pull(task_ids='build_cwl_stellar_pre_convert')}} >> $tmp_dir/session.log 2>&1 ; \
+    #         echo $?
+    #         """,
+    # )
+    #
+    # t_maybe_keep_cwl_stellar_pre_convert = BranchPythonOperator(
+    #     task_id="maybe_keep_cwl_stellar_pre_convert",
+    #     python_callable=utils.pythonop_maybe_keep,
+    #     provide_context=True,
+    #     op_kwargs={
+    #         "next_op": "copy_stellar_pre_convert_data",
+    #         "bail_op": "set_dataset_error",
+    #         "test_op": "pipeline_exec_cwl_stellar_pre_convert",
+    #     },
+    # )
+    #
+    # #  output is a single file cell_data.h5ad
+    # #  copy this output to some hardcoded directory
+    # t_copy_stellar_pre_convert_data = BashOperator(
+    #     task_id="copy_stellar_pre_convert_data",
+    #     bash_command=""" \
+    #         mkdir /hive/hubmap/data/projects/STELLAR_pre_convert/{{ dag_run.conf.parent_submission_id | replace("[", "") | replace("]", "") }}/
+    #         tmp_dir={{tmp_dir_path(run_id)}} ; \
+    #         find ${tmp_dir} -name "cell_data.h5ad" -exec cp -v {} /hive/hubmap/data/projects/STELLAR_pre_convert/{{ dag_run.conf.parent_submission_id | replace("[", "") | replace("]", "") }} \; ; \
+    #         echo $?
+    #         """,
+    # )
+    #
+    # @task
+    # def notify_user_stellar_pre_convert(**kwargs):
+    #     run_id = kwargs["run_id"]
+    #     conf = airflow_conf.as_dict().get("webserver", {})
+    #     # ensure base_url uses https
+    #     base_url = (
+    #         urllib.parse.urlparse(str(conf.get("base_url", "")))._replace(scheme="https").geturl()
+    #     )
+    #     run_url = f"{base_url}:{conf.get('web_server_port', '')}/dags/phenocycler_deepcell_segmentation/grid?dag_run_id={urllib.parse.quote(run_id)}"
+    #     primary_id = get_submission_context(
+    #         get_auth_tok(**kwargs), get_parent_dataset_uuid(**kwargs)
+    #     ).get("hubmap_id")
+    #     message = f"CellDIVE segmentation step succeeded in run <{run_url}|{run_id}>. Primary dataset ID: {primary_id}."
+    #     if kwargs["dag_run"].conf.get("dryrun"):
+    #         message = "[dryrun] " + message
+    #     post_to_slack_notify(
+    #         get_auth_tok(**kwargs), message, env_appropriate_slack_channel(SLACK_NOTIFY_CHANNEL)
+    #     )
+    #
+    # t_notify_user_stellar_pre_convert = notify_user_stellar_pre_convert()
 
     t_set_dataset_error = PythonOperator(
         task_id="set_dataset_error",
@@ -271,7 +259,7 @@ with HMDAG(
             "dataset_uuid_callable": get_dataset_uuid,
             "ds_state": "Error",
             "message": "An error occurred in {}".format(pipeline_name),
-            "pipeline_name": pipeline_name
+            "pipeline_name": pipeline_name,
         },
     )
 
@@ -309,20 +297,17 @@ with HMDAG(
     (
         t_log_info
         >> t_create_tmpdir
-
         >> prepare_cwl_segmentation
         >> t_build_cwl_segmentation
         >> t_pipeline_exec_cwl_segmentation
         >> t_maybe_keep_cwl_segmentation
-
-        >> prepare_stellar_pre_convert
-        >> t_build_cwl_stellar_pre_convert
-        >> t_pipeline_exec_cwl_stellar_pre_convert
-        >> t_maybe_keep_cwl_stellar_pre_convert
-        >> t_copy_stellar_pre_convert_data
-        >> t_notify_user_stellar_pre_convert
+        # >> prepare_stellar_pre_convert
+        # >> t_build_cwl_stellar_pre_convert
+        # >> t_pipeline_exec_cwl_stellar_pre_convert
+        # >> t_maybe_keep_cwl_stellar_pre_convert
+        # >> t_copy_stellar_pre_convert_data
+        # >> t_notify_user_stellar_pre_convert
         >> t_trigger_phenocyler
-
     )
     t_maybe_keep_cwl_segmentation >> t_set_dataset_error
-    t_maybe_keep_cwl_stellar_pre_convert >> t_set_dataset_error
+    # t_maybe_keep_cwl_stellar_pre_convert >> t_set_dataset_error
