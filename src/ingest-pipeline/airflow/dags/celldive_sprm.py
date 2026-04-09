@@ -89,10 +89,14 @@ with HMDAG(
 
         input_parameters = [
             {"parameter_name": "--enable_manhole", "value": ""},
+            {
+                "parameter_name": "--threadpool_limit",
+                "value": get_threads_resource(dag.dag_id),
+            },
             {"parameter_name": "--options_preset", "value": "celldive"},
             {"parameter_name": "--image_dir", "value": str(data_dir / "pipeline_output/expr")},
-            {"parameter_name": "--processes", "value": get_threads_resource(dag.dag_id)},
             {"parameter_name": "--mask_dir", "value": str(data_dir / "pipeline_output/mask")},
+            {"parameter_name": "--min_memory", "value": ""},
         ]
 
         command = get_cwl_cmd_from_workflows(workflows, 1, input_parameters, tmpdir, kwargs["ti"])
