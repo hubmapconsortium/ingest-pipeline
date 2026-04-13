@@ -31,9 +31,10 @@ from typing import (
 )
 
 import cwltool  # used to find its path
+import requests
 import yaml
 from cryptography.fernet import Fernet
-from requests import codes
+from requests import JSONDecodeError, codes
 from requests.exceptions import HTTPError
 from schema_utils import (
     JSONType,
@@ -874,6 +875,36 @@ def get_auth_tok(**kwargs) -> str:
     return auth_tok
 
 
+def make_httphook_request(
+    endpoint: str, http_conn_id: str, token: str, method: str = "GET"
+) -> dict:
+    headers = {
+        "authorization": f"Bearer {token}",
+        "content-type": "application/json",
+        "X-Hubmap-Application": "ingest-pipeline",
+    }
+
+    try:
+        response = HttpHook(method, http_conn_id=http_conn_id).run(
+            endpoint=endpoint, headers=headers
+        )
+        response.raise_for_status()
+        response_json = response.json()
+    except HTTPError as e:
+        print(f"ERROR: {e}")
+        if e.response.status_code == codes.unauthorized:
+            raise RuntimeError(f"authorization for {endpoint} was rejected?")
+        raise RuntimeError(f"misc error {e} on {endpoint}")
+    except JSONDecodeError as e:
+        if e.response:
+            print(
+                f"Received non-JSON response. Text: {e.response.text}; content: {e.response.content}"
+            )
+        raise
+
+    return response_json
+
+
 def pythonop_send_create_dataset(**kwargs) -> str:
     """
     Requests creation of a new dataset.  Returns dataset info via XCOM
@@ -907,127 +938,106 @@ def pythonop_send_create_dataset(**kwargs) -> str:
     for arg_options in [["pipeline_shorthand", "dataset_type_callable"]]:
         assert any(arg in kwargs for arg in arg_options)
 
-    http_conn_id = kwargs["http_conn_id"]
-    # ctx = kwargs['dag_run'].conf
-    headers = {
-        "authorization": "Bearer " + get_auth_tok(**kwargs),
-        "content-type": "application/json",
-        "X-Hubmap-Application": "ingest-pipeline",
-    }
-
     source_uuids = kwargs["parent_dataset_uuid_callable"](**kwargs)
     if not isinstance(source_uuids, list):
         source_uuids = [source_uuids]
 
     dataset_name = kwargs["dataset_name_callable"](**kwargs)
     endpoint = f"entities/{source_uuids[0]}?exclude=direct_ancestors.files"
+    token = get_auth_tok(**kwargs)
+    http_conn_id = kwargs["http_conn_id"]
 
     try:
-        previous_revision_path = None
-        response = HttpHook("GET", http_conn_id=http_conn_id).run(
-            endpoint=endpoint,
-            headers=headers,
-            extra_options={"check_response": False},
-        )
-        response.raise_for_status()
-        response_json = response.json()
-        if "group_uuid" not in response_json:
-            print(f"response from GET on entities{source_uuids[0]}:")
-            pprint(response_json)
-            raise ValueError("entities response did not contain group_uuid")
-
-        if "dataset_type" not in response_json:
-            print(f"response from GET on entities{source_uuids[0]}:")
-            pprint(response_json)
-            raise ValueError("entities response did not contain dataset_type")
-
-        parent_group_uuid = response_json["group_uuid"]
-        # Grab the dataset_type from the first_uuid
-        parent_dataset_type = response_json["dataset_type"]
-
-        if "pipeline_shorthand" in kwargs:
-            dataset_type = f"{parent_dataset_type} [{kwargs['pipeline_shorthand']}]"
+        response_json = make_httphook_request(endpoint, http_conn_id, token)
+        print(f"response from GET on entities{source_uuids[0]}:")
+        print(response_json)
+    except JSONDecodeError as e:
+        if e.response and "message:https" in e.response.text:
+            try:
+                url = e.response.text.split("message:http")[-1:][0]
+                response = requests.get(url)
+                response.raise_for_status()
+                response_json = response.json()
+            except Exception:
+                print("Request failed, unable to retrieve parent dataset info.")
+                raise
         else:
-            dataset_type = kwargs["dataset_type_callable"](**kwargs)
+            raise
 
-        creation_action = kwargs.get("creation_action", "Central Process")
+    if not (parent_group_uuid := response_json.get("group_uuid")):
+        raise ValueError("entities response did not contain group_uuid")
 
-        data = {
-            "direct_ancestor_uuids": source_uuids,
-            "dataset_info": dataset_name,
-            "dataset_type": dataset_type,
-            "group_uuid": parent_group_uuid,
-            "contains_human_genetic_sequences": False,
-            "creation_action": creation_action,
-        }
-        if "previous_revision_uuid_callable" in kwargs:
-            previous_revision_uuid = kwargs["previous_revision_uuid_callable"](**kwargs)
-            if previous_revision_uuid is not None:
-                data["previous_revision_uuid"] = previous_revision_uuid
-                revision_uuid = previous_revision_uuid
-            else:
-                revision_uuid = (
-                    kwargs["dag_run"].conf["parent_submission_id"][0]
-                    if isinstance(kwargs["dag_run"].conf["parent_submission_id"], list)
-                    else kwargs["dag_run"].conf["parent_submission_id"]
-                )
-            response = HttpHook("GET", http_conn_id=http_conn_id).run(
-                endpoint=f"datasets/{revision_uuid}/file-system-abs-path",
-                headers=headers,
-                extra_options={"check_response": False},
+    # Grab the dataset_type from the first_uuid
+    if not (parent_dataset_type := response_json.get("dataset_type")):
+        raise ValueError("entities response did not contain dataset_type")
+
+    if "pipeline_shorthand" in kwargs:
+        dataset_type = f"{parent_dataset_type} [{kwargs['pipeline_shorthand']}]"
+    else:
+        dataset_type = kwargs["dataset_type_callable"](**kwargs)
+
+    creation_action = kwargs.get("creation_action", "Central Process")
+
+    data = {
+        "direct_ancestor_uuids": source_uuids,
+        "dataset_info": dataset_name,
+        "dataset_type": dataset_type,
+        "group_uuid": parent_group_uuid,
+        "contains_human_genetic_sequences": False,
+        "creation_action": creation_action,
+    }
+
+    previous_revision_path = None
+    if "previous_revision_uuid_callable" in kwargs:
+        previous_revision_uuid = kwargs["previous_revision_uuid_callable"](**kwargs)
+        if previous_revision_uuid is not None:
+            data["previous_revision_uuid"] = previous_revision_uuid
+            revision_uuid = previous_revision_uuid
+        else:
+            revision_uuid = (
+                kwargs["dag_run"].conf["parent_submission_id"][0]
+                if isinstance(kwargs["dag_run"].conf["parent_submission_id"], list)
+                else kwargs["dag_run"].conf["parent_submission_id"]
             )
-            response.raise_for_status()
-            response_json = response.json()
-            if "path" not in response_json:
-                print(f"response from datasets/{revision_uuid}/file-system-abs-path:")
-                pprint(response_json)
-                raise ValueError(
-                    f"datasets/{revision_uuid}/file-system-abs-path did not return a path"
-                )
-            previous_revision_path = response_json["path"]
-
-        print("data for dataset creation:")
-        pprint(data)
-        response = HttpHook("POST", http_conn_id=http_conn_id).run(
-            endpoint="datasets", data=json.dumps(data), headers=headers, extra_options={}
+        response_json = make_httphook_request(
+            f"datasets/{revision_uuid}/file-system-abs-path", http_conn_id, token
         )
-        response.raise_for_status()
-        response_json = response.json()
-        print("response to dataset creation:")
-        pprint(response_json)
-        for elt in ["uuid", "group_uuid"]:
-            if elt not in response_json:
-                raise ValueError(f"datasets response did not contain {elt}")
-        uuid = response_json["uuid"]
-        group_uuid = response_json["group_uuid"]
-
-        # Send confirmation message that derived dataset has been created
-        call_message_managers(
-            response_json.get("status"),
-            uuid,
-            get_auth_tok(**kwargs),
-            messages={"run_id": kwargs.get("run_id", ""), "parent_dataset_uuid": source_uuids[0]},
-            message_classes=["SlackManager"],
-        )
-
-        response = HttpHook("GET", http_conn_id=http_conn_id).run(
-            endpoint=f"datasets/{uuid}/file-system-abs-path",
-            headers=headers,
-            extra_options={"check_response": False},
-        )
-        response.raise_for_status()
-        response_json = response.json()
         if "path" not in response_json:
-            print(f"response from datasets/{uuid}/file-system-abs-path:")
+            print(f"response from datasets/{revision_uuid}/file-system-abs-path:")
             pprint(response_json)
-            raise ValueError(f"datasets/{uuid}/file-system-abs-path" " did not return a path")
-        abs_path = response_json["path"]
+            raise ValueError(
+                f"datasets/{revision_uuid}/file-system-abs-path did not return a path"
+            )
+        previous_revision_path = response_json["path"]
 
-    except HTTPError as e:
-        print(f"ERROR: {e}")
-        if e.response.status_code == codes.unauthorized:
-            raise RuntimeError(f"authorization for {endpoint} was rejected?")
-        raise RuntimeError(f"misc error {e} on {endpoint}")
+    print("data for dataset creation:")
+    pprint(data)
+    response_json = make_httphook_request("datasets", http_conn_id, token, "POST")
+    print("response to dataset creation:")
+    pprint(response_json)
+    for elt in ["uuid", "group_uuid"]:
+        if elt not in response_json:
+            raise ValueError(f"datasets response did not contain {elt}")
+    uuid = response_json["uuid"]
+    group_uuid = response_json["group_uuid"]
+
+    # Send confirmation message that derived dataset has been created
+    call_message_managers(
+        response_json["status"],
+        uuid,
+        get_auth_tok(**kwargs),
+        messages={"run_id": kwargs.get("run_id", ""), "parent_dataset_uuid": source_uuids[0]},
+        message_classes=["SlackManager"],
+    )
+
+    response_json = make_httphook_request(
+        f"datasets/{uuid}/file-system-abs-path", http_conn_id, token
+    )
+    if "path" not in response_json:
+        print(f"response from datasets/{uuid}/file-system-abs-path:")
+        pprint(response_json)
+        raise ValueError(f"datasets/{uuid}/file-system-abs-path" " did not return a path")
+    abs_path = response_json["path"]
 
     kwargs["ti"].xcom_push(key="group_uuid", value=group_uuid)
     kwargs["ti"].xcom_push(key="derived_dataset_uuid", value=uuid)
