@@ -6,6 +6,8 @@ from collections import OrderedDict, defaultdict
 from string import Template
 
 
+KNOWN_BOOL_KEYS = ["is_data_product", "is_qa_qc"]
+
 def total_len(some_l):
     tot = 0
     for dct in some_l:
@@ -157,6 +159,8 @@ def fully_template_dict_list(dict_list, template_dict):
             else:
                 new_val = val
             new_dct[new_key] = new_val
+        for bool_key in KNOWN_BOOL_KEYS:
+            new_dct[bool_key] = bool(new_dct.get(bool_key, False))
         out_list.append(new_dct)
     return out_list
 
@@ -222,6 +226,13 @@ def generate_files_template(dict_list):
                             typical_tok_len=typical_tok_len)
     files_l = apply_substitutions(files_l, path_subst_d)
     substitution_dict.update(path_subst_d)
+
+    # Remove False cases for known boolean keys
+    for bool_key in KNOWN_BOOL_KEYS:
+        for rec in files_l:
+            assert bool_key in rec, f"Expected boolean key {bool_key} missing in files record {rec}"
+            if not rec[bool_key]:
+                del rec[bool_key]
 
     key_dict = OrderedDict()
     key_dict["description"] = "${k0}"
