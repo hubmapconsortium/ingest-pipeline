@@ -2004,13 +2004,16 @@ def env_appropriate_slack_channel(prod_channel: str) -> str:
     return "C0A8ES4M9RU"  # test-notifications
 
 
-def get_submission_context(token: str, uuid: str) -> dict[str, Any]:
+def get_submission_context(token: str, uuid: str, headers: dict | None = None) -> dict[str, Any]:
     """
     uuid can also be a HuBMAP/SenNet ID.
     """
     try:
         return make_httphook_request(
-            f"entities/{uuid}?exclude=direct_ancestors.files", "entity_api_connection", token
+            f"entities/{uuid}?exclude=direct_ancestors.files",
+            "entity_api_connection",
+            token,
+            headers=headers,
         )
     except JSONDecodeError as e:
         # Edge case: if the metadata response is too large, ingest_api will send a
