@@ -30,8 +30,8 @@ import cwltool  # used to find its path
 import requests
 import yaml
 from cryptography.fernet import Fernet
-from requests import JSONDecodeError, codes
-from requests.exceptions import HTTPError
+from requests import codes
+from requests.exceptions import HTTPError, JSONDecodeError
 from schema_utils import (
     localized_assert_json_matches_schema as assert_json_matches_schema,
 )
@@ -885,32 +885,41 @@ def make_httphook_request(
             "content-type": "application/json",
             "X-Hubmap-Application": "ingest-pipeline",
         }
-
+    http_hook = HttpHook(method, http_conn_id=http_conn_id)
+    run_args = {"endpoint": endpoint, "headers": headers}
+    if method.lower() == "post":
+        run_args["payload"] = json.dumps(payload)
     try:
-        if method.lower() == "post":
-            response = HttpHook(method, http_conn_id=http_conn_id).run(
-                endpoint=endpoint, headers=headers, payload=json.dumps(payload)
-            )
-        else:
-            response = HttpHook(method, http_conn_id=http_conn_id).run(
-                endpoint=endpoint, headers=headers
-            )
+        response = http_hook.run(**run_args)
         response.raise_for_status()
-        response_json = response.json()
-        if log:
-            print(f"Response from '{method}' on {endpoint} ({http_conn_id}):")
-            print(response_json)
-        return response_json
     except HTTPError as e:
         print(f"ERROR: {e}")
         if e.response.status_code == codes.unauthorized:
             raise RuntimeError(f"authorization for {endpoint} was rejected?")
         raise RuntimeError(f"misc error {e} on {endpoint}")
+    try:
+        response_json = response.json()
+        if log:
+            print(f"Response from '{method}' on {endpoint} ({http_conn_id}):")
+            print(response_json)
+        return response_json
     except JSONDecodeError as e:
-        if e.response:
+        if response.text:
             print(
-                f"Received non-JSON response. Text: {e.response.text}; content: {e.response.content}"
+                f"Received non-JSON response. Text: {response.text}; content: {response.content}"
             )
+            # Edge case: if the metadata response is too large, ingest_api will send a
+            # link to the full content in the text body of the response; try to follow
+            # that (do not log it, it's too large!!)
+            if "message:https" in response.text:
+                try:
+                    url = response.text.split("message:")[-1:][0]
+                    print(f"Trying redirect URL ('{url}') from message body...")
+                    redir_response = requests.get(url)
+                    redir_response.raise_for_status()
+                    return redir_response.json()
+                except Exception:
+                    print("Redirect request failed.")
         raise
 
 
@@ -1151,9 +1160,7 @@ def pythonop_get_dataset_state(**kwargs) -> dict:
     auth_tok = get_auth_tok(**kwargs)
 
     try:
-        ds_rslt = make_httphook_request(
-            f"entities/{uuid}?exclude=direct_ancestors.files", "ingest_api_connection", auth_tok
-        )
+        ds_rslt = get_submission_context(auth_tok, uuid)
     except Exception:
         return {}
 
@@ -2006,30 +2013,15 @@ def env_appropriate_slack_channel(prod_channel: str) -> str:
 
 def get_submission_context(token: str, uuid: str, headers: dict | None = None) -> dict[str, Any]:
     """
+    Get info about an entity as returned by ingest_api.
     uuid can also be a HuBMAP/SenNet ID.
     """
-    try:
-        return make_httphook_request(
-            f"entities/{uuid}?exclude=direct_ancestors.files",
-            "entity_api_connection",
-            token,
-            headers=headers,
-        )
-    except JSONDecodeError as e:
-        # Edge case: if the metadata response is too large, ingest_api will send a
-        # link to the full content in the text body of the response; try to follow
-        # that (do not log it, it's too large!!)
-        if e.response:
-            if "message:https" in e.response.text:
-                try:
-                    url = e.response.text.split("message:http")[-1:][0]
-                    print(f"Trying redirect URL ('{url}') from message body...")
-                    response = requests.get(url)
-                    response.raise_for_status()
-                    return response.json()
-                except Exception:
-                    print("Redirect request failed.")
-        raise
+    return make_httphook_request(
+        f"entities/{uuid}?exclude=direct_ancestors.files",
+        "ingest_api_connection",
+        token,
+        headers=headers,
+    )
 
 
 def main():
