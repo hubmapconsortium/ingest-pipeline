@@ -112,7 +112,7 @@ with HMDAG(
     t_pipeline_exec_cwl_sprm = BashOperator(
         task_id="pipeline_exec_cwl_sprm",
         bash_command=""" \
-        tmp_dir={{dag_run.conf.run_id}} ; \
+        tmp_dir={{tmp_dir_path(run_id)}} ; \
         {{ti.xcom_pull(task_ids='build_cmd_sprm')}} >> ${tmp_dir}/session.log 2>&1 ; \
         echo $?
         """,
@@ -161,7 +161,7 @@ with HMDAG(
     t_pipeline_exec_cwl_create_vis_symlink_archive = BashOperator(
         task_id="pipeline_exec_cwl_create_vis_symlink_archive",
         bash_command=""" \
-        tmp_dir={{dag_run.conf.run_id}} ; \
+        tmp_dir={{tmp_dir_path(run_id)}} ; \
         {{ti.xcom_pull(task_ids='build_cmd_create_vis_symlink_archive')}} >> ${tmp_dir}/session.log 2>&1 ; \
         echo $?
         """,
@@ -209,7 +209,7 @@ with HMDAG(
     t_pipeline_exec_cwl_ome_tiff_pyramid = BashOperator(
         task_id="pipeline_exec_cwl_ome_tiff_pyramid",
         bash_command=""" \
-        tmp_dir={{dag_run.conf.run_id}} ; \
+        tmp_dir={{tmp_dir_path(run_id)}} ; \
         {{ti.xcom_pull(task_ids='build_cwl_ome_tiff_pyramid')}} >> $tmp_dir/session.log 2>&1 ; \
         echo $?
         """,
@@ -257,7 +257,7 @@ with HMDAG(
     t_pipeline_exec_cwl_ome_tiff_offsets = BashOperator(
         task_id="pipeline_exec_cwl_ome_tiff_offsets",
         bash_command=""" \
-        tmp_dir={{dag_run.conf.run_id}} ; \
+        tmp_dir={{tmp_dir_path(run_id)}} ; \
         {{ti.xcom_pull(task_ids='build_cmd_ome_tiff_offsets')}} >> ${tmp_dir}/session.log 2>&1 ; \
         echo $?
         """,
@@ -305,7 +305,7 @@ with HMDAG(
     t_pipeline_exec_cwl_sprm_to_json = BashOperator(
         task_id="pipeline_exec_cwl_sprm_to_json",
         bash_command=""" \
-        tmp_dir={{dag_run.conf.run_id}} ; \
+        tmp_dir={{tmp_dir_path(run_id)}} ; \
         {{ti.xcom_pull(task_ids='build_cmd_sprm_to_json')}} >> ${tmp_dir}/session.log 2>&1 ; \
         echo $?
         """,
@@ -351,7 +351,7 @@ with HMDAG(
     t_pipeline_exec_cwl_sprm_to_anndata = BashOperator(
         task_id="pipeline_exec_cwl_sprm_to_anndata",
         bash_command=""" \
-        tmp_dir={{dag_run.conf.run_id}} ; \
+        tmp_dir={{tmp_dir_path(run_id)}} ; \
         {{ti.xcom_pull(task_ids='build_cmd_sprm_to_anndata')}} >> ${tmp_dir}/session.log 2>&1 ; \
         echo $?
         """,
@@ -406,7 +406,7 @@ with HMDAG(
     t_expand_symlinks = BashOperator(
         task_id="expand_symlinks",
         bash_command="""
-        tmp_dir={{dag_run.conf.run_id}} ; \
+        tmp_dir={{tmp_dir_path(run_id)}} ; \
         ds_dir="{{ti.xcom_pull(task_ids='send_create_dataset')}}" ; \
         groupname="{{conf.as_dict()['connections']['OUTPUT_GROUP_NAME']}}" ; \
         cd "$ds_dir" ; \
