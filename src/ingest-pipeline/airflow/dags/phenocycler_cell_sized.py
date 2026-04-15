@@ -102,7 +102,7 @@ def generate_phenocycler_dag(params: SequencingDagParameters) -> DAG:
         t_pipeline_exec_cwl_sprm = BashOperator(
             task_id="pipeline_exec_cwl_sprm",
             bash_command=""" \
-                tmp_dir={{dag_run.conf.run_id}} ; \
+                tmp_dir={{tmp_dir_path(run_id)}} ; \
                 {{ti.xcom_pull(task_ids='build_cmd_sprm')}} >> ${tmp_dir}/session.log 2>&1 ; \
                 echo $?
                 """,
