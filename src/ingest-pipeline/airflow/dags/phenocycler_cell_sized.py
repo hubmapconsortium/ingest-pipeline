@@ -55,6 +55,7 @@ def generate_phenocycler_dag(params: SequencingDagParameters) -> DAG:
         default_args=default_args,
         user_defined_macros={
             "preserve_scratch": get_preserve_scratch_resource(params.dag_id),
+            "tmp_dir_path": get_tmp_dir_path,
         },
     ) as dag:
         workflow_version = "1.0.0"
