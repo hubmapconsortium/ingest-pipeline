@@ -95,8 +95,6 @@ def build_word_map(starting_list, key_gen, selector, typical_tok_len=6):
     for path_str, wt in best_dct.items():
         if wt > 0:
             subst_str = path_str
-            # for old_key in word_subst_dict:
-            #    subst_str = subst_str.replace(old_key, word_subst_dict[old_key])
             if len(subst_str) > len(next_tok):
                 word_subst_dict[subst_str] = next_tok
                 next_tok = next(key_gen)
@@ -112,7 +110,7 @@ def build_char_map(starting_list, key_gen, selector, typical_tok_len=6):
             if key == sel and isinstance(val, str):
                 stree.add(f"{idx}", val)
     for k, lk, path in stree.common_substrings():
-        print(f"found common substring: {k} (length {lk}) in path {path_to_str(path)}")
+        # print(f"found common substring: {k} (length {lk}) in path {path_to_str(path)}")
         if lk > 0 and k > 1:
             path_str = path_to_str(path)
             #print(f"{k} {lk}: {path_str}")
@@ -127,17 +125,32 @@ def build_char_map(starting_list, key_gen, selector, typical_tok_len=6):
     char_subst_dict = OrderedDict()
     next_tok = next(key_gen)
     for path_str, (wt, k, lk) in best_dct.items():
-        print(f"loop {wt} {k} {lk} {path_str} next_tok {next_tok} {char_subst_dict}")
+        # print(f"loop {wt} {k} {lk} {path_str} next_tok {next_tok} {char_subst_dict}")
         if wt > 0:
             subst_str = path_str
-            for old_key in char_subst_dict:
-                subst_str = subst_str.replace(old_key, char_subst_dict[old_key])
+            #for old_key in char_subst_dict:
+            #    subst_str = subst_str.replace(old_key, char_subst_dict[old_key])
             if len(subst_str) > len(next_tok):
                 char_subst_dict[subst_str] = next_tok
                 next_tok = next(key_gen)
-    print("final char subst dict:")
-    pprint(char_subst_dict)
+    # print("final char subst dict:")
+    # pprint(char_subst_dict)
     return char_subst_dict
+
+
+def build_reverse_char_map(starting_list, key_gen, selector, typical_tok_len=6):
+    rev_list = []
+    for dct in starting_list:
+        new_dct = {}
+        for key, val in dct.items():
+            if key == selector and isinstance(val, str):
+                new_dct[key] = val[::-1]
+        rev_list.append(new_dct)
+    char_subst_dict = build_char_map(rev_list, key_gen, selector, typical_tok_len=typical_tok_len)
+    rev_char_subst_dict = OrderedDict()
+    for key, val in char_subst_dict.items():
+        rev_char_subst_dict[key[::-1]] = val
+    return rev_char_subst_dict
 
 
 def fully_template(st, dct):
@@ -170,13 +183,11 @@ def full_map(dict_list, mapper, key_gen, sel, typical_tok_len=6):
     cum_subst_d = OrderedDict()
     while True:
         subst_d = mapper(dict_list, key_gen, sel, typical_tok_len=typical_tok_len)
-        pprint(subst_d)
-        print("counting occurrences:")
         for key in subst_d:
-            print(f"  {key}: {count_occurrences(dict_list, key)}")
-        dict_list = apply_substitutions(dict_list, subst_d)
-        for key in subst_d:
-            cum_subst_d[key] = subst_d[key]
+            n_occ = count_occurrences(dict_list, key)
+            if n_occ > 1:
+                cum_subst_d[key] = subst_d[key]
+        dict_list = apply_substitutions(dict_list, cum_subst_d)
         new_total_len = total_len(dict_list) + total_len([cum_subst_d])
         # print(f"{itr}: {new_total_len} vs {best_total_len}")
         if ((new_total_len >= best_total_len - typical_tok_len)
@@ -222,7 +233,7 @@ def generate_files_template(dict_list):
     substitution_dict.update(term_subst_d)
 
     path_subst_d = full_map(files_l,
-                            build_char_map,
+                            build_reverse_char_map,
                             keygen("p"),
                             "rel_path",
                             typical_tok_len=typical_tok_len)
