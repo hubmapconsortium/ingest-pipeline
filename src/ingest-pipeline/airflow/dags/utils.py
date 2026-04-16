@@ -876,7 +876,7 @@ def make_httphook_request(
     method: str = "GET",
     payload: dict | None = None,
     headers: dict | None = None,
-    log: bool = False,
+    return_text_response: bool = False,
 ) -> dict:
     assert token or headers, "Must pass in either a token or header dict"
     if not headers:
@@ -888,7 +888,7 @@ def make_httphook_request(
     http_hook = HttpHook(method, http_conn_id=http_conn_id)
     run_args = {"endpoint": endpoint, "headers": headers}
     if method.lower() == "post":
-        run_args["payload"] = json.dumps(payload)
+        run_args["data"] = json.dumps(payload)
     try:
         response = http_hook.run(**run_args)
         response.raise_for_status()
@@ -899,27 +899,16 @@ def make_httphook_request(
         raise RuntimeError(f"misc error {e} on {endpoint}")
     try:
         response_json = response.json()
-        if log:
-            print(f"Response from '{method}' on {endpoint} ({http_conn_id}):")
-            print(response_json)
+        print(f"Response from '{method}' on {endpoint} ({http_conn_id}):")
+        print(response_json)
         return response_json
     except JSONDecodeError as e:
         if response.text:
             print(
                 f"Received non-JSON response. Text: {response.text}; content: {response.content}"
             )
-            # Edge case: if the metadata response is too large, ingest_api will send a
-            # link to the full content in the text body of the response; try to follow
-            # that (do not log it, it's too large!!)
-            if "message:https" in response.text:
-                try:
-                    url = response.text.split("message:")[-1:][0]
-                    print(f"Trying redirect URL ('{url}') from message body...")
-                    redir_response = requests.get(url)
-                    redir_response.raise_for_status()
-                    return redir_response.json()
-                except Exception:
-                    print("Redirect request failed.")
+            if return_text_response:
+                return response.text
         raise
 
 
@@ -990,9 +979,21 @@ def pythonop_send_create_dataset(**kwargs) -> str:
     # get previous_revision_path and previous_revision_uuid (if applicable)
     previous_revision_path = None
     if "previous_revision_uuid_callable" in kwargs:
-        previous_revision_uuid, previous_revision_path = get_previous_revision_values(
-            http_conn_id, token, **kwargs
+        if previous_revision_uuid := kwargs["previous_revision_uuid_callable"](**kwargs):
+            revision_uuid = previous_revision_uuid
+        else:
+            revision_uuid = (
+                kwargs["dag_run"].conf["parent_submission_id"][0]
+                if isinstance(kwargs["dag_run"].conf["parent_submission_id"], list)
+                else kwargs["dag_run"].conf["parent_submission_id"]
+            )
+        response_json = make_httphook_request(
+            f"datasets/{revision_uuid}/file-system-abs-path", http_conn_id, token
         )
+        if not (previous_revision_path := response_json.get("path")):
+            raise ValueError(
+                f"datasets/{revision_uuid}/file-system-abs-path did not return a path"
+            )
         data["previous_revision_uuid"] = previous_revision_uuid
 
     # create dataset
@@ -1000,7 +1001,7 @@ def pythonop_send_create_dataset(**kwargs) -> str:
     pprint(data)
     print("creating dataset...")
     response_json = make_httphook_request(
-        "datasets", http_conn_id, token, method="POST", payload=data, log=True
+        "datasets", http_conn_id, token, method="POST", payload=data
     )
 
     for elt in ["uuid", "group_uuid"]:
@@ -1025,29 +1026,12 @@ def pythonop_send_create_dataset(**kwargs) -> str:
 
     # get and return abs_path of new dataset
     response_json = make_httphook_request(
-        f"datasets/{uuid}/file-system-abs-path", http_conn_id, token, log=True
+        f"datasets/{uuid}/file-system-abs-path", http_conn_id, token
     )
     if not (abs_path := response_json.get("path")):
         raise ValueError(f"datasets/{uuid}/file-system-abs-path" " did not return a path")
 
     return abs_path
-
-
-def get_previous_revision_values(http_conn_id, token, **kwargs) -> tuple[str, str]:
-    if previous_revision_uuid := kwargs["previous_revision_uuid_callable"](**kwargs):
-        revision_uuid = previous_revision_uuid
-    else:
-        revision_uuid = (
-            kwargs["dag_run"].conf["parent_submission_id"][0]
-            if isinstance(kwargs["dag_run"].conf["parent_submission_id"], list)
-            else kwargs["dag_run"].conf["parent_submission_id"]
-        )
-    response_json = make_httphook_request(
-        f"datasets/{revision_uuid}/file-system-abs-path", http_conn_id, token
-    )
-    if not (previous_revision_path := response_json.get("path")):
-        raise ValueError(f"datasets/{revision_uuid}/file-system-abs-path did not return a path")
-    return previous_revision_uuid, previous_revision_path
 
 
 def pythonop_set_dataset_state(**kwargs) -> None:
@@ -1222,7 +1206,7 @@ def pythonop_get_dataset_state(**kwargs) -> dict:
 
         try:
             organs_query_rslt = make_httphook_request(
-                f"datasets/{ds_rslt['uuid']}/organs", "entity_api_connection", auth_tok, log=True
+                f"datasets/{ds_rslt['uuid']}/organs", "entity_api_connection", auth_tok
             )
             rslt["organs"] = [entry["organ"] for entry in organs_query_rslt]
         except Exception:
@@ -1966,7 +1950,7 @@ def get_soft_data(dataset_uuid, **kwargs) -> dict:
     """
     print("Fetching rule_set response...")
     return make_httphook_request(
-        f"/assaytype/{dataset_uuid}", "ingest_api_connection", get_auth_tok(**kwargs), log=True
+        f"/assaytype/{dataset_uuid}", "ingest_api_connection", get_auth_tok(**kwargs)
     )
 
 
@@ -1988,7 +1972,7 @@ def gather_calculated_metadata(**kwargs):
 def post_to_slack_notify(token: str, message: str, channel: str):
     payload = {"message": message, "channel": channel}
     return make_httphook_request(
-        "/notify", "ingest_api_connection", token, method="POST", payload=payload, log=True
+        "/notify", "ingest_api_connection", token, method="POST", payload=payload
     )
 
 
@@ -2016,12 +2000,31 @@ def get_submission_context(token: str, uuid: str, headers: dict | None = None) -
     Get info about an entity as returned by ingest_api.
     uuid can also be a HuBMAP/SenNet ID.
     """
-    return make_httphook_request(
-        f"entities/{uuid}?exclude=direct_ancestors.files",
-        "ingest_api_connection",
-        token,
-        headers=headers,
-    )
+    try:
+        return make_httphook_request(
+            f"entities/{uuid}?exclude=direct_ancestors.files",
+            "ingest_api_connection",
+            token,
+            headers=headers,
+        )
+    except JSONDecodeError:
+        # Edge case: if the metadata response is too large, ingest API will send a
+        # message including the link to the full metadata, but as part of longer message;
+        # call entity API directly to get just the link, follow it, and try to return response
+        entity_api_response = make_httphook_request(
+            f"entities/{uuid}",
+            "entity_api_connection",
+            token,
+            headers=headers,
+            return_text_response=True,
+        )
+        if type(entity_api_response) is str and entity_api_response.startswith("http"):
+            url = entity_api_response.text
+            print(f"Trying redirect URL ('{url}') from message body...")
+            redir_response = requests.get(url)
+            redir_response.raise_for_status()
+            return redir_response.json()
+        raise
 
 
 def main():
