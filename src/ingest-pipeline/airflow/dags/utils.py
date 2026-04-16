@@ -1996,34 +1996,28 @@ def get_submission_context(
     token: str, uuid: str, headers: dict | None = None, log: bool = True
 ) -> dict[str, Any]:
     """
-    Get info about an entity as returned by ingest_api.
+    Get info about an entity as returned by entity-api.
     uuid can also be a HuBMAP/SenNet ID.
     """
-    try:
-        return make_httphook_request(
-            f"entities/{uuid}?exclude=direct_ancestors.files",
-            "ingest_api_connection",
-            token,
-            headers=headers,
-            log=log,
-        )
-    except JSONDecodeError:
-        # Edge case: if the metadata response is too large, ingest API will send a
-        # message including the link to the full metadata, but as part of longer message;
-        # call entity API directly to get just the link, follow it, and try to return response
-        entity_api_response = make_httphook_request(
-            f"entities/{uuid}",
-            "entity_api_connection",
-            token,
-            headers=headers,
-            return_text_response=True,
-        )
-        if type(entity_api_response) is str and "hm-api-responses" in entity_api_response:
-            print(f"Trying redirect URL ('{entity_api_response}') from message body...")
-            redir_response = requests.get(entity_api_response)
-            redir_response.raise_for_status()
-            return redir_response.json()
-        raise
+    context = make_httphook_request(
+        f"entities/{uuid}?exclude=direct_ancestors.files",
+        "entity_api_connection",
+        token,
+        headers=headers,
+        log=log,
+        return_text_response=True,
+    )
+    if type(context) is dict:
+        return context
+    # Edge case: if the metadata response is too large, entity-api will send a
+    # message with a link to the full metadata; try to follow that link and
+    # return response; this WILL add a good amount of processing time
+    elif type(context) is str and "hm-api-responses" in context:
+        print(f"Trying redirect URL ('{context}') from message body...")
+        redir_response = requests.get(context)
+        redir_response.raise_for_status()
+        return redir_response.json()
+    raise Exception(f"GET request to entity-api for {uuid} failed!")
 
 
 def main():
