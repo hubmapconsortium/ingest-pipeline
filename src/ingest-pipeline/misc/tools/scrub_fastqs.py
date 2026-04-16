@@ -2,6 +2,8 @@ import gzip
 import hashlib
 import shutil
 import subprocess
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 SRA_SCRUBBER_IMAGE = "ncbi/sra-human-scrubber:2.2.1"
@@ -16,7 +18,6 @@ def _sha256(path: Path) -> str:
 
 
 def _run_scrubber(input_path: Path, output_name: str) -> None:
-    # Invoke docker container and pass data
     subprocess.run(
         [
             "docker",
@@ -35,7 +36,7 @@ def _run_scrubber(input_path: Path, output_name: str) -> None:
     )
 
 
-def _scrub_fastq(fastq_path: Path) -> None:
+def _scrub_fastq(fastq_path: Path, num_threads: int = 1) -> None:
     """
     Process a single uncompressed FASTQ file in place.
 
@@ -46,8 +47,11 @@ def _scrub_fastq(fastq_path: Path) -> None:
     clean = fastq_path.parent / (fastq_path.name + ".clean")
     clean_clean = fastq_path.parent / (fastq_path.name + ".clean.clean")
 
+    t0 = time.time()
     _run_scrubber(fastq_path, clean.name)
+    print(f"[scrub] {fastq_gz_path.name}: first scrub took {time.time() - t0:.2f}s")
     _run_scrubber(clean, clean_clean.name)
+    print(f"[scrub] {fastq_gz_path.name}: second scrub took {time.time() - t0:.2f}s")
 
     if _sha256(clean) != _sha256(clean_clean):
         raise RuntimeError(
@@ -60,7 +64,7 @@ def _scrub_fastq(fastq_path: Path) -> None:
     clean_clean.unlink()
 
 
-def _scrub_fastq_gz(fastq_gz_path: Path) -> None:
+def _scrub_fastq_gz(fastq_gz_path: Path, num_threads: int = 1) -> None:
     """
     Process a single gzipped FASTQ file in place.
 
@@ -77,28 +81,40 @@ def _scrub_fastq_gz(fastq_gz_path: Path) -> None:
     fastq_path = parent / (stem + ".fastq")
     fastq_original = parent / (stem + ".fastq.original")
 
-    # Uncompress file
+    t0 = time.time()
     with gzip.open(fastq_gz_path, "rb") as f_in, open(fastq_path, "wb") as f_out:
         shutil.copyfileobj(f_in, f_out)
+    print(f"[scrub] {fastq_gz_path.name}: decompression took {time.time() - t0:.2f}s")
 
-    # After decompression, run fastq through regular scrub routine
-    _scrub_fastq(fastq_path)
+    t0 = time.time()
+    _scrub_fastq(fastq_path, num_threads)
+    print(f"[scrub] {fastq_gz_path.name}: full docker scrub took {time.time() - t0:.2f}s")
 
-    # Scrubbing will move original fastq to ".original" and the clean file to fastq
-
-    # Rename original .fastq.gz
     fastq_gz_path.rename(parent / (fastq_gz_path.name + ".original"))
 
-    # Recompress clean output to original name
+    t0 = time.time()
     with open(fastq_path, "rb") as f_in, gzip.open(fastq_gz_path, "wb") as f_out:
         shutil.copyfileobj(f_in, f_out)
+    print(f"[scrub] {fastq_gz_path.name}: recompression took {time.time() - t0:.2f}s")
 
     # Delete uncompressed files
     fastq_path.unlink()
     fastq_original.unlink()
 
 
-def scrub_upload(upload_path: Path) -> None:
+def _run_in_pool(fns_and_args, num_threads: int) -> None:
+    with ThreadPoolExecutor(max_workers=num_threads) as executor:
+        futures = {executor.submit(fn, *args): args for fn, *args in fns_and_args}
+        errors = []
+        for future in as_completed(futures):
+            exc = future.exception()
+            if exc is not None:
+                errors.append(exc)
+        if errors:
+            raise RuntimeError(f"{len(errors)} scrub job(s) failed: {errors}")
+
+
+def scrub_upload(upload_path: Path, num_threads: int = 1) -> None:
     """
     Finds all FASTQ files under upload_path, runs the SRA scrubber twice per file,
     validates idempotency via SHA-256 hash comparison, and renames files in place.
@@ -109,18 +125,21 @@ def scrub_upload(upload_path: Path) -> None:
     corresponding .fastq.gz or .fastq.gz.original in the same directory is skipped,
     as it is a decompressed intermediate from the .gz pass.
     """
-    for fastq_gz in sorted(upload_path.rglob("*.fastq.gz")):
-        _scrub_fastq_gz(fastq_gz)
+    _run_in_pool(
+        [(_scrub_fastq_gz, p, num_threads) for p in sorted(upload_path.rglob("*.fastq.gz"))],
+        num_threads,
+    )
+
+    plain_fastqs = []
     for fastq in sorted(upload_path.rglob("*.fastq")):
         parent = fastq.parent
         stem = fastq.name[: -len(".fastq")]
-        # Ignore any fastqs that might exist that also have a compressed version.
         if (parent / (stem + ".fastq.gz")).exists() or (
             parent / (stem + ".fastq.gz.original")
         ).exists():
             continue
-        _scrub_fastq(fastq)
+        plain_fastqs.append((_scrub_fastq, fastq, num_threads))
+    _run_in_pool(plain_fastqs, num_threads)
 
-    # Finally, delete these originals.
     for orig_fastq in sorted(upload_path.rglob("*.fastq.*.original")):
         orig_fastq.unlink()
