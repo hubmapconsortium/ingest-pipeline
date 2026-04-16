@@ -100,8 +100,6 @@ def build_word_map(starting_list, key_gen, selector, typical_tok_len=6):
             if len(subst_str) > len(next_tok):
                 word_subst_dict[subst_str] = next_tok
                 next_tok = next(key_gen)
-        else:
-            break
     return word_subst_dict
 
 def build_char_map(starting_list, key_gen, selector, typical_tok_len=6):
@@ -114,21 +112,22 @@ def build_char_map(starting_list, key_gen, selector, typical_tok_len=6):
             if key == sel and isinstance(val, str):
                 stree.add(f"{idx}", val)
     for k, lk, path in stree.common_substrings():
-        if lk > 0:
+        print(f"found common substring: {k} (length {lk}) in path {path_to_str(path)}")
+        if lk > 0 and k > 1:
             path_str = path_to_str(path)
             #print(f"{k} {lk}: {path_str}")
-            sort_me.append((k * (len(path_str) - typical_tok_len), path_str))
+            sort_me.append((k * (len(path_str) - typical_tok_len), path_str, k, lk))
     sort_me.sort(reverse=False)
     # print("sort-me follows")
     # pprint(sort_me)
     # print("sort-me above")
     best_dct = {}
-    for wt, path_str in sort_me:
-        best_dct[path_str] = wt
+    for wt, path_str, k, lk in sort_me:
+        best_dct[path_str] = (wt, k, lk)
     char_subst_dict = OrderedDict()
     next_tok = next(key_gen)
-    for path_str, wt in best_dct.items():
-        # print(f"loop {wt} {path_str} next_tok {next_tok} {char_subst_dict}")
+    for path_str, (wt, k, lk) in best_dct.items():
+        print(f"loop {wt} {k} {lk} {path_str} next_tok {next_tok} {char_subst_dict}")
         if wt > 0:
             subst_str = path_str
             for old_key in char_subst_dict:
@@ -136,8 +135,8 @@ def build_char_map(starting_list, key_gen, selector, typical_tok_len=6):
             if len(subst_str) > len(next_tok):
                 char_subst_dict[subst_str] = next_tok
                 next_tok = next(key_gen)
-        else:
-            break
+    print("final char subst dict:")
+    pprint(char_subst_dict)
     return char_subst_dict
 
 
@@ -175,7 +174,7 @@ def full_map(dict_list, mapper, key_gen, sel, typical_tok_len=6):
         dict_list = apply_substitutions(dict_list, subst_d, verbose=False)
         for key in subst_d:
             cum_subst_d[key] = subst_d[key]
-        new_total_len = total_len(dict_list)
+        new_total_len = total_len(dict_list) + total_len([cum_subst_d])
         # print(f"{itr}: {new_total_len} vs {best_total_len}")
         if ((new_total_len >= best_total_len - typical_tok_len)
             or itr > 100):
