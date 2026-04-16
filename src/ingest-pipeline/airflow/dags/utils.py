@@ -871,6 +871,7 @@ def make_httphook_request(
     payload: dict | None = None,
     headers: dict | None = None,
     return_text_response: bool = False,
+    log: bool = True,
 ) -> dict:
     assert token or headers, "Must pass in either a token or header dict"
     if not headers:
@@ -893,8 +894,9 @@ def make_httphook_request(
         raise RuntimeError(f"misc error {e} on {endpoint}")
     try:
         response_json = response.json()
-        print(f"Response from '{method}' on {endpoint} ({http_conn_id}):")
-        print(response_json)
+        if log:
+            print(f"Response from '{method}' on {endpoint} ({http_conn_id}):")
+            print(response_json)
         return response_json
     except JSONDecodeError as e:
         if response.text:
@@ -1139,7 +1141,7 @@ def pythonop_get_dataset_state(**kwargs) -> dict:
     auth_tok = get_auth_tok(**kwargs)
 
     try:
-        ds_rslt = get_submission_context(auth_tok, uuid)
+        ds_rslt = get_submission_context(auth_tok, uuid, log=False)
     except Exception:
         return {}
 
@@ -1990,7 +1992,9 @@ def env_appropriate_slack_channel(prod_channel: str) -> str:
     return "C0A8ES4M9RU"  # test-notifications
 
 
-def get_submission_context(token: str, uuid: str, headers: dict | None = None) -> dict[str, Any]:
+def get_submission_context(
+    token: str, uuid: str, headers: dict | None = None, log: bool = True
+) -> dict[str, Any]:
     """
     Get info about an entity as returned by ingest_api.
     uuid can also be a HuBMAP/SenNet ID.
@@ -2001,6 +2005,7 @@ def get_submission_context(token: str, uuid: str, headers: dict | None = None) -
             "ingest_api_connection",
             token,
             headers=headers,
+            log=log,
         )
     except JSONDecodeError:
         # Edge case: if the metadata response is too large, ingest API will send a
