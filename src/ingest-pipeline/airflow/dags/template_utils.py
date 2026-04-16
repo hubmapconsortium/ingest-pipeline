@@ -95,8 +95,8 @@ def build_word_map(starting_list, key_gen, selector, typical_tok_len=6):
     for path_str, wt in best_dct.items():
         if wt > 0:
             subst_str = path_str
-            for old_key in word_subst_dict:
-                subst_str = subst_str.replace(old_key, word_subst_dict[old_key])
+            # for old_key in word_subst_dict:
+            #    subst_str = subst_str.replace(old_key, word_subst_dict[old_key])
             if len(subst_str) > len(next_tok):
                 word_subst_dict[subst_str] = next_tok
                 next_tok = next(key_gen)
@@ -170,8 +170,11 @@ def full_map(dict_list, mapper, key_gen, sel, typical_tok_len=6):
     cum_subst_d = OrderedDict()
     while True:
         subst_d = mapper(dict_list, key_gen, sel, typical_tok_len=typical_tok_len)
-        #pprint(subst_d)
-        dict_list = apply_substitutions(dict_list, subst_d, verbose=False)
+        pprint(subst_d)
+        print("counting occurrences:")
+        for key in subst_d:
+            print(f"  {key}: {count_occurrences(dict_list, key)}")
+        dict_list = apply_substitutions(dict_list, subst_d)
         for key in subst_d:
             cum_subst_d[key] = subst_d[key]
         new_total_len = total_len(dict_list) + total_len([cum_subst_d])
