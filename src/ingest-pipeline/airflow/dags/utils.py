@@ -979,7 +979,9 @@ def pythonop_send_create_dataset(**kwargs) -> str:
     # get previous_revision_path and previous_revision_uuid (if applicable)
     previous_revision_path = None
     if "previous_revision_uuid_callable" in kwargs:
-        if previous_revision_uuid := kwargs["previous_revision_uuid_callable"](**kwargs):
+        previous_revision_uuid = kwargs["previous_revision_uuid_callable"](**kwargs)
+        if previous_revision_uuid is not None:
+            data["previous_revision_uuid"] = previous_revision_uuid
             revision_uuid = previous_revision_uuid
         else:
             revision_uuid = (
@@ -994,7 +996,6 @@ def pythonop_send_create_dataset(**kwargs) -> str:
             raise ValueError(
                 f"datasets/{revision_uuid}/file-system-abs-path did not return a path"
             )
-        data["previous_revision_uuid"] = previous_revision_uuid
 
     # create dataset
     print("data for dataset creation:")
@@ -2018,10 +2019,9 @@ def get_submission_context(token: str, uuid: str, headers: dict | None = None) -
             headers=headers,
             return_text_response=True,
         )
-        if type(entity_api_response) is str and entity_api_response.startswith("http"):
-            url = entity_api_response.text
-            print(f"Trying redirect URL ('{url}') from message body...")
-            redir_response = requests.get(url)
+        if type(entity_api_response) is str and "hm-api-responses" in entity_api_response:
+            print(f"Trying redirect URL ('{entity_api_response}') from message body...")
+            redir_response = requests.get(entity_api_response)
             redir_response.raise_for_status()
             return redir_response.json()
         raise
