@@ -521,10 +521,7 @@ def get_git_commits(file_list: StrOrListStr) -> StrOrListStr:
     Given a list of file paths, return a list of the current short commit hashes of those files
     """
     rslt = []
-    if isinstance(file_list, str):  # sadly, a str is an Iterable[str]
-        cleaned_file_list = [file_list]
-    else:
-        cleaned_file_list = file_list
+    cleaned_file_list = file_list if isinstance(file_list, list) else [file_list]
     for fname in cleaned_file_list:
         log_command = [piece.format(fname=fname) for piece in GIT_LOG_COMMAND]
         try:
@@ -560,10 +557,7 @@ def get_git_origins(file_list: StrOrListStr) -> StrOrListStr:
     Given a list of file paths, return a list of the git origins of those files
     """
     rslt = []
-    if isinstance(file_list, str):  # sadly, a str is an Iterable[str]
-        cleaned_file_list = [file_list]
-    else:
-        cleaned_file_list = file_list
+    cleaned_file_list = file_list if isinstance(file_list, list) else [file_list]
     for fname in cleaned_file_list:
         command = [piece.format(fname=fname) for piece in GIT_ORIGIN_COMMAND]
         try:
@@ -1880,7 +1874,7 @@ def get_threads_resource(dag_id: str, task_id: str | None = None) -> int:
     ), 'schema should guarantee "threads" or "coreuse" is present?'
     if (coreuse := rec.get("coreuse")) and (cpu_count := os.cpu_count()):
         if type(coreuse) is int and coreuse > 0:
-            return math.ceil(cpu_count * coreuse) % 100
+            return math.ceil(cpu_count * (coreuse // 100))
         else:
             return math.ceil(cpu_count / 4)
     else:
