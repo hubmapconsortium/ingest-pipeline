@@ -570,7 +570,7 @@ def request_dev_analysis():
     return HubmapApiResponse.success({"launch_id": ingest_id, "run_id": run_id})
 
 
-def generic_invoke_dag_on_uuid(uuid, process_name):
+def generic_invoke_dag(arg_dict, process_name):
     auth_tok = _auth_tok_from_environment()
     process = process_name
     run_id = "empty"
@@ -593,8 +593,8 @@ def generic_invoke_dag_on_uuid(uuid, process_name):
             "run_id": run_id,
             "crypt_auth_tok": crypt_auth_tok,
             "src_path": config("connections", "src_path"),
-            "uuid": uuid,
         }
+        conf.update(arg_dict)
 
         if find_dag_runs(session, dag_id, run_id, execution_date):
             # The run already happened??
@@ -622,60 +622,14 @@ def generic_invoke_dag_on_uuid(uuid, process_name):
         return HubmapApiResponse.server_error(str(e))
 
     return HubmapApiResponse.success({"run_id": run_id})
+
+
+def generic_invoke_dag_on_uuid(uuid, process_name):
+    return generic_invoke_dag({"uuid": uuid}, process_name)
 
 
 def generic_invoke_dag_on_uuid_list(uuid_list, process_name):
-    auth_tok = _auth_tok_from_environment()
-    process = process_name
-    run_id = "empty"
-    try:
-        dag_id = config("ingest_map", process)
-        session = settings.Session()
-
-        # Produce one and only one run
-        tz = pytz.timezone(config("core", "timezone"))
-        execution_date = datetime.now(tz)
-        LOGGER.info("starting {} with execution_date: {}".format(dag_id, execution_date))
-
-        run_id = "{}_{}_{}".format(uuid, process, execution_date.isoformat())
-        fernet = Fernet(config("core", "fernet_key").encode())
-        crypt_auth_tok = fernet.encrypt(auth_tok.encode()).decode()
-
-        conf = {
-            "process": process,
-            "dag_id": dag_id,
-            "run_id": run_id,
-            "crypt_auth_tok": crypt_auth_tok,
-            "src_path": config("connections", "src_path"),
-            "uuid_list": uuid_list,
-        }
-
-        if find_dag_runs(session, dag_id, run_id, execution_date):
-            # The run already happened??
-            raise AirflowException("The request happened twice?")
-
-        try:
-            dr = trigger_dag(dag_id, run_id, conf, execution_date=execution_date)
-        except AirflowException as err:
-            LOGGER.error(err)
-            raise AirflowException("Attempt to trigger run produced an error: {}".format(err))
-        LOGGER.info("dagrun follows: {}".format(dr))
-
-        session.close()
-    except HubmapApiConfigException:
-        return HubmapApiResponse.bad_request(f"{process} does not map to a known DAG")
-    except HubmapApiInputException as e:
-        return HubmapApiResponse.bad_request(str(e))
-    except ValueError as e:
-        return HubmapApiResponse.server_error(str(e))
-    except KeyError as e:
-        HubmapApiResponse.not_found(f"{e}")
-    except AirflowException as e:
-        return HubmapApiResponse.server_error(str(e))
-    except Exception as e:
-        return HubmapApiResponse.server_error(str(e))
-
-    return HubmapApiResponse.success({"run_id": run_id})
+    return generic_invoke_dag({"uuid_list": uuid_list}, process_name)
 
 
 @csrf.exempt
