@@ -892,7 +892,7 @@ def make_httphook_request(
     try:
         response_json = response.json()
         print(f"Response from '{method}' on {endpoint} ({http_conn_id}):")
-        if content_len := response.get("Content-Length"):
+        if content_len := response.headers.get("Content-Length"):
             if int(content_len) > 500000:  # length chosen arbitrarily, feel free to change
                 print(f"Response too long, not logging.")
         else:
