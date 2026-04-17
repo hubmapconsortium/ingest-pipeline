@@ -1,6 +1,4 @@
-import gzip
 import hashlib
-import shutil
 import subprocess
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -49,9 +47,10 @@ def _scrub_fastq(fastq_path: Path, num_threads: int = 1) -> None:
 
     t0 = time.time()
     _run_scrubber(fastq_path, clean.name)
-    print(f"[scrub] {fastq_gz_path.name}: first scrub took {time.time() - t0:.2f}s")
+    print(f"[scrub] {fastq_path.name}: first scrub took {time.time() - t0:.2f}s")
+    t0 = time.time()
     _run_scrubber(clean, clean_clean.name)
-    print(f"[scrub] {fastq_gz_path.name}: second scrub took {time.time() - t0:.2f}s")
+    print(f"[scrub] {fastq_path.name}: second scrub took {time.time() - t0:.2f}s")
 
     if _sha256(clean) != _sha256(clean_clean):
         raise RuntimeError(
@@ -82,8 +81,12 @@ def _scrub_fastq_gz(fastq_gz_path: Path, num_threads: int = 1) -> None:
     fastq_original = parent / (stem + ".fastq.original")
 
     t0 = time.time()
-    with gzip.open(fastq_gz_path, "rb") as f_in, open(fastq_path, "wb") as f_out:
-        shutil.copyfileobj(f_in, f_out)
+    with open(fastq_path, "wb") as f_out:
+        subprocess.run(
+            ["pigz", "-d", "-p", str(num_threads), "-c", str(fastq_gz_path)],
+            stdout=f_out,
+            check=True,
+        )
     print(f"[scrub] {fastq_gz_path.name}: decompression took {time.time() - t0:.2f}s")
 
     t0 = time.time()
@@ -93,8 +96,12 @@ def _scrub_fastq_gz(fastq_gz_path: Path, num_threads: int = 1) -> None:
     fastq_gz_path.rename(parent / (fastq_gz_path.name + ".original"))
 
     t0 = time.time()
-    with open(fastq_path, "rb") as f_in, gzip.open(fastq_gz_path, "wb") as f_out:
-        shutil.copyfileobj(f_in, f_out)
+    with open(fastq_gz_path, "wb") as f_out:
+        subprocess.run(
+            ["pigz", "-p", str(num_threads), "-c", str(fastq_path)],
+            stdout=f_out,
+            check=True,
+        )
     print(f"[scrub] {fastq_gz_path.name}: recompression took {time.time() - t0:.2f}s")
 
     # Delete uncompressed files
