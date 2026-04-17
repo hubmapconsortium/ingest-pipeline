@@ -899,7 +899,6 @@ def make_httphook_request(
             print(response_json)
         return response_json
     except JSONDecodeError as e:
-        # Will raise unless response has `text` property
         if response.text:
             print(
                 f"Received non-JSON response. Text: {response.text}; content: {response.content}"
