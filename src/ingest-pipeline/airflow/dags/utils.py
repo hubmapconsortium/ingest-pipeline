@@ -27,7 +27,6 @@ from typing import (
 )
 
 import cwltool  # used to find its path
-import requests
 import yaml
 from cryptography.fernet import Fernet
 from requests import codes
@@ -870,8 +869,6 @@ def make_httphook_request(
     method: str = "GET",
     payload: dict | None = None,
     headers: dict | None = None,
-    return_text_response: bool = False,
-    log: bool = True,
 ) -> dict:
     assert token or headers, "Must pass in either a token or header dict"
     if not headers:
@@ -894,18 +891,19 @@ def make_httphook_request(
         raise RuntimeError(f"misc error {e} on {endpoint}")
     try:
         response_json = response.json()
-        if log:
-            print(f"Response from '{method}' on {endpoint} ({http_conn_id}):")
+        print(f"Response from '{method}' on {endpoint} ({http_conn_id}):")
+        if content_len := response.get("Content-Length"):
+            if int(content_len) > 500000:  # length chosen arbitrarily, feel free to change
+                print(f"Response too long, not logging.")
+        else:
             print(response_json)
         return response_json
     except JSONDecodeError as e:
-        # Will raise unless response has `text` property and `return_text_response=True` (non-default)
+        # Will raise unless response has `text` property
         if response.text:
             print(
                 f"Received non-JSON response. Text: {response.text}; content: {response.content}"
             )
-            if return_text_response:
-                return response.text
         raise
 
 
@@ -1142,7 +1140,7 @@ def pythonop_get_dataset_state(**kwargs) -> dict:
     auth_tok = get_auth_tok(**kwargs)
 
     try:
-        ds_rslt = get_submission_context(auth_tok, uuid, log=False)
+        ds_rslt = get_submission_context(auth_tok, uuid)
     except Exception:
         return {}
 
@@ -1993,32 +1991,17 @@ def env_appropriate_slack_channel(prod_channel: str) -> str:
     return "C0A8ES4M9RU"  # test-notifications
 
 
-def get_submission_context(
-    token: str, uuid: str, headers: dict | None = None, log: bool = True
-) -> dict[str, Any]:
+def get_submission_context(token: str, uuid: str, headers: dict | None = None) -> dict[str, Any]:
     """
     Get info about an entity as returned by entity-api.
     uuid can also be a HuBMAP/SenNet ID.
     """
-    context = make_httphook_request(
+    return make_httphook_request(
         f"entities/{uuid}?exclude=direct_ancestors.files",
         "entity_api_connection",
         token,
         headers=headers,
-        log=log,
-        return_text_response=True,
     )
-    if type(context) is dict:
-        return context
-    # Edge case: if the metadata response is too large, entity-api will send a
-    # message with a link to the full metadata; try to follow that link and
-    # return response; this WILL add a good amount of processing time
-    elif type(context) is str and "hm-api-responses" in context:
-        print(f"Trying redirect URL ('{context}') from message body...")
-        redir_response = requests.get(context)
-        redir_response.raise_for_status()
-        return redir_response.json()
-    raise Exception(f"GET request to entity-api for {uuid} failed!")
 
 
 def get_config_value_int_recipients() -> list[str]:
