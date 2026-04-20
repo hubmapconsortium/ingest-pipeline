@@ -304,7 +304,7 @@ def get_cwl_cmd_from_workflows(
     if not outdir_present:
         command.extend(["--outdir", str(tmp_dir / "cwl_out")])
 
-    command.append(workflow["workflow_path"])
+    command.append(Path(workflow["workflow_path"]))
 
     # Extend the command with the input parameters
     for param in workflow["input_parameters"]:
@@ -1410,7 +1410,7 @@ def get_cwltool_bin_path() -> Path:
     return cwltool_dir
 
 
-def get_cwltool_base_cmd(tmpdir: Path) -> list[str]:
+def get_cwltool_base_cmd(tmpdir: Path) -> list[str | Path]:
     return [
         "env",
         "TMPDIR={}".format(tmpdir),
