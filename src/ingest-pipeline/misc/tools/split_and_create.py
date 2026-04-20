@@ -434,7 +434,6 @@ def update_upload_entity(child_uuid_list, source_entity, dryrun=False, verbose=F
                     print(
                         f"Reorganized new: {uuid} from Upload: {source_entity.uuid} status is Submitted"
                     )
-                time.sleep(10)
     else:
         print(
             f"source entity <{source_entity.uuid}> is not an upload,"
