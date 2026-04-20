@@ -34,7 +34,7 @@ def _run_scrubber(input_path: Path, output_name: str) -> None:
     )
 
 
-def _scrub_fastq(fastq_path: Path, num_threads: int = 1) -> None:
+def _scrub_fastq(fastq_path: Path) -> None:
     """
     Process a single uncompressed FASTQ file in place.
 
