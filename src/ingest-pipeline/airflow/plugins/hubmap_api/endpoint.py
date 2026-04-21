@@ -584,9 +584,17 @@ def generic_invoke_dag(arg_dict, process_name):
         # Produce one and only one run
         tz = pytz.timezone(config("core", "timezone"))
         execution_date = datetime.now(tz)
-        LOGGER.info("starting {} with execution_date: {}".format(dag_id, execution_date))
+        LOGGER.info("starting {} with execution_date: {} and arg_dict {}".format(dag_id, execution_date, arg_dict))
 
-        run_id = "{}_{}_{}".format(uuid, process, execution_date.isoformat())
+        if "uuid" in arg_dict:
+            working_uuid = arg_dict["uuid"]
+        elif "uuid_list" in arg_dict:
+            working_uuid = arg_dict["uuid_list"][0]
+        else:
+            LOGGER.error(f"arg_dict does not contain expected uuid info: {arg_dict}")
+            raise AirflowException(f"arg_dict does not contain expected uuid info")
+
+        run_id = "{}_{}_{}".format(working_uuid, process, execution_date.isoformat())
         fernet = Fernet(config("core", "fernet_key").encode())
         crypt_auth_tok = fernet.encrypt(auth_tok.encode()).decode()
 
@@ -654,7 +662,7 @@ def reorganize_upload_uuid(uuid):
 @csrf.exempt
 @api_bp.route("/checksum", methods=["POST"])
 # @secured(groups="HuBMAP-read")
-def launch_checksums(uuid):
+def launch_checksums():
     # decode input
     data = request.get_json(force=True)
 
@@ -667,7 +675,7 @@ def launch_checksums(uuid):
             "Must specify {} to request data be checksummed".format(str(e))
         )
 
-    return generic_invoke_dag_on_uuid_list(uuid_list, "run.checksum")
+    return generic_invoke_dag_on_uuid_list(uuid_list, "launch.checksums")
 
 
 """
