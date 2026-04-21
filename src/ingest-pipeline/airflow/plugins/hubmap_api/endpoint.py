@@ -47,6 +47,9 @@ NEEDED_CONFIGS = [
     ("ingest_map", "scan.and.begin.processing"),
     ("ingest_map", "validate.upload"),
     ("ingest_map", "validate.dataset"),
+    ("ingest_map", "reorganize.upload"),
+    ("ingest_map", "launch.multi"),
+    ("ingest_map", "launch.checksums"),
     ("hubmap_api_plugin", "build_number"),
     ("connections", "app_client_id"),
     ("connections", "app_client_secret"),
@@ -651,7 +654,7 @@ def reorganize_upload_uuid(uuid):
 @csrf.exempt
 @api_bp.route("/checksum", methods=["POST"])
 # @secured(groups="HuBMAP-read")
-def reorganize_upload_uuid(uuid):
+def launch_checksums(uuid):
     # decode input
     data = request.get_json(force=True)
 
