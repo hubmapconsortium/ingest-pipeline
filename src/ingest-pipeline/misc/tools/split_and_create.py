@@ -140,8 +140,10 @@ def create_new_uuid(row, source_entity, entity_factory, primary_entity, dryrun=F
         description = ""
 
     lab_id = row.get("lab_id", "")
-    if isinstance(lab_id, np.float64) and np.isnan(lab_id):
+    if isinstance(lab_id, float) and np.isnan(lab_id):
         lab_id = ""
+    elif isinstance(lab_id, int):
+        lab_id = f"{lab_id}"
 
     sample_id_list = (
         (row["tissue_id"] if hasattr(row, "tissue_id") else row["parent_sample_id"])
