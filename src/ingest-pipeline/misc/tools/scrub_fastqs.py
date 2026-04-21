@@ -90,7 +90,7 @@ def _scrub_fastq_gz(fastq_gz_path: Path, num_threads: int = 1) -> None:
     print(f"[scrub] {fastq_gz_path.name}: decompression took {time.time() - t0:.2f}s")
 
     t0 = time.time()
-    _scrub_fastq(fastq_path, num_threads)
+    _scrub_fastq(fastq_path)
     print(f"[scrub] {fastq_gz_path.name}: full docker scrub took {time.time() - t0:.2f}s")
 
     fastq_gz_path.rename(parent / (fastq_gz_path.name + ".original"))
