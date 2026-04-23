@@ -264,9 +264,30 @@ def generate_files_template(dict_list: DictList, verbose=False) -> (Dict[str, st
     key_dict["is_data_product"] = "${k2}"
     key_dict["is_qa_qc"] = "${k3}"
     key_dict["rel_path"] = "${k4}"
+    key_dict["unknown"] = "${k5}"
     files_l = apply_substitutions(files_l, key_dict, verbose=False)
     substitution_dict.update(key_dict)
 
     clean_d = invert_and_clean_subst_dict(substitution_dict)
 
     return clean_d, files_l
+
+
+class TemplateBuilder:
+    def __init__(self, dict_list: DictList, verbose=False):
+        self.dict_list = dict_list
+        self.subst_dict, self.templated_list = generate_files_template(dict_list, verbose=verbose)
+    
+    def apply(self):
+        return [self.subst_dict] + self.templated_list
+    
+    @staticmethod
+    def expand(dict_list: DictList) -> DictList:
+        candidate_subst_d = dict_list[0]
+        if not isinstance(candidate_subst_d, dict):
+            raise ValueError("First element of dict_list must be a dictionary")
+        elif "k0" not in candidate_subst_d or "description" in candidate_subst_d:
+            # This dict list is not templated, so we can just return it as is
+            return dict_list
+        else:
+            return fully_template_dict_list(dict_list[1:], candidate_subst_d)
