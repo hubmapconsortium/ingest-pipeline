@@ -172,6 +172,13 @@ resource_map:
       - 'task_re': '.*'
         'queue': 'general'
         'threads': 6
+  - 'dag_re': 'reorganize_upload'
+    'preserve_scratch': true
+    'lanes': 2
+    'tasks':
+      - 'task_re': '.*'
+        'queue': 'general'
+        'threads': 6
   - 'dag_re': 'validation_test'
     'preserve_scratch': true
     'lanes': 2
