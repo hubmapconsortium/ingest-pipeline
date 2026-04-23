@@ -1,14 +1,20 @@
 import json
 from suffix_tree import Tree
-from suffix_tree.util import UniqueEndChar
+from suffix_tree.util import Path as SuffixTreePath, UniqueEndChar
 from pprint import pprint
 from collections import OrderedDict, defaultdict
 from string import Template
+from typing import Generator, List, Dict, Generator, Callable
+
+
+DictList = List[Dict[str, str]]
+MappingFunc = Callable[[DictList, Generator[str, None, None], str, int], OrderedDict[str, str]]
 
 
 KNOWN_BOOL_KEYS = ["is_data_product", "is_qa_qc"]
 
-def total_len(some_l):
+
+def total_len(some_l: DictList) -> int:
     tot = 0
     for dct in some_l:
         for k in dct:
@@ -19,7 +25,8 @@ def total_len(some_l):
                 tot += len(v)
     return tot
 
-def replace_substr(some_l, target_str, repl_str):
+
+def replace_substr(some_l: DictList, target_str: str, repl_str: str) -> DictList:
     out_l = []
     for dct in some_l:
         rpl_d = {}
@@ -32,7 +39,9 @@ def replace_substr(some_l, target_str, repl_str):
         out_l.append(rpl_d)
     return out_l
 
-def apply_substitutions(starting_list, subs_dict, verbose=False):
+
+def apply_substitutions(starting_list: DictList, subs_dict: OrderedDict[str, str],
+                        verbose=False) -> DictList:
     working_list = starting_list
     if verbose:
         print(f"initial chars: {total_len(working_list)}")
@@ -44,35 +53,33 @@ def apply_substitutions(starting_list, subs_dict, verbose=False):
             print(f"    {total_len(working_list)} chars")
     return working_list
 
-def path_to_str(pth):
+def path_to_str(pth: SuffixTreePath) -> str:
     return "".join(str(elt) for elt in pth if not isinstance(elt, UniqueEndChar))
 
-def path_to_str_2(pth):
-    ch_l = []
-    for elt in pth:
-        if isinstance(elt, UniqueEndChar):
-            break
-        else:
-            ch_l.append(str(elt))
-    return "".join(ch_l)
 
-def count_occurrences(some_list, target):
+def count_occurrences(some_list: DictList, target: str, stop_after=None) -> int:
     tot = 0
     for dct in some_list:
         for key, val in dct.items():
             tot += key.count(target)
             if isinstance(val, str):
                 tot += val.count(target)
+            if stop_after is not None and tot >= stop_after:
+                return tot
+
     return tot
 
-def keygen(base_str, base_ct=0):
+
+def keygen(base_str: str, base_ct=0) -> Generator[str, None, None]:
     bs = base_str
     count = 0
     while True:
         yield f"${{{bs}{count}}}"
         count += 1
 
-def build_word_map(starting_list, key_gen, selector, typical_tok_len=6):
+
+def build_word_map(starting_list: DictList, key_gen: Generator[str, None, None],
+                   selector: str, typical_tok_len=6) -> OrderedDict[str, str]:
     stree = Tree()
     starting_list = starting_list.copy() # to minimize side effects
     sel = selector
@@ -100,7 +107,9 @@ def build_word_map(starting_list, key_gen, selector, typical_tok_len=6):
                 next_tok = next(key_gen)
     return word_subst_dict
 
-def build_char_map(starting_list, key_gen, selector, typical_tok_len=6):
+
+def build_char_map(starting_list: DictList, key_gen: Generator[str, None, None],
+                   selector: str , typical_tok_len=6) -> OrderedDict[str, str]:
     stree = Tree()
     starting_list = starting_list.copy() # to minimize side effects
     sel = selector
@@ -116,29 +125,22 @@ def build_char_map(starting_list, key_gen, selector, typical_tok_len=6):
             #print(f"{k} {lk}: {path_str}")
             sort_me.append((k * (len(path_str) - typical_tok_len), path_str, k, lk))
     sort_me.sort(reverse=False)
-    # print("sort-me follows")
-    # pprint(sort_me)
-    # print("sort-me above")
     best_dct = {}
     for wt, path_str, k, lk in sort_me:
         best_dct[path_str] = (wt, k, lk)
     char_subst_dict = OrderedDict()
     next_tok = next(key_gen)
     for path_str, (wt, k, lk) in best_dct.items():
-        # print(f"loop {wt} {k} {lk} {path_str} next_tok {next_tok} {char_subst_dict}")
         if wt > 0:
             subst_str = path_str
-            #for old_key in char_subst_dict:
-            #    subst_str = subst_str.replace(old_key, char_subst_dict[old_key])
             if len(subst_str) > len(next_tok):
                 char_subst_dict[subst_str] = next_tok
                 next_tok = next(key_gen)
-    # print("final char subst dict:")
-    # pprint(char_subst_dict)
     return char_subst_dict
 
 
-def build_reverse_char_map(starting_list, key_gen, selector, typical_tok_len=6):
+def build_reverse_char_map(starting_list: DictList, key_gen: Generator[str, None, None],
+                           selector: str, typical_tok_len=6) -> OrderedDict[str, str]:
     rev_list = []
     for dct in starting_list:
         new_dct = {}
@@ -153,14 +155,16 @@ def build_reverse_char_map(starting_list, key_gen, selector, typical_tok_len=6):
     return rev_char_subst_dict
 
 
-def fully_template(st, dct):
+def fully_template(st: str, dct: Dict[str, str]) -> str:
     prev_st = None
     while st != prev_st:
         prev_st = st
         st = Template(st).substitute(dct)
     return st
 
-def fully_template_dict_list(dict_list, template_dict):
+
+def fully_template_dict_list(dict_list: List[Dict[str, str]],
+                             template_dict: Dict[str, str]) -> List[Dict[str, str]]:
     out_list = []
     for dct in dict_list:
         new_dct = {}
@@ -177,28 +181,31 @@ def fully_template_dict_list(dict_list, template_dict):
     return out_list
 
 
-def full_map(dict_list, mapper, key_gen, sel, typical_tok_len=6):
+def full_map(dict_list: List[Dict[str, str]], mapper: MappingFunc,
+             key_gen: Generator[str, None, None],
+             sel: str, typical_tok_len=6, verbose=False) -> OrderedDict[str, str]:
     best_total_len = total_len(dict_list)
     itr = 0
     cum_subst_d = OrderedDict()
     while True:
         subst_d = mapper(dict_list, key_gen, sel, typical_tok_len=typical_tok_len)
         for key in subst_d:
-            n_occ = count_occurrences(dict_list, key)
-            if n_occ > 1:
+            if count_occurrences(dict_list, key) > 1:
                 cum_subst_d[key] = subst_d[key]
         dict_list = apply_substitutions(dict_list, cum_subst_d)
         new_total_len = total_len(dict_list) + total_len([cum_subst_d])
-        # print(f"{itr}: {new_total_len} vs {best_total_len}")
         if ((new_total_len >= best_total_len - typical_tok_len)
             or itr > 100):
             break
         else:
             best_total_len = new_total_len
             itr += 1
+    if verbose:
+        print(f"final total length for {sel}: {best_total_len} with {len(cum_subst_d)} substitutions")
     return cum_subst_d
 
-def invert_and_clean_subst_dict(subst_d):
+
+def invert_and_clean_subst_dict(subst_d: OrderedDict[str, str]) -> Dict[str, str]:
     inv_subst_d = OrderedDict((val[2:-1], key) 
                               for key, val in subst_d.items())
     clean_d = {}
@@ -206,7 +213,8 @@ def invert_and_clean_subst_dict(subst_d):
         clean_d[key] = fully_template(val, inv_subst_d)
     return clean_d
 
-def generate_files_template(dict_list):
+
+def generate_files_template(dict_list: DictList, verbose=False) -> (Dict[str, str], DictList):
     typical_tok_len = 6
     files_l = dict_list.copy() # to minimize side effects
     substitution_dict = OrderedDict()
@@ -220,7 +228,8 @@ def generate_files_template(dict_list):
                              build_word_map,
                              keygen("w"),
                              "description",
-                             typical_tok_len=typical_tok_len)
+                             typical_tok_len=typical_tok_len,
+                             verbose=verbose)
     files_l = apply_substitutions(files_l, descr_subst_d)
     substitution_dict.update(descr_subst_d)
 
@@ -228,7 +237,8 @@ def generate_files_template(dict_list):
                             build_char_map,
                             keygen("t"),
                             "edam_term",
-                            typical_tok_len=typical_tok_len)
+                            typical_tok_len=typical_tok_len,
+                            verbose=verbose)
     files_l = apply_substitutions(files_l, term_subst_d)
     substitution_dict.update(term_subst_d)
 
@@ -236,7 +246,8 @@ def generate_files_template(dict_list):
                             build_reverse_char_map,
                             keygen("p"),
                             "rel_path",
-                            typical_tok_len=typical_tok_len)
+                            typical_tok_len=typical_tok_len,
+                            verbose=verbose)
     files_l = apply_substitutions(files_l, path_subst_d)
     substitution_dict.update(path_subst_d)
 
