@@ -20,10 +20,7 @@ class EmailManager(MessageManager):
     cc = []
     subj = ""
     msg = ""
-    good_statuses = [
-        Statuses.DATASET_QA,
-        Statuses.UPLOAD_VALID,
-    ]
+    good_statuses = [Statuses.DATASET_QA, Statuses.UPLOAD_VALID, Statuses.PUBLICATION_QA]
 
     def __init__(
         self,
