@@ -211,7 +211,7 @@ def invert_and_clean_subst_dict(subst_d: OrderedDict[str, str]) -> dict[str, str
     return clean_d
 
 
-def generate_files_template(dict_list: DictList, verbose=False) -> tuple(dict[str, str], DictList):
+def generate_files_template(dict_list: DictList, verbose=False) -> tuple[dict[str, str], DictList]:
     typical_tok_len = 6
     files_l = dict_list.copy() # to minimize side effects
     substitution_dict = OrderedDict()
