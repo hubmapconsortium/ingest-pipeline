@@ -1,13 +1,11 @@
-import json
 from suffix_tree import Tree
 from suffix_tree.util import Path as SuffixTreePath, UniqueEndChar
-from pprint import pprint
-from collections import OrderedDict, defaultdict
+from collections import OrderedDict
 from string import Template
-from typing import Generator, List, Dict, Generator, Callable
+from typing import Generator, Callable
 
 
-DictList = List[Dict[str, str]]
+DictList = list[dict[str, str]]
 MappingFunc = Callable[[DictList, Generator[str, None, None], str, int], OrderedDict[str, str]]
 
 
@@ -93,7 +91,6 @@ def build_word_map(starting_list: DictList, key_gen: Generator[str, None, None],
             #print(f"{k} {lk}: {path}")
             sort_me.append((k * (len(str(path)) - typical_tok_len), str(path)))
     sort_me.sort(reverse=True)
-    #pprint(sort_me)
     best_dct = {}
     for wt, path_str in sort_me:
         best_dct[path_str] = wt
@@ -163,8 +160,8 @@ def fully_template(st: str, dct: Dict[str, str]) -> str:
     return st
 
 
-def fully_template_dict_list(dict_list: List[Dict[str, str]],
-                             template_dict: Dict[str, str]) -> List[Dict[str, str]]:
+def fully_template_dict_list(dict_list: list[Dict[str, str]],
+                             template_dict: Dict[str, str]) -> list[Dict[str, str]]:
     out_list = []
     for dct in dict_list:
         new_dct = {}
@@ -181,7 +178,7 @@ def fully_template_dict_list(dict_list: List[Dict[str, str]],
     return out_list
 
 
-def full_map(dict_list: List[Dict[str, str]], mapper: MappingFunc,
+def full_map(dict_list: list[Dict[str, str]], mapper: MappingFunc,
              key_gen: Generator[str, None, None],
              sel: str, typical_tok_len=6, verbose=False) -> OrderedDict[str, str]:
     best_total_len = total_len(dict_list)
@@ -205,7 +202,7 @@ def full_map(dict_list: List[Dict[str, str]], mapper: MappingFunc,
     return cum_subst_d
 
 
-def invert_and_clean_subst_dict(subst_d: OrderedDict[str, str]) -> Dict[str, str]:
+def invert_and_clean_subst_dict(subst_d: OrderedDict[str, str]) -> dict[str, str]:
     inv_subst_d = OrderedDict((val[2:-1], key) 
                               for key, val in subst_d.items())
     clean_d = {}
@@ -214,7 +211,7 @@ def invert_and_clean_subst_dict(subst_d: OrderedDict[str, str]) -> Dict[str, str
     return clean_d
 
 
-def generate_files_template(dict_list: DictList, verbose=False) -> (Dict[str, str], DictList):
+def generate_files_template(dict_list: DictList, verbose=False) -> tuple(dict[str, str], DictList):
     typical_tok_len = 6
     files_l = dict_list.copy() # to minimize side effects
     substitution_dict = OrderedDict()
