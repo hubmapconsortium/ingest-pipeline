@@ -42,6 +42,8 @@ from schema_utils import (
     localized_assert_json_matches_schema as assert_json_matches_schema,
 )
 
+from template_utils import TemplateBuilder
+
 from airflow import DAG
 from airflow.configuration import conf as airflow_conf
 from airflow.models.baseoperator import BaseOperator
@@ -1674,13 +1676,16 @@ def make_send_status_msg_function(
 
             manifest_files = find_pipeline_manifests(inner_cwl_workflows)
             if include_file_metadata and ds_dir is not None and not ds_dir == "":
-                md.update(
-                    get_file_metadata_dict(
-                        ds_dir,
-                        get_tmp_dir_path(kwargs["run_id"]),
-                        manifest_files,
-                    ),
+                file_metadata_dict = get_file_metadata_dict(
+                    ds_dir,
+                    get_tmp_dir_path(kwargs["run_id"]),
+                    manifest_files,
                 )
+                if "files" in file_metadata_dict:  # beware of alt files path
+                    files_metadata_dict = {
+                        "files": TemplateBuilder(files_metadata_dict).apply()
+                    }
+                md.update(files_metadata_dict)
 
             # Refactoring metadata structure
             contacts = []
