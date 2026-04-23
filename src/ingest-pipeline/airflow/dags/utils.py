@@ -1608,7 +1608,7 @@ def make_send_status_msg_function(
                 )
                 if "files" in file_metadata_dict:  # beware of alt files path
                     files_metadata_dict = {
-                        "files": TemplateBuilder(files_metadata_dict).apply()
+                        "files": TemplateBuilder(files_metadata_dict["files"]).apply()
                     }
                 md.update(files_metadata_dict)
 
