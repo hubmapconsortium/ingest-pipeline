@@ -152,7 +152,7 @@ def build_reverse_char_map(starting_list: DictList, key_gen: Generator[str, None
     return rev_char_subst_dict
 
 
-def fully_template(st: str, dct: Dict[str, str]) -> str:
+def fully_template(st: str, dct: dict[str, str]) -> str:
     prev_st = None
     while st != prev_st:
         prev_st = st
@@ -160,8 +160,8 @@ def fully_template(st: str, dct: Dict[str, str]) -> str:
     return st
 
 
-def fully_template_dict_list(dict_list: list[Dict[str, str]],
-                             template_dict: Dict[str, str]) -> list[Dict[str, str]]:
+def fully_template_dict_list(dict_list: DictList,
+                             template_dict: dict[str, str]) -> DictList:
     out_list = []
     for dct in dict_list:
         new_dct = {}
@@ -178,7 +178,7 @@ def fully_template_dict_list(dict_list: list[Dict[str, str]],
     return out_list
 
 
-def full_map(dict_list: list[Dict[str, str]], mapper: MappingFunc,
+def full_map(dict_list: DictList, mapper: MappingFunc,
              key_gen: Generator[str, None, None],
              sel: str, typical_tok_len=6, verbose=False) -> OrderedDict[str, str]:
     best_total_len = total_len(dict_list)
