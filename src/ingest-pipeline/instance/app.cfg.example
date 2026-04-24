@@ -9,6 +9,7 @@ VALIDATE.UPLOAD = validate_upload
 VALIDATE.DATASET = validate_dataset
 REORGANIZE.UPLOAD = reorganize_upload
 LAUNCH.MULTI = launch_multi_analysis
+LAUNCH.CHECKSUMS = launch_checksums
 
 [core]
 timezone = US/Eastern

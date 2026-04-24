@@ -47,6 +47,9 @@ NEEDED_CONFIGS = [
     ("ingest_map", "scan.and.begin.processing"),
     ("ingest_map", "validate.upload"),
     ("ingest_map", "validate.dataset"),
+    ("ingest_map", "reorganize.upload"),
+    ("ingest_map", "launch.multi"),
+    ("ingest_map", "launch.checksums"),
     ("hubmap_api_plugin", "build_number"),
     ("connections", "app_client_id"),
     ("connections", "app_client_secret"),
@@ -570,7 +573,7 @@ def request_dev_analysis():
     return HubmapApiResponse.success({"launch_id": ingest_id, "run_id": run_id})
 
 
-def generic_invoke_dag_on_uuid(uuid, process_name):
+def generic_invoke_dag(arg_dict, process_name):
     auth_tok = _auth_tok_from_environment()
     process = process_name
     run_id = "empty"
@@ -581,9 +584,17 @@ def generic_invoke_dag_on_uuid(uuid, process_name):
         # Produce one and only one run
         tz = pytz.timezone(config("core", "timezone"))
         execution_date = datetime.now(tz)
-        LOGGER.info("starting {} with execution_date: {}".format(dag_id, execution_date))
+        LOGGER.info("starting {} with execution_date: {} and arg_dict {}".format(dag_id, execution_date, arg_dict))
 
-        run_id = "{}_{}_{}".format(uuid, process, execution_date.isoformat())
+        if "uuid" in arg_dict:
+            working_uuid = arg_dict["uuid"]
+        elif "uuid_list" in arg_dict:
+            working_uuid = arg_dict["uuid_list"][0]
+        else:
+            LOGGER.error(f"arg_dict does not contain expected uuid info: {arg_dict}")
+            raise AirflowException(f"arg_dict does not contain expected uuid info")
+
+        run_id = "{}_{}_{}".format(working_uuid, process, execution_date.isoformat())
         fernet = Fernet(config("core", "fernet_key").encode())
         crypt_auth_tok = fernet.encrypt(auth_tok.encode()).decode()
 
@@ -593,8 +604,8 @@ def generic_invoke_dag_on_uuid(uuid, process_name):
             "run_id": run_id,
             "crypt_auth_tok": crypt_auth_tok,
             "src_path": config("connections", "src_path"),
-            "uuid": uuid,
         }
+        conf.update(arg_dict)
 
         if find_dag_runs(session, dag_id, run_id, execution_date):
             # The run already happened??
@@ -624,6 +635,14 @@ def generic_invoke_dag_on_uuid(uuid, process_name):
     return HubmapApiResponse.success({"run_id": run_id})
 
 
+def generic_invoke_dag_on_uuid(uuid, process_name):
+    return generic_invoke_dag({"uuid": uuid}, process_name)
+
+
+def generic_invoke_dag_on_uuid_list(uuid_list, process_name):
+    return generic_invoke_dag({"uuid_list": uuid_list}, process_name)
+
+
 @csrf.exempt
 @api_bp.route("/uploads/<uuid>/validate", methods=["PUT"])
 # @secured(groups="HuBMAP-read")
@@ -638,6 +657,25 @@ def validate_upload_uuid(uuid):
 # @secured(groups="HuBMAP-read")
 def reorganize_upload_uuid(uuid):
     return generic_invoke_dag_on_uuid(uuid, "reorganize.upload")
+
+
+@csrf.exempt
+@api_bp.route("/checksum", methods=["POST"])
+# @secured(groups="HuBMAP-read")
+def launch_checksums():
+    # decode input
+    data = request.get_json(force=True)
+
+    LOGGER.debug("checksum data: {}".format(str(data)))
+    # Test and extract required parameters
+    try:
+        uuid_list = _get_required_string(data, "uuid_list")
+    except HubmapApiInputException as e:
+        return HubmapApiResponse.bad_request(
+            "Must specify {} to request data be checksummed".format(str(e))
+        )
+
+    return generic_invoke_dag_on_uuid_list(uuid_list, "launch.checksums")
 
 
 """
