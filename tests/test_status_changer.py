@@ -42,6 +42,7 @@ from status_change.status_utils import (
     get_env,
     get_headers,
     get_project,
+    get_status_enum,
     is_internal_error,
 )
 from tests.fixtures import (
@@ -223,7 +224,7 @@ class TestEntityUpdater(MockParent):
         for call in self.mock_httphook.call_args_list:
             for call_tuple in call:
                 for call_arg in call_tuple:
-                    if call_arg == "entities/upload_valid_uuid?exclude=direct_ancestors.files":
+                    if call_arg == "/entities/upload_valid_uuid?reindex-priority=3":
                         put_calls.append(call)
         assert len(put_calls) == 1
 
@@ -344,7 +345,7 @@ class TestStatusChanger(MockParent):
         assert self.upload_valid.status
         self.assertEqual(
             self.upload_valid.fields_to_change["status"],
-            Statuses.valid_str(self.upload_valid.status),
+            get_status_enum("upload", self.upload_valid.status).status_str,
         )
 
     def test_extra_fields(self):
@@ -1038,7 +1039,7 @@ class TestEmailManager(MockParent):
         context: dict = good_upload_context,
     ):
         with patch("status_change.status_utils.get_submission_context") as context_mock:
-            context_mock.return_value = context | {"status": Statuses.valid_str(status)}
+            context_mock.return_value = context | {"status": status.status_str}
             manager = MockEmailManager(
                 status,
                 "test_uuid",
@@ -1482,7 +1483,7 @@ class TestStatusUtils(unittest.TestCase):
                 for env, host_url in {
                     "prod": f"https://entity.api.{proj}consortium.org",
                     "dev": f"https://entity-api.dev.{proj}consortium.org",
-                    "dev": "https://badurl",
+                    "": "https://badurl",
                 }.items():
                     conn_mock.return_value = Connection(host=host_url)
                     assert get_env() == env
@@ -1547,3 +1548,17 @@ class TestStatusUtils(unittest.TestCase):
                         expected_url += "&entity_type=uploads"
                     print(f"assert {url} == {expected_url}")
                     assert url == expected_url
+
+    def test_get_status_enum_good(self):
+        assert get_status_enum("upload", "error") == Statuses.UPLOAD_ERROR
+        assert get_status_enum("upload", "error").status_str == "error"
+        assert get_status_enum("upload", "error").entity_type_str == "upload"
+        assert get_status_enum("dataset", "qa") == Statuses.DATASET_QA
+        assert get_status_enum("publication", "published") == Statuses.PUBLICATION_PUBLISHED
+
+    def test_get_status_enum_bad(self):
+        with self.assertRaises(EntityUpdateException):
+            get_status_enum("upload", "published")
+            get_status_enum("dataset", "bad")
+            get_status_enum("", "published")
+            get_status_enum("publication", "")

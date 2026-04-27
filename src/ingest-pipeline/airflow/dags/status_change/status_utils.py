@@ -88,31 +88,6 @@ class Statuses(str, Enum):
             return "QA"
         return self.status_str.title()
 
-    @staticmethod
-    def valid_str(status: "str | Statuses") -> str:
-        """
-        Pass string version of status (any case,
-        including entity_type prefix or not)
-        or Statuses instance. Retrieve
-        lower-case status string or raise if not valid.
-        """
-        if isinstance(status, Statuses):
-            return status.status_str
-        elif type(status) is str:
-            status = status.lower()
-            # Try with entity type prefix (e.g., "dataset_error")
-            if "_" in status:
-                try:
-                    return Statuses(status).status_str
-                except ValueError:
-                    pass
-            # Try without prefix (e.g., "error")
-            else:
-                for entity_type_map in ENTITY_STATUS_MAP.keys():
-                    if status in entity_type_map:
-                        return status
-        raise EntityUpdateException(f"Status {status} is not valid.")
-
 
 # Needed some way to disambiguate statuses shared by datasets and uploads
 ENTITY_STATUS_MAP = {
@@ -149,23 +124,34 @@ ENTITY_STATUS_MAP = {
 }
 
 
-def get_status_enum(entity_type: str, status: Statuses | str, uuid: str) -> Statuses:
+def get_status_enum(entity_type: str, status: Statuses | str) -> Statuses:
+    """
+    Pass string version of status (any case, including entity_type prefix or not)
+    or Statuses instance. Retrieve enum or raise if not valid.
+    """
     if type(status) is str:
+        status_cleaned = status.lower()
+        entity_type_cleaned = entity_type.lower()
+        # Separate entity type prefix if present (e.g., "dataset_error" -> "error")
         try:
-            logging.info(
-                f"Looking for {entity_type.lower()}_{status.lower()} in ENTITY_STATUS_MAP."
-            )
-            status = ENTITY_STATUS_MAP[entity_type.lower()][status.lower()]
-            logging.info(f"Found {status}.")
-        except KeyError:
+            if "_" in status_cleaned:
+                # Assume this is a full status string; throws ValueError if not found
+                status = Statuses(status_cleaned)
+            else:
+                # Assume entity_type and status_cleaned are valid; throws KeyError if not
+                logging.info(
+                    f"Looking for status enum for {entity_type_cleaned}_{status_cleaned}."
+                )
+                status = ENTITY_STATUS_MAP[entity_type_cleaned][status_cleaned]
+        except (KeyError, ValueError):
             raise EntityUpdateException(
                 f"""
-                Could not retrieve status for {uuid}.
-                Check that status is valid for entity type.
-                Status not changed.
+                Could not retrieve status. Check that status "{status}" is valid
+                for entity type "{entity_type}". Status not changed.
                 """
             )
-    assert type(status) is Statuses
+    assert status and type(status) is Statuses
+    logging.info(f"Found {status}.")
     return status
 
 
@@ -222,7 +208,7 @@ class MessageManager:
         raise NotImplementedError
 
     def get_status(self, status: Statuses | str) -> Statuses:
-        return get_status_enum(self.entity_data.get("entity_type", ""), status, self.uuid)
+        return get_status_enum(self.entity_data.get("entity_type", ""), status)
 
     @property
     def error_counts(self) -> str:

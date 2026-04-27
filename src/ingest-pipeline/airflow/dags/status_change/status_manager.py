@@ -56,7 +56,8 @@ class EntityUpdater:
             where new_value will be appended to existing field value
         delimiter -- choose how to separate existing & new field
             values when appending
-        reindex -- optional reindex priority level
+        reindex -- optional reindex priority level (bool allowed for
+            backward compatibility)
         """
         self.uuid = uuid
         self.token = token
@@ -67,9 +68,8 @@ class EntityUpdater:
         self.reindex = 3
         if reindex == True:
             self.reindex = 1
-        elif isinstance(reindex, int):
-            if 1 <= reindex <= 3:
-                self.reindex = reindex
+        elif isinstance(reindex, int) and (1 <= reindex <= 3):
+            self.reindex = reindex
         self.entity_type = self.get_entity_type()
         self.fields_to_change = self.get_fields_to_change()
 
@@ -300,7 +300,7 @@ class StatusChanger(EntityUpdater):
             return
         # Convert to Statuses enum member if passed as str
         elif type(status) is str:
-            status = get_status_enum(self.entity_type, status, self.uuid)
+            status = get_status_enum(self.entity_type, status)
         assert type(status) is Statuses
         logging.info(f"Pending status: {status.status_str} ({status})")
         # Can't set the same status over the existing status; keep status but set same_status = True.
