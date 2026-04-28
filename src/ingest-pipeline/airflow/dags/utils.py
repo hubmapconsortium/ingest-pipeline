@@ -2086,29 +2086,32 @@ def send_email_with_config_recipients(
     logging.info("Fetching email contact overrides from config.")
     conf_dict = airflow_conf.as_dict()
     # fetch any internal recipient overrides
-    if int_recipients := conf_dict.get("email_notifications", {}).get("int_recipients"):
+    if int_recipients := conf_dict.get("email_notifications", {}).get("int_recipients", ""):
 
         int_recipients = str(int_recipients).split(",")
-        logging.info(f"Internal recipients: {int_recipients}")
+        logging.info(f"Overriding internal recipients with config value: {int_recipients}")
     # fetch any main recipient overrides
-    if contacts := conf_dict.get("email_notifications", {}).get("main"):
+    if contacts := conf_dict.get("email_notifications", {}).get("main", ""):
         contacts = str(contacts).split(",")
+        logging.info(f"Overriding main recipients with config value: {int_recipients}")
+    # send nothing and return False if no config contacts found
+    if not contacts and not int_recipients:
+        logging.info("No contacts found in airflow_conf, not sending.")
+        if preview:
+            logging.info("Would have sent:")
+            logging.info(preview)
+        return False
     if preview:
-        if not contacts:
-            logging.info("No contacts found in airflow_conf, not sending. Would have sent:")
-        else:
-            logging.info(f"Sending email to {contacts}. Preview of real data below:")
+        logging.info(f"Sending email to {contacts}. Preview of real data below:")
         logging.info(preview)
-    if contacts:
-        airflow_send_email(
-            contacts,
-            subject,
-            email_body,
-            files=[attachment_path] if attachment_path else None,
-            cc=int_recipients,
-        )
-        return True
-    return False
+    airflow_send_email(
+        contacts if contacts else int_recipients,
+        subject,
+        email_body,
+        files=[attachment_path] if attachment_path else None,
+        cc=int_recipients,
+    )
+    return True
 
 
 def main():

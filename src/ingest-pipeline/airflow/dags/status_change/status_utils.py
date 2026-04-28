@@ -489,13 +489,8 @@ def get_globus_url(entity_data: dict, token: str) -> str:
     url_start = "https://entity.api."
     if env != "prod":
         url_start = f"https://entity-api.{env}."
-    entity_type = entity_data.get("entity_type", "").lower()
-    prefix = f"{url_start}{url_end}/entities/"
-    base_url = urljoin(prefix, entity_type)
-    if not base_url.endswith("/"):
-        base_url += "/"
-    path = f"globus-url/{entity_data['uuid']}"
-    response = requests.get(urljoin(base_url, path), headers=get_headers(token))
+    url = f"{url_start}{url_end}/entities/{entity_data['uuid']}/globus-url"
+    response = requests.get(url, headers=get_headers(token))
     try:
         response.raise_for_status()
     except Exception as e:
