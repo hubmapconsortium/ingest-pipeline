@@ -126,8 +126,9 @@ ENTITY_STATUS_MAP = {
 
 def get_status_enum(entity_type: str, status: Statuses | str) -> Statuses:
     """
-    Pass string version of status (any case, including entity_type prefix or not)
-    or Statuses instance. Retrieve enum or raise if not valid.
+    Pass entity_type and status value, return if Statuses instance or
+    validate if string of format "<status>" or "<entity_type>_<status>".
+    Return enum or raise if not valid.
     """
     if type(status) is str:
         status_cleaned = status.lower()
@@ -302,12 +303,9 @@ def get_abs_path(uuid: str, token: str, escaped: bool = False) -> str:
     return abs_path
 
 
-def get_organ(uuid: str, token: str, raise_if_missing: bool = False) -> str:
+def get_organ(uuid: str, token: str) -> str:
     """
     Get ancestor organ for sample, dataset, or publication.
-    uuid -- UUID of entity
-    token -- Globus token
-    raise_if_missing -- optionally raise exception if organ not found
     """
     if not uuid:
         return ""
@@ -320,8 +318,6 @@ def get_organ(uuid: str, token: str, raise_if_missing: bool = False) -> str:
         return response.json()[0].get("organ")
     except Exception as e:
         logging.error(e)
-        if raise_if_missing:
-            raise
         return ""
 
 
