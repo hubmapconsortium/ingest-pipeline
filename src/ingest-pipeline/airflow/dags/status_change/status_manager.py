@@ -7,6 +7,7 @@ from functools import cached_property
 from schema_utils import (
     localized_assert_json_matches_schema as assert_json_matches_schema,
 )
+from utils import format_multiline
 
 from .data_ingest_board_manager import DataIngestBoardManager
 from .email_manager import EmailManager
@@ -18,7 +19,6 @@ from .status_utils import (
     MessageManager,
     Statuses,
     enums_to_lowercase,
-    format_multiline,
     get_status_enum,
     get_submission_context,
     put_request_to_entity_api,

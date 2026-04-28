@@ -2049,7 +2049,7 @@ def send_email(
     if type(contacts) is str:
         contacts = [contacts]
     contacts = list(set(contacts))
-    preview = dedent(
+    preview = format_multiline(
         f"""
             Contact: {", ".join(contacts)}
             cc: {", ".join(cc) if cc else "None"}
@@ -2058,9 +2058,8 @@ def send_email(
             Message: {email_body}
             {("Attachment path: " + attachment_path) if attachment_path else "None"}
             """
-    ).strip()
+    )
     if prod_only and (get_env() != "prod"):
-        logging.info("Non-prod environment, fetching overrides from config.")
         return send_email_with_config_recipients(subject, email_body, attachment_path, preview)
     if cc:
         # If a contact is in both lists, remove them from cc
@@ -2093,7 +2092,7 @@ def send_email_with_config_recipients(
     # fetch any main recipient overrides
     if contacts := conf_dict.get("email_notifications", {}).get("main", ""):
         contacts = str(contacts).split(",")
-        logging.info(f"Overriding main recipients with config value: {int_recipients}")
+        logging.info(f"Overriding main recipients with config value: {contacts}")
     # send nothing and return False if no config contacts found
     if not contacts and not int_recipients:
         logging.info("No contacts found in airflow_conf, not sending.")
@@ -2101,8 +2100,9 @@ def send_email_with_config_recipients(
             logging.info("Would have sent:")
             logging.info(preview)
         return False
+    logging.info(f"Sending email to config contact(s) {[*contacts, *int_recipients]}.")
     if preview:
-        logging.info(f"Sending email to {contacts}. Preview of real data below:")
+        logging.info("Preview of real data below:")
         logging.info(preview)
     airflow_send_email(
         contacts if contacts else int_recipients,
@@ -2112,6 +2112,10 @@ def send_email_with_config_recipients(
         cc=int_recipients,
     )
     return True
+
+
+def format_multiline(string: str) -> str:
+    return dedent(string.strip())
 
 
 def main():

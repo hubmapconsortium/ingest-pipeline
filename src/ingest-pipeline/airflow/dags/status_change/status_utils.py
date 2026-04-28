@@ -3,7 +3,6 @@ import logging
 import re
 import traceback
 from enum import Enum
-from textwrap import dedent
 from typing import Any
 from urllib.parse import urlencode, urljoin
 
@@ -412,10 +411,6 @@ def is_internal_error(entity_data: dict) -> bool:
 ##############
 # Formatting #
 ##############
-
-
-def format_multiline(string: str) -> str:
-    return dedent(string.strip())
 
 
 def formatted_exception(exception):
