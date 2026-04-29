@@ -633,6 +633,7 @@ def reorganize_multiassay(source_uuid, verbose: bool = False, reindex: int = 3, 
         source_entity.entity_factory.auth_tok,
         status=Statuses.DATASET_SUBMITTED,
         verbose=verbose,
+        reindex=reindex,
     ).update()
     print(f"{source_entity.uuid} status is Submitted")
 
