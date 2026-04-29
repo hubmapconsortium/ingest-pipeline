@@ -36,7 +36,7 @@ class EntityUpdater:
         fields_to_overwrite: dict | None = None,
         fields_to_append_to: dict | None = None,
         delimiter: str = "|",
-        reindex: int | bool = 3,
+        reindex: int = 3,
     ):
         """Update metadata fields for a given entity.
         Basic usage, overwrite field:
@@ -56,8 +56,7 @@ class EntityUpdater:
             where new_value will be appended to existing field value
         delimiter -- choose how to separate existing & new field
             values when appending
-        reindex -- optional reindex priority level (bool allowed for
-            backward compatibility)
+        reindex -- reindex priority level (default is lowest)
         """
         self.uuid = uuid
         self.token = token
@@ -65,11 +64,9 @@ class EntityUpdater:
         self.fields_to_overwrite = fields_to_overwrite if fields_to_overwrite else {}
         self.fields_to_append_to = fields_to_append_to if fields_to_append_to else {}
         self.delimiter = delimiter
-        self.reindex = 3
-        if reindex == True:
-            self.reindex = 1
-        elif isinstance(reindex, int) and (1 <= reindex <= 3):
-            self.reindex = reindex
+        self.reindex = reindex
+        if not 1 <= self.reindex <= 3:
+            self.reindex = 3
         self.entity_type = self.get_entity_type()
         self.fields_to_change = self.get_fields_to_change()
 
@@ -204,7 +201,7 @@ class StatusChanger(EntityUpdater):
         fields_to_overwrite: dict | None = None,
         fields_to_append_to: dict | None = None,
         delimiter: str = "|",
-        reindex: int | bool = 3,
+        reindex: int = 3,
         # Additional field to support privileged field "status"
         status: Statuses | str | None = None,
         # Additional field to pass data to messaging classes

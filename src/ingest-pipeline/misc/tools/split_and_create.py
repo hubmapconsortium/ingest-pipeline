@@ -9,8 +9,8 @@ from pprint import pprint
 from shutil import copy2, copytree
 from typing import List, Tuple, TypeVar, Union
 
-import pandas as pd
 import numpy as np
+import pandas as pd
 from extra_utils import SoftAssayClient
 from status_change.status_manager import StatusChanger, Statuses
 
@@ -176,7 +176,6 @@ def create_new_uuid(row, source_entity, entity_factory, primary_entity, dryrun=F
             is_epic=is_epic,
             lab_id=lab_id,
             priority_project_list=priority_project_list,
-            reindex=False,
         )
         print(f"New dataset: {rslt.get('uuid')}")
         return rslt["uuid"]
@@ -405,7 +404,6 @@ def update_upload_entity(child_uuid_list, source_entity, dryrun=False, verbose=F
                 source_entity.entity_factory.auth_tok,
                 status=Statuses.UPLOAD_REORGANIZED,
                 verbose=verbose,
-                reindex=False,
             ).update()
             print(f"{source_entity.uuid} status is Reorganized")
 
@@ -418,7 +416,6 @@ def update_upload_entity(child_uuid_list, source_entity, dryrun=False, verbose=F
                     source_entity.entity_factory.auth_tok,
                     fields_to_overwrite={"dataset_uuids_to_link": list(chunk)},
                     verbose=verbose,
-                    reindex=False,
                 ).update()
 
             for child_uuid_chunk in [
@@ -431,7 +428,6 @@ def update_upload_entity(child_uuid_list, source_entity, dryrun=False, verbose=F
                         source_entity.entity_factory.auth_tok,
                         status=Statuses.DATASET_SUBMITTED,
                         verbose=verbose,
-                        reindex=False,
                     ).update()
                     print(
                         f"Reorganized new: {uuid} from Upload: {source_entity.uuid} status is Submitted"
@@ -455,7 +451,6 @@ def submit_uuid(uuid, entity_factory, dryrun=False):
         rslt = entity_factory.submit_dataset(
             uuid=uuid,
             contains_human_genetic_sequences=uuid_entity_to_submit.contains_human_genetic_sequences,
-            reindex=False,
         )
         return rslt
 
@@ -571,7 +566,7 @@ def create_multiassay_component(
     auth_tok: str,
     components: list,
     parent_dir: str,
-    reindex: bool = True,
+    reindex: int = 3,
 ) -> None:
     headers = {
         "authorization": "Bearer " + auth_tok,
@@ -606,16 +601,15 @@ def create_multiassay_component(
         ],
     }
     print(f"Data to create components {data}")
-    reindex_param = "reindex-priority=3" if reindex else ""
     response = HttpHook("POST", http_conn_id="ingest_api_connection").run(
-        endpoint=f"datasets/components?{reindex_param}",
+        endpoint=f"datasets/components?reindex-priority={reindex}",
         headers=headers,
         data=json.dumps(data),
     )
     response.raise_for_status()
 
 
-def reorganize_multiassay(source_uuid, verbose=False, reindex=True, **kwargs) -> None:
+def reorganize_multiassay(source_uuid, verbose: bool = False, reindex: int = 3, **kwargs) -> None:
     auth_tok = kwargs["auth_tok"]
     instance = kwargs["instance"]
 
@@ -639,7 +633,6 @@ def reorganize_multiassay(source_uuid, verbose=False, reindex=True, **kwargs) ->
         source_entity.entity_factory.auth_tok,
         status=Statuses.DATASET_SUBMITTED,
         verbose=verbose,
-        reindex=reindex,
     ).update()
     print(f"{source_entity.uuid} status is Submitted")
 

@@ -250,24 +250,11 @@ class TestEntityUpdater(MockParent):
         )
         assert updater.reindex == 2
 
-    def test_reindex_true(self):
-        updater = EntityUpdater(
-            "upload_valid_uuid",
-            "upload_valid_token",
-            fields_to_overwrite={"validation_message": self.validation_msg},
-            reindex=True,
-        )
-        assert updater.reindex == 1
-
     def test_reindex_default(self):
         for reindex_val, outcome in [
-            # reindex=None
-            (None, 3),
             # reindex=<invalid int>
             (4, 3),
             (0, 3),
-            # reindex=False
-            (False, 3),
         ]:
             updater = EntityUpdater(
                 "upload_valid_uuid",
@@ -450,7 +437,7 @@ class TestStatusChanger(MockParent):
             status="Processing",
             fields_to_overwrite={"pipeline_message": message},
             http_conn_id="entity_api_connection",
-            reindex=True,
+            reindex=3,
             messages={"run_id": None, "processing_pipeline": None},
         )
         # Pass a valid ds_state and assert it was passed properly
@@ -468,7 +455,7 @@ class TestStatusChanger(MockParent):
             status="QA",
             fields_to_overwrite={"pipeline_message": message},
             http_conn_id="entity_api_connection",
-            reindex=True,
+            reindex=3,
             messages={"run_id": None, "processing_pipeline": None},
         )
 
