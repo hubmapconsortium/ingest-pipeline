@@ -138,11 +138,11 @@ with HMDAG(
             errors=upload.get_errors(plugin_kwargs=kwargs), info=upload.get_info()
         )
         if report.errors:
-            sys.stdout.write("Directory validation failed! Errors follow:\n")
+            sys.stdout.write("Validation failed! Errors follow:\n")
             sys.stdout.write(report.as_text())
             log_fname = os.path.join(utils.get_tmp_dir_path(kwargs["run_id"]), "session.log")
             with open(log_fname, "w") as f:
-                f.write("Directory validation failed! Errors follow:\n")
+                f.write("Validation failed! Errors follow:\n")
                 f.write(report.as_text())
             kwargs["ti"].xcom_push(
                 key="error_counts",

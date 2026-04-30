@@ -1,22 +1,23 @@
-from __future__ import annotations
-
 import json
 import logging
 import re
 import traceback
 from enum import Enum
-from typing import Any, Optional, Union
+from typing import Any
 from urllib.parse import urlencode, urljoin
 
+import requests
+from utils import (
+    find_matching_endpoint,
+    get_env,
+)
 from utils import get_submission_context as base_get_submission_context
+from utils import (
+    get_tmp_dir_path,
+)
 
 from airflow.models import DagRun
 from airflow.providers.http.hooks.http import HttpHook
-
-
-class EntityUpdateException(Exception):
-    pass
-
 
 """
 Strings that should *only* occur in failure states
@@ -25,6 +26,24 @@ Strings that should *only* occur in failure states
 message)
 """
 internal_error_strs = ["EntityUpdateException", "Process failed", "Traceback", "Internal error"]
+
+##############
+# Exceptions #
+##############
+
+
+class EntityUpdateException(Exception):
+    pass
+
+
+#########
+# Enums #
+#########
+
+
+class Project(Enum):
+    HUBMAP = ("hubmap", "HuBMAP")
+    SENNET = ("sennet", "SenNet")
 
 
 class Statuses(str, Enum):
@@ -55,11 +74,11 @@ class Statuses(str, Enum):
     UPLOAD_VALID = "upload_valid"
 
     @property
-    def status_str(self):
+    def status_str(self) -> str:
         return self.value.split("_")[1]
 
     @property
-    def entity_type_str(self):
+    def entity_type_str(self) -> str:
         return self.value.split("_")[0]
 
     @property
@@ -67,29 +86,6 @@ class Statuses(str, Enum):
         if self == Statuses.DATASET_QA:
             return "QA"
         return self.status_str.title()
-
-    @staticmethod
-    def valid_str(status: Union[str, Statuses]) -> str:
-        """
-        Pass string version of status (any case,
-        including entity_type prefix or not)
-        or Statuses instance. Retrieve
-        lower-case status string or raise if not valid.
-        """
-        if type(status) is str:
-            status = status.lower()
-            if "_" in status:
-                membership = [member for member in Statuses if status == member.value]
-                if len(membership) == 1:
-                    return membership[0].status_str
-            else:
-                for entity_type in ENTITY_STATUS_MAP.keys():
-                    for status_str in ENTITY_STATUS_MAP[entity_type].keys():
-                        if status == status_str:
-                            return status
-        elif isinstance(status, Statuses):
-            return status.status_str
-        raise EntityUpdateException(f"Status {status} is not valid.")
 
 
 # Needed some way to disambiguate statuses shared by datasets and uploads
@@ -127,22 +123,41 @@ ENTITY_STATUS_MAP = {
 }
 
 
-def get_status_enum(entity_type: str, status: Statuses | str, uuid: str) -> Statuses:
+def get_status_enum(entity_type: str, status: Statuses | str) -> Statuses:
+    """
+    Pass entity_type and status value, return if Statuses instance or
+    validate if string of format "<status>" or "<entity_type>_<status>".
+    Return enum or raise if not valid.
+    """
     if type(status) is str:
+        status_cleaned = status.lower()
+        entity_type_cleaned = entity_type.lower()
+        # Separate entity type prefix if present (e.g., "dataset_error" -> "error")
         try:
-            print(f"Looking for {entity_type.lower()}_{status.lower()} in ENTITY_STATUS_MAP.")
-            status = ENTITY_STATUS_MAP[entity_type.lower()][status.lower()]
-            print(f"Found {status}.")
-        except KeyError:
+            if "_" in status_cleaned:
+                # Assume this is a full status string; throws ValueError if not found
+                status = Statuses(status_cleaned)
+            else:
+                # Assume entity_type and status_cleaned are valid; throws KeyError if not
+                logging.info(
+                    f"Looking for status enum for {entity_type_cleaned}_{status_cleaned}."
+                )
+                status = ENTITY_STATUS_MAP[entity_type_cleaned][status_cleaned]
+        except (KeyError, ValueError):
             raise EntityUpdateException(
                 f"""
-                Could not retrieve status for {uuid}.
-                Check that status is valid for entity type.
-                Status not changed.
+                Could not retrieve status. Check that status "{status}" is valid
+                for entity type "{entity_type}". Status not changed.
                 """
             )
-    assert type(status) is Statuses
+    assert status and type(status) is Statuses
+    logging.info(f"Found {status}.")
     return status
+
+
+#############
+# Messaging #
+#############
 
 
 class MessageManager:
@@ -152,10 +167,29 @@ class MessageManager:
         status: Statuses | str,
         uuid: str,
         token: str,
-        messages: Optional[dict] = None,
+        messages: dict | None = None,
         *args,
         **kwargs,
     ):
+        """Parent class for all messaging types (Slack, email,
+        Data Ingest Board-specific metadata updates).
+        Usage:
+            SlackManager(
+                    Statuses.<status>,
+                    <uuid>,
+                    <token>,
+                    messages={}
+                ).update()
+        status -- status triggering this message
+        uuid -- UUID of entity
+        token -- Globus token
+        messages -- messages are parsed into properties;
+            anticipated values are:
+                - error_counts
+                - error_dict
+                - run_id
+                - processing_pipeline
+        """
         self.uuid = uuid
         self.token = token
         self.messages = messages if messages else {}
@@ -164,7 +198,7 @@ class MessageManager:
         self.entity_data = get_submission_context(self.token, self.uuid)
         self.status = self.get_status(status)
         self.is_internal_error = is_internal_error(self.entity_data)
-        self.log_directory_path = log_directory_path(self.run_id)
+        self.log_directory_path = get_log_directory_path(self.run_id)
 
     @property
     def is_valid_for_status(self) -> bool:
@@ -174,7 +208,7 @@ class MessageManager:
         raise NotImplementedError
 
     def get_status(self, status: Statuses | str) -> Statuses:
-        return get_status_enum(self.entity_data.get("entity_type", ""), status, self.uuid)
+        return get_status_enum(self.entity_data.get("entity_type", ""), status)
 
     @property
     def error_counts(self) -> str:
@@ -202,6 +236,11 @@ class MessageManager:
         return False
 
 
+"""
+Use utils.get_env_appropriate_slack_channel in order to
+automatically switch to utils.DEFAULT_SLACK_TEST_CHANNEL
+when not on PROD.
+"""
 base_slack_channel = "C08V3TAP3GQ"  # testing-status-change
 slack_channels = {
     "base": base_slack_channel,
@@ -217,38 +256,9 @@ slack_channels = {
     "upload_priority_reorganized": "C08STFJTJKT",  # fasttrack-ingest
 }
 
-slack_channels_testing = {"base": "C0A8ES4M9RU"}  # test-notifications
-
-
-class Project(Enum):
-    HUBMAP = ("hubmap", "HuBMAP")
-    SENNET = ("sennet", "SenNet")
-
-
-globus_dirs = {
-    "hubmap": {
-        "prod": {
-            "public": "af603d86-eab9-4eec-bb1d-9d26556741bb",
-            "protected": "24c2ee95-146d-4513-a1b3-ac0bfdb7856f",
-        },
-        "dev": {
-            "public": "2b82f085-1d50-4c93-897e-cd79d77481ed",
-            "protected": "ff1bd56e-2e65-4ec9-86fa-f79422884e96",
-        },
-        "path_replace_regex": r"/hive/hubmap.*/data",
-    },
-    "sennet": {
-        "prod": {
-            "public": "96b2b9e5-6915-4dbc-9ab5-173ad628902e",
-            "protected": "45617036-f2cc-4320-8108-edf599290158",
-        },
-        "dev": {
-            "public": "96b2b9e5-6915-4dbc-9ab5-173ad628902e",
-            "protected": "b1571f8f-4ce5-4c81-9327-47bba11423ff",
-        },
-        "path_replace_regex": f"/codcc.*/data",
-    },
-}
+####################
+# Get data helpers #
+####################
 
 
 def get_project() -> Project:
@@ -279,20 +289,6 @@ def get_submission_context(token: str, uuid: str) -> dict[str, Any]:
     return base_get_submission_context(token, uuid, get_headers(token))
 
 
-def formatted_exception(exception):
-    """
-    traceback logic from
-    https://stackoverflow.com/questions/51822029/get-exception-details-on-airflow-on-failure-callback-context
-    """
-    if not (
-        formatted_exception := "".join(
-            traceback.TracebackException.from_exception(exception).format()
-        ).replace("\n", "<br>")
-    ):
-        return None
-    return formatted_exception
-
-
 def get_abs_path(uuid: str, token: str, escaped: bool = False) -> str:
     http_hook = HttpHook("GET", http_conn_id="ingest_api_connection")
     headers = get_headers(token)
@@ -320,7 +316,7 @@ def get_organ(uuid: str, token: str) -> str:
         response.raise_for_status()
         return response.json()[0].get("organ")
     except Exception as e:
-        print(e)
+        logging.error(e)
         return ""
 
 
@@ -341,46 +337,6 @@ def get_primary_dataset(entity_data: dict, token: str) -> str | None:
             return ancestor.get("uuid")
 
 
-def put_request_to_entity_api(
-    uuid: str,
-    token: str,
-    update_fields: dict,
-    params: dict = {},
-) -> dict:
-    endpoint = f"/entities/{uuid}"
-    if encoded_params := urlencode(params):
-        endpoint += f"?{encoded_params}"
-    headers = get_headers(token)
-    http_hook = HttpHook("PUT", http_conn_id="entity_api_connection")
-    response = http_hook.run(endpoint, json.dumps(update_fields), headers)
-    logging.info(f"""Response: {response.json()}""")
-    return response.json()
-
-
-def get_env() -> Optional[str]:
-    from utils import find_matching_endpoint
-
-    host = None
-    for conn in ["ingest_api_connection", "entity_api_connection"]:
-        if host := HttpHook.get_connection(conn).host:
-            try:
-                return find_matching_endpoint(host).lower()
-            except Exception:
-                continue
-    logging.error(f"Could not determine env. Host: {host}.")
-
-
-def is_internal_error(entity_data: dict) -> bool:
-    status = entity_data.get("status", "").lower()
-    if status == "error":
-        return True
-    elif validation_message := entity_data.get("validation_message"):
-        for error_str in internal_error_strs:
-            if error_str.lower() in validation_message.lower():
-                return True
-    return False
-
-
 def get_entity_ingest_url(entity_data: dict) -> str:
     # ingest_url is generally in the vm00# format (at least for HuBMAP)
     # so some concatenation is necessary; this defaults to PROD HuBMAP URL
@@ -389,7 +345,7 @@ def get_entity_ingest_url(entity_data: dict) -> str:
         url_end = "sennetconsortium.org/"
     env = get_env()
     url_start = "https://ingest."
-    if env not in ["prod", None]:
+    if env != "prod":
         url_start = f"https://ingest.{env}."
     entity_type = entity_data.get("entity_type", "").lower()
     base_url = urljoin(url_start + url_end, entity_type)
@@ -399,8 +355,6 @@ def get_entity_ingest_url(entity_data: dict) -> str:
 
 
 def get_data_ingest_board_query_url(entity_data: dict) -> str:
-    from utils import find_matching_endpoint
-
     proj = get_project().value[0]
     env = None
     for conn in ["ingest_api_connection", "entity_api_connection"]:
@@ -415,55 +369,24 @@ def get_data_ingest_board_query_url(entity_data: dict) -> str:
         url = f"https://ingest.board.{proj}consortium.org/"
     else:
         url = f"https://ingest-board.{env.lower()}.{proj}consortium.org/"
-    entity_id = get_entity_id(entity_data)
-    params = {"q": entity_id}
+    params = {"q": get_entity_id(entity_data)}
     if entity_data.get("entity_type", "").lower() == "upload":
         params["entity_type"] = "uploads"
     return f"{url}?{urlencode(params)}"
 
 
-def get_globus_url(uuid: str, token: str) -> Optional[str]:
-    """
-    Return the Globus URL (default) for a dataset.
-    URL format is https://app.globus.org/file-manager?origin_id=<id>&origin_path=<uuid | consortium|private/<group>/<uuid>>
-    """
-    path = get_abs_path(uuid, token)
-    prefix = "https://app.globus.org/file-manager?"
-    proj = get_project()
-    project_dict = globus_dirs.get(proj.value[0]) or {}
-    if not (env_dict := project_dict.get(get_env() or "", {})):
-        return
-    params = {}
-    if "public" in path:
-        params["origin_id"] = env_dict.get("public")
-        params["origin_path"] = uuid
-    else:
-        regex = project_dict.get("path_replace_regex", "")
-        params["origin_id"] = env_dict.get("protected")
-        params["origin_path"] = re.sub(regex, "", path) + "/"
-    return prefix + urlencode(params)
-
-
-def get_run_id(run_id) -> str:
+def get_run_id(run_id: str | DagRun) -> str:
     if isinstance(run_id, DagRun):
-        return run_id.run_id if type(run_id.run_id) is str else ""
+        return str(run_id.run_id)
     if type(run_id) is str:
         return run_id
     return ""
 
 
-def log_directory_path(run_id: str) -> str:
-    from utils import get_tmp_dir_path
-
+def get_log_directory_path(run_id: str) -> str:
     if not run_id:
         return ""
     return str(get_tmp_dir_path(run_id))
-
-
-def split_error_counts(error_message: str, no_bullets: bool = False) -> list[str]:
-    if no_bullets:
-        return [line for line in re.split("; | \\| ", error_message)]
-    return [f"- {line}" for line in re.split("; | \\| ", error_message)]
 
 
 def get_is_derived(entity_data: dict) -> bool:
@@ -472,3 +395,100 @@ def get_is_derived(entity_data: dict) -> bool:
     if entity_data.get("creation_action", "") == "Central Process":
         return True
     return False
+
+
+def is_internal_error(entity_data: dict) -> bool:
+    status = entity_data.get("status", "").lower()
+    if status == "error":
+        return True
+    elif validation_message := entity_data.get("validation_message"):
+        for error_str in internal_error_strs:
+            if error_str.lower() in validation_message.lower():
+                return True
+    return False
+
+
+##############
+# Formatting #
+##############
+
+
+def formatted_exception(exception):
+    """
+    traceback logic from
+    https://stackoverflow.com/questions/51822029/get-exception-details-on-airflow-on-failure-callback-context
+    """
+    if not (
+        formatted_exception := "".join(
+            traceback.TracebackException.from_exception(exception).format()
+        ).replace("\n", "<br>")
+    ):
+        return None
+    return formatted_exception
+
+
+def split_error_counts(error_message: str, no_bullets: bool = False) -> list[str]:
+    if no_bullets:
+        return [line for line in re.split("; | \\| ", error_message)]
+    return [f"- {line}" for line in re.split("; | \\| ", error_message)]
+
+
+def enums_to_lowercase(data: Any) -> Any:
+    """
+    Lowercase all strings which appear as dictionary values.
+    """
+    if isinstance(data, dict):
+        for key, val in data.items():
+            if isinstance(val, str):
+                data[key] = val.lower()
+            else:
+                data[key] = enums_to_lowercase(val)
+        return data
+    elif isinstance(data, list):
+        return [enums_to_lowercase(val) for val in data]
+    else:
+        return data
+
+
+############
+# Requests #
+############
+
+
+def put_request_to_entity_api(
+    uuid: str,
+    token: str,
+    update_fields: dict,
+    params: dict = {},
+) -> dict:
+    endpoint = f"/entities/{uuid}"
+    if encoded_params := urlencode(params):
+        endpoint += f"?{encoded_params}"
+    else:
+        endpoint += f"?{urlencode({'reindex-priority': 3})}"
+    headers = get_headers(token)
+    http_hook = HttpHook("PUT", http_conn_id="entity_api_connection")
+    response = http_hook.run(endpoint, json.dumps(update_fields), headers)
+    logging.info(f"""Response: {response.json()}""")
+    return response.json()
+
+
+def get_globus_url(entity_data: dict, token: str) -> str:
+    """
+    Return the Globus URL (default) for an entity.
+    """
+    url_end = "hubmapconsortium.org/"
+    if get_project() == Project.SENNET:
+        url_end = "sennetconsortium.org/"
+    env = get_env()
+    url_start = "https://entity.api."
+    if env != "prod":
+        url_start = f"https://entity-api.{env}."
+    url = f"{url_start}{url_end}/entities/{entity_data['uuid']}/globus-url"
+    response = requests.get(url, headers=get_headers(token))
+    try:
+        response.raise_for_status()
+    except Exception as e:
+        logging.error(f"Could not retrieve Globus URL. Error: {e}")
+        return ""
+    return response.text

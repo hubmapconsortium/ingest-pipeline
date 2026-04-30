@@ -4,6 +4,7 @@ from .status_utils import (
     EntityUpdateException,
     MessageManager,
     Statuses,
+    get_status_enum,
     put_request_to_entity_api,
 )
 
@@ -60,8 +61,8 @@ class DataIngestBoardManager(MessageManager):
         return response
 
     def get_fields(self) -> dict | None:
-        entity = self.entity_data.get("entity_type", "").lower()
-        msg_type = f"{entity}_{Statuses.valid_str(self.status)}"
+        entity_type = self.entity_data.get("entity_type", "").lower()
+        msg_type = get_status_enum(entity_type, self.status).value
         if clear_msg := self.get_clear_message(msg_type):
             return clear_msg
         func = getattr(self, msg_type, None)

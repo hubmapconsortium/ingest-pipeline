@@ -1,13 +1,13 @@
 #! /usr/bin/env python
 
-import sys
 import argparse
-import re
 import json
+import re
+import sys
 from pathlib import Path
+
 import pandas as pd
 import requests
-
 from hubmap_commons.hm_auth import AuthHelper
 
 # No trailing slashes in the following URLs!
@@ -748,7 +748,7 @@ class EntityFactory:
         is_epic,
         lab_id,
         priority_project_list=[],
-        reindex=True,
+        reindex=3,
     ):
         """
         Creates an entirely new Dataset entity, including updating the databases.
@@ -769,9 +769,8 @@ class EntityFactory:
         if is_epic:
             data.update({"creation_action": "External Process"})
         print(f"Creating dataset with data {data}")
-        reindex_param = "reindex-priority=3" if reindex else ""
         r = requests.post(
-            f"{ingest_url}/datasets?{reindex_param}",
+            f"{ingest_url}/datasets?reindex-priority={reindex}",
             data=json.dumps(data),
             headers={
                 "Authorization": f"Bearer {self.auth_tok}",
@@ -783,15 +782,14 @@ class EntityFactory:
             r.raise_for_status()
         return r.json()
 
-    def submit_dataset(self, uuid, contains_human_genetic_sequences, reindex=True):
+    def submit_dataset(self, uuid, contains_human_genetic_sequences, reindex=3):
         """
         Takes an existing dataset uuid and submits the dataset.
         """
         ingest_url = ENDPOINTS[self.instance]["ingest_url"]
         data = {"contains_human_genetic_sequences": contains_human_genetic_sequences}
-        reindex_param = "reindex-priority=3" if reindex else ""
         r = requests.put(
-            f"{ingest_url}/datasets/{uuid}/submit?{reindex_param}",
+            f"{ingest_url}/datasets/{uuid}/submit?reindex-priority={reindex}",
             data=json.dumps(data),
             headers={
                 "Authorization": f"Bearer {self.auth_tok}",
