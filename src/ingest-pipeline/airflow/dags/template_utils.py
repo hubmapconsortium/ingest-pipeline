@@ -154,9 +154,15 @@ def build_reverse_char_map(starting_list: DictList, key_gen: Generator[str, None
 
 def fully_template(st: str, dct: dict[str, str]) -> str:
     prev_st = None
-    while st != prev_st:
+    print(f"raw string: {st}")
+    st = st.replace("$", "${ds}")
+    print(f"fully templating {st} with {dct}")
+    count = 0
+    while st != prev_st and count < 5:
         prev_st = st
-        st = Template(st).substitute(dct)
+        st = Template(st).safe_substitute(dct)
+        count += 1
+    print(f"final templated string: {st}")
     return st
 
 
@@ -166,6 +172,7 @@ def fully_template_dict_list(dict_list: DictList,
     for dct in dict_list:
         new_dct = {}
         for key, val in dct.items():
+            print(f"templating key {key} and value {val}")
             new_key = fully_template(key, template_dict)
             if isinstance(val, str):
                 new_val = fully_template(val, template_dict)
@@ -205,7 +212,10 @@ def full_map(dict_list: DictList, mapper: MappingFunc,
 def invert_and_clean_subst_dict(subst_d: OrderedDict[str, str]) -> dict[str, str]:
     inv_subst_d = OrderedDict((val[2:-1], key) 
                               for key, val in subst_d.items())
-    clean_d = {}
+    import pprint
+    print("inverted subst dict:")
+    pprint.pprint(inv_subst_d)
+    clean_d = {"ds": "$"}
     for key, val in inv_subst_d.items():
         clean_d[key] = fully_template(val, inv_subst_d)
     return clean_d
@@ -215,11 +225,6 @@ def generate_files_template(dict_list: DictList, verbose=False) -> tuple[dict[st
     typical_tok_len = 6
     files_l = dict_list.copy() # to minimize side effects
     substitution_dict = OrderedDict()
-
-    preclean_dict = OrderedDict()
-    preclean_dict["$"] = "$$"
-    files_l = apply_substitutions(files_l, preclean_dict)
-    # do not append this to the final substitution_dict!
 
     descr_subst_d = full_map(files_l,
                              build_word_map,
