@@ -35,7 +35,8 @@ def check_link_published_drvs(uuid: str, auth_tok: str) -> Tuple[bool, str]:
     print("response: ")
     pprint(response.json())
     for data in response.json():
-        if data.get("entity_type") == "Dataset" and data.get("status") == "Published":
+        if (data.get("entity_type") == "Dataset" and data.get("status") == "Published"
+                and data.get("creation_action") == "Central Process"):
             needs_previous_version = True
             published_uuid = data.get("uuid")
     return needs_previous_version, published_uuid
