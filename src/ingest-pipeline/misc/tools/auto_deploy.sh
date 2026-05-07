@@ -12,6 +12,7 @@ base_name="airflow"
 file_dir="/etc/sysconfig"
 
 regenerate_env=false
+dry_run=false
 
 function set_main_environment(){
   for ending in "${priority_list[@]}"; do
@@ -27,10 +28,13 @@ function set_main_environment(){
 done
 }
 
-while getopts ":g" opt; do
+while getopts ":g:n" opt; do
   case $opt in
     g)
       regenerate_env=true
+      ;;
+    n)
+      dry_run=true
       ;;
     \?)
       echo "Invalid option: -$OPTARG" >&2
@@ -47,8 +51,12 @@ if [ -z "$repo_env" ]; then
 fi
 
 for machine in "${hive_machines[@]}"; do
-       	# Rsync repo to machine
-        rsync -a --exclude "src/ingest-pipeline/airflow/logs" $repo_dir/ $machine:$repo_dir
+        if $dry_run ; then
+            rsync -av --exclude "src/ingest-pipeline/airflow/logs" --delete-after --dry-run $repo_dir/ $machine:$repo_dir
+        else
+       	    # Rsync repo to machine
+            rsync -a --exclude "src/ingest-pipeline/airflow/logs" --delete-after $repo_dir/ $machine:$repo_dir
+        fi
 
        	# If flag set, run the conda environment regenerations
         if $regenerate_env ; then
