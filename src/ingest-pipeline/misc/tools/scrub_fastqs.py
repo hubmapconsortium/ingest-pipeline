@@ -145,7 +145,7 @@ def scrub_upload(upload_path: Path, num_threads: int = 1) -> None:
             parent / (stem + ".fastq.gz.original")
         ).exists():
             continue
-        plain_fastqs.append((_scrub_fastq, fastq, num_threads))
+        plain_fastqs.append((_scrub_fastq, fastq))
     _run_in_pool(plain_fastqs, num_threads)
 
     for orig_fastq in sorted(upload_path.rglob("*.fastq.*.original")):
