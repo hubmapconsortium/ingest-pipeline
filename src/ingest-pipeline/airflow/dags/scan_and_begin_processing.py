@@ -19,6 +19,7 @@ from utils import (
     get_queue_resource,
     get_soft_data_assaytype,
     get_threads_resource,
+    get_tmp_dir_path,
     make_send_status_msg_function,
     pythonop_get_dataset_state,
     pythonop_maybe_keep,
@@ -126,8 +127,9 @@ with HMDAG(
             upload_ignore_globs="*",
             plugin_directory=plugin_path,
             # offline_only=True,  # noqa E265
-            extra_parameters={
-                "coreuse": get_threads_resource("scan_and_begin_processing", "run_validation")
+            plugin_kwargs={
+                "coreuse": get_threads_resource("scan_and_begin_processing", "run_validation"),
+                "scratch_path": utils._get_scratch_base_path(),
             },
             ignore_deprecation=True,
             globus_token=get_auth_tok(**kwargs),
@@ -135,7 +137,8 @@ with HMDAG(
         )
         # Scan reports an error result
         report = ingest_validation_tools_error_report.ErrorReport(
-            errors=upload.get_errors(plugin_kwargs=kwargs), info=upload.get_info()
+            errors=upload.get_errors(),
+            info=upload.get_info(),
         )
         if report.errors:
             sys.stdout.write("Validation failed! Errors follow:\n")
