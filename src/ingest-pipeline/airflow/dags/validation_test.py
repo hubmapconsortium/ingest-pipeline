@@ -109,7 +109,7 @@ with HMDAG(
             dataset_ignore_globs=ignore_globs,
             upload_ignore_globs="*",
             plugin_directory=plugin_path,
-            plugin_kwargs={"scratch_path": _get_scratch_base_path()},
+            plugin_kwargs={"scratch_dir": _get_scratch_base_path()},
             # offline_only=True,  # noqa E265
         )
         # Scan reports an error result

@@ -129,7 +129,7 @@ with HMDAG(
             # offline_only=True,  # noqa E265
             plugin_kwargs={
                 "coreuse": get_threads_resource("scan_and_begin_processing", "run_validation"),
-                "scratch_path": utils._get_scratch_base_path(),
+                "scratch_dir": utils._get_scratch_base_path(),
             },
             ignore_deprecation=True,
             globus_token=get_auth_tok(**kwargs),
