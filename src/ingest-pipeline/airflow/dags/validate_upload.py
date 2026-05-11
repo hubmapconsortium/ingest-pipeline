@@ -134,10 +134,7 @@ with HMDAG(
             upload_ignore_globs="*",
             plugin_directory=plugin_path,
             # offline_only=True,  # noqa E265
-            plugin_kwargs={
-                "coreuse": get_threads_resource("validate_upload", "run_validation"),
-                "scratch_dir": _get_scratch_base_path(),
-            },
+            plugin_kwargs={"coreuse": get_threads_resource("validate_upload", "run_validation")},
             globus_token=get_auth_tok(**kwargs),
             app_context=app_context,
         )
