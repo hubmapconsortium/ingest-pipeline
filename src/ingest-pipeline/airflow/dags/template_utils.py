@@ -12,6 +12,23 @@ MappingFunc = Callable[[DictList, Generator[str, None, None], str, int], Ordered
 KNOWN_BOOL_KEYS = ["is_data_product", "is_qa_qc"]
 
 
+"""
+Inclusion of this functionality requires changing utils.make_send_status_msg_function()
+to add the following to the construction of files_metadata_dict:
+
+                file_metadata_dict = get_file_metadata_dict(
+                    ds_dir,
+                    str(get_tmp_dir_path(kwargs["run_id"])),
+                    manifest_files,
+                )
+                if "files" in file_metadata_dict:  # beware of alt files path
+                    files_metadata_dict = {
+                        "files": TemplateBuilder(files_metadata_dict["files"]).apply()
+                    }
+                md.update(files_metadata_dict)
+"""
+
+
 def total_len(some_l: DictList) -> int:
     tot = 0
     for dct in some_l:
