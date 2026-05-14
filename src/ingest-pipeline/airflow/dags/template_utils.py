@@ -186,11 +186,17 @@ def fully_template_dict_list(dict_list: DictList,
     for dct in dict_list:
         new_dct = {}
         for key, val in dct.items():
-            new_key = fully_template(key, template_dict)
-            if isinstance(val, str):
-                new_val = fully_template(val, template_dict)
-            else:
-                new_val = val
+            while True:
+                new_key = fully_template(key, template_dict)
+                if isinstance(val, str):
+                    new_val = fully_template(val, template_dict)
+                else:
+                    new_val = val
+                if new_key == key and new_val == val:
+                    break
+                else:
+                    key = new_key
+                    val = new_val
             new_dct[new_key] = new_val
         for bool_key in KNOWN_BOOL_KEYS:
             new_dct[bool_key] = bool(new_dct.get(bool_key, False))
