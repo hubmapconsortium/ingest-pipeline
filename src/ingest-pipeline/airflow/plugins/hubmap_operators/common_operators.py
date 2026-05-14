@@ -58,7 +58,7 @@ class CleanupTmpDirOperator(BashOperator):
             if [ "$rmscratch" = true ] ; then \
               rm -r "$tmp_dir" ; \
             else \
-              if [ "ds_dir" != "None" ] || [ -n "$variable" ]; then \
+              if [ "$ds_dir" != "None" ] || [ -n "$ds_dir" ]; then \
                 rm -r "$tmp_dir" ; \
               else \
                 echo "scratch directory was preserved" ; \
