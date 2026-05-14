@@ -15,7 +15,6 @@ from status_change.callbacks.failure_callback import FailureCallback
 from status_change.status_manager import StatusChanger, Statuses
 from utils import (
     HMDAG,
-    _get_scratch_base_path,
     get_auth_tok,
     get_preserve_scratch_resource,
     get_queue_resource,

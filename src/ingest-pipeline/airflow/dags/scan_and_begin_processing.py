@@ -19,7 +19,6 @@ from utils import (
     get_queue_resource,
     get_soft_data_assaytype,
     get_threads_resource,
-    get_tmp_dir_path,
     make_send_status_msg_function,
     pythonop_get_dataset_state,
     pythonop_maybe_keep,
