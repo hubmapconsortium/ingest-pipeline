@@ -94,7 +94,7 @@ def keygen(base_str: str, base_ct=0) -> Generator[str, None, None]:
 
 
 def build_word_map(starting_list: DictList, key_gen: Generator[str, None, None],
-                   selector: str, typical_tok_len=6) -> OrderedDict[str, str]:
+                   selector: str, typical_tok_len: int) -> OrderedDict[str, str]:
     stree = Tree()
     starting_list = starting_list.copy() # to minimize side effects
     sel = selector
@@ -123,7 +123,7 @@ def build_word_map(starting_list: DictList, key_gen: Generator[str, None, None],
 
 
 def build_char_map(starting_list: DictList, key_gen: Generator[str, None, None],
-                   selector: str , typical_tok_len=6) -> OrderedDict[str, str]:
+                   selector: str , typical_tok_len: int) -> OrderedDict[str, str]:
     stree = Tree()
     starting_list = starting_list.copy() # to minimize side effects
     sel = selector
@@ -154,7 +154,7 @@ def build_char_map(starting_list: DictList, key_gen: Generator[str, None, None],
 
 
 def build_reverse_char_map(starting_list: DictList, key_gen: Generator[str, None, None],
-                           selector: str, typical_tok_len=6) -> OrderedDict[str, str]:
+                           selector: str, typical_tok_len: int) -> OrderedDict[str, str]:
     rev_list = []
     for dct in starting_list:
         new_dct = {}
@@ -171,15 +171,12 @@ def build_reverse_char_map(starting_list: DictList, key_gen: Generator[str, None
 
 def fully_template(st: str, dct: dict[str, str]) -> str:
     prev_st = None
-    print(f"raw string: {st}")
     st = st.replace("$", "${ds}")
-    print(f"fully templating {st} with {dct}")
     count = 0
     while st != prev_st and count < 5:
         prev_st = st
         st = Template(st).safe_substitute(dct)
         count += 1
-    print(f"final templated string: {st}")
     return st
 
 
@@ -189,7 +186,6 @@ def fully_template_dict_list(dict_list: DictList,
     for dct in dict_list:
         new_dct = {}
         for key, val in dct.items():
-            print(f"templating key {key} and value {val}")
             new_key = fully_template(key, template_dict)
             if isinstance(val, str):
                 new_val = fully_template(val, template_dict)
@@ -204,7 +200,7 @@ def fully_template_dict_list(dict_list: DictList,
 
 def full_map(dict_list: DictList, mapper: MappingFunc,
              key_gen: Generator[str, None, None],
-             sel: str, typical_tok_len=6, verbose=False) -> OrderedDict[str, str]:
+             sel: str, typical_tok_len: int, verbose=False) -> OrderedDict[str, str]:
     best_total_len = total_len(dict_list)
     itr = 0
     cum_subst_d = OrderedDict()
@@ -229,9 +225,6 @@ def full_map(dict_list: DictList, mapper: MappingFunc,
 def invert_and_clean_subst_dict(subst_d: OrderedDict[str, str]) -> dict[str, str]:
     inv_subst_d = OrderedDict((val[2:-1], key) 
                               for key, val in subst_d.items())
-    import pprint
-    print("inverted subst dict:")
-    pprint.pprint(inv_subst_d)
     clean_d = {"ds": "$"}
     for key, val in inv_subst_d.items():
         clean_d[key] = fully_template(val, inv_subst_d)
@@ -247,7 +240,7 @@ def generate_files_template(dict_list: DictList, verbose=False) -> tuple[dict[st
                              build_word_map,
                              keygen("w"),
                              "description",
-                             typical_tok_len=typical_tok_len,
+                             typical_tok_len,
                              verbose=verbose)
     files_l = apply_substitutions(files_l, descr_subst_d)
     substitution_dict.update(descr_subst_d)
@@ -256,7 +249,7 @@ def generate_files_template(dict_list: DictList, verbose=False) -> tuple[dict[st
                             build_char_map,
                             keygen("t"),
                             "edam_term",
-                            typical_tok_len=typical_tok_len,
+                            typical_tok_len,
                             verbose=verbose)
     files_l = apply_substitutions(files_l, term_subst_d)
     substitution_dict.update(term_subst_d)
@@ -265,7 +258,7 @@ def generate_files_template(dict_list: DictList, verbose=False) -> tuple[dict[st
                             build_reverse_char_map,
                             keygen("p"),
                             "rel_path",
-                            typical_tok_len=typical_tok_len,
+                            typical_tok_len,
                             verbose=verbose)
     files_l = apply_substitutions(files_l, path_subst_d)
     substitution_dict.update(path_subst_d)
