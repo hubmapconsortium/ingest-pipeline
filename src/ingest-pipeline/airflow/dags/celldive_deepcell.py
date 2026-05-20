@@ -1,4 +1,4 @@
-import urllib.parse
+# import urllib.parse
 
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -29,7 +29,7 @@ from hubmap_operators.common_operators import (
 )
 from hubmap_operators.flex_multi_dag_run import FlexMultiDagRunOperator
 
-from airflow.configuration import conf as airflow_conf
+# from airflow.configuration import conf as airflow_conf
 
 from extra_utils import build_tag_containers
 
