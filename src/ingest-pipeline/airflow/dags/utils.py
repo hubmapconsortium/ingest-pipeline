@@ -34,6 +34,7 @@ from requests.exceptions import HTTPError, JSONDecodeError
 from schema_utils import (
     localized_assert_json_matches_schema as assert_json_matches_schema,
 )
+from crate_manager import CrateManager, DummyCrateManager
 
 from airflow import DAG
 from airflow.configuration import conf as airflow_conf
@@ -227,6 +228,9 @@ class HMDAG(DAG):
         """
         if "max_active_runs" not in kwargs:
             kwargs["max_active_runs"] = get_lanes_resource(dag_id)
+        if "crate_manager" not in kwargs:
+            kwargs["crate_manager"] = DummyCrateManager()
+        self.crate_manager = kwargs["crate_manager"]
         super().__init__(dag_id, **kwargs)
 
     def add_task(self, task: Operator):
@@ -276,6 +280,7 @@ def get_cwl_cmd_from_workflows(
     tmp_dir: Path,
     ti,
     cwl_param_vals: list[dict] | None = None,
+    crate_manager: CrateManager | DummyCrateManager = DummyCrateManager(),
 ) -> list:
     """
     :param workflows: Iterable of workflow dictionaries
@@ -285,12 +290,16 @@ def get_cwl_cmd_from_workflows(
     :param ti: task instance
     :return: list of cwl command and parameters
     """
+
     # Grab the workflow from the list of workflows
     workflow = workflows[workflow_index]
     workflow["input_parameters"] = input_param_vals
 
     # Get the cwl invocation
     command = [*get_cwltool_base_cmd(tmp_dir)]
+
+    # Add the provenance argument for this workflow
+    command += crate_manager.get_args(tmp_dir)
 
     # Rather than setting outdir, cycle through cwl_param vals and see whether its present
     # if not, then we set it to the default value.

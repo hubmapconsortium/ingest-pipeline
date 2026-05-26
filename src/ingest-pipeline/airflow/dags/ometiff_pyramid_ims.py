@@ -108,7 +108,8 @@ with HMDAG(
             {"parameter_name": "--ometiff_directory", "value": str(data_dir)},
         ]
         command = get_cwl_cmd_from_workflows(
-            cwl_workflows, 0, input_parameters, tmpdir, kwargs["ti"]
+            cwl_workflows, 0, input_parameters, tmpdir, kwargs["ti"],
+            crate_manager=dag.crate_manager
         )
 
         return join_quote_command_str(command)
@@ -148,7 +149,10 @@ with HMDAG(
                 "value": str(tmpdir / "cwl_out/ometiff-pyramids"),
             },
         ]
-        command = get_cwl_cmd_from_workflows(workflows, 1, input_parameters, tmpdir, kwargs["ti"])
+        command = get_cwl_cmd_from_workflows(
+            workflows, 1, input_parameters, tmpdir, kwargs["ti"],
+            crate_manager=dag.crate_manager
+            )
 
         return join_quote_command_str(command)
 
