@@ -4,6 +4,7 @@ import subprocess
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
+from typing import Optional
 
 SRA_SCRUBBER_IMAGE = "ncbi/sra-human-scrubber:2.2.1"
 
@@ -195,11 +196,13 @@ def _rollback_all(files: list[Path]) -> None:
             print(f"[scrub] Rolled back {path.name}")
 
 
-def scrub_upload(upload_path: Path, num_threads: int = 1) -> None:
+def scrub_upload(upload_path: Path, num_threads: int = 1, backup_dir: Optional[Path] = None) -> None:
     """
     Find all FASTQ files under upload_path, scrub human reads from each,
-    verify correctness, then remove .original backups. Raises on any failure,
-    rolling back all changes so every file is restored to its pre-scrub state.
+    verify correctness, then move .original backups to backup_dir (mirroring
+    the relative path structure under upload_path). If backup_dir is None,
+    .original files are deleted. Raises on any failure, rolling back all
+    changes so every file is restored to its pre-scrub state.
 
     Raises RuntimeError with per-file error details on failure.
     """
@@ -258,6 +261,12 @@ def scrub_upload(upload_path: Path, num_threads: int = 1) -> None:
             + "\n".join(missing)
         )
 
-    # Step 4b: All files verified — delete .original backups
+    # Step 4b: All files verified — move .original backups to backup_dir
     for path in gz_files + plain_fastqs:
-        (path.parent / (path.name + ".original")).unlink()
+        original = path.parent / (path.name + ".original")
+        if backup_dir is not None:
+            dest = backup_dir / path.relative_to(upload_path).parent / original.name
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            original.replace(dest)
+        else:
+            original.unlink()

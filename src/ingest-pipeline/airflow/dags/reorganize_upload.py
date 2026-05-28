@@ -163,6 +163,7 @@ with HMDAG(
 
     def scrub_human_reads(**kwargs):
         lz_path = kwargs["ti"].xcom_pull(task_ids="find_uuid", key="lz_path")
+        uuid = kwargs["ti"].xcom_pull(task_ids="find_uuid", key="uuid")
         num_threads = get_threads_resource("reorganize_upload", "scrub_human_reads")
         try:
             # just use lz_path from previous step
@@ -172,7 +173,12 @@ with HMDAG(
             full_entity = SoftAssayClient(metadata_files, get_auth_tok(**kwargs))
             dataset_type = full_entity.primary_assay.get("dataset-type")
             if dataset_type in SCRUB_REQUIRED_ASSAY_TYPES:
-                scrub_upload(Path(lz_path), num_threads=num_threads)
+                data_marker = "/protected/"
+                data_idx = lz_path.find(data_marker)
+                if data_idx == -1:
+                    raise RuntimeError(f"Could not find /protected/ in lz_path: {lz_path}")
+                backup_dir = Path(lz_path[: data_idx + len("/protected")]) / "scrub_fastq_originals" / uuid
+                scrub_upload(Path(lz_path), num_threads=num_threads, backup_dir=backup_dir)
             kwargs["ti"].xcom_push(key="scrub_human_reads", value="0")
         except Exception as e:
             print(f"Encountered {e}")
