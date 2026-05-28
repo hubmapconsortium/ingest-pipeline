@@ -228,9 +228,7 @@ class HMDAG(DAG):
         """
         if "max_active_runs" not in kwargs:
             kwargs["max_active_runs"] = get_lanes_resource(dag_id)
-        if "crate_manager" not in kwargs:
-            kwargs["crate_manager"] = DummyCrateManager()
-        self.crate_manager = kwargs["crate_manager"]
+        self.crate_manager = kwargs.get("crate_manager", DummyCrateManager())
         super().__init__(dag_id, **kwargs)
 
     def add_task(self, task: Operator):
