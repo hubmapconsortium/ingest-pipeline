@@ -1519,6 +1519,7 @@ def make_send_status_msg_function(
     based on the return value of 'dataset_lz_path_fun' above.
     """
     from status_change.status_manager import EntityUpdateException, StatusChanger
+    from status_change.status_utils import base_slack_channel
 
     # Does the string represent a "true" value, or an int that is 1
     def __is_true(val):
@@ -1617,6 +1618,15 @@ def make_send_status_msg_function(
             if metadata_fun:
                 # Always override the value if files_info_alt_path is set, or if md["files"] is empty
                 files_info_alt_path = md["metadata"].pop("files_info_alt_path", [])
+                if files_info_alt_path:
+                    try:
+                        post_to_slack_notify(
+                            get_auth_tok(**kwargs),
+                            f"Files list too large, using files_info_alt_path for dataset {dataset_uuid}",
+                            env_appropriate_slack_channel(base_slack_channel),
+                        )
+                    except Exception as e:
+                        logging.warning(f"Could not send files_info_alt_path Slack alert: {e}")
                 md["files"] = (
                     files_info_alt_path
                     if files_info_alt_path or not md.get("files")
