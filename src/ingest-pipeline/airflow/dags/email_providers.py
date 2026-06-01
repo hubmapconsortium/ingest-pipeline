@@ -5,7 +5,6 @@ from os.path import dirname, join
 from pathlib import Path
 
 import pandas as pd
-from biweekly_timetable import BiweeklyTimetable
 from hubmap_operators.common_operators import (
     CleanupTmpDirOperator,
     CreateTmpDirOperator,
@@ -55,10 +54,10 @@ default_args = {
 }
 
 with HMDAG(
-    dag_id="email_providers",
+    dag_id="email_providers_v1",
     default_args=default_args,
     is_paused_upon_creation=False,
-    schedule=BiweeklyTimetable(),
+    schedule_interval="30 17 * * MON#1,MON#3",
     catchup=False,
     user_defined_macros={
         "tmp_dir_path": get_tmp_dir_path,
