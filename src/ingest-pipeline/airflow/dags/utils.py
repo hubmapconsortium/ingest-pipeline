@@ -1003,7 +1003,7 @@ def pythonop_send_create_dataset(**kwargs) -> str:
         "datasets", http_conn_id, token, method="POST", payload=data
     )
     print("response from dataset creation...")
-    print(response_json)
+    pprint(response_json)
 
     for elt in ["uuid", "group_uuid"]:
         if elt not in response_json:

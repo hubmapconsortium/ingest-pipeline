@@ -1,8 +1,6 @@
 from pathlib import Path
 from datetime import datetime, timedelta
 
-import utils
-from extra_utils import build_tag_containers
 from airflow.operators.bash import BashOperator
 from airflow.operators.python import PythonOperator, BranchPythonOperator
 from airflow.operators.empty import EmptyOperator

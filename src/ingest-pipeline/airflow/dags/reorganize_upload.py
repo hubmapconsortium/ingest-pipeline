@@ -37,15 +37,15 @@ from utils import (
     get_queue_resource,
     get_preserve_scratch_resource,
     get_soft_data_assaytype,
-    get_threads_resource,
+    # get_threads_resource,
 )
 
 from misc.tools.split_and_create import reorganize
 from misc.tools.set_standard_protections import process_one_uuid
 from misc.tools.survey import EntityFactory
 from status_change.status_manager import StatusChanger
-from misc.tools.scrub_fastqs import scrub_upload
-from extra_utils import SoftAssayClient
+# from misc.tools.scrub_fastqs import scrub_upload
+# from extra_utils import SoftAssayClient
 
 
 SCRUB_REQUIRED_ASSAY_TYPES = {
