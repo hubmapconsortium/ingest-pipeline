@@ -386,13 +386,13 @@ def get_template(data: pd.DataFrame, group_name: str) -> list[str]:
 ##############
 
 status_to_description = {
-    Statuses.DATASET_QA: "The dataset has been validated and is ready for your approval. After reviewing these datasets, please email ingest@hubmapconsortium.org to list any datasets with issues that need to be addressed before publishing and/or indicate your approval of specific datasets for publication. Please include relevant dataset IDs in your message.<br>",
-    Statuses.DATASET_INVALID: f"The dataset cannot be validated due a metadata or directory issue. View the errors on the dataset ingest page and correct them. Help is available by scheduling with Data Curator Brendan Honick ({CURATION_OFFICE_HOURS_SCHEDULING_LINK}).<br>",
+    Statuses.DATASET_QA: "These datasets have been validated and are ready for your approval. After reviewing these datasets, please email ingest@hubmapconsortium.org to list any datasets with issues that need to be addressed before publishing and/or indicate your approval of specific datasets for publication. Please include relevant dataset IDs in your message.<br>",
+    Statuses.DATASET_INVALID: f"Datasets cannot be validated due a metadata or directory issue. View the errors on the dataset ingest page and correct them. Help is available by scheduling with Data Curator Brendan Honick ({CURATION_OFFICE_HOURS_SCHEDULING_LINK}).<br>",
     Statuses.DATASET_NEW: 'This status is an artifact of prior status handling. Go to the dataset ingest page and press "Submit."<br>',
     Statuses.DATASET_ERROR: "Datasets have encountered an internal HIVE error. Curators and developers are working to address the issue.<br>",
     Statuses.DATASET_SUBMITTED: "Datasets have been reorganized from a bulk upload submission. They are ready for dataset-level validation and HIVE central analysis processing (as applicable by assay type).<br>",
     Statuses.DATASET_PROCESSING: "Datasets are going through the ingest process.<br>",
-    Statuses.DATASET_APPROVAL: "You have approved this dataset for publication.<br>",
+    Statuses.DATASET_APPROVAL: "You have approved these datasets for publication.<br>",
     # TODO: deprecated statuses--should we include, just in case?
     # Statuses.DATASET_HOLD: "",
     # Statuses.DATASET_DEPRECATED: "",

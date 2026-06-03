@@ -95,7 +95,7 @@ with HMDAG(
                         {"match": {"entity_type": "Dataset"}},
                     ],
                     "should": [
-                        {"match": {"status": "Published"}},  # Either Published, QA, or Approval
+                        {"match": {"status": "Published"}},  # Published, QA, or Approval
                         {"match": {"status": "Approval"}},
                         {"match": {"status": "QA"}},
                     ],
