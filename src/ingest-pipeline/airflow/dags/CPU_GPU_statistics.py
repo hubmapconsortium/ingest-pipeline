@@ -1,31 +1,27 @@
-import pandas as pd
-
-from airflow.decorators import task
 from datetime import datetime, timedelta
+from pathlib import Path
 
+import pandas as pd
+from extra_utils import calculate_statistics
+from hubmap_operators.common_operators import (
+    CleanupTmpDirOperator,
+    CreateTmpDirOperator,
+)
+from utils import (
+    HMDAG,
+    create_dataset_state_error_callback,
+    encrypt_tok,
+    get_auth_tok,
+    get_queue_resource,
+    get_statistics_base_path,
+    get_tmp_dir_path,
+    get_uuid_for_error,
+)
+
+from airflow.configuration import conf as airflow_conf
+from airflow.decorators import task
 from airflow.operators.python import PythonOperator
 from airflow.providers.http.hooks.http import HttpHook
-from airflow.configuration import conf as airflow_conf
-from pathlib import Path
-from typing import List, Dict
-
-from extra_utils import calculate_statistics
-
-from utils import (
-    get_queue_resource,
-    create_dataset_state_error_callback,
-    get_uuid_for_error,
-    HMDAG,
-    encrypt_tok,
-    get_tmp_dir_path,
-    get_auth_tok,
-    get_statistics_base_path,
-)
-
-from hubmap_operators.common_operators import (
-    CreateTmpDirOperator,
-    CleanupTmpDirOperator,
-)
 
 default_args = {
     "owner": "hubmap",
@@ -51,7 +47,7 @@ with HMDAG(
     },
 ) as dag:
 
-    def _get_dataset_base_paths(dataset_ids: List[str], auth_tok: str) -> Dict[str, str]:
+    def _get_dataset_base_paths(dataset_ids: list[str], auth_tok: str) -> dict[str, str]:
         """Get base paths for multiple datasets from Ingest API.
 
         Args:
@@ -71,12 +67,14 @@ with HMDAG(
         base_paths = {}
 
         for i in range(0, len(dataset_ids), batch_size):
-            batch = dataset_ids[i:i + batch_size]
+            batch = dataset_ids[i : i + batch_size]
             endpoint = f"datasets/file-system-abs-path"
 
             http_hook = HttpHook("POST", http_conn_id="ingest_api_connection")
             response = http_hook.run(
-                endpoint, headers=headers, json=batch,
+                endpoint,
+                headers=headers,
+                json=batch,
             )
             response.raise_for_status()
             for item in response.json():
@@ -88,9 +86,7 @@ with HMDAG(
 
     def get_uuids(**kwargs):
         query = {
-            "_source": [
-                "entity_type", "creation_action", "dataset_type", "status", "uuid"
-            ],
+            "_source": ["entity_type", "creation_action", "dataset_type", "status", "uuid"],
             "size": 5,  # Adjust if you have more than 10k datasets
             "query": {
                 "bool": {
@@ -99,19 +95,19 @@ with HMDAG(
                         {"match": {"entity_type": "Dataset"}},
                     ],
                     "should": [
-                        {"match": {"status": "Published"}},  # Either Published or QA
+                        {"match": {"status": "Published"}},  # Either Published, QA, or Approval
+                        {"match": {"status": "Approval"}},
                         {"match": {"status": "QA"}},
                     ],
-                    "minimum_should_match": 1
+                    "minimum_should_match": 1,
                 }
-            }
+            },
         }
         http_hook = HttpHook("POST", http_conn_id="search_api_connection")
         # TODO: find why the connection id isn't getting the v3 portion
         endpoint = f"/v3/portal/search"
         headers = {
-            "Authorization": f"Bearer "
-                             f"{get_auth_tok(**kwargs)}",
+            "Authorization": f"Bearer {get_auth_tok(**kwargs)}",
             "Content-Type": "application/json",
         }
         response = http_hook.run(endpoint=endpoint, headers=headers, json=query)
@@ -119,26 +115,28 @@ with HMDAG(
         data = response.json()
         print(f"Long return {data}")
 
-        df = pd.json_normalize(data, record_path=['hits', 'hits'])
+        df = pd.json_normalize(data, record_path=["hits", "hits"])
 
         # Rename columns for clarity
-        df = df.rename(columns={
-            '_id': 'uuid',
-            '_source.dataset_type': 'dataset_type',
-        })
+        df = df.rename(
+            columns={
+                "_id": "uuid",
+                "_source.dataset_type": "dataset_type",
+            }
+        )
 
         # Keep only relevant columns
-        columns_to_keep = ['uuid', 'dataset_type']
+        columns_to_keep = ["uuid", "dataset_type"]
         df = df[[col for col in columns_to_keep if col in df.columns]]
         print(f"Found {len(df)}")
 
         # Get base paths for all datasets
         print("   Fetching dataset base paths from Ingest API...")
-        dataset_ids = df['uuid'].tolist()
+        dataset_ids = df["uuid"].tolist()
         base_paths = _get_dataset_base_paths(dataset_ids, get_auth_tok(**kwargs))
 
         # Add directory column to dataframe
-        df['directory'] = df['uuid'].map(base_paths).fillna('')
+        df["directory"] = df["uuid"].map(base_paths).fillna("")
         print(f"Retrieved {len(base_paths)} base paths")
 
         df.to_csv(Path(get_tmp_dir_path(kwargs["run_id"])) / "datasets.csv", index=False)
@@ -167,9 +165,4 @@ with HMDAG(
     t_create_tmpdir = CreateTmpDirOperator(task_id="create_temp_dir")
     t_cleanup_tmpdir = CleanupTmpDirOperator(task_id="cleanup_temp_dir")
 
-    (
-        t_create_tmpdir
-        >> t_get_uuids
-        >> t_calculate_statistics
-        >> t_cleanup_tmpdir
-    )
+    (t_create_tmpdir >> t_get_uuids >> t_calculate_statistics >> t_cleanup_tmpdir)

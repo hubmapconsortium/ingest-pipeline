@@ -2123,15 +2123,20 @@ def format_multiline(string: str) -> str:
 
 
 def assert_qa_or_better(status: str, additional_statuses: list[str] = []):
+    assert check_status_is_qa_or_better(
+        status, additional_statuses
+    ), "Current status of dataset is not QA or better"
+
+
+def check_status_is_qa_or_better(status: str, additional_statuses: list[str] = []) -> str | None:
     statuses = [
         "qa",
         "approval",
         "published",
         *[addtl_status.lower() for addtl_status in additional_statuses],
     ]
-    assert (
-        status.lower() in statuses
-    ), f"Current status of dataset is not QA or better (or in {additional_statuses})"
+    if status.lower() in statuses:
+        return status
 
 
 def main():
