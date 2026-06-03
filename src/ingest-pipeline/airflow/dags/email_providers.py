@@ -392,6 +392,7 @@ status_to_description = {
     Statuses.DATASET_ERROR: "Datasets have encountered an internal HIVE error. Curators and developers are working to address the issue.<br>",
     Statuses.DATASET_SUBMITTED: "Datasets have been reorganized from a bulk upload submission. They are ready for dataset-level validation and HIVE central analysis processing (as applicable by assay type).<br>",
     Statuses.DATASET_PROCESSING: "Datasets are going through the ingest process.<br>",
+    Statuses.DATASET_APPROVAL: "You have approved this dataset for publication.<br>",
     # TODO: deprecated statuses--should we include, just in case?
     # Statuses.DATASET_HOLD: "",
     # Statuses.DATASET_DEPRECATED: "",
