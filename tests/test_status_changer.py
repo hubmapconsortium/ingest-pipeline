@@ -6,7 +6,6 @@ from functools import cached_property
 from unittest.mock import MagicMock, PropertyMock, patch
 
 import requests
-from fixtures import dataset_context_mock_value, endpoints, good_upload_context
 from status_change.callbacks.failure_callback import FailureCallback
 from status_change.data_ingest_board_manager import DataIngestBoardManager
 from status_change.email_manager import EmailManager
@@ -1124,19 +1123,35 @@ class TestEmailManager(MockParent):
                     cc=[INT_RECIPIENTS],
                 )
 
-    def test_get_content_error(self):
+    def test_get_content_error_upload(self):
         manager = self.email_manager(
             Statuses.UPLOAD_ERROR,
             context=good_upload_context | {"error_message": "An error has occurred"},
         )
-        expected_subj = "Internal error for upload test_hm_id"
         expected_msg = "HuBMAP ID: test_hm_id<br>UUID: test_uuid<br>Entity type: Upload<br>Status: Error<br>Group: test group<br>Primary contact: test@user.com<br>Ingest page: https://ingest.hubmapconsortium.org/upload/test_uuid<br>Run ID: test_run_id<br>Log file: test_path/test_run_id<br>"
-        # print(f"Expected subject: {expected_subj}")
-        # print(f"Actual subj: {manager.subj}")
-        # print(f"Expected msg: {expected_msg}")
-        # print(f"Actual msg: {manager.msg}")
-        assert manager.subj == expected_subj
+        assert manager.subj == "Internal error for upload test_hm_id"
         assert manager.msg == expected_msg
+
+    def test_get_subj_error_dataset(self):
+        manager = self.email_manager(
+            Statuses.DATASET_ERROR,
+            context=dataset_context_mock_value | {"error_message": "An error has occurred"},
+            messages={"processing_pipeline": "test_pipeline"},
+        )
+        assert manager.subj == f"[test_pipeline] Pipeline failed for test_hm_dataset_id"
+
+    def test_get_subj_error_derived_dataset(self):
+        manager = self.email_manager(
+            Statuses.DATASET_ERROR,
+            context=dataset_context_mock_value
+            | derived_dataset_context_mock_value
+            | {"error_message": "An error has occurred"},
+            messages={"processing_pipeline": "test_pipeline"},
+        )
+        assert (
+            manager.subj
+            == f"[test_pipeline] Internal error for derived dataset test_hm_dataset_id"
+        )
 
     def test_get_content_invalid(self):
         manager = self.email_manager(
