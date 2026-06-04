@@ -554,7 +554,6 @@ def reorganize(source_uuid, **kwargs) -> Union[Tuple, None]:
             for uuid in child_uuid_list:
                 submit_uuid(uuid, entity_factory, dryrun)
                 if not dryrun:
-                    # TODO: Approval?
                     while entity_factory.get(uuid).status not in ["QA", "Invalid", "Error"]:
                         time.sleep(30)
 

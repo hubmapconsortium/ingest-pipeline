@@ -93,8 +93,7 @@ with HMDAG(
 
         if ds_rslt["entity_type"] != "Publication":
             raise AirflowException(f"{uuid} is not a Publication")
-        # TODO: Approval?
-        if ds_rslt["status"] not in ["New", "Submitted", "Invalid", "QA"]:
+        if ds_rslt["status"] not in ["New", "Submitted", "Invalid", "QA", "Approval"]:
             raise AirflowException(
                 f"status of Upload {uuid} is not New, Submitted, Invalid, or Processing"
             )
