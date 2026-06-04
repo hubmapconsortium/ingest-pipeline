@@ -48,6 +48,7 @@ class Project(Enum):
 
 class Statuses(str, Enum):
     # Dataset Hold and Deprecated are not currently in use but are valid for Entity API
+    DATASET_APPROVAL = "dataset_approval"
     DATASET_DEPRECATED = "dataset_deprecated"
     DATASET_ERROR = "dataset_error"
     DATASET_HOLD = "dataset_hold"

@@ -408,10 +408,7 @@ def get_dataset_type_previous_version(**kwargs) -> list[str]:
         return dataset_uuid
 
     ds_rslt = pythonop_get_dataset_state(dataset_uuid_callable=my_callable, **kwargs)
-    assert ds_rslt["status"] in [
-        "QA",
-        "Published",
-    ], "Current status of dataset is not QA or better"
+    assert_qa_or_better(ds_rslt["status"])
     return ds_rslt["dataset_type"]
 
 
@@ -425,10 +422,7 @@ def get_dataname_previous_version(**kwargs) -> str:
         return dataset_uuid
 
     ds_rslt = pythonop_get_dataset_state(dataset_uuid_callable=my_callable, **kwargs)
-    assert ds_rslt["status"] in [
-        "QA",
-        "Published",
-    ], "Current status of dataset is not QA or better"
+    assert_qa_or_better(ds_rslt["status"])
     return ds_rslt["dataset_info"]
 
 
@@ -2126,6 +2120,24 @@ def send_email_with_config_recipients(
 
 def format_multiline(string: str) -> str:
     return dedent(string.strip())
+
+
+def assert_qa_or_better(status: str, additional_statuses: list[str] = []):
+    msg = f"Current status of dataset ({status}) is not QA or better"
+    if additional_statuses:
+        msg = f"{msg} (or in {additional_statuses})"
+    assert check_status_is_qa_or_better(status, additional_statuses), msg
+
+
+def check_status_is_qa_or_better(status: str, additional_statuses: list[str] = []) -> str | None:
+    statuses = [
+        "qa",
+        "approval",
+        "published",
+        *[addtl_status.lower() for addtl_status in additional_statuses],
+    ]
+    if status.lower() in statuses:
+        return status
 
 
 def main():

@@ -14,6 +14,7 @@ from status_change.status_utils import (
 class StatisticsManager(MessageManager):
     good_statuses = [
         Statuses.DATASET_QA,
+        Statuses.DATASET_APPROVAL,
     ]
 
     def __init__(
