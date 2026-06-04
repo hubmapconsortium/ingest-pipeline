@@ -385,6 +385,12 @@ def get_template(data: pd.DataFrame, group_name: str) -> list[str]:
 # Formatting #
 ##############
 
+data_provider_actionable_statuses = [
+    Statuses.DATASET_APPROVAL,
+    Statuses.DATASET_INVALID,
+    Statuses.DATASET_NEW,
+]
+
 status_to_description = {
     Statuses.DATASET_QA: "Datasets have passed validation and are now ready to be sent to submitting sites for publication review.<br>",
     Statuses.DATASET_INVALID: f"Datasets cannot be validated due a metadata or directory issue. View the errors on the dataset ingest page and correct them. Help is available by scheduling with Data Curator Brendan Honick ({CURATION_OFFICE_HOURS_SCHEDULING_LINK}).<br>",
@@ -402,7 +408,7 @@ status_to_description = {
 def add_instructions(data: pd.DataFrame):
     return annotated_statuses(
         data,
-        [Statuses.DATASET_APPROVAL, Statuses.DATASET_INVALID, Statuses.DATASET_NEW],
+        data_provider_actionable_statuses,
         "What you can do to move datasets forward",
         "Some dataset statuses indicate the need for intervention by the data provider. Below are some brief instructions by status.",
     )
@@ -414,8 +420,7 @@ def add_other_counts(data: pd.DataFrame) -> list[str]:
         [
             status
             for status in status_to_description
-            if status
-            not in [Statuses.DATASET_APPROVAL, Statuses.DATASET_INVALID, Statuses.DATASET_NEW]
+            if status not in data_provider_actionable_statuses
         ],
         "Datasets currently in the ingestion process",
         "Below are counts of datasets not currently requiring action on your part, with a brief description of each status.",
