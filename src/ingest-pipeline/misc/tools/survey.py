@@ -9,7 +9,6 @@ from pathlib import Path
 import pandas as pd
 import requests
 from hubmap_commons.hm_auth import AuthHelper
-from utils import check_status_is_qa_or_better
 
 # No trailing slashes in the following URLs!
 ENDPOINTS = {
