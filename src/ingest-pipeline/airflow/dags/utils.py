@@ -2122,13 +2122,6 @@ def format_multiline(string: str) -> str:
     return dedent(string.strip())
 
 
-def assert_qa_or_better(status: str, additional_statuses: list[str] = []):
-    msg = f"Current status of dataset ({status}) is not QA or better"
-    if additional_statuses:
-        msg = f"{msg} (or in {additional_statuses})"
-    assert check_status_is_qa_or_better(status, additional_statuses), msg
-
-
 def check_status_is_qa_or_better(status: str, additional_statuses: list[str] = []) -> str | None:
     statuses = [
         "qa",
@@ -2138,6 +2131,13 @@ def check_status_is_qa_or_better(status: str, additional_statuses: list[str] = [
     ]
     if status.lower() in statuses:
         return status
+
+
+def assert_qa_or_better(status: str, additional_statuses: list[str] = []):
+    msg = f"Current status of dataset ({status}) is not QA or better"
+    if additional_statuses:
+        msg = f"{msg} (or in {additional_statuses})"
+    assert check_status_is_qa_or_better(status, additional_statuses), msg
 
 
 def main():
