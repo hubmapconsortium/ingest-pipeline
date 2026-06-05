@@ -5,6 +5,7 @@ from airflow.operators.bash import BashOperator
 from airflow.operators.python import PythonOperator
 from airflow.operators.python import BranchPythonOperator
 from airflow.operators.empty import EmptyOperator
+from airflow.utils.session import provide_session
 
 # these are the hubmap common operators that are used in all DAGS
 from hubmap_operators.common_operators import (
@@ -33,6 +34,7 @@ from utils import (
     get_preserve_scratch_resource,
     get_cwl_cmd_from_workflows,
 )
+from crate_manager import CrateManager
 
 # Passed directly to the pipeline
 DOWNSAMPLE_TYPE = "LINEAR"
@@ -60,6 +62,7 @@ with HMDAG(
     schedule_interval=None,
     is_paused_upon_creation=False,
     default_args=default_args,
+    crate_manager=CrateManager(),
     user_defined_macros={
         "tmp_dir_path": get_tmp_dir_path,
         "preserve_scratch": get_preserve_scratch_resource("ometiff_pyramid_ims"),
@@ -70,7 +73,7 @@ with HMDAG(
     workflow_description = (
         "The Image Pyramid pipeline converts OME-TIFF images into OME-TIFF pyramids."
     )
-
+    
     cwl_workflows = [
         {
             "workflow_path": str(get_absolute_workflow(Path("ome-tiff-pyramid", "pipeline.cwl"))),
@@ -91,6 +94,7 @@ with HMDAG(
     prepare_cwl1 = EmptyOperator(task_id="prepare_cwl1")
 
     # print useful info and build command line
+    @provide_session
     def build_cwltool_cmd1(**kwargs):
         run_id = kwargs["run_id"]
 
@@ -109,7 +113,8 @@ with HMDAG(
         ]
         command = get_cwl_cmd_from_workflows(
             cwl_workflows, 0, input_parameters, tmpdir, kwargs["ti"],
-            crate_manager=dag.crate_manager
+            crate_manager=dag.crate_manager,
+            session=kwargs["session"]
         )
 
         return join_quote_command_str(command)
@@ -134,6 +139,7 @@ with HMDAG(
     prepare_cwl2 = EmptyOperator(task_id="prepare_cwl2")
 
     # print useful info and build command line
+    @provide_session
     def build_cwltool_cmd2(**kwargs):
         run_id = kwargs["run_id"]
 
@@ -251,7 +257,7 @@ with HMDAG(
     t_log_info = LogInfoOperator(task_id="log_info")
     t_join = JoinOperator(task_id="join")
     t_create_tmpdir = CreateTmpDirOperator(task_id="create_tmpdir")
-    t_cleanup_tmpdir = CleanupTmpDirOperator(task_id="cleanup_tmpdir")
+    #t_cleanup_tmpdir = CleanupTmpDirOperator(task_id="cleanup_tmpdir")
     t_move_data = MoveDataOperator(task_id="move_data")
 
     # DAG
@@ -279,4 +285,4 @@ with HMDAG(
     t_maybe_keep_cwl2 >> t_set_dataset_error
     t_set_dataset_error >> t_join
     t_maybe_create_dataset >> t_join
-    t_join >> t_cleanup_tmpdir
+    # t_join >> t_cleanup_tmpdir

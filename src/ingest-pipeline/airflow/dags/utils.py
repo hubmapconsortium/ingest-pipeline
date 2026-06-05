@@ -228,7 +228,7 @@ class HMDAG(DAG):
         """
         if "max_active_runs" not in kwargs:
             kwargs["max_active_runs"] = get_lanes_resource(dag_id)
-        self.crate_manager = kwargs.get("crate_manager", DummyCrateManager())
+        self.crate_manager = kwargs.pop("crate_manager", DummyCrateManager())
         super().__init__(dag_id, **kwargs)
 
     def add_task(self, task: Operator):
@@ -272,13 +272,14 @@ def find_pipeline_manifests(cwl_files: list[Path] | list[dict] | str) -> list[Pa
 
 
 def get_cwl_cmd_from_workflows(
-    workflows: list[dict],
-    workflow_index: int,
-    input_param_vals: list,
-    tmp_dir: Path,
-    ti,
-    cwl_param_vals: list[dict] | None = None,
-    crate_manager: CrateManager | DummyCrateManager = DummyCrateManager(),
+        workflows: list[dict],
+        workflow_index: int,
+        input_param_vals: list,
+        tmp_dir: Path,
+        ti,
+        cwl_param_vals: list[dict] | None = None,
+        crate_manager: CrateManager | None = None,
+        session = None,
 ) -> list:
     """
     :param workflows: Iterable of workflow dictionaries
@@ -296,9 +297,6 @@ def get_cwl_cmd_from_workflows(
     # Get the cwl invocation
     command = [*get_cwltool_base_cmd(tmp_dir)]
 
-    # Add the provenance argument for this workflow
-    command += crate_manager.get_args(tmp_dir)
-
     # Rather than setting outdir, cycle through cwl_param vals and see whether its present
     # if not, then we set it to the default value.
     outdir_present = False
@@ -314,6 +312,10 @@ def get_cwl_cmd_from_workflows(
 
     if not outdir_present:
         command.extend(["--outdir", str(tmp_dir / "cwl_out")])
+
+    # Add the provenance argument for this workflow, if any
+    if crate_manager:
+        command += crate_manager.get_args(tmp_dir, ti, session)
 
     command.append(Path(workflow["workflow_path"]))
 
