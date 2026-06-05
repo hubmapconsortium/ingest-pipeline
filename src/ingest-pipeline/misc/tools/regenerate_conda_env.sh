@@ -70,4 +70,6 @@ fi
 conda activate ${conda_env_path}
 
 # Install requirements using pip
+pip install -r ../../submodules/ingest-validation-tests/requirements.txt
+pip install -r ../../submodules/ingest-validation-tools/requirements.txt
 pip install -r ../../requirements.txt

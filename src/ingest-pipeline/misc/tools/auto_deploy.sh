@@ -28,16 +28,16 @@ function set_main_environment(){
 done
 }
 
-while getopts ":g:n" opt; do
-  case $opt in
-    g)
+while [ $# -gt 0 ]; do
+  case $1 in
+    -g)
       regenerate_env=true
       ;;
-    n)
+    -n)
       dry_run=true
       ;;
-    \?)
-      echo "Invalid option: -$OPTARG" >&2
+    *)
+      echo "Invalid option: $1" >&2
       ;;
   esac
 done
