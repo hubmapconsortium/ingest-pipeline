@@ -125,13 +125,14 @@ with HMDAG(
         print("data_dir: ", data_dir)
 
         workflow = cwl_workflows[0]
-        meta_yml_path = str(Path(workflow["workflow_path"]).parent / "meta.yaml")
+        meta_yml_path = Path(workflow["workflow_path"]).parent / "meta.yaml"
 
         input_parameters = [
             {"parameter_name": "--gpus", "value": "all"},
             {"parameter_name": "--segmentation_method", "value": "deepcell"},
             {"parameter_name": "--data_dir", "value": str(data_dir)},
-            {"parameter_name": "--invert_geojson_mask", "value": ""},
+            # {"parameter_name": "--invert_geojson_mask", "value": ""},
+            {"parameter_name": "--meta_path", "value": str(meta_yml_path)},
         ]
 
         command = get_cwl_cmd_from_workflows(
