@@ -66,7 +66,7 @@ with HMDAG(
     cwl_workflows = [
         {
             "workflow_path": str(
-                get_absolute_workflow(Path("phenocycler-pipeline", "pipeline.cwl"))
+                get_absolute_workflow(Path("celldive-pipeline", "pipeline.cwl"))
             ),
             "documentation_url": "",
         },
