@@ -5,7 +5,7 @@ from airflow.operators.bash import BashOperator
 from airflow.operators.python import PythonOperator
 from airflow.operators.python import BranchPythonOperator
 from airflow.operators.empty import EmptyOperator
-from airflow.utils.session import provide_session
+from airflow.utils.session import provide_session, NEW_SESSION
 
 # these are the hubmap common operators that are used in all DAGS
 from hubmap_operators.common_operators import (
@@ -95,7 +95,7 @@ with HMDAG(
 
     # print useful info and build command line
     @provide_session
-    def build_cwltool_cmd1(**kwargs):
+    def build_cwltool_cmd1(session=NEW_SESSION, **kwargs):
         run_id = kwargs["run_id"]
 
         # tmpdir is temp directory in /hubmap-tmp
@@ -111,10 +111,13 @@ with HMDAG(
             {"parameter_name": "--downsample_type", "value": DOWNSAMPLE_TYPE},
             {"parameter_name": "--ometiff_directory", "value": str(data_dir)},
         ]
+        print("kwargs follow")
+        from pprint import pprint
+        pprint(kwargs)
         command = get_cwl_cmd_from_workflows(
             cwl_workflows, 0, input_parameters, tmpdir, kwargs["ti"],
             crate_manager=dag.crate_manager,
-            session=kwargs["session"]
+            session=session
         )
 
         return join_quote_command_str(command)
@@ -140,7 +143,7 @@ with HMDAG(
 
     # print useful info and build command line
     @provide_session
-    def build_cwltool_cmd2(**kwargs):
+    def build_cwltool_cmd2(session=NEW_SESSION, **kwargs):
         run_id = kwargs["run_id"]
 
         # tmpdir is temp directory in /hubmap-tmp
@@ -157,7 +160,8 @@ with HMDAG(
         ]
         command = get_cwl_cmd_from_workflows(
             workflows, 1, input_parameters, tmpdir, kwargs["ti"],
-            crate_manager=dag.crate_manager
+            crate_manager=dag.crate_manager,
+            session=session
             )
 
         return join_quote_command_str(command)

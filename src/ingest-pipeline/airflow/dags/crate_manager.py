@@ -1,10 +1,24 @@
 import logging
 from pathlib import Path
 from itertools import count
+from pprint import pprint
+from airflow.models import DagRun, XCom
+
+CRATE_STATE_KEY = "crate_state"
 
 
-def find_most_recent_incarnation() -> dict | None :
-    return None
+def find_most_recent_incarnation(ti, session) -> dict | None :
+    query = (
+        session.query(XCom).join(DagRun,
+                                 (XCom.dag_id == DagRun.dag_id)
+                                 & (XCom.run_id == DagRun.run_id))
+        .filter(XCom.dag_id == ti.dag_id)
+        .filter(XCom.key == CRATE_STATE_KEY)
+        .filter(DagRun.run_id == ti.run_id)
+        .order_by(DagRun.execution_date.desc())
+        )
+    rec = query.first()
+    return rec.value if rec else None
 
 
 class CrateManager():
@@ -14,9 +28,23 @@ class CrateManager():
         self.tmp_dir = None
         self.crate_dir = None
         self.crate_counter = 0
+        self.crate_chain = []
         self.instance = next(self.instance_counter)
         logging.debug(f"CrateManager initialized instance {self.instance}")
         print(f"CrateManager initialized instance {self.instance}")
+
+    def to_json(self)-> dict:
+        return {
+            "instance": self.instance,
+            "crate_counter": self.crate_counter,
+            "crate_chain": self.crate_chain,
+        }
+
+    def update_from_json(self, blob: dict) -> None:
+        assert blob["instance"] == self.instance
+        self.crate_counter = blob["crate_counter"]
+        self.crate_chain = blob["crate_chain"]
+        
 
     def check_scratch_dir(self, tmp_dir: [Path, str]) -> None:
         if self.tmp_dir is None:
@@ -28,23 +56,29 @@ class CrateManager():
         elif self.tmp_dir != Path(tmp_dir):
             raise RuntimeError(f"CrateManager: tmp_dir changed from {self.tmp_dir} to {tmp_dir}")
 
-    def _next_crate_dir(self) -> Path:
+    def create_crate_dir(self) -> Path:
         rslt = self.crate_dir / f"crate_{self.crate_counter:03d}"
         rslt.mkdir()
-        self.crate_counter += 1
         return rslt
 
     def get_args(self, tmp_dir: [Path, str], ti, session) -> list[str]:
         self.check_scratch_dir(tmp_dir)
-        logging.debug(f"ti is a {type(ti)}")
-        print(f"ti is a {type(ti)}")
-        logging.debug(f"session is a {type(session)}")
-        print(f"session is a {type(session)}")
         if self.crate_dir is None:
             raise RuntimeError("CrateManager: tmp_dir not set")
         assert self.crate_counter < 1000, "CrateManager: too many crates created"
-        rslt = ["--debug", "--provenance", f"{self._next_crate_dir()}"]
-        rslt = ["--debug"]
+        if prev_info := find_most_recent_incarnation(ti, session):
+            self.update_from_json(prev_info)
+            logging.debug(f"updated from previous incarnation {prev_info}")
+            self.crate_counter += 1
+        else:
+            logging.debug("no previous incarnation found")
+        crate_path = self.create_crate_dir()
+        self.crate_chain.append(str(crate_path))
+        if self.crate_counter > 0:
+            rslt = ["--provenance", f"{crate_path}"]
+        else:
+            rslt = []
+        ti.xcom_push(key=CRATE_STATE_KEY, value=self.to_json())
         return rslt
     
     def get_build_crate_cmd(self) -> str:
