@@ -51,26 +51,26 @@ if [ -z "$repo_env" ]; then
 fi
 
 for machine in "${hive_machines[@]}"; do
-        if $dry_run ; then
-            rsync -av --exclude "src/ingest-pipeline/airflow/logs" --delete-after --dry-run $repo_dir/ $machine:$repo_dir
-        else
-       	    # Rsync repo to machine
-            rsync -a --exclude "src/ingest-pipeline/airflow/logs" --delete-after $repo_dir/ $machine:$repo_dir
-        fi
+  if $dry_run ; then
+      rsync -av --exclude "src/ingest-pipeline/airflow/logs" --delete-after --dry-run $repo_dir/ $machine:$repo_dir
+  else
+      # Rsync repo to machine
+      rsync -a --exclude "src/ingest-pipeline/airflow/logs" --delete-after $repo_dir/ $machine:$repo_dir
+  fi
 
-       	# If flag set, run the conda environment regenerations
-        if $regenerate_env ; then
-                ssh $machine "/usr/local/bin/update_hubmap.sh $repo_dir $repo_env $python_version"
-        fi
+  # If flag set, run the conda environment regenerations
+  if $regenerate_env ; then
+          ssh $machine "/usr/local/bin/update_hubmap.sh $repo_dir $repo_env $python_version"
+  fi
 done
 
 # Separate because its easier to loop twice over a small list than insert string checking and manipulation
 for machine in "${b2_machines[@]}"; do
-        # Rsync repo to machine
-        rsync -a --exclude "src/ingest-pipeline/airflow/logs" 'ssh -J bridges2.psc.edu' $repo_dir/ $machine:$repo_dir
+  # Rsync repo to machine
+  rsync -a --exclude "src/ingest-pipeline/airflow/logs" 'ssh -J bridges2.psc.edu' $repo_dir/ $machine:$repo_dir
 
-        # If flag set, run the conda environment regenerations
-        if $regenerate_env ; then
-                ssh -J "bridges2.psc.edu" $machine "/usr/local/bin/update_hubmap.sh $repo_dir $repo_env $python_version"
-        fi
+  # If flag set, run the conda environment regenerations
+  if $regenerate_env ; then
+          ssh -J "bridges2.psc.edu" $machine "/usr/local/bin/update_hubmap.sh $repo_dir $repo_env $python_version"
+  fi
 done
