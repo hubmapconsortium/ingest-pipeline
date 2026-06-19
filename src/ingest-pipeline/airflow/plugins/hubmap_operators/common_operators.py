@@ -109,8 +109,5 @@ class MoveDataOperator(BashOperator):
             mv "$tmp_dir"/cwl_out/* "$ds_dir" >> "$tmp_dir/session.log" 2>&1 ; \
             echo $?
             """
-        if "crate_manager" in kwargs and isinstance(kwargs["crate_manager"], CrateManager):
-            print("MoveDataOperator: found CrateManager")
-            command = kwargs["crate_manager"].get_build_crate_cmd() + " && " + command
         super().__init__(
             bash_command=command, **kwargs)

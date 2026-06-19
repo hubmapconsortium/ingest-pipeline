@@ -172,6 +172,30 @@ with HMDAG(
         provide_context=True,
     )
 
+
+    @provide_session
+    def assemble_crate(session=NEW_SESSION, **kwargs):
+        crate_manager = dag.crate_manager
+        print("assemble_crate: found CrateManager")
+        if isinstance(crate_manager, CrateManager):
+            print("assemble_crate: crate_manager is the right type")
+            from pprint import pprint
+            pprint(kwargs)
+            ti = kwargs["ti"]
+            print(f"assemble_crate: ti is a {type(ti)}")
+            print(f"assemble_crate: session is of type {type(session)}")
+            output_dir = ti.xcom_pull(task_ids="send_create_dataset")
+            print(f"assemble_crate: output_dir is {output_dir}")
+            crate_manager.build_crate(output_dir, ti, session)
+        else:
+            print(f"assemble_crate: create_manager is a {type(crate_manager)}")
+
+    t_assemble_crate = PythonOperator(
+        task_id="assemble_crate",
+        python_callable=assemble_crate,
+        provide_context=True,
+    )
+
     t_pipeline_exec_cwl2 = BashOperator(
         task_id="pipeline_exec_cwl2",
         bash_command=""" \
@@ -180,7 +204,7 @@ with HMDAG(
         echo $?
         """,
     )
-
+    
     # next_op if true, bail_op if false. test_op returns value for testing.
     t_maybe_keep_cwl2 = BranchPythonOperator(
         task_id="maybe_keep_cwl2",
@@ -192,7 +216,7 @@ with HMDAG(
             "test_op": "pipeline_exec_cwl2",
         },
     )
-
+    
     t_maybe_create_dataset = BranchPythonOperator(
         task_id="maybe_create_dataset",
         python_callable=utils.pythonop_dataset_dryrun,
@@ -202,7 +226,7 @@ with HMDAG(
             "bail_op": "join",
         },
     )
-
+    
     # Others
     t_send_create_dataset = PythonOperator(
         task_id="send_create_dataset",
@@ -216,7 +240,7 @@ with HMDAG(
             "pipeline_shorthand": "Image Pyramid",
         },
     )
-
+    
     t_set_dataset_error = PythonOperator(
         task_id="set_dataset_error",
         python_callable=utils.pythonop_set_dataset_state,
@@ -229,7 +253,7 @@ with HMDAG(
             "pipeline_name": pipeline_name
         },
     )
-
+    
     # next_op if true, bail_op if false. test_op returns value for testing.
     t_maybe_keep_cwl1 = BranchPythonOperator(
         task_id="maybe_keep_cwl1",
@@ -241,7 +265,7 @@ with HMDAG(
             "test_op": "pipeline_exec_cwl1",
         },
     )
-
+    
     send_status_msg = make_send_status_msg_function(
         dag_file=__file__,
         retcode_ops=["pipeline_exec_cwl1", "pipeline_exec_cwl2", "move_data"],
@@ -251,13 +275,13 @@ with HMDAG(
         workflow_description=workflow_description,
         workflow_version=workflow_version,
     )
-
+    
     t_send_status = PythonOperator(
         task_id="send_status_msg",
         python_callable=send_status_msg,
         provide_context=True,
     )
-
+    
     t_log_info = LogInfoOperator(task_id="log_info")
     t_join = JoinOperator(task_id="join")
     t_create_tmpdir = CreateTmpDirOperator(task_id="create_tmpdir")
@@ -282,6 +306,7 @@ with HMDAG(
 
         >> t_send_create_dataset
         >> t_move_data
+        >> t_assemble_crate
         >> t_send_status
         >> t_join
     )
