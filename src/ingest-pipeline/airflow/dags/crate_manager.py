@@ -22,10 +22,8 @@ def find_most_recent_incarnation(ti, session) -> dict | None :
         .filter(XCom.dag_id == ti.dag_id)
         .filter(XCom.key == CRATE_STATE_KEY)
         .filter(DagRun.run_id == ti.run_id)
-        .order_by(TaskInstance.start_date.desc())
+        .order_by(XCom.timestamp.desc())
         )
-    for idx, row in enumerate(query.all()):
-        logging.debug(f"row {idx}: {row.value}")
         
     rec = query.first()
     return rec.value if rec else None
