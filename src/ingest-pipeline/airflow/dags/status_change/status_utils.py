@@ -100,6 +100,7 @@ ENTITY_STATUS_MAP = {
         "processing": Statuses.DATASET_PROCESSING,
         "published": Statuses.DATASET_PUBLISHED,
         "qa": Statuses.DATASET_QA,
+        "approval": Statuses.DATASET_APPROVAL,
         "submitted": Statuses.DATASET_SUBMITTED,
     },
     "publication": {
@@ -110,6 +111,7 @@ ENTITY_STATUS_MAP = {
         "processing": Statuses.PUBLICATION_PROCESSING,
         "published": Statuses.PUBLICATION_PUBLISHED,
         "qa": Statuses.PUBLICATION_QA,
+        "approval": Statuses.DATASET_APPROVAL,
         "submitted": Statuses.PUBLICATION_SUBMITTED,
     },
     "upload": {
