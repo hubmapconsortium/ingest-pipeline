@@ -2,7 +2,7 @@
 
 # What variables do we need?
 # Define HIVE machines
-# hive_machines=("l001.hive.psc.edu" "gpu002.pvt.hive.psc.edu")
+# hive_machines=("l001.pvt.hive.psc.edu" "gpu002.pvt.hive.psc.edu" "l004.pvt.hive.psc.edu" "l000.pvt.hive.psc.edu" "a001.pvt.hive.psc.edu")
 hive_machines=()
 # b2_machines=("v004.pvt.bridges2.psc.edu")
 b2_machines=()
@@ -18,25 +18,27 @@ function set_main_environment(){
   for ending in "${priority_list[@]}"; do
     file="$file_dir/$base_name$ending"
     if [ -f "$file" ]; then
-        echo "Selected file: $file"
-        source $file
-        repo_env="$HUBMAP_INSTANCE"
-        python_version="$HUBMAP_PYTHON_VERSION"
-        repo_dir="/opt/repositories/$(hostname -s)-$repo_env/ingest-pipeline"
-        break
+      echo "Selected file: $file"
+      source $file
+      repo_env="$HUBMAP_INSTANCE"
+      python_version="$HUBMAP_PYTHON_VERSION"
+      repo_dir="/opt/repositories/$(hostname -s)-$repo_env/ingest-pipeline"
+      break
     fi
 done
 }
 
-while getopts ":g:n" opt; do
-  case $opt in
-    g)
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -g)
       regenerate_env=true
+      shift
       ;;
     -n)
       dry_run=true
+      shift
       ;;
-    *)
+    -*)
       echo "Invalid option: $1" >&2
       ;;
   esac
@@ -47,20 +49,20 @@ set -x
 set_main_environment
 
 if [ -z "$repo_env" ]; then
-    exit "The environment variable HUBMAP_INSTANCE is not set."
+  exit "The environment variable HUBMAP_INSTANCE is not set."
 fi
 
 for machine in "${hive_machines[@]}"; do
   if $dry_run ; then
-      rsync -av --exclude "src/ingest-pipeline/airflow/logs" --delete-after --dry-run $repo_dir/ $machine:$repo_dir
+    rsync -av --exclude "src/ingest-pipeline/airflow/logs" --delete-after --dry-run $repo_dir/ $machine:$repo_dir
   else
-      # Rsync repo to machine
-      rsync -a --exclude "src/ingest-pipeline/airflow/logs" --delete-after $repo_dir/ $machine:$repo_dir
+    # Rsync repo to machine
+    rsync -a --exclude "src/ingest-pipeline/airflow/logs" --delete-after $repo_dir/ $machine:$repo_dir
   fi
 
   # If flag set, run the conda environment regenerations
   if $regenerate_env ; then
-          ssh $machine "/usr/local/bin/update_hubmap.sh $repo_dir $repo_env $python_version"
+    ssh $machine "/usr/local/bin/update_hubmap.sh $repo_dir $repo_env $python_version"
   fi
 done
 
@@ -71,6 +73,6 @@ for machine in "${b2_machines[@]}"; do
 
   # If flag set, run the conda environment regenerations
   if $regenerate_env ; then
-          ssh -J "bridges2.psc.edu" $machine "/usr/local/bin/update_hubmap.sh $repo_dir $repo_env $python_version"
+    ssh -J "bridges2.psc.edu" $machine "/usr/local/bin/update_hubmap.sh $repo_dir $repo_env $python_version"
   fi
 done
