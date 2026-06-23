@@ -10,8 +10,6 @@ from utils import (
     pythonop_trigger_target,
 )
 
-from crate_manager import CrateManager
-
 
 class LogInfoOperator(PythonOperator):
     # @apply_defaults
