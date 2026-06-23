@@ -58,7 +58,7 @@ default_args = {
 }
 
 with HMDAG(
-    "ometiff_pyramid_ims",
+    "ometiff_pyramid_ims_crate",
     schedule_interval=None,
     is_paused_upon_creation=False,
     default_args=default_args,
