@@ -5,7 +5,6 @@ from airflow.operators.bash import BashOperator
 from airflow.operators.python import PythonOperator
 from airflow.operators.python import BranchPythonOperator
 from airflow.operators.empty import EmptyOperator
-from airflow.utils.session import provide_session, NEW_SESSION
 
 # these are the hubmap common operators that are used in all DAGS
 from hubmap_operators.common_operators import (
@@ -34,7 +33,6 @@ from utils import (
     get_preserve_scratch_resource,
     get_cwl_cmd_from_workflows,
 )
-from crate_manager import CrateManager
 
 # Passed directly to the pipeline
 DOWNSAMPLE_TYPE = "LINEAR"
@@ -62,7 +60,6 @@ with HMDAG(
     schedule_interval=None,
     is_paused_upon_creation=False,
     default_args=default_args,
-    crate_manager=CrateManager(),
     user_defined_macros={
         "tmp_dir_path": get_tmp_dir_path,
         "preserve_scratch": get_preserve_scratch_resource("ometiff_pyramid_ims"),
@@ -73,7 +70,7 @@ with HMDAG(
     workflow_description = (
         "The Image Pyramid pipeline converts OME-TIFF images into OME-TIFF pyramids."
     )
-    
+
     cwl_workflows = [
         {
             "workflow_path": str(get_absolute_workflow(Path("ome-tiff-pyramid", "pipeline.cwl"))),
@@ -94,8 +91,7 @@ with HMDAG(
     prepare_cwl1 = EmptyOperator(task_id="prepare_cwl1")
 
     # print useful info and build command line
-    @provide_session
-    def build_cwltool_cmd1(session=NEW_SESSION, **kwargs):
+    def build_cwltool_cmd1(**kwargs):
         run_id = kwargs["run_id"]
 
         # tmpdir is temp directory in /hubmap-tmp
@@ -111,13 +107,8 @@ with HMDAG(
             {"parameter_name": "--downsample_type", "value": DOWNSAMPLE_TYPE},
             {"parameter_name": "--ometiff_directory", "value": str(data_dir)},
         ]
-        print("kwargs follow")
-        from pprint import pprint
-        pprint(kwargs)
         command = get_cwl_cmd_from_workflows(
-            cwl_workflows, 0, input_parameters, tmpdir, kwargs["ti"],
-            crate_manager=dag.crate_manager,
-            session=session
+            cwl_workflows, 0, input_parameters, tmpdir, kwargs["ti"]
         )
 
         return join_quote_command_str(command)
@@ -142,8 +133,7 @@ with HMDAG(
     prepare_cwl2 = EmptyOperator(task_id="prepare_cwl2")
 
     # print useful info and build command line
-    @provide_session
-    def build_cwltool_cmd2(session=NEW_SESSION, **kwargs):
+    def build_cwltool_cmd2(**kwargs):
         run_id = kwargs["run_id"]
 
         # tmpdir is temp directory in /hubmap-tmp
@@ -158,41 +148,13 @@ with HMDAG(
                 "value": str(tmpdir / "cwl_out/ometiff-pyramids"),
             },
         ]
-        command = get_cwl_cmd_from_workflows(
-            workflows, 1, input_parameters, tmpdir, kwargs["ti"],
-            crate_manager=dag.crate_manager,
-            session=session
-            )
+        command = get_cwl_cmd_from_workflows(workflows, 1, input_parameters, tmpdir, kwargs["ti"])
 
         return join_quote_command_str(command)
 
     t_build_cmd2 = PythonOperator(
         task_id="build_cmd2",
         python_callable=build_cwltool_cmd2,
-        provide_context=True,
-    )
-
-
-    @provide_session
-    def assemble_crate(session=NEW_SESSION, **kwargs):
-        crate_manager = dag.crate_manager
-        print("assemble_crate: found CrateManager")
-        if isinstance(crate_manager, CrateManager):
-            print("assemble_crate: crate_manager is the right type")
-            from pprint import pprint
-            pprint(kwargs)
-            ti = kwargs["ti"]
-            print(f"assemble_crate: ti is a {type(ti)}")
-            print(f"assemble_crate: session is of type {type(session)}")
-            output_dir = ti.xcom_pull(task_ids="send_create_dataset")
-            print(f"assemble_crate: output_dir is {output_dir}")
-            crate_manager.build_crate(output_dir, ti, session)
-        else:
-            print(f"assemble_crate: create_manager is a {type(crate_manager)}")
-
-    t_assemble_crate = PythonOperator(
-        task_id="assemble_crate",
-        python_callable=assemble_crate,
         provide_context=True,
     )
 
@@ -204,7 +166,7 @@ with HMDAG(
         echo $?
         """,
     )
-    
+
     # next_op if true, bail_op if false. test_op returns value for testing.
     t_maybe_keep_cwl2 = BranchPythonOperator(
         task_id="maybe_keep_cwl2",
@@ -216,7 +178,7 @@ with HMDAG(
             "test_op": "pipeline_exec_cwl2",
         },
     )
-    
+
     t_maybe_create_dataset = BranchPythonOperator(
         task_id="maybe_create_dataset",
         python_callable=utils.pythonop_dataset_dryrun,
@@ -226,7 +188,7 @@ with HMDAG(
             "bail_op": "join",
         },
     )
-    
+
     # Others
     t_send_create_dataset = PythonOperator(
         task_id="send_create_dataset",
@@ -240,7 +202,7 @@ with HMDAG(
             "pipeline_shorthand": "Image Pyramid",
         },
     )
-    
+
     t_set_dataset_error = PythonOperator(
         task_id="set_dataset_error",
         python_callable=utils.pythonop_set_dataset_state,
@@ -253,7 +215,7 @@ with HMDAG(
             "pipeline_name": pipeline_name
         },
     )
-    
+
     # next_op if true, bail_op if false. test_op returns value for testing.
     t_maybe_keep_cwl1 = BranchPythonOperator(
         task_id="maybe_keep_cwl1",
@@ -265,7 +227,7 @@ with HMDAG(
             "test_op": "pipeline_exec_cwl1",
         },
     )
-    
+
     send_status_msg = make_send_status_msg_function(
         dag_file=__file__,
         retcode_ops=["pipeline_exec_cwl1", "pipeline_exec_cwl2", "move_data"],
@@ -275,17 +237,17 @@ with HMDAG(
         workflow_description=workflow_description,
         workflow_version=workflow_version,
     )
-    
+
     t_send_status = PythonOperator(
         task_id="send_status_msg",
         python_callable=send_status_msg,
         provide_context=True,
     )
-    
+
     t_log_info = LogInfoOperator(task_id="log_info")
     t_join = JoinOperator(task_id="join")
     t_create_tmpdir = CreateTmpDirOperator(task_id="create_tmpdir")
-    #t_cleanup_tmpdir = CleanupTmpDirOperator(task_id="cleanup_tmpdir")
+    t_cleanup_tmpdir = CleanupTmpDirOperator(task_id="cleanup_tmpdir")
     t_move_data = MoveDataOperator(task_id="move_data")
 
     # DAG
@@ -306,7 +268,6 @@ with HMDAG(
 
         >> t_send_create_dataset
         >> t_move_data
-        >> t_assemble_crate
         >> t_send_status
         >> t_join
     )
@@ -314,4 +275,4 @@ with HMDAG(
     t_maybe_keep_cwl2 >> t_set_dataset_error
     t_set_dataset_error >> t_join
     t_maybe_create_dataset >> t_join
-    # t_join >> t_cleanup_tmpdir
+    t_join >> t_cleanup_tmpdir
