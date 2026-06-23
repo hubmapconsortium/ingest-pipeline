@@ -1,7 +1,6 @@
 import logging
 from pathlib import Path
 from itertools import count
-from pprint import pprint
 import bagit
 from rocrate.rocrate import ROCrate
 from rocrate.model.dataset import Dataset
@@ -24,7 +23,7 @@ def find_most_recent_incarnation(ti, session) -> dict | None :
         .filter(DagRun.run_id == ti.run_id)
         .order_by(XCom.timestamp.desc())
         )
-        
+
     rec = query.first()
     return rec.value if rec else None
 
@@ -39,7 +38,6 @@ class CrateManager():
         self.crate_chain = []
         self.instance = next(self.instance_counter)
         logging.debug(f"CrateManager initialized instance {self.instance}")
-        print(f"CrateManager initialized instance {self.instance}")
 
     def to_json(self)-> dict:
         return {
@@ -52,7 +50,7 @@ class CrateManager():
         assert blob["instance"] == self.instance
         self.crate_counter = blob["crate_counter"]
         self.crate_chain = blob["crate_chain"]
-        
+
 
     def check_scratch_dir(self, tmp_dir: [Path, str]) -> None:
         if self.tmp_dir is None:
@@ -60,7 +58,6 @@ class CrateManager():
             self.crate_dir = self.tmp_dir / "crates"
             self.crate_dir.mkdir(exist_ok=True)
             logging.debug(f"CrateManager {self.instance}: tmp_dir set to {self.tmp_dir}")
-            print(f"CrateManager {self.instance}: tmp_dir set to {self.tmp_dir}")
         elif self.tmp_dir != Path(tmp_dir):
             raise RuntimeError(f"CrateManager: tmp_dir changed from {self.tmp_dir} to {tmp_dir}")
 
@@ -88,7 +85,7 @@ class CrateManager():
             rslt = []
         ti.xcom_push(key=CRATE_STATE_KEY, value=self.to_json())
         return rslt
-    
+
     def build_crate(self, output_dir: str, ti, session) -> None:
         logging.debug("build_crate point 1")
         if prev_info := find_most_recent_incarnation(ti, session):
@@ -110,14 +107,14 @@ class CrateManager():
                 except (bagit.BagError, bagit.BagValidationError):
                     logging.debug(f"Skipping directory (not a valid BagIt object): {path.name} at {path}")
                     continue
-            
+
                 if is_bag:
                     # 3. Add the BagIt folder as a Dataset entity to the RO-Crate
                     # 'source' points to the local folder, 'dest_path' is its relative path inside the final crate
                     bag_dataset = crate.add_dataset(
                         source=path,
                         dest_path=path.name,
-                        properties={    
+                        properties={
                             "name": f"Dataset Bag: {path.name}",
                             "description": bag.info.get("Internal-Sender-Description",
                                                         "No description provided in bag-info.txt"),
@@ -128,7 +125,7 @@ class CrateManager():
                     # Optional: Extract author metadata from bag-info.txt if it exists
                     if "Contact-Name" in bag.info:
                         bag_dataset["author"] = bag.info["Contact-Name"]
-        
+
         # 4. Write the final RO-Crate structure to the output directory
         full_output_dir = f"{output_dir}/rocrate"
         logging.debug(f"Writing final RO-Crate to: {full_output_dir}")
@@ -139,17 +136,13 @@ class DummyCrateManager(CrateManager):
     def __init__(self):
         super().__init__()
         logging.debug(f"DummyCrateManager {self.instance} initialized")
-        print(f"DummyCrateManager {self.instance} initialized")
 
     def check_scratch_dir(self, tmp_dir: [Path, str]) -> None:
         logging.debug(f"DummyCrateManager {self.instance}: check_scratch_dir called with {tmp_dir}")
-        print(f"DummyCrateManager {self.instance}: check_scratch_dir called with {tmp_dir}")
 
     def get_args(self, tmp_dir: [Path, str]) -> list[str]:
         logging.debug("DummyCrateManager {self.instance}: get_args called")
-        print("DummyCrateManager {self.instance}: get_args called")
         return []
 
     def build_crate(self, output_dir: str, ti, session) -> None:
         logging.debug("DummyCrateManager {self.instance}: get_build_crate_cmd called")
-        print("DummyCrateManager {self.instance}: get_build_crate_cmd called")

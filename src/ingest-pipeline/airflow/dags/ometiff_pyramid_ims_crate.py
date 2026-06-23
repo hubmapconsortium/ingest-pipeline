@@ -111,9 +111,6 @@ with HMDAG(
             {"parameter_name": "--downsample_type", "value": DOWNSAMPLE_TYPE},
             {"parameter_name": "--ometiff_directory", "value": str(data_dir)},
         ]
-        print("kwargs follow")
-        from pprint import pprint
-        pprint(kwargs)
         command = get_cwl_cmd_from_workflows(
             cwl_workflows, 0, input_parameters, tmpdir, kwargs["ti"],
             crate_manager=dag.crate_manager,
@@ -176,16 +173,9 @@ with HMDAG(
     @provide_session
     def assemble_crate(session=NEW_SESSION, **kwargs):
         crate_manager = dag.crate_manager
-        print("assemble_crate: found CrateManager")
         if isinstance(crate_manager, CrateManager):
-            print("assemble_crate: crate_manager is the right type")
-            from pprint import pprint
-            pprint(kwargs)
             ti = kwargs["ti"]
-            print(f"assemble_crate: ti is a {type(ti)}")
-            print(f"assemble_crate: session is of type {type(session)}")
             output_dir = ti.xcom_pull(task_ids="send_create_dataset")
-            print(f"assemble_crate: output_dir is {output_dir}")
             crate_manager.build_crate(output_dir, ti, session)
         else:
             print(f"assemble_crate: create_manager is a {type(crate_manager)}")
