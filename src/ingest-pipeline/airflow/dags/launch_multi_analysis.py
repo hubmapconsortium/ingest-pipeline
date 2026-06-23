@@ -1,24 +1,23 @@
 import ast
-from pprint import pprint
 from datetime import datetime, timedelta
-
-from airflow.operators.python import PythonOperator
-from airflow.exceptions import AirflowException
-from airflow.configuration import conf as airflow_conf
-from hubmap_operators.flex_multi_dag_run import FlexMultiDagRunOperator
+from pprint import pprint
 
 import utils
-
+from extra_utils import check_link_published_drvs
+from hubmap_operators.flex_multi_dag_run import FlexMultiDagRunOperator
 from utils import (
-    assert_json_matches_schema,
     HMDAG,
-    get_queue_resource,
-    get_preserve_scratch_resource,
-    get_soft_data_assaytype,
+    assert_json_matches_schema,
+    assert_qa_or_better,
     get_auth_tok,
+    get_preserve_scratch_resource,
+    get_queue_resource,
+    get_soft_data_assaytype,
 )
 
-from extra_utils import check_link_published_drvs
+from airflow.configuration import conf as airflow_conf
+from airflow.exceptions import AirflowException
+from airflow.operators.python import PythonOperator
 
 
 def get_uuid_for_error(**kwargs) -> str:
@@ -75,8 +74,7 @@ with HMDAG(
         for key in ["status", "uuid", "local_directory_full_path", "metadata"]:
             assert key in ds_rslt, f"Dataset status for {uuid} has no {key}"
 
-        if not ds_rslt["status"] in ["New", "Error", "QA", "Published"]:
-            raise AirflowException(f"Dataset {uuid} is not QA or better")
+        assert_qa_or_better(ds_rslt["status"], ["New", "Error"])
 
         dt = ds_rslt["dataset_type"]
         if isinstance(dt, str) and dt.startswith("[") and dt.endswith("]"):
@@ -122,7 +120,8 @@ with HMDAG(
                 uuid, prev_version_uuid, avoid_previous_version, **kwargs
             )
             soft_data_assaytype = get_soft_data_assaytype(
-                uuid[0] if isinstance(uuid, list) else uuid, **kwargs)
+                uuid[0] if isinstance(uuid, list) else uuid, **kwargs
+            )
             print(f"Got {soft_data_assaytype} as the soft_data_assaytype for UUID {uuid}")
             filtered_data_types.append(soft_data_assaytype)
             filtered_path_l.append(lz_path)

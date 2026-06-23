@@ -5,7 +5,6 @@ from os.path import dirname, join
 from pathlib import Path
 
 import pandas as pd
-from biweekly_timetable import BiweeklyTimetable
 from hubmap_operators.common_operators import (
     CleanupTmpDirOperator,
     CreateTmpDirOperator,
@@ -55,10 +54,10 @@ default_args = {
 }
 
 with HMDAG(
-    dag_id="email_providers",
+    dag_id="email_providers_v1",
     default_args=default_args,
     is_paused_upon_creation=False,
-    schedule=BiweeklyTimetable(),
+    schedule_interval="30 17 * * MON#1,MON#3",
     catchup=False,
     user_defined_macros={
         "tmp_dir_path": get_tmp_dir_path,
@@ -386,13 +385,20 @@ def get_template(data: pd.DataFrame, group_name: str) -> list[str]:
 # Formatting #
 ##############
 
+data_provider_actionable_statuses = [
+    Statuses.DATASET_APPROVAL,
+    Statuses.DATASET_INVALID,
+    Statuses.DATASET_NEW,
+]
+
 status_to_description = {
-    Statuses.DATASET_QA: "The dataset has been validated and is ready for your approval. After reviewing these datasets, please email ingest@hubmapconsortium.org to list any datasets with issues that need to be addressed before publishing and/or indicate your approval of specific datasets for publication. Please include relevant dataset IDs in your message.<br>",
-    Statuses.DATASET_INVALID: f"The dataset cannot be validated due a metadata or directory issue. View the errors on the dataset ingest page and correct them. Help is available by scheduling with Data Curator Brendan Honick ({CURATION_OFFICE_HOURS_SCHEDULING_LINK}).<br>",
+    Statuses.DATASET_QA: "Datasets have passed validation and are now ready to be sent to submitting sites for publication review.<br>",
+    Statuses.DATASET_INVALID: f"Datasets cannot be validated due a metadata or directory issue. View the errors on the dataset ingest page and correct them. Help is available by scheduling with Data Curator Brendan Honick ({CURATION_OFFICE_HOURS_SCHEDULING_LINK}).<br>",
     Statuses.DATASET_NEW: 'This status is an artifact of prior status handling. Go to the dataset ingest page and press "Submit."<br>',
     Statuses.DATASET_ERROR: "Datasets have encountered an internal HIVE error. Curators and developers are working to address the issue.<br>",
     Statuses.DATASET_SUBMITTED: "Datasets have been reorganized from a bulk upload submission. They are ready for dataset-level validation and HIVE central analysis processing (as applicable by assay type).<br>",
     Statuses.DATASET_PROCESSING: "Datasets are going through the ingest process.<br>",
+    Statuses.DATASET_APPROVAL: "Datasets have been formally sent to the submitting site for publication review. After reviewing these datasets, please email ingest@hubmapconsortium.org to list any datasets with issues that need to be addressed before publishing and/or indicate your approval of specific datasets for publication. Please include relevant dataset IDs in your message.<br>",
     # TODO: deprecated statuses--should we include, just in case?
     # Statuses.DATASET_HOLD: "",
     # Statuses.DATASET_DEPRECATED: "",
@@ -402,7 +408,7 @@ status_to_description = {
 def add_instructions(data: pd.DataFrame):
     return annotated_statuses(
         data,
-        [Statuses.DATASET_QA, Statuses.DATASET_INVALID, Statuses.DATASET_NEW],
+        data_provider_actionable_statuses,
         "What you can do to move datasets forward",
         "Some dataset statuses indicate the need for intervention by the data provider. Below are some brief instructions by status.",
     )
@@ -414,7 +420,7 @@ def add_other_counts(data: pd.DataFrame) -> list[str]:
         [
             status
             for status in status_to_description
-            if status not in [Statuses.DATASET_QA, Statuses.DATASET_INVALID, Statuses.DATASET_NEW]
+            if status not in data_provider_actionable_statuses
         ],
         "Datasets currently in the ingestion process",
         "Below are counts of datasets not currently requiring action on your part, with a brief description of each status.",

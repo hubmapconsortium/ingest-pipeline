@@ -1,4 +1,4 @@
-import urllib.parse
+# import urllib.parse
 
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -29,7 +29,7 @@ from hubmap_operators.common_operators import (
 )
 from hubmap_operators.flex_multi_dag_run import FlexMultiDagRunOperator
 
-from airflow.configuration import conf as airflow_conf
+# from airflow.configuration import conf as airflow_conf
 
 from extra_utils import build_tag_containers
 
@@ -61,12 +61,12 @@ with HMDAG(
 ) as dag:
     pipeline_name = "celldive-pipeline"
     workflow_version = "1.0.0"
-    workflow_description = "The CellDive pipeline performs segments nuclei and cells using Cytokit, and performs spatial analysis of expression data using SPRM, which computes various measures of analyte intensity per cell, performs clustering based on expression and other data, and computes markers for each cluster."
+    workflow_description = "The CellDive pipeline performs segments nuclei and cells using [DeepCell](https://deepcell.readthedocs.io/en/latest/app-gallery/mesmer.html) and performs spatial analysis of expression data using SPRM, which computes various measures of analyte intensity per cell, performs clustering based on expression and other data, and computes markers for each cluster. DeepCell was chosen for segmentation based on its performance in [an evaluation](https://www.molbiolcell.org/doi/full/10.1091/mbc.E22-08-0364) of various methods across multiple tissues using quality metrics that can be calculated without the need for a human-segmented image for comparison. More information about DeepCell and the associated Mesmer algorithm can be found in the associated publication [here](https://www.nature.com/articles/s41587-021-01094-0). The segmentation masks and expression images are then used for cell type assignment using RIBCA, Stellar, and DeepCellTypes. SPRM is then used for spatial analysis of expression data, including computation of various measures of analyte intensity per cell, clustering based on expression and other data, marker computation per cluster, subclustering of cell types assigned by multiple methods and more."
 
     cwl_workflows = [
         {
             "workflow_path": str(
-                get_absolute_workflow(Path("phenocycler-pipeline", "pipeline.cwl"))
+                get_absolute_workflow(Path("celldive-pipeline", "pipeline.cwl"))
             ),
             "documentation_url": "",
         },
@@ -125,13 +125,14 @@ with HMDAG(
         print("data_dir: ", data_dir)
 
         workflow = cwl_workflows[0]
-        meta_yml_path = str(Path(workflow["workflow_path"]).parent / "meta.yaml")
+        meta_yml_path = Path(workflow["workflow_path"]).parent / "meta.yaml"
 
         input_parameters = [
             {"parameter_name": "--gpus", "value": "all"},
             {"parameter_name": "--segmentation_method", "value": "deepcell"},
             {"parameter_name": "--data_dir", "value": str(data_dir)},
-            {"parameter_name": "--invert_geojson_mask", "value": ""},
+            # {"parameter_name": "--invert_geojson_mask", "value": ""},
+            {"parameter_name": "--meta_path", "value": str(meta_yml_path)},
         ]
 
         command = get_cwl_cmd_from_workflows(

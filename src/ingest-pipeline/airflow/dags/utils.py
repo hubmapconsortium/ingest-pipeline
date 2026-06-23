@@ -419,10 +419,7 @@ def get_dataset_type_previous_version(**kwargs) -> list[str]:
         return dataset_uuid
 
     ds_rslt = pythonop_get_dataset_state(dataset_uuid_callable=my_callable, **kwargs)
-    assert ds_rslt["status"] in [
-        "QA",
-        "Published",
-    ], "Current status of dataset is not QA or better"
+    assert_qa_or_better(ds_rslt["status"])
     return ds_rslt["dataset_type"]
 
 
@@ -436,10 +433,7 @@ def get_dataname_previous_version(**kwargs) -> str:
         return dataset_uuid
 
     ds_rslt = pythonop_get_dataset_state(dataset_uuid_callable=my_callable, **kwargs)
-    assert ds_rslt["status"] in [
-        "QA",
-        "Published",
-    ], "Current status of dataset is not QA or better"
+    assert_qa_or_better(ds_rslt["status"])
     return ds_rslt["dataset_info"]
 
 
@@ -1014,7 +1008,7 @@ def pythonop_send_create_dataset(**kwargs) -> str:
         "datasets", http_conn_id, token, method="POST", payload=data
     )
     print("response from dataset creation...")
-    print(response_json)
+    pprint(response_json)
 
     for elt in ["uuid", "group_uuid"]:
         if elt not in response_json:
@@ -1530,6 +1524,7 @@ def make_send_status_msg_function(
     based on the return value of 'dataset_lz_path_fun' above.
     """
     from status_change.status_manager import EntityUpdateException, StatusChanger
+    from status_change.status_utils import base_slack_channel
 
     # Does the string represent a "true" value, or an int that is 1
     def __is_true(val):
@@ -1628,6 +1623,15 @@ def make_send_status_msg_function(
             if metadata_fun:
                 # Always override the value if files_info_alt_path is set, or if md["files"] is empty
                 files_info_alt_path = md["metadata"].pop("files_info_alt_path", [])
+                if files_info_alt_path:
+                    try:
+                        post_to_slack_notify(
+                            get_auth_tok(**kwargs),
+                            f"Files list too large, using files_info_alt_path for dataset {dataset_uuid}",
+                            env_appropriate_slack_channel(base_slack_channel),
+                        )
+                    except Exception as e:
+                        logging.warning(f"Could not send files_info_alt_path Slack alert: {e}")
                 md["files"] = (
                     files_info_alt_path
                     if files_info_alt_path or not md.get("files")
@@ -2127,6 +2131,24 @@ def send_email_with_config_recipients(
 
 def format_multiline(string: str) -> str:
     return dedent(string.strip())
+
+
+def check_status_is_qa_or_better(status: str, additional_statuses: list[str] = []) -> str | None:
+    statuses = [
+        "qa",
+        "approval",
+        "published",
+        *[addtl_status.lower() for addtl_status in additional_statuses],
+    ]
+    if status.lower() in statuses:
+        return status
+
+
+def assert_qa_or_better(status: str, additional_statuses: list[str] = []):
+    msg = f"Current status of dataset ({status}) is not QA or better"
+    if additional_statuses:
+        msg = f"{msg} (or in {additional_statuses})"
+    assert check_status_is_qa_or_better(status, additional_statuses), msg
 
 
 def main():

@@ -354,11 +354,7 @@ class Dataset(Entity):
                 "Multiple derived datasets",
             )
         else:
-            filtered_kids = [
-                self.kids[uuid]
-                for uuid in self.kids
-                if self.kids[uuid].status in ["QA", "Published"]
-            ]
+            filtered_kids = [check_status_is_qa_or_better(self.kids[uuid]) for uuid in self.kids]
             (uuid_hdr, doi_hdr, data_type_hdr, status_hdr, note_note) = (
                 "qa_child_uuid",
                 "qa_child_hubmap_id",

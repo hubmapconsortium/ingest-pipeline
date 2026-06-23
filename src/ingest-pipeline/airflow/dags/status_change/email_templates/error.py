@@ -6,10 +6,14 @@ from .base import EmailTemplate
 class ErrorStatusEmail(EmailTemplate):
 
     def format(self) -> tuple[str, str]:
+        pipeline = f"[{self.data.processing_pipeline}] " if self.data.processing_pipeline else ""
+        # Derived dataset created
         if self.data.derived:
-            subj = f"Internal error for derived dataset {self.data.entity_id}"
+            subj = f"{pipeline}Internal error for derived dataset {self.data.entity_id}"
+        # Pipeline failed before dataset creation
         elif self.data.processing_pipeline:
-            subj = f"Pipeline {self.data.processing_pipeline} failed for {self.data.entity_id}"
+            subj = f"{pipeline}Pipeline failed for {self.data.entity_id}"
+        # Primary dataset
         else:
             subj = f"Internal error for {self.data.entity_type.lower()} {self.data.entity_id}"
         msg = self.format_msg()

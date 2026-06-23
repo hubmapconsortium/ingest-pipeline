@@ -1,8 +1,6 @@
 from pathlib import Path
 from datetime import datetime, timedelta
 
-import utils
-from extra_utils import build_tag_containers
 from airflow.operators.bash import BashOperator
 from airflow.operators.python import PythonOperator, BranchPythonOperator
 from airflow.operators.empty import EmptyOperator
@@ -33,6 +31,7 @@ from utils import (
     get_preserve_scratch_resource,
     get_threads_resource,
     get_cwl_cmd_from_workflows,
+    gather_calculated_metadata,
 )
 
 from extra_utils import build_tag_containers
@@ -63,7 +62,7 @@ with HMDAG(
 ) as dag:
     pipeline_name = "codex-pipeline"
     workflow_version = "1.0.0"
-    workflow_description = "The CODEX pipeline performs illumination correction and other pre-processing steps, segments nuclei and cells using Cytokit, and performs spatial analysis of expression data using SPRM, which computes various measures of analyte intensity per cell, performs clustering based on expression and other data, and computes markers for each cluster."
+    workflow_description = "The CODEX pipeline performs illumination correction and other pre-processing steps, segments nuclei and cells using [Cytokit](https://github.com/hammerlab/cytokit) and marker channels specified by data providers, and performs spatial analysis of expression data using SPRM, which computes various measures of analyte intensity per cell, performs clustering based on expression and other data, and computes markers for each cluster."
     steps_dir = Path(pipeline_name) / "steps"
 
     cwl_workflows = [
@@ -851,6 +850,7 @@ with HMDAG(
         ),
         workflow_description=workflow_description,
         workflow_version=workflow_version,
+        metadata_fun=gather_calculated_metadata,
     )
 
     t_send_status = PythonOperator(

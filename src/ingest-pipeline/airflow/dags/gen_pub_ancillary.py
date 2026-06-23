@@ -1,44 +1,44 @@
 import json
-import utils
-from pathlib import Path
 from datetime import datetime, timedelta
+from pathlib import Path
 from pprint import pprint
-from requests import codes
-from requests.exceptions import HTTPError
 
 import frontmatter
-
-from airflow.operators.python import PythonOperator, BranchPythonOperator
-from airflow.exceptions import AirflowException
-from airflow.providers.http.hooks.http import HttpHook
-
+import utils
 from hubmap_operators.common_operators import (
-    CreateTmpDirOperator,
     CleanupTmpDirOperator,
-    LogInfoOperator,
+    CreateTmpDirOperator,
     JoinOperator,
+    LogInfoOperator,
     MoveDataOperator,
 )
-
+from requests import codes
+from requests.exceptions import HTTPError
 from utils import (
+    HMDAG,
     assert_json_matches_schema,
-    get_tmp_dir_path,
+)
+from utils import build_dataset_name as inner_build_dataset_name
+from utils import (
+    create_dataset_state_error_callback,
     get_auth_tok,
     get_dataset_uuid,
-    get_previous_revision_uuid,
-    build_dataset_name as inner_build_dataset_name,
-    pythonop_get_dataset_state,
-    pythonop_set_dataset_state,
-    pythonop_send_create_dataset,
-    pythonop_maybe_keep,
     get_parent_dataset_uuids_list,
-    HMDAG,
-    get_queue_resource,
     get_preserve_scratch_resource,
+    get_previous_revision_uuid,
+    get_queue_resource,
+    get_tmp_dir_path,
     get_uuid_for_error,
-    create_dataset_state_error_callback,
     make_send_status_msg_function,
+    pythonop_get_dataset_state,
+    pythonop_maybe_keep,
+    pythonop_send_create_dataset,
+    pythonop_set_dataset_state,
 )
+
+from airflow.exceptions import AirflowException
+from airflow.operators.python import BranchPythonOperator, PythonOperator
+from airflow.providers.http.hooks.http import HttpHook
 
 # Following are defaults which can be overridden later on
 default_args = {
@@ -93,7 +93,7 @@ with HMDAG(
 
         if ds_rslt["entity_type"] != "Publication":
             raise AirflowException(f"{uuid} is not a Publication")
-        if ds_rslt["status"] not in ["New", "Submitted", "QA"]:
+        if ds_rslt["status"] not in ["New", "Submitted", "Invalid", "QA", "Approval"]:
             raise AirflowException(
                 f"status of Upload {uuid} is not New, Submitted, Invalid, or Processing"
             )
@@ -241,7 +241,7 @@ with HMDAG(
             "dataset_uuid_callable": get_dataset_uuid,
             "ds_state": "Error",
             "message": "An error occurred in {}".format(pipeline_name),
-            "pipeline_name": pipeline_name
+            "pipeline_name": pipeline_name,
         },
     )
 

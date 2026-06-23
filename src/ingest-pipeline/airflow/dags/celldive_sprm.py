@@ -26,7 +26,6 @@ from utils import (
 
 from hubmap_operators.common_operators import (
     CleanupTmpDirOperator,
-    CreateTmpDirOperator,
     JoinOperator,
     LogInfoOperator,
     MoveDataOperator,

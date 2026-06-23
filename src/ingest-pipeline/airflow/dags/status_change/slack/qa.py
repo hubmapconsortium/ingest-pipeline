@@ -19,7 +19,8 @@ class SlackDatasetQADerived(SlackMessage):
         return get_is_derived(entity_data)
 
     def format(self):
-        message = [f"Derived dataset {self.entity_id} | {self.uuid} has reached QA!"]
+        pipeline = f"[{self.processing_pipeline}] " if self.processing_pipeline else ""
+        message = [f"{pipeline}Derived dataset {self.entity_id} | {self.uuid} has reached QA!"]
         if self.primary_dataset_info:
             message.append(f"Primary dataset: {self.create_primary_link()}.")
         message.extend(self.entity_links)

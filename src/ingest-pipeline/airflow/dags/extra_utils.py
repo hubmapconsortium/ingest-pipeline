@@ -2,7 +2,6 @@ import json
 import pandas as pd
 import re
 import torch
-import time
 
 from typing import List, Dict
 from pathlib import Path

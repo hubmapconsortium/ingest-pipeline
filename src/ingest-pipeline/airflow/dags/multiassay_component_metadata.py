@@ -1,32 +1,32 @@
 import os
 import time
-import yaml
-import utils
+from datetime import datetime, timedelta
 from pprint import pprint
 
-from airflow.operators.bash import BashOperator
-from airflow.operators.python import PythonOperator
-from airflow.exceptions import AirflowException
-from airflow.configuration import conf as airflow_conf
-from datetime import datetime, timedelta
-
+import utils
+import yaml
+from hubmap_operators.common_operators import (
+    CleanupTmpDirOperator,
+    CreateTmpDirOperator,
+)
 from utils import (
     HMDAG,
-    get_queue_resource,
-    get_preserve_scratch_resource,
-    create_dataset_state_error_callback,
-    pythonop_md_consistency_tests,
-    make_send_status_msg_function,
-    get_tmp_dir_path,
     assert_json_matches_schema,
-    pythonop_get_dataset_state,
+    assert_qa_or_better,
+    create_dataset_state_error_callback,
     encrypt_tok,
+    get_preserve_scratch_resource,
+    get_queue_resource,
+    get_tmp_dir_path,
+    make_send_status_msg_function,
+    pythonop_get_dataset_state,
+    pythonop_md_consistency_tests,
 )
 
-from hubmap_operators.common_operators import (
-    CreateTmpDirOperator,
-    CleanupTmpDirOperator,
-)
+from airflow.configuration import conf as airflow_conf
+from airflow.exceptions import AirflowException
+from airflow.operators.bash import BashOperator
+from airflow.operators.python import PythonOperator
 
 
 def get_uuid_for_error(**kwargs):
@@ -91,8 +91,7 @@ with HMDAG(
         for key in ["status", "uuid", "local_directory_full_path", "metadata", "dataset_type"]:
             assert key in ds_rslt, f"Dataset status for {uuid} has no {key}"
 
-        if not ds_rslt["status"] in ["New", "Error", "QA", "Published", "Submitted"]:
-            raise AirflowException(f"Dataset {uuid} is not QA or better")
+        assert_qa_or_better(ds_rslt["status"], ["New", "Error", "Submitted"])
 
         return (
             ds_rslt["uuid"],
