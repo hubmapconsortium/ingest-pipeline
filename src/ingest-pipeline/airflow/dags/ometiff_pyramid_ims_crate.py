@@ -275,7 +275,7 @@ with HMDAG(
     t_log_info = LogInfoOperator(task_id="log_info")
     t_join = JoinOperator(task_id="join")
     t_create_tmpdir = CreateTmpDirOperator(task_id="create_tmpdir")
-    #t_cleanup_tmpdir = CleanupTmpDirOperator(task_id="cleanup_tmpdir")
+    t_cleanup_tmpdir = CleanupTmpDirOperator(task_id="cleanup_tmpdir")
     t_move_data = MoveDataOperator(task_id="move_data")
 
     # DAG
@@ -304,4 +304,4 @@ with HMDAG(
     t_maybe_keep_cwl2 >> t_set_dataset_error
     t_set_dataset_error >> t_join
     t_maybe_create_dataset >> t_join
-    # t_join >> t_cleanup_tmpdir
+    t_join >> t_cleanup_tmpdir
