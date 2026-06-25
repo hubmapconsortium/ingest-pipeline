@@ -34,6 +34,7 @@ from requests.exceptions import HTTPError, JSONDecodeError
 from schema_utils import (
     localized_assert_json_matches_schema as assert_json_matches_schema,
 )
+from crate_manager import CrateManager, DummyCrateManager
 
 from airflow import DAG
 from airflow.configuration import conf as airflow_conf
@@ -227,6 +228,7 @@ class HMDAG(DAG):
         """
         if "max_active_runs" not in kwargs:
             kwargs["max_active_runs"] = get_lanes_resource(dag_id)
+        self.crate_manager = kwargs.pop("crate_manager", DummyCrateManager())
         super().__init__(dag_id, **kwargs)
 
     def add_task(self, task: Operator):
@@ -270,12 +272,14 @@ def find_pipeline_manifests(cwl_files: list[Path] | list[dict] | str) -> list[Pa
 
 
 def get_cwl_cmd_from_workflows(
-    workflows: list[dict],
-    workflow_index: int,
-    input_param_vals: list,
-    tmp_dir: Path,
-    ti,
-    cwl_param_vals: list[dict] | None = None,
+        workflows: list[dict],
+        workflow_index: int,
+        input_param_vals: list,
+        tmp_dir: Path,
+        ti,
+        cwl_param_vals: list[dict] | None = None,
+        crate_manager: CrateManager | None = None,
+        session = None,
 ) -> list:
     """
     :param workflows: Iterable of workflow dictionaries
@@ -285,6 +289,7 @@ def get_cwl_cmd_from_workflows(
     :param ti: task instance
     :return: list of cwl command and parameters
     """
+
     # Grab the workflow from the list of workflows
     workflow = workflows[workflow_index]
     workflow["input_parameters"] = input_param_vals
@@ -307,6 +312,12 @@ def get_cwl_cmd_from_workflows(
 
     if not outdir_present:
         command.extend(["--outdir", str(tmp_dir / "cwl_out")])
+
+    # Add the provenance argument for this workflow, if any
+    if crate_manager:
+        assert session is not None, ("A valid session is required"
+                                     " when using rocrates")
+        command += crate_manager.get_args(tmp_dir, ti, session)
 
     command.append(Path(workflow["workflow_path"]))
 
