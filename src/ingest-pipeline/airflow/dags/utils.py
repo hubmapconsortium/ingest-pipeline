@@ -317,7 +317,7 @@ def get_cwl_cmd_from_workflows(
     if crate_manager:
         assert session is not None, ("A valid session is required"
                                      " when using rocrates")
-        command += crate_manager.get_args(tmp_dir, ti, session)
+        command += crate_manager.get_args(tmp_dir, workflow, ti, session)
 
     command.append(Path(workflow["workflow_path"]))
 

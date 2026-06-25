@@ -1,5 +1,6 @@
 import logging
 from pathlib import Path
+from pprint import pformat
 from itertools import count
 import bagit
 from rocrate.rocrate import ROCrate
@@ -36,6 +37,7 @@ class CrateManager():
         self.crate_dir = None
         self.crate_counter = 0
         self.crate_chain = []
+        self.crate_info = {}
         self.instance = next(self.instance_counter)
         logging.debug(f"CrateManager initialized instance {self.instance}")
 
@@ -44,12 +46,14 @@ class CrateManager():
             "instance": self.instance,
             "crate_counter": self.crate_counter,
             "crate_chain": self.crate_chain,
+            "crate_info": self.crate_info,
         }
 
     def update_from_json(self, blob: dict) -> None:
         assert blob["instance"] == self.instance
         self.crate_counter = blob["crate_counter"]
         self.crate_chain = blob["crate_chain"]
+        self.crate_info = blob["crate_info"]
 
 
     def check_scratch_dir(self, tmp_dir: [Path, str]) -> None:
@@ -66,7 +70,8 @@ class CrateManager():
         rslt.mkdir()
         return rslt
 
-    def get_args(self, tmp_dir: [Path, str], ti, session) -> list[str]:
+    def get_args(self, tmp_dir: [Path, str], workflow: dict, ti, session) -> list[str]:
+        workflow = workflow.copy()  # avoid damage to the caller's workflow list
         self.check_scratch_dir(tmp_dir)
         if self.crate_dir is None:
             raise RuntimeError("CrateManager: tmp_dir not set")
@@ -79,10 +84,8 @@ class CrateManager():
             logging.debug("no previous incarnation found")
         crate_path = self.create_crate_dir()
         self.crate_chain.append(str(crate_path))
-        if self.crate_counter > 0:
-            rslt = ["--provenance", f"{crate_path}"]
-        else:
-            rslt = []
+        self.crate_info[crate_path.name()] = {"workflow": workflow}
+        rslt = ["--provenance", f"{crate_path}"]
         ti.xcom_push(key=CRATE_STATE_KEY, value=self.to_json())
         return rslt
 
@@ -93,38 +96,36 @@ class CrateManager():
             logging.debug(f"updated from previous incarnation {prev_info}")
         else:
             logging.debug("no previous incarnation found")
+        logging.debug(f"crate_info: \n{pformat(self.crate_info)}")
         crate = ROCrate()
         crate.name = "Aggregated Collection of BagIt Datasets"
         crate.description = "An overarching RO-Crate grouping multiple domain-specific BagIt objects."
 
         for path in [Path(p) for p in self.crate_chain]:
             if path.is_dir():
-                is_bag = False
                 try:
                     bag = bagit.Bag(str(path))
-                    is_bag = True
                     logging.debug(f"Found valid BagIt object: {path.name} at {path}")
                 except (bagit.BagError, bagit.BagValidationError):
                     logging.debug(f"Skipping directory (not a valid BagIt object): {path.name} at {path}")
                     continue
 
-                if is_bag:
-                    # 3. Add the BagIt folder as a Dataset entity to the RO-Crate
-                    # 'source' points to the local folder, 'dest_path' is its relative path inside the final crate
-                    bag_dataset = crate.add_dataset(
-                        source=path,
-                        dest_path=path.name,
-                        properties={
-                            "name": f"Dataset Bag: {path.name}",
-                            "description": bag.info.get("Internal-Sender-Description",
-                                                        "No description provided in bag-info.txt"),
-                            "conformsTo": "https://ietf.org", # Standard BagIt RFC
-                        }
-                    )
+                # 3. Add the BagIt folder as a Dataset entity to the RO-Crate
+                # 'source' points to the local folder, 'dest_path' is its relative path inside the final crate
+                bag_dataset = crate.add_dataset(
+                    source=path,
+                    dest_path=path.name,
+                    properties={
+                        "name": f"Dataset Bag: {path.name}",
+                        "description": bag.info.get("Internal-Sender-Description",
+                                                    "No description provided in bag-info.txt"),
+                        "conformsTo": "https://ietf.org", # Standard BagIt RFC
+                    }
+                )
 
-                    # Optional: Extract author metadata from bag-info.txt if it exists
-                    if "Contact-Name" in bag.info:
-                        bag_dataset["author"] = bag.info["Contact-Name"]
+                # Optional: Extract author metadata from bag-info.txt if it exists
+                if "Contact-Name" in bag.info:
+                    bag_dataset["author"] = bag.info["Contact-Name"]
 
         # 4. Write the final RO-Crate structure to the output directory
         full_output_dir = f"{output_dir}/rocrate"
