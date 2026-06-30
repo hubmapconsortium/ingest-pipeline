@@ -1989,6 +1989,8 @@ def gather_calculated_metadata(**kwargs):
 def gather_segmentation_metadata(**kwargs):
     # SPRM creates a segmentation-metadata.json file. If it doesn't exist then we just skip over.
     data_dir = kwargs["ti"].xcom_pull(task_ids="send_create_dataset")
+    if not data_dir:
+        return {}
     for seg_metadata in Path(data_dir).glob("**/segmentation-metadata.json"):
         return {"segmentation_metadata": json.load(open(seg_metadata))}
     return {}
