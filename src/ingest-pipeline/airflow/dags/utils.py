@@ -1649,6 +1649,9 @@ def make_send_status_msg_function(
                         if __is_true(val=v):
                             contacts.append(contrib)
 
+            if (segmentation_metadata := gather_segmentation_metadata(**kwargs).get("segmentation_metadata")) is not None:
+                md["segmentation_metadata"] = segmentation_metadata
+
             if not ds_rslt:
                 status = "QA"
             else:
@@ -1981,6 +1984,14 @@ def gather_calculated_metadata(**kwargs):
     file_path = f"{data_dir}/calculated_metadata.json"
     output_metadata = json.load(open(file_path)) if os.path.exists(file_path) else {}
     return {"calculated_metadata": output_metadata}
+
+
+def gather_segmentation_metadata(**kwargs):
+    # SPRM creates a segmentation-metadata.json file. If it doesn't exist then we just skip over.
+    data_dir = kwargs["ti"].xcom_pull(task_ids="send_create_dataset")
+    for seg_metadata in Path(data_dir).glob("**/segmentation-metadata.json"):
+        return {"segmentation_metadata": json.load(open(seg_metadata))}
+    return {}
 
 
 def post_to_slack_notify(token: str, message: str, channel: str):
