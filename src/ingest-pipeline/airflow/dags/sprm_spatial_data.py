@@ -23,14 +23,12 @@ from utils import (
     join_quote_command_str,
     make_send_status_msg_function,
     get_tmp_dir_path,
-    pythonop_get_dataset_state,
     HMDAG,
     get_queue_resource,
     get_preserve_scratch_resource,
     get_dataset_type_previous_version,
     get_dataname_previous_version,
     build_provenance_function,
-    get_assay_previous_version,
     get_cwl_cmd_from_workflows,
     gather_calculated_metadata,
 )
@@ -98,7 +96,7 @@ with HMDAG(
             }
         ]
 
-        if os.path.exists(tmpdir / "for_spatialdata"):
+        if Path(tmpdir / "for_spatialdata").exists():
             input_parameters.append(
                 {
                     "parameter_name": "--spatial_data_dir",
@@ -139,7 +137,6 @@ with HMDAG(
         },
     )
 
-    # TODO: This likely needs to be fixed. Should probably just use all of the same info as the previous dataset.
     t_send_create_dataset = PythonOperator(
         task_id="send_create_dataset",
         python_callable=utils.pythonop_send_create_dataset,
@@ -176,11 +173,11 @@ with HMDAG(
         metadata_fun=gather_calculated_metadata,
     )
 
-    # TODO: This likely needs to be adjusted as well.
     build_provenance = build_provenance_function(
         cwl_workflows=lambda **kwargs: kwargs["ti"].xcom_pull(
             key="cwl_workflows", task_ids="build_cmd1"
         ),
+        origin_keywords=None,
     )
 
     t_build_provenance = PythonOperator(
