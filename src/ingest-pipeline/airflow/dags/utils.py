@@ -373,7 +373,7 @@ def build_dataset_name(dag_id: str, pipeline_str: str, **kwargs) -> str:
 def get_parent_dataset_uuids_list(**kwargs) -> list[str]:
     parent_uuid_list = kwargs["dag_run"].conf["parent_submission_id"]
     azimuth_uuid_list = None
-    if kwargs["dag"].dag_id == "azimuth_annotations":
+    if kwargs["dag"].dag_id in ["azimuth_annotations", "sprm_spatial_data"]:
         azimuth_uuid_list = pythonop_get_dataset_state(
             dataset_uuid_callable=lambda **_: parent_uuid_list[0], **kwargs
         ).get("parent_dataset_uuid_list")
@@ -640,7 +640,7 @@ def get_git_provenance_list(file_list: Iterable[str]) -> list[Mapping[str, Any]]
     result = []
     for file in file_list:
         # If file is string, convert to dict so that get calls do not fail
-        if isinstance(file, str):
+        if isinstance(file, str) or isinstance(file, dict):
             file = {"workflow_path": file}
 
         fname = file["workflow_path"]
@@ -1441,7 +1441,15 @@ def get_cwltool_base_cmd(tmpdir: Path) -> list[str | Path]:
     ]
 
 
-def build_provenance_function(cwl_workflows: Callable[..., list[dict]]) -> Callable[..., list]:
+def build_provenance_function(
+    cwl_workflows: Callable[..., list[dict]],
+    origin_keywords: tuple[str, ...] | None = ("salmon", "multiome"),
+) -> Callable[..., list]:
+    """
+    :param origin_keywords: only prior-revision provenance entries whose "origin"
+        contains one of these keywords are kept. Pass None to keep the entire
+        prior-revision provenance list, in order, ahead of the new one.
+    """
     def build_provenance(**kwargs) -> list:
         # Get the previous revisions metadata
         dataset_uuid = get_previous_revision_uuid(**kwargs)
@@ -1461,11 +1469,14 @@ def build_provenance_function(cwl_workflows: Callable[..., list[dict]]) -> Calla
 
         new_dag_provenance.extend(get_git_provenance_list(*cwl_workflows(**kwargs)))
 
-        # Look through the previous revision for the pipeline invocations
-        for data in ds_rslt["ingest_metadata"]["dag_provenance_list"]:
-            if "salmon" in data["origin"] or "multiome" in data["origin"]:
-                new_dag_provenance.insert(0, data)
-        kwargs["dag_run"].conf["dag_provenance_list"] = new_dag_provenance
+        # Prepend the previous revision's pipeline invocations, in order
+        prev_provenance = ds_rslt["ingest_metadata"]["dag_provenance_list"]
+        if origin_keywords is not None:
+            prev_provenance = [
+                data for data in prev_provenance
+                if any(kw in data["origin"] for kw in origin_keywords)
+            ]
+        kwargs["dag_run"].conf["dag_provenance_list"] = prev_provenance + new_dag_provenance
         return kwargs["dag_run"].conf["dag_provenance_list"]
 
     return build_provenance
