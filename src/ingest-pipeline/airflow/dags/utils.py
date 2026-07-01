@@ -640,7 +640,7 @@ def get_git_provenance_list(file_list: Iterable[str]) -> list[Mapping[str, Any]]
     result = []
     for file in file_list:
         # If file is string, convert to dict so that get calls do not fail
-        if isinstance(file, str):
+        if isinstance(file, str) or isinstance(file, dict):
             file = {"workflow_path": file}
 
         fname = file["workflow_path"]
