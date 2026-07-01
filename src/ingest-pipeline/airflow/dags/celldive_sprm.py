@@ -44,7 +44,7 @@ default_args = {
     "retries": 1,
     "retry_delay": timedelta(minutes=1),
     "xcom_push": True,
-    "queue": get_queue_resource("celldive_deepcell"),
+    "queue": get_queue_resource("celldive_sprm"),
     "on_failure_callback": utils.create_dataset_state_error_callback(get_uuid_for_error),
 }
 

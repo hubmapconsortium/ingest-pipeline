@@ -2,7 +2,7 @@
 
 # What variables do we need?
 # Define HIVE machines
-# hive_machines=("l001.hive.psc.edu" "gpu002.pvt.hive.psc.edu")
+# hive_machines=("l001.pvt.hive.psc.edu" "gpu002.pvt.hive.psc.edu" "l004.pvt.hive.psc.edu" "l000.pvt.hive.psc.edu" "a001.pvt.hive.psc.edu")
 hive_machines=()
 # b2_machines=("v004.pvt.bridges2.psc.edu")
 b2_machines=()
@@ -28,15 +28,17 @@ function set_main_environment(){
 done
 }
 
-while [ $# -gt 0 ]; do
-  case $1 in
+while [[ $# -gt 0 ]]; do
+  case "$1" in
     -g)
       regenerate_env=true
+      shift
       ;;
     -n)
       dry_run=true
+      shift
       ;;
-    *)
+    -*)
       echo "Invalid option: $1" >&2
       ;;
   esac
