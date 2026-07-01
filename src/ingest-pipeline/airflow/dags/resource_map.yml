@@ -53,6 +53,16 @@ resource_map:
       - 'task_re': '.*'
         'queue': 'general'
         'threads': 6
+  - 'dag_re': 'imc_3d_3dcc'
+    'preserve_scratch': true
+    'lanes': 2
+    'tasks':
+      - 'task_re': '.*segmentation'
+        'queue': 'gpu000_q1'
+        'threads': 6
+      - 'task_re': '.*'
+        'queue': 'general'
+        'threads': 6
   - 'dag_re': 'phenocycler_deepcell_segmentation'
     'preserve_scratch': true
     'lanes': 2
