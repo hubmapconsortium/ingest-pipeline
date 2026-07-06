@@ -84,23 +84,23 @@ with HMDAG(
         input_parameters = [
             {
                 "parameter_name": "--image_dir",
-                "value": str(tmpdir / "pipeline_output/expr"),
+                "value": str(tmpdir / "cwl_out/pipeline_output/expr"),
             },
             {
                 "parameter_name": "--mask_dir",
-                "value": str(tmpdir / "pipeline_output/mask"),
+                "value": str(tmpdir / "cwl_out/pipeline_output/mask"),
             },
             {
                 "parameter_name": "--sprm_dir",
-                "value": str(tmpdir / "sprm_outputs"),
+                "value": str(tmpdir / "cwl_out/sprm_outputs"),
             }
         ]
 
-        if Path(tmpdir / "for_spatialdata").exists():
+        if Path(tmpdir / "cwl_out/for_spatialdata").exists():
             input_parameters.append(
                 {
                     "parameter_name": "--spatial_data_dir",
-                    "value": str(tmpdir / "for_spatialdata"),
+                    "value": str(tmpdir / "cwl_out/for_spatialdata"),
                 }
             )
 
