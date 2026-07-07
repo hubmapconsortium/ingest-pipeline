@@ -187,7 +187,7 @@ def generate_multiome_dag(params: MultiomeSequencingDagParameters) -> DAG:
 
             if barcode_txt_files:
                 if (count := len(barcode_txt_files)) != 1:
-                    raise ValueError(f"Need 1 barcode txt file, found {count}")
+                    raise ValueError(f"Expected 1 barcode txt file, found {count}")
                 input_parameters.append(
                     {
                         "parameter_name": "--rna_barcodes_file",
