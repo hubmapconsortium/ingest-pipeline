@@ -183,6 +183,18 @@ def generate_multiome_dag(params: MultiomeSequencingDagParameters) -> DAG:
                     }
                 )
 
+            barcode_txt_files = [str(data_dir / Path("raw/barcodes.txt")) for data_dir in data_dirs if (data_dir / Path("raw/barcodes.txt")).exists()]
+
+            if barcode_txt_files:
+                if (count := len(barcode_txt_files)) != 1:
+                    raise ValueError(f"Need 1 barcode txt file, found {count}")
+                input_parameters.append(
+                    {
+                        "parameter_name": "--rna_barcodes_file",
+                        "value": barcode_txt_files[0],
+                    }
+                )
+
             command = get_cwl_cmd_from_workflows(
                 cwl_workflows, 0, input_parameters, tmpdir, kwargs["ti"], cwl_params
             )
