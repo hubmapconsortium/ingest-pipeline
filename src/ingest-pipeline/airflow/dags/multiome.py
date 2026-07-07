@@ -442,6 +442,14 @@ multiome_dag_params: List[MultiomeSequencingDagParameters] = [
         requires_one_atac_metadata_file=True,
     ),
     get_simple_multiome_dag_params("snareseq"),
+    MultiomeSequencingDagParameters(
+        dag_id="multiome_paired_tag",
+        pipeline_name="multiome-paired-tag",
+        assay_rna="multiome_10x",
+        assay_atac="multiome_10x",
+        assay_azimuth="10x_v3_sn",
+        requires_one_atac_metadata_file=True,
+    ),
 ]
 
 for params in multiome_dag_params:
