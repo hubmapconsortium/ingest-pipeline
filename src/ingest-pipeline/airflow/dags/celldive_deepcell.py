@@ -45,7 +45,7 @@ default_args = {
     "retries": 1,
     "retry_delay": timedelta(minutes=1),
     "xcom_push": True,
-    "queue": get_queue_resource("celldive_deepcell"),
+    "queue": get_queue_resource("celldive_deepcell_segmentation"),
     "on_failure_callback": utils.create_dataset_state_error_callback(get_uuid_for_error),
 }
 
@@ -287,7 +287,7 @@ with HMDAG(
         for next_dag in downstream_workflow_iter(collection_type, assay_type):
             yield next_dag, payload
 
-    t_trigger_phenocyler = FlexMultiDagRunOperator(
+    t_trigger_sprm = FlexMultiDagRunOperator(
         task_id="trigger_sprm",
         dag=dag,
         trigger_dag_id="celldive_segmentation",
@@ -308,7 +308,7 @@ with HMDAG(
         # >> t_maybe_keep_cwl_stellar_pre_convert
         # >> t_copy_stellar_pre_convert_data
         # >> t_notify_user_stellar_pre_convert
-        >> t_trigger_phenocyler
+        >> t_trigger_sprm
     )
     t_maybe_keep_cwl_segmentation >> t_set_dataset_error
     # t_maybe_keep_cwl_stellar_pre_convert >> t_set_dataset_error
