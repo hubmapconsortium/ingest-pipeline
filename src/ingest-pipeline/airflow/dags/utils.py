@@ -640,7 +640,7 @@ def get_git_provenance_list(file_list: Iterable[str]) -> list[Mapping[str, Any]]
     result = []
     for file in file_list:
         # If file is string, convert to dict so that get calls do not fail
-        if isinstance(file, str) or isinstance(file, dict):
+        if isinstance(file, str):
             file = {"workflow_path": file}
 
         fname = file["workflow_path"]
@@ -1467,7 +1467,7 @@ def build_provenance_function(
             else []
         )
 
-        new_dag_provenance.extend(get_git_provenance_list(*cwl_workflows(**kwargs)))
+        new_dag_provenance.extend(get_git_provenance_list(cwl_workflows(**kwargs)))
 
         # Prepend the previous revision's pipeline invocations, in order
         prev_provenance = ds_rslt["ingest_metadata"]["dag_provenance_list"]
