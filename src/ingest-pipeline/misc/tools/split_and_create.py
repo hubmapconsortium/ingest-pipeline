@@ -251,7 +251,9 @@ def populate(row, source_entity, entity_factory, dryrun=False, components=None):
 
     if components is not None:
         for component in components:
-            component_df = pd.read_csv(component.get("metadata-file"), sep="\t")
+            component_df = pd.read_csv(
+                component.get("metadata-file"), sep="\t", na_filter=False
+            )
             component_df_cp = component_df.query(f'data_path=="{old_data_path}"').copy()
             for _, row_component in component_df_cp.iterrows():
                 # This loop updates the data_path for the component
@@ -496,7 +498,7 @@ def reorganize(source_uuid, **kwargs) -> Union[Tuple, None]:
         else:
             source_data_types = None
         for src_idx, smf in enumerate([full_entity.primary_assay.get("metadata-file")]):
-            source_df = pd.read_csv(smf, sep="\t")
+            source_df = pd.read_csv(smf, sep="\t", na_filter=False)
             source_df["canonical_assay_type"] = source_df.apply(
                 get_canonical_assay_type,
                 axis=1,
@@ -533,7 +535,7 @@ def reorganize(source_uuid, **kwargs) -> Union[Tuple, None]:
         dag_config = {"uuid_list": [], "collection_type": ""}
         for src_idx, _ in enumerate([full_entity.primary_assay.get("metadata-file")]):
             this_frozen_df_fname = frozen_df_fname.format("_" + str(src_idx))
-            source_df = pd.read_csv(this_frozen_df_fname, sep="\t")
+            source_df = pd.read_csv(this_frozen_df_fname, sep="\t", na_filter=False)
             print(f"read {this_frozen_df_fname}")
 
             for _, row in source_df.iterrows():
