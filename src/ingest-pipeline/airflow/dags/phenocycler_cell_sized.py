@@ -415,7 +415,7 @@ def generate_phenocycler_dag(params: SequencingDagParameters) -> DAG:
                 "pipeline_exec_cwl_ome_tiff_offsets",
                 "pipeline_exec_cwl_sprm_to_json",
                 "pipeline_exec_cwl_sprm_to_anndata",
-                "move_data",
+                "move_downstream_data",
             ],
             cwl_workflows=lambda **kwargs: kwargs["ti"].xcom_pull(
                 key="cwl_workflows", task_ids="build_cmd_sprm_to_anndata"
