@@ -56,9 +56,17 @@ class CleanupTmpDirOperator(BashOperator):
             fi ; \
             echo rmscratch is $rmscratch ; \
             if [ "$rmscratch" = true ] ; then \
-              rm -r "$tmp_dir" ; \
+                if [ -d "$tmp_dir" ] ; then \
+                    rm -r "$tmp_dir" ; \
+                fi
             else \
-              echo "scratch directory was preserved" ; \
+              if [ "$ds_dir" != "None" ]; then \
+                if [ -d "$tmp_dir" ] ; then \
+                    rm -r "$tmp_dir" ; \
+                fi
+              else \
+                echo "scratch directory was preserved" ; \
+              fi ; \
             fi
             """,
             env={'rmscratch': '{{"true" if preserve_scratch is defined and not preserve_scratch else "false"}}'},

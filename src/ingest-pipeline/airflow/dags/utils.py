@@ -34,6 +34,7 @@ from requests.exceptions import HTTPError, JSONDecodeError
 from schema_utils import (
     localized_assert_json_matches_schema as assert_json_matches_schema,
 )
+from crate_manager import CrateManager, DummyCrateManager
 
 from airflow import DAG
 from airflow.configuration import conf as airflow_conf
@@ -112,9 +113,13 @@ Lazy construction; a list of tuples (dag_id_reges, task_id_regex, {key:value})
 """
 RESOURCE_MAP_FILENAME = "resource_map.yml"  # Expected to be found in this same dir
 RESOURCE_MAP_SCHEMA = "resource_map_schema.yml"
+
 TaskList = list[tuple[Pattern, dict[str, Any]]]
 DagDct = dict[str, Any]
+
 COMPILED_RESOURCE_MAP: list[Tuple[Pattern, DagDct, TaskList]] | None = None
+
+DEFAULT_SLACK_TEST_CHANNEL = "C0A8ES4M9RU"  # test-notifications
 
 CURATION_CONTACTS = ["bhonick@psc.edu", "dbordelon@psc.edu", "egaskin@psc.edu"]
 CURATION_OFFICE_HOURS_SCHEDULING_LINK = "https://calendar.app.google/db2J6CDzZQuQnGHr6"
@@ -223,6 +228,7 @@ class HMDAG(DAG):
         """
         if "max_active_runs" not in kwargs:
             kwargs["max_active_runs"] = get_lanes_resource(dag_id)
+        self.crate_manager = kwargs.pop("crate_manager", DummyCrateManager())
         super().__init__(dag_id, **kwargs)
 
     def add_task(self, task: Operator):
@@ -266,12 +272,14 @@ def find_pipeline_manifests(cwl_files: list[Path] | list[dict] | str) -> list[Pa
 
 
 def get_cwl_cmd_from_workflows(
-    workflows: list[dict],
-    workflow_index: int,
-    input_param_vals: list,
-    tmp_dir: Path,
-    ti,
-    cwl_param_vals: list[dict] | None = None,
+        workflows: list[dict],
+        workflow_index: int,
+        input_param_vals: list,
+        tmp_dir: Path,
+        ti,
+        cwl_param_vals: list[dict] | None = None,
+        crate_manager: CrateManager | None = None,
+        session = None,
 ) -> list:
     """
     :param workflows: Iterable of workflow dictionaries
@@ -281,6 +289,7 @@ def get_cwl_cmd_from_workflows(
     :param ti: task instance
     :return: list of cwl command and parameters
     """
+
     # Grab the workflow from the list of workflows
     workflow = workflows[workflow_index]
     workflow["input_parameters"] = input_param_vals
@@ -303,6 +312,12 @@ def get_cwl_cmd_from_workflows(
 
     if not outdir_present:
         command.extend(["--outdir", str(tmp_dir / "cwl_out")])
+
+    # Add the provenance argument for this workflow, if any
+    if crate_manager:
+        assert session is not None, ("A valid session is required"
+                                     " when using rocrates")
+        command += crate_manager.get_args(tmp_dir, ti, session)
 
     command.append(Path(workflow["workflow_path"]))
 
@@ -358,7 +373,7 @@ def build_dataset_name(dag_id: str, pipeline_str: str, **kwargs) -> str:
 def get_parent_dataset_uuids_list(**kwargs) -> list[str]:
     parent_uuid_list = kwargs["dag_run"].conf["parent_submission_id"]
     azimuth_uuid_list = None
-    if kwargs["dag"].dag_id == "azimuth_annotations":
+    if kwargs["dag"].dag_id in ["azimuth_annotations", "sprm_spatial_data"]:
         azimuth_uuid_list = pythonop_get_dataset_state(
             dataset_uuid_callable=lambda **_: parent_uuid_list[0], **kwargs
         ).get("parent_dataset_uuid_list")
@@ -404,10 +419,7 @@ def get_dataset_type_previous_version(**kwargs) -> list[str]:
         return dataset_uuid
 
     ds_rslt = pythonop_get_dataset_state(dataset_uuid_callable=my_callable, **kwargs)
-    assert ds_rslt["status"] in [
-        "QA",
-        "Published",
-    ], "Current status of dataset is not QA or better"
+    assert_qa_or_better(ds_rslt["status"])
     return ds_rslt["dataset_type"]
 
 
@@ -421,10 +433,7 @@ def get_dataname_previous_version(**kwargs) -> str:
         return dataset_uuid
 
     ds_rslt = pythonop_get_dataset_state(dataset_uuid_callable=my_callable, **kwargs)
-    assert ds_rslt["status"] in [
-        "QA",
-        "Published",
-    ], "Current status of dataset is not QA or better"
+    assert_qa_or_better(ds_rslt["status"])
     return ds_rslt["dataset_info"]
 
 
@@ -999,7 +1008,7 @@ def pythonop_send_create_dataset(**kwargs) -> str:
         "datasets", http_conn_id, token, method="POST", payload=data
     )
     print("response from dataset creation...")
-    print(response_json)
+    pprint(response_json)
 
     for elt in ["uuid", "group_uuid"]:
         if elt not in response_json:
@@ -1040,8 +1049,6 @@ def pythonop_set_dataset_state(**kwargs) -> None:
     Accepts the following via the caller's op_kwargs:
     'dataset_uuid_callable' : called with **kwargs; returns the
                               uuid of the dataset to be modified
-    'parent_dataset_uuid_callable' : called with **kwargs; returns the
-                              uuid of the parent dataset
     'http_conn_id' : the http connection to be used.  Default is "entity_api_connection"
     'ds_state' : one of 'QA', 'Processing', 'Error', 'Invalid'. Default: 'Processing'
     'message' : update message, saved as dataset metadata element "pipeline_message".
@@ -1055,7 +1062,7 @@ def pythonop_set_dataset_state(**kwargs) -> None:
     for arg in ["dataset_uuid_callable"]:
         assert arg in kwargs, "missing required argument {}".format(arg)
 
-    reindex = kwargs.get("reindex", True)
+    reindex = kwargs.get("reindex", 3)
     dataset_uuid = kwargs["dataset_uuid_callable"](**kwargs)
     run_id = (
         kwargs["run_id_callable"](**kwargs) if callable(kwargs.get("run_id_callable")) else None
@@ -1434,7 +1441,15 @@ def get_cwltool_base_cmd(tmpdir: Path) -> list[str | Path]:
     ]
 
 
-def build_provenance_function(cwl_workflows: Callable[..., list[dict]]) -> Callable[..., list]:
+def build_provenance_function(
+    cwl_workflows: Callable[..., list[dict]],
+    origin_keywords: tuple[str, ...] | None = ("salmon", "multiome"),
+) -> Callable[..., list]:
+    """
+    :param origin_keywords: only prior-revision provenance entries whose "origin"
+        contains one of these keywords are kept. Pass None to keep the entire
+        prior-revision provenance list, in order, ahead of the new one.
+    """
     def build_provenance(**kwargs) -> list:
         # Get the previous revisions metadata
         dataset_uuid = get_previous_revision_uuid(**kwargs)
@@ -1452,13 +1467,16 @@ def build_provenance_function(cwl_workflows: Callable[..., list[dict]]) -> Calla
             else []
         )
 
-        new_dag_provenance.extend(get_git_provenance_list(*cwl_workflows(**kwargs)))
+        new_dag_provenance.extend(get_git_provenance_list(cwl_workflows(**kwargs)))
 
-        # Look through the previous revision for the pipeline invocations
-        for data in ds_rslt["ingest_metadata"]["dag_provenance_list"]:
-            if "salmon" in data["origin"] or "multiome" in data["origin"]:
-                new_dag_provenance.insert(0, data)
-        kwargs["dag_run"].conf["dag_provenance_list"] = new_dag_provenance
+        # Prepend the previous revision's pipeline invocations, in order
+        prev_provenance = ds_rslt["ingest_metadata"]["dag_provenance_list"]
+        if origin_keywords is not None:
+            prev_provenance = [
+                data for data in prev_provenance
+                if any(kw in data["origin"] for kw in origin_keywords)
+            ]
+        kwargs["dag_run"].conf["dag_provenance_list"] = prev_provenance + new_dag_provenance
         return kwargs["dag_run"].conf["dag_provenance_list"]
 
     return build_provenance
@@ -1476,7 +1494,7 @@ def make_send_status_msg_function(
     no_provenance: bool | None = False,
     workflow_description: str | None = None,
     workflow_version: str | None = None,
-    reindex: bool = True,
+    reindex: int = 3,
 ) -> Callable[..., bool]:
     """
     The function which is generated by this function will return a boolean,
@@ -1517,6 +1535,7 @@ def make_send_status_msg_function(
     based on the return value of 'dataset_lz_path_fun' above.
     """
     from status_change.status_manager import EntityUpdateException, StatusChanger
+    from status_change.status_utils import base_slack_channel
 
     # Does the string represent a "true" value, or an int that is 1
     def __is_true(val):
@@ -1615,6 +1634,15 @@ def make_send_status_msg_function(
             if metadata_fun:
                 # Always override the value if files_info_alt_path is set, or if md["files"] is empty
                 files_info_alt_path = md["metadata"].pop("files_info_alt_path", [])
+                if files_info_alt_path:
+                    try:
+                        post_to_slack_notify(
+                            get_auth_tok(**kwargs),
+                            f"Files list too large, using files_info_alt_path for dataset {dataset_uuid}",
+                            env_appropriate_slack_channel(base_slack_channel),
+                        )
+                    except Exception as e:
+                        logging.warning(f"Could not send files_info_alt_path Slack alert: {e}")
                 md["files"] = (
                     files_info_alt_path
                     if files_info_alt_path or not md.get("files")
@@ -1631,6 +1659,9 @@ def make_send_status_msg_function(
                         v = contrib["is_contact"]
                         if __is_true(val=v):
                             contacts.append(contrib)
+
+            if (segmentation_metadata := gather_segmentation_metadata(**kwargs).get("segmentation_metadata")) is not None:
+                md["segmentation_metadata"] = segmentation_metadata
 
             if not ds_rslt:
                 status = "QA"
@@ -1966,6 +1997,16 @@ def gather_calculated_metadata(**kwargs):
     return {"calculated_metadata": output_metadata}
 
 
+def gather_segmentation_metadata(**kwargs):
+    # SPRM creates a segmentation-metadata.json file. If it doesn't exist then we just skip over.
+    data_dir = kwargs["ti"].xcom_pull(task_ids="send_create_dataset")
+    if not data_dir:
+        return {}
+    for seg_metadata in Path(data_dir).glob("**/segmentation-metadata.json"):
+        return {"segmentation_metadata": json.load(open(seg_metadata))}
+    return {}
+
+
 def post_to_slack_notify(token: str, message: str, channel: str):
     payload = {"message": message, "channel": channel}
     return make_httphook_request(
@@ -1978,18 +2019,25 @@ def get_env() -> str:
     Return lowercase env str ("prod", "dev")
     or default to empty string.
     """
-    entity_host = HttpHook.get_connection("entity_api_connection").host or ""
-    try:
-        env = find_matching_endpoint(entity_host) or ""
-    except AssertionError:
-        env = ""
+    env = ""
+    for conn in ["ingest_api_connection", "entity_api_connection"]:
+        if host := HttpHook.get_connection(conn).host:
+            try:
+                env = find_matching_endpoint(host)
+                break
+            except Exception:
+                continue
     return env.lower()
 
 
 def env_appropriate_slack_channel(prod_channel: str) -> str:
-    if get_env() == "prod":
+    env = get_env()
+    if prod_channel and env == "prod":
         return prod_channel
-    return "C0A8ES4M9RU"  # test-notifications
+    logging.info(
+        f"Switching channel from {prod_channel} to {DEFAULT_SLACK_TEST_CHANNEL}. Env: {env}."
+    )
+    return DEFAULT_SLACK_TEST_CHANNEL
 
 
 def get_submission_context(token: str, uuid: str, headers: dict | None = None) -> dict[str, Any]:
@@ -2039,7 +2087,8 @@ def send_email(
     assert contacts and email_body
     if type(contacts) is str:
         contacts = [contacts]
-    preview = dedent(
+    contacts = list(set(contacts))
+    preview = format_multiline(
         f"""
             Contact: {", ".join(contacts)}
             cc: {", ".join(cc) if cc else "None"}
@@ -2048,24 +2097,9 @@ def send_email(
             Message: {email_body}
             {("Attachment path: " + attachment_path) if attachment_path else "None"}
             """
-    ).strip()
-    contacts = list(set(contacts))
-    if prod_only:
-        if get_env() != "prod":
-            logging.info("Non-prod environment, fetching overrides from config.")
-            contacts = []
-            if config_ext_recipients := get_config_value_int_recipients():
-                contacts = config_ext_recipients
-            if config_int_recipients := get_config_value_int_recipients():
-                logging.info(f"Internal recipients: {config_int_recipients}")
-            if not contacts:
-                logging.info("No contacts found in airflow_conf, not sending. Would have sent:")
-                logging.info(preview)
-                return False
-            else:
-                logging.info(
-                    f"Sending email to {config_ext_recipients}. Preview of real data below:"
-                )
+    )
+    if prod_only and (get_env() != "prod"):
+        return send_email_with_config_recipients(subject, email_body, attachment_path, preview)
     if cc:
         # If a contact is in both lists, remove them from cc
         cc = list(set(cc) - set(contacts))
@@ -2079,6 +2113,66 @@ def send_email(
         bcc=bcc,
     )
     return True
+
+
+def send_email_with_config_recipients(
+    subject: str, email_body: str, attachment_path: str | None, preview: str | None
+) -> bool:
+    """
+    Bypass send_email and use config values only.
+    """
+    logging.info("Fetching email contact overrides from config.")
+    conf_dict = airflow_conf.as_dict()
+    # fetch any internal recipient overrides
+    if int_recipients := conf_dict.get("email_notifications", {}).get("int_recipients", ""):
+
+        int_recipients = str(int_recipients).split(",")
+        logging.info(f"Overriding internal recipients with config value: {int_recipients}")
+    # fetch any main recipient overrides
+    if contacts := conf_dict.get("email_notifications", {}).get("main", ""):
+        contacts = str(contacts).split(",")
+        logging.info(f"Overriding main recipients with config value: {contacts}")
+    # send nothing and return False if no config contacts found
+    if not contacts and not int_recipients:
+        logging.info("No contacts found in airflow_conf, not sending.")
+        if preview:
+            logging.info("Would have sent:")
+            logging.info(preview)
+        return False
+    logging.info(f"Sending email to config contact(s) {[*contacts, *int_recipients]}.")
+    if preview:
+        logging.info("Preview of real data below:")
+        logging.info(preview)
+    airflow_send_email(
+        contacts if contacts else int_recipients,
+        subject,
+        email_body,
+        files=[attachment_path] if attachment_path else None,
+        cc=int_recipients,
+    )
+    return True
+
+
+def format_multiline(string: str) -> str:
+    return dedent(string.strip())
+
+
+def check_status_is_qa_or_better(status: str, additional_statuses: list[str] = []) -> str | None:
+    statuses = [
+        "qa",
+        "approval",
+        "published",
+        *[addtl_status.lower() for addtl_status in additional_statuses],
+    ]
+    if status.lower() in statuses:
+        return status
+
+
+def assert_qa_or_better(status: str, additional_statuses: list[str] = []):
+    msg = f"Current status of dataset ({status}) is not QA or better"
+    if additional_statuses:
+        msg = f"{msg} (or in {additional_statuses})"
+    assert check_status_is_qa_or_better(status, additional_statuses), msg
 
 
 def main():

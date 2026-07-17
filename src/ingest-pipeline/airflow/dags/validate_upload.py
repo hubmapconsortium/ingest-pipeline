@@ -133,15 +133,14 @@ with HMDAG(
             upload_ignore_globs="*",
             plugin_directory=plugin_path,
             # offline_only=True,  # noqa E265
-            extra_parameters={
-                "coreuse": get_threads_resource("validate_upload", "run_validation")
-            },
+            plugin_kwargs={"coreuse": get_threads_resource("validate_upload", "run_validation")},
             globus_token=get_auth_tok(**kwargs),
             app_context=app_context,
         )
         # Scan reports an error result
         report = ingest_validation_tools_error_report.ErrorReport(
-            errors=upload.get_errors(plugin_kwargs=kwargs), info=upload.get_info()
+            errors=upload.get_errors(),
+            info=upload.get_info(),
         )
         validation_file_path = Path(get_tmp_dir_path(kwargs["run_id"])) / "validation_report.txt"
         with open(validation_file_path, "w") as f:

@@ -6,10 +6,14 @@ from .base import EmailTemplate
 class ErrorStatusEmail(EmailTemplate):
 
     def format(self) -> tuple[str, str]:
+        pipeline = f"[{self.data.processing_pipeline}] " if self.data.processing_pipeline else ""
+        # Derived dataset created
         if self.data.derived:
-            subj = f"Internal error for derived dataset {self.data.entity_id}"
+            subj = f"{pipeline}Internal error for derived dataset {self.data.entity_id}"
+        # Pipeline failed before dataset creation
         elif self.data.processing_pipeline:
-            subj = f"Internal error while processing primary dataset {self.data.entity_id}"
+            subj = f"{pipeline}Pipeline failed for {self.data.entity_id}"
+        # Primary dataset
         else:
             subj = f"Internal error for {self.data.entity_type.lower()} {self.data.entity_id}"
         msg = self.format_msg()
@@ -29,6 +33,10 @@ class ErrorStatusEmail(EmailTemplate):
             msg.append(f"Run ID: {self.data.run_id}")
         if self.data.log_directory_path:
             msg.append(f"Log file: {self.data.log_directory_path}")
+        if self.data.processing_pipeline:
+            msg.append(f"Pipeline: {self.data.processing_pipeline}")
+            if not self.data.derived:
+                msg.extend(["", "No derived dataset created."])
         if self.data.error_counts:
             msg.extend(["", "Error:"])
             msg.extend(split_error_counts(self.data.error_counts, no_bullets=True))

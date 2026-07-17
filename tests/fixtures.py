@@ -37,6 +37,8 @@ good_upload_context = {
     "created_by_user_email": "test@user.com",
     "group_name": "test group",
     "priority_project_list": ["test_priority_project"],
+    # return from /file-system-abs-path
+    "path": "/hive/hubmap-dev/data/public/test_fs_path",
     "unrelated_field": True,
     "ingest_task": "existing ingest_task text",
     "validation_message": "existing validation_message text",
@@ -96,7 +98,6 @@ endpoints = {
     "hubmap": {
         "PROD": {
             "entity_url": "https://entity.api.hubmapconsortium.org",
-            "ingest_url": "vm004@hive.psc.edu",
         },
         "DEV": {"entity_url": "https://entity-api.dev.hubmapconsortium.org"},
     },
@@ -105,8 +106,6 @@ endpoints = {
         "DEV": {"entity_url": "https://entity-api.dev.sennetconsortium.org"},
     },
 }
-
-# validation_report = 'Data File Errors:\n  Recursively test all ome-tiff files for an assay-specific list of fields:\n  - \'/hive/hubmap/data/protected/Stanford University Bone Marrow TMC/f6aff8e28f2fc0ef22e71cbadc1f6f51/HUBMAP1_slide100_L/lab_processed/images/HUBMAP_H&E_Slide99_C31C1.ome.tiff\n    is not a valid OME.TIFF file: Failed to read OME XML.\'\n  - \'/hive/hubmap/data/protected/Stanford University Bone Marrow TMC/f6aff8e28f2fc0ef22e71cbadc1f6f51/HUBMAP1_slide100_R/lab_processed/images/HUBMAP_H&E_Slide99_C32C1.ome.tiff\n    is not a valid OME.TIFF file: Failed to read OME XML.\'\n  Recursively test all ome-tiff files for validity:\n  - "/hive/hubmap/data/protected/Stanford University Bone Marrow TMC/f6aff8e28f2fc0ef22e71cbadc1f6f51/HUBMAP1_slide100_L/lab_processed/images/HUBMAP_H&E_Slide99_C31C1.ome.tiff\\\n    \\ is not a valid OME.TIFF file: XMLSchemaDecodeError: attribute Color="(255, 0, 0)": invalid literal for int()\\\n    \\ with base 10: "(255, 0, 0)"\n  - "/hive/hubmap/data/protected/Stanford University Bone Marrow TMC/f6aff8e28f2fc0ef22e71cbadc1f6f51/HUBMAP1_slide100_R/lab_processed/images/HUBMAP_H&E_Slide99_C32C1.ome.tiff\\\n    \\ is not a valid OME.TIFF file: XMLSchemaDecodeError: attribute Color="(255, 0, 0)": invalid literal for int()\\\n    \\ with base 10: "(255, 0, 0)"\n'
 
 validation_report_html_list = [
     "<ul>",
@@ -209,7 +208,7 @@ df = {
         "_source.group_uuid": "300ac006-547c-11ed-ab8d-fb258a2766ef",
         "_source.hubmap_id": "HBM652.PMDG.682",
         "_source.last_modified_timestamp": 1765404061505,
-        "_source.status": "QA",
+        "_source.status": "Approval",
         "_source.title": "PhenoCycler data from the uterus of a 22-year-old white female",
     },
     1: {
@@ -277,7 +276,7 @@ df = {
         "_source.group_uuid": "300ac006-547c-11ed-ab8d-fb258a2766ef",
         "_source.hubmap_id": "HBM375.RMJM.622",
         "_source.last_modified_timestamp": 1748631379142,
-        "_source.status": "QA",
+        "_source.status": "Approval",
         "_source.title": "PhenoCycler data from the skin of a 30-year-old unknown female",
     },
     5: {
@@ -294,7 +293,7 @@ df = {
         "_source.group_uuid": "300ac006-547c-11ed-ab8d-fb258a2766ef",
         "_source.hubmap_id": "HBM245.PVCT.423",
         "_source.last_modified_timestamp": 1747335999435,
-        "_source.status": "QA",
+        "_source.status": "Approval",
         "_source.title": "PhenoCycler data from the skin of a 62-year-old unknown female",
     },
     6: {
@@ -311,7 +310,7 @@ df = {
         "_source.group_uuid": "300ac006-547c-11ed-ab8d-fb258a2766ef",
         "_source.hubmap_id": "HBM233.JWQF.322",
         "_source.last_modified_timestamp": 1763411064661,
-        "_source.status": "QA",
+        "_source.status": "Approval",
         "_source.title": "PhenoCycler data from the skin of a 54-year-old unknown female",
     },
     7: {
@@ -328,7 +327,7 @@ df = {
         "_source.group_uuid": "300ac006-547c-11ed-ab8d-fb258a2766ef",
         "_source.hubmap_id": "HBM878.KZGH.246",
         "_source.last_modified_timestamp": 1747239525873,
-        "_source.status": "QA",
+        "_source.status": "Approval",
         "_source.title": "PhenoCycler data from the skin of a 43-year-old unknown male",
     },
     8: {
@@ -345,7 +344,7 @@ df = {
         "_source.group_uuid": "300ac006-547c-11ed-ab8d-fb258a2766ef",
         "_source.hubmap_id": "HBM544.DVKS.984",
         "_source.last_modified_timestamp": 1748631503950,
-        "_source.status": "QA",
+        "_source.status": "Approval",
         "_source.title": "PhenoCycler data from the skin of a 43-year-old unknown male",
     },
     9: {
@@ -362,7 +361,7 @@ df = {
         "_source.group_uuid": "300ac006-547c-11ed-ab8d-fb258a2766ef",
         "_source.hubmap_id": "HBM954.NBFJ.868",
         "_source.last_modified_timestamp": 1765404107541,
-        "_source.status": "QA",
+        "_source.status": "Approval",
         "_source.title": "PhenoCycler data from the uterus of a 33-year-old white female",
     },
     10: {
@@ -379,7 +378,7 @@ df = {
         "_source.group_uuid": "300ac006-547c-11ed-ab8d-fb258a2766ef",
         "_source.hubmap_id": "HBM496.VDKK.797",
         "_source.last_modified_timestamp": 1763410203934,
-        "_source.status": "QA",
+        "_source.status": "Approval",
         "_source.title": "PhenoCycler data from the uterus of a 22-year-old white female",
     },
 }
@@ -388,8 +387,8 @@ dp_instructions = [
     "<b>What you can do to move datasets forward:</b><br>",
     "Some dataset statuses indicate the need for intervention by the data provider. Below are some brief instructions by status.<br>",
     "<ul>",
-    "<li>QA: 8</li>",
-    "The dataset has been validated and is ready for your approval. After reviewing these datasets, please email ingest@hubmapconsortium.org to list any datasets with issues that need to be addressed before publishing and/or indicate your approval of specific datasets for publication. Please include relevant dataset IDs in your message.<br>",
+    "<li>Approval: 8</li>",
+    "Datasets have been formally sent to the submitting site for publication review. After reviewing these datasets, please email ingest@hubmapconsortium.org to list any datasets with issues that need to be addressed before publishing and/or indicate your approval of specific datasets for publication. Please include relevant dataset IDs in your message.<br>",
     "<ul>",
     '<li><a href="https://ingest.hubmapconsortium.org/Dataset/c267d79eff73b466c729b9e5c0e030fd">HBM878.KZGH.246</a></li>',
     '<li><a href="https://ingest.hubmapconsortium.org/Dataset/4aa0b85627ee40110c81648fdbc3f822">HBM245.PVCT.423</a></li>',
@@ -402,7 +401,7 @@ dp_instructions = [
     "</ul>",
     "<br>",
     "<li>Invalid: 1</li>",
-    f"The dataset cannot be validated due a metadata or directory issue. View the errors on the dataset ingest page and correct them. Help is available by scheduling with Data Curator Brendan Honick ({CURATION_OFFICE_HOURS_SCHEDULING_LINK}).<br>",
+    f"Datasets cannot be validated due a metadata or directory issue. View the errors on the dataset ingest page and correct them. Help is available by scheduling with Data Curator Brendan Honick ({CURATION_OFFICE_HOURS_SCHEDULING_LINK}).<br>",
     "<ul>",
     '<li><a href="https://ingest.hubmapconsortium.org/Dataset/ffb964a87cd93bc110ba39884d7df42a">HBM658.VMWF.882</a></li>',
     "</ul>",
@@ -435,8 +434,8 @@ annotated_invalid = [
     "<b>test title:</b><br>",
     "test_desc<br>",
     "<ul>",
-    "<li>QA: 8</li>",
-    "The dataset has been validated and is ready for your approval. After reviewing these datasets, please email ingest@hubmapconsortium.org to list any datasets with issues that need to be addressed before publishing and/or indicate your approval of specific datasets for publication. Please include relevant dataset IDs in your message.<br>",
+    "<li>Approval: 8</li>",
+    "Datasets have been formally sent to the submitting site for publication review. After reviewing these datasets, please email ingest@hubmapconsortium.org to list any datasets with issues that need to be addressed before publishing and/or indicate your approval of specific datasets for publication. Please include relevant dataset IDs in your message.<br>",
     "<ul>",
     '<li><a href="https://ingest.hubmapconsortium.org/Dataset/c267d79eff73b466c729b9e5c0e030fd">HBM878.KZGH.246</a></li>',
     '<li><a href="https://ingest.hubmapconsortium.org/Dataset/4aa0b85627ee40110c81648fdbc3f822">HBM245.PVCT.423</a></li>',
@@ -451,4 +450,4 @@ annotated_invalid = [
     "</ul>",
 ]
 
-formatted_group_data = f'<b>Biweekly unpublished dataset report for Beth Israel Deaconess Medical Center TMC</b><br>This report is sent to the group PIs, PMs, and all creators of datasets in this list.<br><br>If you have questions, please schedule an appointment with Data Curator Brendan Honick ({CURATION_OFFICE_HOURS_SCHEDULING_LINK}) or email ingest@hubmapconsortium.org. Do not respond to this email; this inbox is not monitored.<br><br><b>Unpublished datasets:</b> 11<br>You can see more details about all datasets in the attached CSV file.<br><br>The datasets listed below are primary datasets representing the raw data that your site has submitted to the HIVE. Primary datasets can be published in advance of HIVE central analysis processing.<br><br><b>What you can do to move datasets forward:</b><br>Some dataset statuses indicate the need for intervention by the data provider. Below are some brief instructions by status.<br><ul><li>QA: 8</li>The dataset has been validated and is ready for your approval. After reviewing these datasets, please email ingest@hubmapconsortium.org to list any datasets with issues that need to be addressed before publishing and/or indicate your approval of specific datasets for publication. Please include relevant dataset IDs in your message.<br><ul><li><a href="https://ingest.hubmapconsortium.org/Dataset/c267d79eff73b466c729b9e5c0e030fd">HBM878.KZGH.246</a></li><li><a href="https://ingest.hubmapconsortium.org/Dataset/4aa0b85627ee40110c81648fdbc3f822">HBM245.PVCT.423</a></li><li><a href="https://ingest.hubmapconsortium.org/Dataset/34d9bf4b4ecdb5a5e63f77744cb11175">HBM375.RMJM.622</a></li><li><a href="https://ingest.hubmapconsortium.org/Dataset/9650f5829651d7a8baf66d6c871d0210">HBM544.DVKS.984</a></li><li><a href="https://ingest.hubmapconsortium.org/Dataset/cb9ceb9961874216557c6f76f4b97234">HBM233.JWQF.322</a></li><li><a href="https://ingest.hubmapconsortium.org/Dataset/dec7bb7e8c291eb311f7a275af43f255">HBM496.VDKK.797</a></li><li><a href="https://ingest.hubmapconsortium.org/Dataset/114123c03189e2d9ca0587a9b1ede308">HBM652.PMDG.682</a></li><li><a href="https://ingest.hubmapconsortium.org/Dataset/ad677611dba1b706d0041eb808599e19">HBM954.NBFJ.868</a></li></ul><br><li>Invalid: 1</li>The dataset cannot be validated due a metadata or directory issue. View the errors on the dataset ingest page and correct them. Help is available by scheduling with Data Curator Brendan Honick ({CURATION_OFFICE_HOURS_SCHEDULING_LINK}).<br><ul><li><a href="https://ingest.hubmapconsortium.org/Dataset/ffb964a87cd93bc110ba39884d7df42a">HBM658.VMWF.882</a></li></ul><br><li>New: 1</li>This status is an artifact of prior status handling. Go to the dataset ingest page and press "Submit."<br><ul><li><a href="https://ingest.hubmapconsortium.org/Dataset/474f0b4a77083fe938cc9352cb9a9470">HBM328.ZSPV.447</a></li></ul><br></ul><br><b>Datasets currently in the ingestion process:</b><br>Below are counts of datasets not currently requiring action on your part, with a brief description of each status.<br><ul><li>Error: 1</li>Datasets have encountered an internal HIVE error. Curators and developers are working to address the issue.<br><ul><li><a href="https://ingest.hubmapconsortium.org/Dataset/889a27e6521388e3553472fc9e14439d">HBM654.VCSC.832</a></li></ul><br></ul>Please consult our <a href="https://docs.google.com/document/d/13zBbp_BNCVPZPj71Q5dGLoNJ_TDRyEpPck2mGQbkLYg/edit?usp=sharing">guide to HuBMAP entity statuses</a> if you would like to learn more about the different dataset statuses.<br>'
+formatted_group_data = f'<b>Biweekly unpublished dataset report for Beth Israel Deaconess Medical Center TMC</b><br>This report is sent to the group PIs, PMs, and all creators of datasets in this list.<br><br>If you have questions, please schedule an appointment with Data Curator Brendan Honick ({CURATION_OFFICE_HOURS_SCHEDULING_LINK}) or email ingest@hubmapconsortium.org. Do not respond to this email; this inbox is not monitored.<br><br><b>Unpublished datasets:</b> 11<br>You can see more details about all datasets in the attached CSV file.<br><br>The datasets listed below are primary datasets representing the raw data that your site has submitted to the HIVE. Primary datasets can be published in advance of HIVE central analysis processing.<br><br><b>What you can do to move datasets forward:</b><br>Some dataset statuses indicate the need for intervention by the data provider. Below are some brief instructions by status.<br><ul><li>Approval: 8</li>Datasets have been formally sent to the submitting site for publication review. After reviewing these datasets, please email ingest@hubmapconsortium.org to list any datasets with issues that need to be addressed before publishing and/or indicate your approval of specific datasets for publication. Please include relevant dataset IDs in your message.<br><ul><li><a href="https://ingest.hubmapconsortium.org/Dataset/c267d79eff73b466c729b9e5c0e030fd">HBM878.KZGH.246</a></li><li><a href="https://ingest.hubmapconsortium.org/Dataset/4aa0b85627ee40110c81648fdbc3f822">HBM245.PVCT.423</a></li><li><a href="https://ingest.hubmapconsortium.org/Dataset/34d9bf4b4ecdb5a5e63f77744cb11175">HBM375.RMJM.622</a></li><li><a href="https://ingest.hubmapconsortium.org/Dataset/9650f5829651d7a8baf66d6c871d0210">HBM544.DVKS.984</a></li><li><a href="https://ingest.hubmapconsortium.org/Dataset/cb9ceb9961874216557c6f76f4b97234">HBM233.JWQF.322</a></li><li><a href="https://ingest.hubmapconsortium.org/Dataset/dec7bb7e8c291eb311f7a275af43f255">HBM496.VDKK.797</a></li><li><a href="https://ingest.hubmapconsortium.org/Dataset/114123c03189e2d9ca0587a9b1ede308">HBM652.PMDG.682</a></li><li><a href="https://ingest.hubmapconsortium.org/Dataset/ad677611dba1b706d0041eb808599e19">HBM954.NBFJ.868</a></li></ul><br><li>Invalid: 1</li>Datasets cannot be validated due a metadata or directory issue. View the errors on the dataset ingest page and correct them. Help is available by scheduling with Data Curator Brendan Honick ({CURATION_OFFICE_HOURS_SCHEDULING_LINK}).<br><ul><li><a href="https://ingest.hubmapconsortium.org/Dataset/ffb964a87cd93bc110ba39884d7df42a">HBM658.VMWF.882</a></li></ul><br><li>New: 1</li>This status is an artifact of prior status handling. Go to the dataset ingest page and press "Submit."<br><ul><li><a href="https://ingest.hubmapconsortium.org/Dataset/474f0b4a77083fe938cc9352cb9a9470">HBM328.ZSPV.447</a></li></ul><br></ul><br><b>Datasets currently in the ingestion process:</b><br>Below are counts of datasets not currently requiring action on your part, with a brief description of each status.<br><ul><li>Error: 1</li>Datasets have encountered an internal HIVE error. Curators and developers are working to address the issue.<br><ul><li><a href="https://ingest.hubmapconsortium.org/Dataset/889a27e6521388e3553472fc9e14439d">HBM654.VCSC.832</a></li></ul><br></ul>Please consult our <a href="https://docs.google.com/document/d/13zBbp_BNCVPZPj71Q5dGLoNJ_TDRyEpPck2mGQbkLYg/edit?usp=sharing">guide to HuBMAP entity statuses</a> if you would like to learn more about the different dataset statuses.<br>'

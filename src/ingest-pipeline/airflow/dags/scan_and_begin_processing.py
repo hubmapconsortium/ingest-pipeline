@@ -126,7 +126,7 @@ with HMDAG(
             upload_ignore_globs="*",
             plugin_directory=plugin_path,
             # offline_only=True,  # noqa E265
-            extra_parameters={
+            plugin_kwargs={
                 "coreuse": get_threads_resource("scan_and_begin_processing", "run_validation")
             },
             ignore_deprecation=True,
@@ -135,14 +135,15 @@ with HMDAG(
         )
         # Scan reports an error result
         report = ingest_validation_tools_error_report.ErrorReport(
-            errors=upload.get_errors(plugin_kwargs=kwargs), info=upload.get_info()
+            errors=upload.get_errors(),
+            info=upload.get_info(),
         )
         if report.errors:
-            sys.stdout.write("Directory validation failed! Errors follow:\n")
+            sys.stdout.write("Validation failed! Errors follow:\n")
             sys.stdout.write(report.as_text())
             log_fname = os.path.join(utils.get_tmp_dir_path(kwargs["run_id"]), "session.log")
             with open(log_fname, "w") as f:
-                f.write("Directory validation failed! Errors follow:\n")
+                f.write("Validation failed! Errors follow:\n")
                 f.write(report.as_text())
             kwargs["ti"].xcom_push(
                 key="error_counts",

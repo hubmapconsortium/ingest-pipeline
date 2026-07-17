@@ -3,10 +3,8 @@ from pathlib import Path
 from pprint import pprint
 
 from airflow.operators.python import PythonOperator
-from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 from airflow.configuration import conf as airflow_conf
 from datetime import datetime
-from airflow import DAG
 
 from hubmap_operators.common_operators import (
     CreateTmpDirOperator,
@@ -68,7 +66,6 @@ with HMDAG(
     def emit_files_json(**kwargs):
         # Only processed datasets have files: information
         uuid_list = kwargs["dag_run"].conf.get("processed_datasets", [])
-        rslt = {}
         pipeline_file_manifests = find_pipeline_manifests(kwargs["dag_run"].conf["cwl_workflows"])
         for uuid in uuid_list:
             def uuid_callable(**kwargs):
@@ -102,9 +99,11 @@ with HMDAG(
     t_log_info = LogInfoOperator(task_id="log_info")
     t_create_tmpdir = CreateTmpDirOperator(task_id="create_tmpdir")
 
-    (t_log_info
-     >> t_create_tmpdir
-     >> t_build_dataset_lists
-     >> t_emit_files_json
-     )
+    (
+        t_log_info
+        >> t_create_tmpdir
+        >> t_build_dataset_lists
+        >> t_emit_files_json
+    )
+
 

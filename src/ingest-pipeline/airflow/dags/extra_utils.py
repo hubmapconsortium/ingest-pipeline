@@ -2,7 +2,6 @@ import json
 import pandas as pd
 import re
 import torch
-import time
 
 from typing import List, Dict
 from pathlib import Path
@@ -34,10 +33,19 @@ def check_link_published_drvs(uuid: str, auth_tok: str) -> Tuple[bool, str]:
     response = http_hook.run(endpoint, headers=headers, extra_options=extra_options)
     print("response: ")
     pprint(response.json())
+    selected = None
     for data in response.json():
-        if data.get("entity_type") == "Dataset" and data.get("status") == "Published":
-            needs_previous_version = True
-            published_uuid = data.get("uuid")
+        if (data.get("entity_type") == "Dataset" and data.get("status") == "Published"
+                and data.get("creation_action") == "Central Process"):
+            if selected is None:
+                selected = data.get("last_modified_timestamp")
+                needs_previous_version = True
+                published_uuid = data.get("uuid")
+            else:
+                tmp_datetime = data.get("last_modified_timestamp")
+                if tmp_datetime > selected:
+                    selected = tmp_datetime
+                    published_uuid = data.get("uuid")
     return needs_previous_version, published_uuid
 
 

@@ -7,7 +7,6 @@ from requests.exceptions import HTTPError
 
 import pandas as pd
 
-from airflow.operators.bash import BashOperator
 from airflow.operators.python import PythonOperator
 from airflow.providers.http.hooks.http import HttpHook
 from airflow.exceptions import AirflowException

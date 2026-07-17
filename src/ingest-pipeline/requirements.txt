@@ -1,7 +1,8 @@
 # Install dependencies of submodules
 # -r ${CWD}/submodules/ingest-validation-tools/requirements.txt
 # -r ${CWD}/submodules/ingest-validation-tests/requirements.txt
-apache-airflow[celery,crypto,postgres,redis,ssh,amazon]==2.11.0 --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-2.11.0/constraints-3.11.txt"
+apache-airflow[crypto,postgres,redis,ssh,amazon]==2.11.0 --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-2.11.0/constraints-3.11.txt"
+apache-airflow-providers-celery==3.12.2
 airflow-multi-dagrun==2.3.1
 git+https://github.com/hubmapconsortium/cwltool.git@docker-gpu#egg=cwltool
 git+https://github.com/hubmapconsortium/fastq-utils@v0.2.5#egg=hubmap-fastq-utils
@@ -27,3 +28,7 @@ authlib==1.6.9
 torch==2.8.0
 nvidia-ml-py==13.590.48
 pydantic==2.12.5
+suffix-tree>=0.1.2
+rocrate>=0.15.0
+openpyxl==3.1.0
+setuptools==81.0.0

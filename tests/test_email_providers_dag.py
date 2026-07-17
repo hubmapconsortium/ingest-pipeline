@@ -50,19 +50,19 @@ class TestEmailProvidersDAG(unittest.TestCase):
     def test_get_counts(self):
         counts = get_counts(self.modified_df)
         assert counts == [
+            "<li>Approval: 8</li>",
             "<li>Error: 1</li>",
             "<li>Invalid: 1</li>",
             "<li>New: 1</li>",
-            "<li>QA: 8</li>",
         ]
-        qa_counts = get_counts(self.modified_df, [Statuses.DATASET_QA])
-        assert qa_counts == ["<li>QA: 8</li>"]
+        approval_counts = get_counts(self.modified_df, [Statuses.DATASET_APPROVAL])
+        assert approval_counts == ["<li>Approval: 8</li>"]
         no_counts = get_counts(self.modified_df, [Statuses.UPLOAD_VALID])
         assert no_counts == []
 
     def test_annotated_statuses(self):
         annotated = annotated_statuses(
-            self.modified_df, [Statuses.DATASET_QA], "test title", "test_desc"
+            self.modified_df, [Statuses.DATASET_APPROVAL], "test title", "test_desc"
         )
         assert annotated == annotated_invalid
 
@@ -75,7 +75,7 @@ class TestEmailProvidersDAG(unittest.TestCase):
         assert other_counts == dp_other_counts
 
     def test_list_datasets_by_status(self):
-        dataset_list = list_datasets_by_status(self.modified_df, Statuses.DATASET_QA)
+        dataset_list = list_datasets_by_status(self.modified_df, Statuses.DATASET_APPROVAL)
         assert len(dataset_list) == 8
         assert (
             dataset_list[0]
