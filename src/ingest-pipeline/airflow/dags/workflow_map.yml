@@ -115,7 +115,7 @@ workflow_map:
     'workflow': 'azimuth_annotations'
   - 'collection_type': 'run_old_azimuth'
     'assay_type': '.*'
-    'workflow': 'salmon_pre_pan_organ'
+    'workflow': 'pre_pan_organ_azimuth_annotations'
   - 'collection_type': '.*'
     'assay_type': 'h-and-e'
     'workflow': 'ometiff_pyramid'
