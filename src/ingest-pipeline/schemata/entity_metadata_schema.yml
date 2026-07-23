@@ -29,6 +29,7 @@
             - 'error'
             - 'hold'
             - 'reorganized'
+            - 'approval'
      'anyOf':
       - 'properties':
            'entity_type': { 'const': 'upload' }
@@ -40,7 +41,7 @@
            'entity_type': { 'const': 'dataset' }
            'status':
              'enum': ['deprecated', 'error', 'hold', 'invalid', 'new',
-                      'processing', 'published', 'qa', 'submitted']
+                      'processing', 'published', 'qa', 'submitted', 'approval']
         'required': ['entity_type', 'status']
       - 'properties':
            'entity_type': { 'const': 'publication' }
