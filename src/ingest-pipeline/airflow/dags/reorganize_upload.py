@@ -37,7 +37,7 @@ from utils import (
     get_queue_resource,
     get_preserve_scratch_resource,
     get_soft_data_assaytype,
-    # get_threads_resource,
+    get_threads_resource,
 )
 
 from misc.tools.split_and_create import reorganize
