@@ -258,7 +258,7 @@ class StatusChanger(EntityUpdater):
             - If same_status: continue to call_message_managers.
         - Validates fields with parent method and adds status to fields_to_change.
         - Runs parent set_entity_api_data() process.
-        - Special case: new or QA derived dataset should make sure parent
+        - Special case: new or QA derived dataset should make sure primary
             dataset status is QA
         - Instantiates messaging classes, sends updates based on message class's
             is_valid_for_status value.
