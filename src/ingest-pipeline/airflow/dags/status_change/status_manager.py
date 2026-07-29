@@ -19,6 +19,8 @@ from .status_utils import (
     MessageManager,
     Statuses,
     enums_to_lowercase,
+    get_is_derived,
+    get_primary_dataset,
     get_status_enum,
     get_submission_context,
     put_request_to_entity_api,
@@ -255,7 +257,9 @@ class StatusChanger(EntityUpdater):
             - If no status: return (nothing left to do).
             - If same_status: continue to call_message_managers.
         - Validates fields with parent method and adds status to fields_to_change.
-        - Runs parent _set_entity_api_data() process.
+        - Runs parent set_entity_api_data() process.
+        - Special case: new or QA derived dataset should make sure primary
+            dataset status is QA
         - Instantiates messaging classes, sends updates based on message class's
             is_valid_for_status value.
         """
@@ -275,6 +279,11 @@ class StatusChanger(EntityUpdater):
             logging.info("Updating status...")
             self.validate_fields_to_change()
             self.set_entity_api_data()
+        if get_is_derived(self.entity_data) and self.status in [
+            Statuses.DATASET_QA,
+            Statuses.DATASET_NEW,
+        ]:
+            self.update_primary_dataset()
         call_message_managers(
             self.status, self.uuid, self.token, self.messages, self.message_classes
         )
@@ -341,6 +350,35 @@ class StatusChanger(EntityUpdater):
         # Slightly fragile, needs to keep pace with EntityUpdater.update()
         super().validate_fields_to_change()
         super().set_entity_api_data()
+
+    def update_primary_dataset(self):
+        """
+        If a derived dataset reaches status "New" or "QA," reset
+        primary to "QA" if it was previously set to "Error" by failed
+        derived dataset creation.
+        """
+        primary_uuid = get_primary_dataset(self.entity_data, self.token)
+        if not primary_uuid:
+            raise EntityUpdateException(
+                f"Can't find primary dataset for derived dataset {self.uuid}, not updating."
+            )
+        primary_metadata = get_submission_context(self.token, primary_uuid)
+        primary_status = primary_metadata.get("status", "").lower()
+        if primary_status != "error":
+            return
+        try:
+            logging.info(f"Updating primary dataset status from Error to QA.")
+            response = put_request_to_entity_api(
+                primary_uuid,
+                self.token,
+                {"status": "QA", "pipeline_message": ""},
+                {"reindex-priority": self.reindex},
+            )
+            logging.info(f"Response: {response}")
+        except Exception as e:
+            raise EntityUpdateException(
+                f"Error changing status for primary dataset {primary_uuid}: {e}"
+            )
 
 
 message_class_map = {

@@ -28,13 +28,13 @@ from typing import (
 
 import cwltool  # used to find its path
 import yaml
+from crate_manager import CrateManager, DummyCrateManager
 from cryptography.fernet import Fernet
 from requests import codes
 from requests.exceptions import HTTPError, JSONDecodeError
 from schema_utils import (
     localized_assert_json_matches_schema as assert_json_matches_schema,
 )
-from crate_manager import CrateManager, DummyCrateManager
 
 from airflow import DAG
 from airflow.configuration import conf as airflow_conf
@@ -272,14 +272,14 @@ def find_pipeline_manifests(cwl_files: list[Path] | list[dict] | str) -> list[Pa
 
 
 def get_cwl_cmd_from_workflows(
-        workflows: list[dict],
-        workflow_index: int,
-        input_param_vals: list,
-        tmp_dir: Path,
-        ti,
-        cwl_param_vals: list[dict] | None = None,
-        crate_manager: CrateManager | None = None,
-        session = None,
+    workflows: list[dict],
+    workflow_index: int,
+    input_param_vals: list,
+    tmp_dir: Path,
+    ti,
+    cwl_param_vals: list[dict] | None = None,
+    crate_manager: CrateManager | None = None,
+    session=None,
 ) -> list:
     """
     :param workflows: Iterable of workflow dictionaries
@@ -315,8 +315,7 @@ def get_cwl_cmd_from_workflows(
 
     # Add the provenance argument for this workflow, if any
     if crate_manager:
-        assert session is not None, ("A valid session is required"
-                                     " when using rocrates")
+        assert session is not None, "A valid session is required" " when using rocrates"
         command += crate_manager.get_args(tmp_dir, ti, session)
 
     command.append(Path(workflow["workflow_path"]))
@@ -1450,6 +1449,7 @@ def build_provenance_function(
         contains one of these keywords are kept. Pass None to keep the entire
         prior-revision provenance list, in order, ahead of the new one.
     """
+
     def build_provenance(**kwargs) -> list:
         # Get the previous revisions metadata
         dataset_uuid = get_previous_revision_uuid(**kwargs)
@@ -1473,7 +1473,8 @@ def build_provenance_function(
         prev_provenance = ds_rslt["ingest_metadata"]["dag_provenance_list"]
         if origin_keywords is not None:
             prev_provenance = [
-                data for data in prev_provenance
+                data
+                for data in prev_provenance
                 if any(kw in data["origin"] for kw in origin_keywords)
             ]
         kwargs["dag_run"].conf["dag_provenance_list"] = prev_provenance + new_dag_provenance
@@ -1660,14 +1661,20 @@ def make_send_status_msg_function(
                         if __is_true(val=v):
                             contacts.append(contrib)
 
-            if (segmentation_metadata := gather_segmentation_metadata(**kwargs).get("segmentation_metadata")) is not None:
+            if (
+                segmentation_metadata := gather_segmentation_metadata(**kwargs).get(
+                    "segmentation_metadata"
+                )
+            ) is not None:
                 md["segmentation_metadata"] = segmentation_metadata
 
             if not ds_rslt:
                 status = "QA"
             else:
                 status = ds_rslt.get("status", "QA")
-                if status in ["Processing", "New", "Invalid"]:
+                # With the exception of the JSON schema check, send_status_msg will not
+                # return an Error status
+                if status in ["Processing", "New", "Invalid", "Error"]:
                     status = (
                         "Submitted"
                         if kwargs["dag"].dag_id
