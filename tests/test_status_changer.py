@@ -510,7 +510,7 @@ class TestStatusChanger(MockParent):
                     mock.call(
                         "primary_dataset_uuid",
                         "dataset_valid_token",
-                        {"status": "QA"},
+                        {"status": "QA", "pipeline_message": ""},
                         {"reindex-priority": 3},
                     ),
                 ]
