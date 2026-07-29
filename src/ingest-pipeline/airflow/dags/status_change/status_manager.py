@@ -367,9 +367,12 @@ class StatusChanger(EntityUpdater):
         if primary_status != "error":
             return
         try:
-            logging.info(f"Updating primary dataset status from {primary_status} to QA.")
+            logging.info(f"Updating primary dataset status from Error to QA.")
             response = put_request_to_entity_api(
-                primary_uuid, self.token, {"status": "QA"}, {"reindex-priority": self.reindex}
+                primary_uuid,
+                self.token,
+                {"status": "QA", "pipeline_message": ""},
+                {"reindex-priority": self.reindex},
             )
             logging.info(f"Response: {response}")
         except Exception as e:
