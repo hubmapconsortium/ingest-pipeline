@@ -3,6 +3,7 @@ import json
 import unittest
 from datetime import date
 from functools import cached_property
+from unittest import mock
 from unittest.mock import MagicMock, PropertyMock, patch
 
 import requests
@@ -470,6 +471,90 @@ class TestStatusChanger(MockParent):
                 message=message,
                 ds_state="Unknown",
             )
+
+    def status_changer_update(self, status: str, **kwargs):
+        with patch("status_change.status_manager.get_submission_context", **kwargs):
+            StatusChanger(
+                "dataset_valid_uuid",
+                "dataset_valid_token",
+                status=status,
+            ).update()
+
+    @patch("status_change.status_manager.StatusChanger.set_entity_api_data")
+    @patch("status_change.status_utils.get_ancestors")
+    def test_set_primary_status_derived(self, mock_get_ancestors, mock_set_data):
+        """
+        No change to derived status (new->new), primary in error: only primary status updated.
+        Derived status changed (new->qa), primary in error: update both.
+        """
+        mock_get_ancestors.return_value = (
+            {"entity_type": "Dataset", "uuid": "primary_dataset_uuid"},
+        )
+        for status in ["new", "qa"]:
+            self.status_changer_update(
+                status,
+                side_effect=[
+                    {
+                        "status": "New",
+                        "entity_type": "Dataset",
+                        "creation_action": "Central Process",
+                    },
+                    {
+                        "status": "Error",
+                        "entity_type": "Dataset",
+                    },
+                ],
+            )
+            self.mock_entity_update.assert_has_calls(
+                [
+                    mock.call(
+                        "primary_dataset_uuid",
+                        "dataset_valid_token",
+                        {"status": "QA", "pipeline_message": ""},
+                        {"reindex-priority": 3},
+                    ),
+                ]
+            )
+            self.mock_entity_update.reset_mock()
+            match status:
+                case "new":
+                    mock_set_data.assert_not_called()
+                case "qa":
+                    mock_set_data.assert_called_once()
+
+    @patch("status_change.status_manager.StatusChanger.set_entity_api_data")
+    @patch("status_change.status_manager.StatusChanger.update_primary_dataset")
+    def test_do_not_set_primary_status_derived_error(self, mock_update_primary, mock_set_data):
+        """
+        Derived status changed to non new/qa status (new->error), primary in error: do not update primary.
+        """
+        self.status_changer_update(
+            "error",
+            return_value={
+                "status": "New",
+                "entity_type": "Dataset",
+                "creation_action": "Central Process",
+            },
+        )
+        mock_set_data.assert_called_once()
+        mock_update_primary.assert_not_called()
+
+    @patch("status_change.status_manager.StatusChanger.set_entity_api_data")
+    @patch("status_change.status_manager.StatusChanger.update_primary_dataset")
+    def test_do_not_set_primary_status_not_derived(self, mock_update_primary, mock_set_data):
+        """
+        Dataset is not derived and status is unchanged, do not look for primary.
+        """
+        self.status_changer_update(
+            "new",
+            return_value={
+                "status": "New",
+                "entity_type": "Dataset",
+                "creation_action": "something else",
+            },
+        )
+        mock_set_data.assert_not_called()
+        mock_update_primary.assert_not_called()
 
     @patch("status_change.status_manager.StatusChanger")
     def test_get_any_dataset_uuid(self, sc_mock):

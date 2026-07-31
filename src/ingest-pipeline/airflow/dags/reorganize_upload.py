@@ -348,6 +348,41 @@ with HMDAG(
         },
     )
 
+    t_maybe_keep_md1 = BranchPythonOperator(
+        task_id="maybe_keep_md1",
+        python_callable=pythonop_maybe_keep,
+        provide_context=True,
+        op_kwargs={
+            "next_op": "md_consistency_tests",
+            "bail_op": "set_datasets_error_md",
+            "test_op": "run_md_extract",
+        },
+    )
+
+    def set_datasets_error_md(**kwargs):
+        child_uuid_list = (
+            kwargs["ti"].xcom_pull(task_ids="split_stage_2", key="child_uuid_list") or []
+        )
+        auth_tok = get_auth_tok(**kwargs)
+        run_id = kwargs.get("run_id")
+        for uuid in child_uuid_list:
+            StatusChanger(
+                uuid,
+                auth_tok,
+                messages={
+                    "run_id": run_id,
+                    "error_dict": "Metadata parsing failed. Cannot continue reorganization"
+                },
+                status="Error",
+            ).update()
+
+    t_set_datasets_error_md = PythonOperator(
+        task_id="set_datasets_error_md",
+        python_callable=set_datasets_error_md,
+        provide_context=True,
+        trigger_rule="all_done",
+    )
+
     def xcom_consistency_puller(**kwargs):
         return kwargs["ti"].xcom_pull(task_ids="split_stage_2", key="child_uuid_list")
 
@@ -373,6 +408,17 @@ with HMDAG(
         op_kwargs={
             "metadata_fname": "rslt.yml",
             "uuid_list": xcom_consistency_puller,
+        },
+    )
+
+    t_maybe_keep_md2 = BranchPythonOperator(
+        task_id="maybe_keep_md2",
+        python_callable=pythonop_maybe_keep,
+        provide_context=True,
+        op_kwargs={
+            "next_op": "permission_resetting",
+            "bail_op": "set_datasets_error_md",
+            "test_op": "md_consistency_tests",
         },
     )
 
@@ -504,7 +550,9 @@ with HMDAG(
         >> t_split_stage_2
         >> t_maybe_keep_2
         >> t_run_md_extract
+        >> t_maybe_keep_md1
         >> t_md_consistency_tests
+        >> t_maybe_keep_md2
         >> t_reset_permissions
         >> t_send_status
         >> t_join
@@ -517,3 +565,7 @@ with HMDAG(
     t_maybe_keep_1 >> t_set_dataset_error
     t_maybe_keep_2 >> t_set_dataset_error
     t_set_dataset_error >> t_join
+
+    t_maybe_keep_md1 >> t_set_datasets_error_md
+    t_maybe_keep_md2 >> t_set_datasets_error_md
+    t_set_datasets_error_md >> t_set_dataset_error

@@ -22,7 +22,7 @@ workflow_map:
     'workflow': 'codex_cytokit'
   - 'collection_type': '.*'
     'assay_type': 'cell-dive'
-    'workflow': 'celldive_deepcell'
+    'workflow': 'celldive_deepcell_segmentation'
   - 'collection_type': '.*'
     'assay_type': 'MIBI'
     'workflow': 'mibi_deepcell'
