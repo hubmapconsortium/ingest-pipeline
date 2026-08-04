@@ -17,7 +17,7 @@ def _sha256(path: Path) -> str:
     return h.hexdigest()
 
 
-def _run_scrubber(input_path: Path, output_name: str) -> None:
+def _run_scrubber(input_path: Path, output_name: str, report_dir: Optional[Path]) -> None:
     # Mount a per-file tmp dir from the NFS into the container so that any
     # files the scrubber writes outside /data (e.g. /tmp) land on NFS, not
     # on local disk.
@@ -39,14 +39,22 @@ def _run_scrubber(input_path: Path, output_name: str) -> None:
                 f"/data/{input_path.name}",
                 "-o",
                 f"/data/{output_name}",
+                "-x",
+                "-r",
             ],
             check=True,
         )
+
+        report_path = input_path.parent / f"{input_path.name}.spots_removed"
+        # Move spots removed to extras dir to avoid it being removed with scratch deletion
+        if report_dir is not None and report_path.exists():
+            report_dir.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(report_path), str(report_dir / report_path.name))
     finally:
         shutil.rmtree(container_tmp, ignore_errors=True)
 
 
-def _double_scrub(fastq_path: Path) -> None:
+def _double_scrub(fastq_path: Path, report_dir: Optional[Path]) -> None:
     """
     Run the scrubber twice on fastq_path, verify idempotency via SHA-256,
     then replace fastq_path with the scrubbed result.
@@ -57,11 +65,11 @@ def _double_scrub(fastq_path: Path) -> None:
     clean_clean = fastq_path.parent / (fastq_path.name + ".clean.clean")
     try:
         t0 = time.time()
-        _run_scrubber(fastq_path, clean.name)
+        _run_scrubber(fastq_path, clean.name, report_dir)
         print(f"[scrub] {fastq_path.name}: first scrub took {time.time() - t0:.2f}s")
 
         t0 = time.time()
-        _run_scrubber(clean, clean_clean.name)
+        _run_scrubber(clean, clean_clean.name, report_dir)
         print(f"[scrub] {fastq_path.name}: second scrub took {time.time() - t0:.2f}s")
 
         if _sha256(clean) != _sha256(clean_clean):
@@ -79,7 +87,7 @@ def _double_scrub(fastq_path: Path) -> None:
         raise
 
 
-def _process_fastq_gz(fastq_gz_path: Path, num_threads: int) -> None:
+def _process_fastq_gz(fastq_gz_path: Path, num_threads: int, report_dir: Optional[Path]) -> None:
     """
     Process a single .fastq.gz file in place.
 
@@ -116,7 +124,7 @@ def _process_fastq_gz(fastq_gz_path: Path, num_threads: int) -> None:
         print(f"[scrub] {fastq_gz_path.name}: decompression took {time.time() - t0:.2f}s")
 
         t0 = time.time()
-        _double_scrub(fastq_path)
+        _double_scrub(fastq_path, report_dir)
         print(f"[scrub] {fastq_gz_path.name}: scrubbing took {time.time() - t0:.2f}s")
 
         gz_overwritten = True
@@ -140,7 +148,7 @@ def _process_fastq_gz(fastq_gz_path: Path, num_threads: int) -> None:
         raise
 
 
-def _process_fastq(fastq_path: Path) -> None:
+def _process_fastq(fastq_path: Path, report_dir: Optional[Path]) -> None:
     """
     Process a single .fastq file in place.
 
@@ -158,7 +166,7 @@ def _process_fastq(fastq_path: Path) -> None:
         copy_done = True
 
         t0 = time.time()
-        _double_scrub(fastq_path)
+        _double_scrub(fastq_path, report_dir)
         print(f"[scrub] {fastq_path.name}: scrubbing took {time.time() - t0:.2f}s")
     except Exception:
         print(f"[scrub] ERROR processing {fastq_path.name}, cleaning up")
@@ -196,7 +204,12 @@ def _rollback_all(files: list[Path]) -> None:
             print(f"[scrub] Rolled back {path.name}")
 
 
-def scrub_upload(upload_path: Path, num_threads: int = 1, backup_dir: Optional[Path] = None) -> None:
+def scrub_upload(
+    upload_path: Path,
+    num_threads: int = 1,
+    backup_dir: Optional[Path] = None,
+    extras_dir: Optional[Path] = None,
+) -> None:
     """
     Find all FASTQ files under upload_path, scrub human reads from each,
     verify correctness, then move .original backups to backup_dir (mirroring
@@ -204,8 +217,15 @@ def scrub_upload(upload_path: Path, num_threads: int = 1, backup_dir: Optional[P
     .original files are deleted. Raises on any failure, rolling back all
     changes so every file is restored to its pre-scrub state.
 
+    scrub.sh's -r "spots removed" report for each pass is moved into
+    extras_dir (mirroring the relative path structure under upload_path)
+    as soon as it's produced, since it's written into the scratch dir which
+    gets deleted after a successful run. Defaults to upload_path / "extras".
+
     Raises RuntimeError with per-file error details on failure.
     """
+    if extras_dir is None:
+        extras_dir = upload_path / "extras"
     # Step 1: Discover files and check for conflicts
     gz_files = sorted(upload_path.rglob("*.fastq.gz"))
     all_fastqs = sorted(upload_path.rglob("*.fastq"))
@@ -222,7 +242,10 @@ def scrub_upload(upload_path: Path, num_threads: int = 1, backup_dir: Optional[P
 
     # Step 2: Scrub .fastq.gz files
     gz_errors = _run_in_pool(
-        [(_process_fastq_gz, p, num_threads) for p in gz_files],
+        [
+            (_process_fastq_gz, p, num_threads, extras_dir / p.relative_to(upload_path).parent)
+            for p in gz_files
+        ],
         num_threads,
     )
     if gz_errors:
@@ -235,7 +258,10 @@ def scrub_upload(upload_path: Path, num_threads: int = 1, backup_dir: Optional[P
 
     # Step 3: Scrub plain .fastq files
     fastq_errors = _run_in_pool(
-        [(_process_fastq, p) for p in plain_fastqs],
+        [
+            (_process_fastq, p, extras_dir / p.relative_to(upload_path).parent)
+            for p in plain_fastqs
+        ],
         num_threads,
     )
     if fastq_errors:
