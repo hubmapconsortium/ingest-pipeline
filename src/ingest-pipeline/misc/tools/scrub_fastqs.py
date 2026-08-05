@@ -58,8 +58,8 @@ def _run_scrubber(input_path: Path, output_name: str, report_dir: Optional[Path]
                 f"docker log: {log_path}"
             )
 
-        report_path = input_path.parent / f"{input_path.name}.spots_removed"
-        # Move spots removed to extras dir to avoid it being removed with scratch deletion
+        report_path = input_path.parent / f"{input_path.name}.removed_spots"
+        # Move removed spots to extras dir to avoid it being removed with scratch deletion
         if report_dir is not None and report_path.exists():
             report_dir.mkdir(parents=True, exist_ok=True)
             shutil.move(str(report_path), str(report_dir / report_path.name))
