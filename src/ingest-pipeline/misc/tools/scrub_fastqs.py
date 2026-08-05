@@ -1,4 +1,5 @@
 import hashlib
+import os
 import shutil
 import subprocess
 import time
@@ -35,6 +36,8 @@ def _run_scrubber(input_path: Path, output_name: str, report_dir: Optional[Path]
                     "docker",
                     "run",
                     "--rm",
+                    "-u",
+                    f"{os.getuid()}:{os.getgid()}",
                     "-v",
                     f"{input_path.parent}:/data",
                     "-v",
