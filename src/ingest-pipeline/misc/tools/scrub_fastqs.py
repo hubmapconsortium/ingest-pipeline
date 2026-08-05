@@ -125,6 +125,7 @@ def _process_fastq_gz(fastq_gz_path: Path, num_threads: int, report_dir: Optiona
     stem = fastq_gz_path.name[: -len(".fastq.gz")]
     fastq_path = parent / (stem + ".fastq")
     original = parent / (fastq_gz_path.name + ".original")
+    recompressed = parent / (fastq_gz_path.name + ".new")
 
     gz_overwritten = False
     try:
@@ -143,20 +144,22 @@ def _process_fastq_gz(fastq_gz_path: Path, num_threads: int, report_dir: Optiona
         _double_scrub(fastq_path, report_dir)
         print(f"[scrub] {fastq_gz_path.name}: scrubbing took {time.time() - t0:.2f}s")
 
-        gz_overwritten = True
         t0 = time.time()
-        with open(fastq_gz_path, "wb") as f_out:
+        with open(recompressed, "wb") as f_out:
             subprocess.run(
                 ["pigz", "-p", str(num_threads), "-c", str(fastq_path)],
                 stdout=f_out,
                 check=True,
             )
+        gz_overwritten = True
+        recompressed.replace(fastq_gz_path)
         print(f"[scrub] {fastq_gz_path.name}: recompression took {time.time() - t0:.2f}s")
 
         fastq_path.unlink()
     except Exception:
         print(f"[scrub] ERROR processing {fastq_gz_path.name}, cleaning up")
         fastq_path.unlink(missing_ok=True)
+        recompressed.unlink(missing_ok=True)
         if gz_overwritten:
             original.replace(fastq_gz_path)
         else:
