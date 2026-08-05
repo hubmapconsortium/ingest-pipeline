@@ -23,27 +23,40 @@ def _run_scrubber(input_path: Path, output_name: str, report_dir: Optional[Path]
     # on local disk.
     container_tmp = input_path.parent / f".scrub_tmp_{input_path.name}"
     container_tmp.mkdir(exist_ok=True)
+
+    log_dir = input_path.parent / ".scrub_logs"
+    log_dir.mkdir(exist_ok=True)
+    log_path = log_dir / f"{input_path.name}.{output_name}.docker.log"
+
     try:
-        subprocess.run(
-            [
-                "docker",
-                "run",
-                "--rm",
-                "-v",
-                f"{input_path.parent}:/data",
-                "-v",
-                f"{container_tmp}:/tmp",
-                SRA_SCRUBBER_IMAGE,
-                "scrub.sh",
-                "-i",
-                f"/data/{input_path.name}",
-                "-o",
-                f"/data/{output_name}",
-                "-x",
-                "-r",
-            ],
-            check=True,
-        )
+        with open(log_path, "wb") as log_f:
+            result = subprocess.run(
+                [
+                    "docker",
+                    "run",
+                    "--rm",
+                    "-v",
+                    f"{input_path.parent}:/data",
+                    "-v",
+                    f"{container_tmp}:/tmp",
+                    SRA_SCRUBBER_IMAGE,
+                    "scrub.sh",
+                    "-i",
+                    f"/data/{input_path.name}",
+                    "-o",
+                    f"/data/{output_name}",
+                    "-x",
+                    "-r",
+                ],
+                stdout=log_f,
+                stderr=subprocess.STDOUT,
+            )
+
+        if result.returncode != 0:
+            raise RuntimeError(
+                f"scrub.sh failed for {input_path.name} (exit {result.returncode}); "
+                f"docker log: {log_path}"
+            )
 
         report_path = input_path.parent / f"{input_path.name}.spots_removed"
         # Move spots removed to extras dir to avoid it being removed with scratch deletion
