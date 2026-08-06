@@ -161,4 +161,7 @@ workflow_map:
   - 'collection_type': 'sprm_spatial_data'
     'assay_type': '.*'
     'workflow': 'sprm_spatial_data'
+  - 'collection_type': '.*'
+    'assay_type': 'paired-tag'
+    'workflow': 'multiome_paired_tag'
 
