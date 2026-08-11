@@ -1661,6 +1661,9 @@ def make_send_status_msg_function(
                         if __is_true(val=v):
                             contacts.append(contrib)
 
+                if (genome_build := md.get("metadata", {}).pop("genome_build", {})) is not None:
+                    md["genome_build"] = genome_build
+
             if (
                 segmentation_metadata := gather_segmentation_metadata(**kwargs).get(
                     "segmentation_metadata"
