@@ -1661,6 +1661,9 @@ def make_send_status_msg_function(
                         if __is_true(val=v):
                             contacts.append(contrib)
 
+                if (genome_build := md.get("metadata", {}).pop("genome_build", {})) is not None:
+                    md["genome_build"] = genome_build
+
             if (
                 segmentation_metadata := gather_segmentation_metadata(**kwargs).get(
                     "segmentation_metadata"
@@ -2001,7 +2004,12 @@ def gather_calculated_metadata(**kwargs):
     data_dir = kwargs["ti"].xcom_pull(task_ids="send_create_dataset")
     file_path = f"{data_dir}/calculated_metadata.json"
     output_metadata = json.load(open(file_path)) if os.path.exists(file_path) else {}
-    return {"calculated_metadata": output_metadata}
+    genome_build = f"{data_dir}/genome_build.json"
+    output_build = json.load(open(genome_build)) if os.path.exists(genome_build) else {}
+    return {
+        "calculated_metadata": output_metadata,
+        "genome_build": output_build,
+    }
 
 
 def gather_segmentation_metadata(**kwargs):
