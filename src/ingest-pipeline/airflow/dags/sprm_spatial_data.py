@@ -69,6 +69,33 @@ with HMDAG(
         }
     ]
 
+    def get_cwl_workflows_files(**kwargs):
+        """
+        The dataset holds the output of every pipeline the previous revision ran,
+        not just this DAG's workflow, so the pipeline manifests used for the
+        "files" metadata are gathered from the dag provenance built by
+        build_provenance below.  An entry's "origin" ends with the name of that
+        pipeline's checkout under dags/cwl, and its "name" is the path of the CWL
+        file within that checkout.  Entries without both (this repo's own entry,
+        for instance) are skipped, as are workflows with no manifest.
+        """
+        workflows = [
+            {
+                # 'stem' drops any '.git' suffix on the origin URL
+                "workflow_path": str(
+                    get_absolute_workflow(
+                        Path(Path(entry["origin"].rstrip("/")).stem, entry["name"])
+                    )
+                ),
+                "documentation_url": "",
+            }
+            for entry in kwargs["dag_run"].conf.get("dag_provenance_list", [])
+            if entry.get("origin") and entry.get("name")
+        ]
+        workflows.extend(cwl_workflows)
+        print("workflows for file manifests: ", workflows)
+        return workflows
+
     prepare_cwl1 = EmptyOperator(task_id="prepare_cwl1")
 
     def build_cwltool_cmd1(**kwargs):
@@ -168,7 +195,7 @@ with HMDAG(
             "pipeline_exec_create_spatial_data",
             "move_data",
         ],
-        cwl_workflows=cwl_workflows,
+        cwl_workflows=get_cwl_workflows_files,
         no_provenance=True,
         metadata_fun=gather_calculated_metadata,
     )
