@@ -567,13 +567,13 @@ with HMDAG(
 
     (
             t_maybe_keep_md1
-            >> t_set_dataset_error_md
+            >> t_set_datasets_error_md
             >> t_set_dataset_error
 
     )
     (
             t_maybe_keep_md2
-            >> t_set_dataset_error_md
+            >> t_set_datasets_error_md
             >> t_set_dataset_error
     )
 
