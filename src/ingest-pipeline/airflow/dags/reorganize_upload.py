@@ -531,7 +531,7 @@ with HMDAG(
         task_id="set_dataset_error",
         python_callable=pythonop_set_dataset_state,
         provide_context=True,
-        trigger_rule="all_success",
+        trigger_rule="all_done",
         op_kwargs={
             "dataset_uuid_callable": _get_upload_uuid,
             "ds_state": "Error",
@@ -565,7 +565,16 @@ with HMDAG(
     t_maybe_keep_1 >> t_set_dataset_error
     t_maybe_keep_2 >> t_set_dataset_error
 
-    t_maybe_keep_md1 >> t_set_datasets_error_md
-    t_maybe_keep_md2 >> t_set_datasets_error_md
-    t_set_datasets_error_md >> t_set_dataset_error
+    (
+            t_maybe_keep_md1
+            >> t_set_dataset_error_md
+            >> t_set_dataset_error
+
+    )
+    (
+            t_maybe_keep_md2
+            >> t_set_dataset_error_md
+            >> t_set_dataset_error
+    )
+
     t_set_dataset_error >> t_join
