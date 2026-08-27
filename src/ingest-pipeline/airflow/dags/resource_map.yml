@@ -189,6 +189,9 @@ resource_map:
       - 'task_re': '.*'
         'queue': 'general'
         'threads': 6
+      - 'task_re': 'scrub_human_reads'
+        'queue': 'general'
+        'threads': 4
   - 'dag_re': 'validation_test'
     'preserve_scratch': true
     'lanes': 2
