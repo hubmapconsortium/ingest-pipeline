@@ -236,7 +236,7 @@ with HMDAG(
         provide_context=True,
         op_kwargs={
             "next_op": "split_stage_2",
-            "bail_op": "set_dataset_error",
+            "bail_op": "join_to_error",
             "test_op": "split_stage_1",
         },
     )
@@ -304,7 +304,7 @@ with HMDAG(
         provide_context=True,
         op_kwargs={
             "next_op": "run_md_extract",
-            "bail_op": "set_dataset_error",
+            "bail_op": "join_to_error",
             "test_op": "split_stage_2",
             "test_key": "split_stage_2",
         },
@@ -380,7 +380,7 @@ with HMDAG(
         task_id="set_datasets_error_md",
         python_callable=set_datasets_error_md,
         provide_context=True,
-        trigger_rule="all_done",
+        trigger_rule="one_success",
     )
 
     def xcom_consistency_puller(**kwargs):
@@ -466,12 +466,14 @@ with HMDAG(
         task_id="send_status_msg",
         python_callable=wrapped_send_status_msg,
         provide_context=True,
-        trigger_rule="all_done",
+        trigger_rule="all_success",
     )
 
     t_log_info = LogInfoOperator(task_id="log_info")
 
     t_join = JoinOperator(task_id="join")
+
+    t_join_to_error = JoinOperator(task_id="join_to_error")
 
     def flex_maybe_multiassay_epic_spawn(**kwargs):
         """
@@ -531,7 +533,7 @@ with HMDAG(
         task_id="set_dataset_error",
         python_callable=pythonop_set_dataset_state,
         provide_context=True,
-        trigger_rule="all_done",
+        trigger_rule="one_success",
         op_kwargs={
             "dataset_uuid_callable": _get_upload_uuid,
             "ds_state": "Error",
@@ -562,10 +564,20 @@ with HMDAG(
     )
 
     # t_maybe_keep_scrub >> t_set_dataset_error
-    t_maybe_keep_1 >> t_set_dataset_error
-    t_maybe_keep_2 >> t_set_dataset_error
-    t_set_dataset_error >> t_join
+    t_maybe_keep_1 >> t_join_to_error
+    t_maybe_keep_2 >> t_join_to_error
 
-    t_maybe_keep_md1 >> t_set_datasets_error_md
-    t_maybe_keep_md2 >> t_set_datasets_error_md
-    t_set_datasets_error_md >> t_set_dataset_error
+    (
+            t_maybe_keep_md1
+            >> t_set_datasets_error_md
+            >> t_set_dataset_error
+
+    )
+    (
+            t_maybe_keep_md2
+            >> t_set_datasets_error_md
+            >> t_set_dataset_error
+    )
+
+    t_join_to_error >> t_set_dataset_error
+    t_set_dataset_error >> t_join
