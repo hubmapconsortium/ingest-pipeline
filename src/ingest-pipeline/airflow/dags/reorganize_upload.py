@@ -236,7 +236,7 @@ with HMDAG(
         provide_context=True,
         op_kwargs={
             "next_op": "split_stage_2",
-            "bail_op": "set_dataset_error",
+            "bail_op": "skip_join",
             "test_op": "split_stage_1",
         },
     )
@@ -304,7 +304,7 @@ with HMDAG(
         provide_context=True,
         op_kwargs={
             "next_op": "run_md_extract",
-            "bail_op": "set_dataset_error",
+            "bail_op": "skip_join",
             "test_op": "split_stage_2",
             "test_key": "split_stage_2",
         },
