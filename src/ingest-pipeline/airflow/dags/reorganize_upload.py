@@ -236,7 +236,7 @@ with HMDAG(
         provide_context=True,
         op_kwargs={
             "next_op": "split_stage_2",
-            "bail_op": "skip_join",
+            "bail_op": "join_to_error",
             "test_op": "split_stage_1",
         },
     )
@@ -304,7 +304,7 @@ with HMDAG(
         provide_context=True,
         op_kwargs={
             "next_op": "run_md_extract",
-            "bail_op": "skip_join",
+            "bail_op": "join_to_error",
             "test_op": "split_stage_2",
             "test_key": "split_stage_2",
         },
@@ -473,7 +473,7 @@ with HMDAG(
 
     t_join = JoinOperator(task_id="join")
 
-    t_skip_join = JoinOperator(task_id="skip_join")
+    t_join_to_error = JoinOperator(task_id="join_to_error")
 
     def flex_maybe_multiassay_epic_spawn(**kwargs):
         """
@@ -570,14 +570,14 @@ with HMDAG(
     (
             t_maybe_keep_md1
             >> t_set_datasets_error_md
-            >> t_set_dataset_error
+            >> t_join_to_error
 
     )
     (
             t_maybe_keep_md2
             >> t_set_datasets_error_md
-            >> t_set_dataset_error
+            >> t_join_to_error
     )
 
-    t_skip_join >> t_set_dataset_error
+    t_join_to_error >> t_set_dataset_error
     t_set_dataset_error >> t_join
