@@ -564,8 +564,8 @@ with HMDAG(
     )
 
     # t_maybe_keep_scrub >> t_set_dataset_error
-    t_maybe_keep_1 >> t_skip_join
-    t_maybe_keep_2 >> t_skip_join
+    t_maybe_keep_1 >> t_join_to_error
+    t_maybe_keep_2 >> t_join_to_error
 
     (
             t_maybe_keep_md1
