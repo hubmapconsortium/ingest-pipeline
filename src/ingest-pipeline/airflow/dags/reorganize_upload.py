@@ -473,6 +473,8 @@ with HMDAG(
 
     t_join = JoinOperator(task_id="join")
 
+    t_skip_join = JoinOperator(task_id="skip_join")
+
     def flex_maybe_multiassay_epic_spawn(**kwargs):
         """
         This will trigger DAG Runs if the upload was a MultiAssay to create its components a build
@@ -531,7 +533,7 @@ with HMDAG(
         task_id="set_dataset_error",
         python_callable=pythonop_set_dataset_state,
         provide_context=True,
-        trigger_rule="all_done",
+        trigger_rule="one_success",
         op_kwargs={
             "dataset_uuid_callable": _get_upload_uuid,
             "ds_state": "Error",
@@ -562,8 +564,8 @@ with HMDAG(
     )
 
     # t_maybe_keep_scrub >> t_set_dataset_error
-    t_maybe_keep_1 >> t_set_dataset_error
-    t_maybe_keep_2 >> t_set_dataset_error
+    t_maybe_keep_1 >> t_skip_join
+    t_maybe_keep_2 >> t_skip_join
 
     (
             t_maybe_keep_md1
@@ -577,4 +579,5 @@ with HMDAG(
             >> t_set_dataset_error
     )
 
+    t_skip_join >> t_set_dataset_error
     t_set_dataset_error >> t_join
