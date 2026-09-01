@@ -380,7 +380,7 @@ with HMDAG(
         task_id="set_datasets_error_md",
         python_callable=set_datasets_error_md,
         provide_context=True,
-        trigger_rule="all_done",
+        trigger_rule="one_success",
     )
 
     def xcom_consistency_puller(**kwargs):
@@ -466,7 +466,7 @@ with HMDAG(
         task_id="send_status_msg",
         python_callable=wrapped_send_status_msg,
         provide_context=True,
-        trigger_rule="all_done",
+        trigger_rule="all_success",
     )
 
     t_log_info = LogInfoOperator(task_id="log_info")
