@@ -32,3 +32,4 @@ suffix-tree>=0.1.2
 rocrate>=0.15.0
 openpyxl==3.1.0
 setuptools==81.0.0
+numpy==1.24.3
