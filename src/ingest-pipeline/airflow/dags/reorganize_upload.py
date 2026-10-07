@@ -44,16 +44,7 @@ from misc.tools.split_and_create import reorganize
 from misc.tools.set_standard_protections import process_one_uuid
 from misc.tools.survey import EntityFactory
 from status_change.status_manager import StatusChanger
-# from misc.tools.scrub_fastqs import scrub_upload
 # from extra_utils import SoftAssayClient
-
-
-SCRUB_REQUIRED_ASSAY_TYPES = {
-    "Visium (with probes)",
-    "Visium HD",
-    "RNAseq (with probes)",
-    "GeoMx (NGS)",
-}
 
 
 # Following are defaults which can be overridden later on
@@ -160,41 +151,6 @@ with HMDAG(
 
     t_create_tmpdir = CreateTmpDirOperator(task_id="create_tmpdir")
     t_cleanup_tmpdir = CleanupTmpDirOperator(task_id="cleanup_tmpdir")
-
-    # def scrub_human_reads(**kwargs):
-    #     lz_path = kwargs["ti"].xcom_pull(task_ids="find_uuid", key="lz_path")
-    #     num_threads = get_threads_resource("reorganize_upload", "scrub_human_reads")
-    #     try:
-    #         # just use lz_path from previous step
-    #         metadata_files = list(Path(lz_path).glob("*metadata.tsv"))
-    #         if not metadata_files:
-    #             raise RuntimeError(f"No metadata TSV files found under {lz_path}")
-    #         full_entity = SoftAssayClient(metadata_files, get_auth_tok(**kwargs))
-    #         dataset_type = full_entity.primary_assay.get("dataset-type")
-    #         if dataset_type in SCRUB_REQUIRED_ASSAY_TYPES:
-    #             scrub_upload(Path(lz_path), num_threads=num_threads)
-    #         kwargs["ti"].xcom_push(key="scrub_human_reads", value="0")
-    #     except Exception as e:
-    #         print(f"Encountered {e}")
-    #         kwargs["ti"].xcom_push(key="scrub_human_reads", value="1")
-    #
-    # t_scrub_human_reads = PythonOperator(
-    #     task_id="scrub_human_reads",
-    #     python_callable=scrub_human_reads,
-    #     provide_context=True,
-    # )
-    #
-    # t_maybe_keep_scrub = BranchPythonOperator(
-    #     task_id="maybe_keep_scrub",
-    #     python_callable=pythonop_maybe_keep,
-    #     provide_context=True,
-    #     op_kwargs={
-    #         "next_op": "split_stage_1",
-    #         "bail_op": "set_dataset_error",
-    #         "test_op": "scrub_human_reads",
-    #         "test_key": "scrub_human_reads",
-    #     },
-    # )
 
     t_preserve_info = BashOperator(
         task_id="preserve_info",
@@ -354,7 +310,7 @@ with HMDAG(
         provide_context=True,
         op_kwargs={
             "next_op": "md_consistency_tests",
-            "bail_op": "set_datasets_error_md",
+            "bail_op": "join_to_error_md",
             "test_op": "run_md_extract",
         },
     )
@@ -380,7 +336,6 @@ with HMDAG(
         task_id="set_datasets_error_md",
         python_callable=set_datasets_error_md,
         provide_context=True,
-        trigger_rule="one_success",
     )
 
     def xcom_consistency_puller(**kwargs):
@@ -417,7 +372,7 @@ with HMDAG(
         provide_context=True,
         op_kwargs={
             "next_op": "permission_resetting",
-            "bail_op": "set_datasets_error_md",
+            "bail_op": "join_to_error_md",
             "test_op": "md_consistency_tests",
         },
     )
@@ -474,6 +429,8 @@ with HMDAG(
     t_join = JoinOperator(task_id="join")
 
     t_join_to_error = JoinOperator(task_id="join_to_error")
+
+    t_join_to_error_md = JoinOperator(task_id="join_to_error_md")
 
     def flex_maybe_multiassay_epic_spawn(**kwargs):
         """
@@ -545,8 +502,6 @@ with HMDAG(
         t_log_info
         >> t_find_uuid
         >> t_create_tmpdir
-        # >> t_scrub_human_reads
-        # >> t_maybe_keep_scrub
         >> t_split_stage_1
         >> t_maybe_keep_1
         >> t_split_stage_2
@@ -563,21 +518,12 @@ with HMDAG(
         >> t_maybe_multiassay_epic_spawn
     )
 
-    # t_maybe_keep_scrub >> t_set_dataset_error
     t_maybe_keep_1 >> t_join_to_error
     t_maybe_keep_2 >> t_join_to_error
-
-    (
-            t_maybe_keep_md1
-            >> t_set_datasets_error_md
-            >> t_set_dataset_error
-
-    )
-    (
-            t_maybe_keep_md2
-            >> t_set_datasets_error_md
-            >> t_set_dataset_error
-    )
-
     t_join_to_error >> t_set_dataset_error
+
+    t_maybe_keep_md1 >> t_join_to_error_md
+    t_maybe_keep_md2 >> t_join_to_error_md
+    t_join_to_error_md >> t_set_datasets_error_md >> t_set_dataset_error
+
     t_set_dataset_error >> t_join
