@@ -67,7 +67,7 @@ with HMDAG(
 ) as dag:
     pipeline_name = "salmon-whole-exome-sequencing"
     workflow_version = "1.0.0"
-    workflow_description = "The bulk RNA pipeline uses alignment free quasimapping to the hg38 reference genome via Salmon quant to produce a sample by gene matrix in hdf format."
+    workflow_description = "The Whole Exome Sequencing (WES) pipeline uses alignment free quasimapping to the hg38 reference genome via Salmon quant to produce a sample by gene matrix in hdf format."
 
     cwl_workflows = [
         {
