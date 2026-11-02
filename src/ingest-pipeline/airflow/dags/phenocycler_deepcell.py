@@ -265,7 +265,7 @@ with HMDAG(
     @task(task_id="prepare_cwl_stellar")
     def prepare_cwl_cmd6(**kwargs):
         if kwargs["dag_run"].conf.get("dryrun"):
-            cwl_path = Path(cwl_workflows[5]["workflow_path"]).parent
+            cwl_path = Path(cwl_workflows[2]["workflow_path"]).parent
             return build_tag_containers(cwl_path)
         else:
             return "No Container build required"
