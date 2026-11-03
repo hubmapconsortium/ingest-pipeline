@@ -289,7 +289,7 @@ with HMDAG(
             {"parameter_name": "--data_dir", "value": str(data_dir)},
         ]
 
-        command = get_cwl_cmd_from_workflows(workflows, 5, input_parameters, tmpdir, kwargs["ti"])
+        command = get_cwl_cmd_from_workflows(workflows, 2, input_parameters, tmpdir, kwargs["ti"])
 
         return join_quote_command_str(command)
 
