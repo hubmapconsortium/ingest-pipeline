@@ -70,6 +70,9 @@ resource_map:
       - 'task_re': '.*segmentation'
         'queue': 'gpu000_q1'
         'threads': 6
+      - 'task_re': '.*stellar'
+        'queue': 'gpu001_q1'
+        'threads': 6
       - 'task_re': '.*'
         'queue': 'general'
         'threads': 6
