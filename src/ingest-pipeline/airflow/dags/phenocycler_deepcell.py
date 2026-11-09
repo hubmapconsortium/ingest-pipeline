@@ -82,6 +82,12 @@ with HMDAG(
             "documentation_url": "",
         },
         {
+            "workflow_path": str(
+                get_absolute_workflow(Path("stellar", "pipeline.cwl"))
+            ),
+            "documentation_url": "",
+        },
+        {
             "workflow_path": str(get_absolute_workflow(Path("sprm", "pipeline.cwl"))),
             "documentation_url": "",
         },
@@ -256,6 +262,64 @@ with HMDAG(
 
     t_notify_user_stellar_pre_convert = notify_user_stellar_pre_convert()
 
+    @task(task_id="prepare_cwl_stellar")
+    def prepare_cwl_cmd6(**kwargs):
+        if kwargs["dag_run"].conf.get("dryrun"):
+            cwl_path = Path(cwl_workflows[2]["workflow_path"]).parent
+            return build_tag_containers(cwl_path)
+        else:
+            return "No Container build required"
+
+    prepare_cwl_stellar = prepare_cwl_cmd6()
+
+    def build_cwltool_cmd_stellar(**kwargs):
+        run_id = kwargs["run_id"]
+        tmpdir = get_tmp_dir_path(run_id)
+        print("tmpdir: ", tmpdir)
+        parent_data_dir = get_parent_data_dir(**kwargs)
+        print("parent_data_dir: ", parent_data_dir)
+        data_dir = tmpdir / "cwl_out"
+        print("data_dir: ", data_dir)
+
+        workflows = kwargs["ti"].xcom_pull(
+            key="cwl_workflows", task_ids="build_cwl_stellar_pre_convert"
+        )
+
+        input_parameters = [
+            {"parameter_name": "--data_dir", "value": str(data_dir)},
+        ]
+
+        command = get_cwl_cmd_from_workflows(workflows, 2, input_parameters, tmpdir, kwargs["ti"])
+
+        return join_quote_command_str(command)
+
+
+    t_build_cmd_stellar = PythonOperator(
+        task_id="build_cmd_stellar",
+        python_callable=build_cwltool_cmd_stellar,
+        provide_context=True,
+    )
+
+    t_pipeline_exec_cwl_stellar = BashOperator(
+        task_id="pipeline_exec_cwl_stellar",
+        bash_command=""" \
+            tmp_dir={{tmp_dir_path(run_id)}} ; \
+            {{ti.xcom_pull(task_ids='build_cmd_stellar')}} >> ${tmp_dir}/session.log 2>&1 ; \
+            echo $?
+            """,
+    )
+
+    t_maybe_keep_cwl_stellar = BranchPythonOperator(
+        task_id="maybe_keep_cwl_stellar",
+        python_callable=pythonop_maybe_keep,
+        provide_context=True,
+        op_kwargs={
+            "next_op": "prepare_cell_count_cmd",
+            "bail_op": "set_dataset_error",
+            "test_op": "pipeline_exec_cwl_stellar",
+        },
+    )
+
     prepare_cell_count_cmd = EmptyOperator(task_id="prepare_cell_count_cmd")
 
     @task(task_id="cell_count_cmd")
@@ -344,16 +408,24 @@ with HMDAG(
     (
         t_log_info
         >> t_create_tmpdir
+
         >> prepare_cwl_segmentation
         >> t_build_cwl_segmentation
         >> t_pipeline_exec_cwl_segmentation
         >> t_maybe_keep_cwl_segmentation
+
         >> prepare_stellar_pre_convert
         >> t_build_cwl_stellar_pre_convert
         >> t_pipeline_exec_cwl_stellar_pre_convert
         >> t_maybe_keep_cwl_stellar_pre_convert
         >> t_copy_stellar_pre_convert_data
         >> t_notify_user_stellar_pre_convert
+
+        >> prepare_cwl_stellar
+        >> t_build_cmd_stellar
+        >> t_pipeline_exec_cwl_stellar
+        >> t_maybe_keep_cwl_stellar
+
         >> prepare_cell_count_cmd
         >> cell_count_cmd
         >> t_maybe_start_small_sprm
