@@ -15,7 +15,7 @@ class TSVMetadataFile(MetadataFile):
         print('parsing tsv from %s' % self.path)
         md = []
         try:
-            with open(self.path, 'r', newline='', encoding='ascii') as f:
+            with open(self.path, 'r', newline='', encoding='utf-8') as f:
                 reader = csv.DictReader(f, delimiter='\t')
                 for row in reader:
                     md.append({k: v for k, v in row.items()})
