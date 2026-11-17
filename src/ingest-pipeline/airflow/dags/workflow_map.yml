@@ -164,4 +164,7 @@ workflow_map:
   - 'collection_type': '.*'
     'assay_type': 'gen_histology'
     'workflow': 'ometiff_pyramid'
+  - 'collection_type': '.*'
+    'assay_type': 'wes'
+    'workflow': 'salmon_whole_exome_sequencing'
 
