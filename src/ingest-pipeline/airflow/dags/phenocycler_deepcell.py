@@ -32,6 +32,8 @@ from utils import (
     post_to_slack_notify,
     pythonop_maybe_keep,
     pythonop_set_dataset_state,
+    pythonop_get_dataset_state,
+    get_parent_dataset_uuids_list,
 )
 
 from airflow.configuration import conf as airflow_conf
@@ -285,8 +287,16 @@ with HMDAG(
             key="cwl_workflows", task_ids="build_cwl_stellar_pre_convert"
         )
 
+        ds_rslt = pythonop_get_dataset_state(
+            dataset_uuid_callable=lambda **kwargs:
+            get_parent_dataset_uuids_list(**kwargs)[0], **kwargs)
+
+        organ_list = list(set(ds_rslt["organs"]))
+        organ_code = organ_list[0] if len(organ_list) == 1 else "multi"
+
         input_parameters = [
             {"parameter_name": "--data_dir", "value": str(data_dir)},
+            {"parameter_name": "--tissue", "value": organ_code},
         ]
 
         command = get_cwl_cmd_from_workflows(workflows, 2, input_parameters, tmpdir, kwargs["ti"])
